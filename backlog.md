@@ -32,6 +32,12 @@ Audit error paths: malformed markdown, missing directories, concurrent file oper
 
 Move from `~/projects/research/dashboard` to `~/projects/dashboard`.
 
+### Remove active/inactive column from project table
+- priority: medium
+- added: 2026-03-15
+
+All projects are active, so the status column is redundant. Remove it from the dashboard table.
+
 ## Done
 
 ### Project scanning and dashboard table
