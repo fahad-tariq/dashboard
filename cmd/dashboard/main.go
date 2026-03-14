@@ -30,6 +30,20 @@ var funcMap = template.FuncMap{
 		}
 		return m
 	},
+	"syncClass": func(status string) string {
+		switch {
+		case status == "clean":
+			return "clean"
+		case strings.HasPrefix(status, "ahead"):
+			return "ahead"
+		case strings.HasPrefix(status, "behind"):
+			return "behind"
+		case status == "diverged":
+			return "diverged"
+		default:
+			return "no-remote"
+		}
+	},
 }
 
 func main() {
@@ -95,6 +109,7 @@ func main() {
 
 	// Web UI.
 	r.Get("/", projectHandler.Dashboard)
+	r.Post("/sync", projectHandler.SyncRefresh)
 	r.Get("/projects/{slug}", projectHandler.ProjectDetail)
 	r.Get("/projects/{slug}/plans/*", projectHandler.PlanView)
 	r.Get("/projects/{slug}/expand", projectHandler.ExpandRow)

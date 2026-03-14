@@ -1,6 +1,7 @@
 package projects
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -26,6 +27,7 @@ type Project struct {
 	Updated       string   `json:"updated"`
 	BacklogLen    int      `json:"backlog_count"`
 	IsStale       bool     `json:"is_stale"`
+	GitSync       string   `json:"git_sync,omitempty"` // sync status vs remote
 }
 
 // ProjectDetail holds expanded info for a single project row.
@@ -83,6 +85,9 @@ func (s *Service) Scan() error {
 				UPDATE projects SET last_commit = ? WHERE slug = ?
 			`, commitDate, e.Name())
 		}
+
+		// Fetch remote refs so sync status stays current.
+		gitFetchQuiet(dir)
 	}
 
 	// Remove projects that no longer exist on disk.
@@ -219,6 +224,68 @@ func gitActivitySparkline(dir string) string {
 	return b.String()
 }
 
+// gitFetchQuiet fetches remote refs with a short timeout.
+func gitFetchQuiet(dir string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	exec.CommandContext(ctx, "git", "-C", dir, "fetch", "--quiet").Run()
+}
+
+// FetchAllRemotes runs git fetch for every known project directory.
+func (s *Service) FetchAllRemotes() {
+	rows, err := s.db.Query("SELECT path FROM projects")
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err == nil {
+			paths = append(paths, p)
+		}
+	}
+
+	for _, p := range paths {
+		gitFetchQuiet(p)
+	}
+}
+
+// gitSyncStatus returns the sync state of the local branch vs its remote tracking branch.
+// Uses locally cached remote refs (updated during Scan) -- no network calls.
+func gitSyncStatus(dir string) string {
+	// Get the upstream tracking ref.
+	upstream := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "@{upstream}")
+	if out, err := upstream.Output(); err != nil || strings.TrimSpace(string(out)) == "" {
+		return "no remote"
+	}
+
+	// Count commits ahead and behind.
+	cmd := exec.Command("git", "-C", dir, "rev-list", "--left-right", "--count", "HEAD...@{upstream}")
+	out, err := cmd.Output()
+	if err != nil {
+		return "no remote"
+	}
+
+	parts := strings.Fields(strings.TrimSpace(string(out)))
+	if len(parts) != 2 {
+		return "no remote"
+	}
+
+	ahead, behind := parts[0], parts[1]
+	switch {
+	case ahead != "0" && behind != "0":
+		return "diverged"
+	case ahead != "0":
+		return "ahead " + ahead
+	case behind != "0":
+		return "behind " + behind
+	default:
+		return "clean"
+	}
+}
+
 func (s *Service) upsert(slug, path string) error {
 	_, err := s.db.Exec(`
 		INSERT INTO projects (slug, path)
@@ -269,6 +336,7 @@ func (s *Service) List() ([]Project, error) {
 		p.RecentCommit = gitRecentCommitMessage(p.Path)
 		p.Activity = gitActivitySparkline(p.Path)
 		p.BacklogLen = s.countBacklogItems(p.Path)
+		p.GitSync = gitSyncStatus(p.Path)
 		projects = append(projects, p)
 	}
 	return projects, rows.Err()
@@ -327,6 +395,7 @@ func (s *Service) Get(slug string) (*Project, error) {
 	p.RecentCommit = gitRecentCommitMessage(p.Path)
 	p.Activity = gitActivitySparkline(p.Path)
 	p.BacklogLen = s.countBacklogItems(p.Path)
+	p.GitSync = gitSyncStatus(p.Path)
 	return &p, nil
 }
 

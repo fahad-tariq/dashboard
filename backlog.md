@@ -26,19 +26,20 @@ Document how to expose the dashboard over Tailscale for remote API access from i
 
 Audit error paths: malformed markdown, missing directories, concurrent file operations.
 
+
+## Done
+
 ### Rename project directory
-- priority: high
 - added: 2026-03-15
+- done: 2026-03-15
 
 Move from `~/projects/research/dashboard` to `~/projects/dashboard`.
 
-### Remove active/inactive column from project table
-- priority: medium
+### Replace status column with git sync status
 - added: 2026-03-15
+- done: 2026-03-15
 
-All projects are active, so the status column is redundant. Remove it from the dashboard table.
-
-## Done
+Replace redundant active/inactive column with git sync status showing ahead/behind/clean/diverged vs remote.
 
 ### Project scanning and dashboard table
 - added: 2026-03-14

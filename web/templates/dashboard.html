@@ -10,7 +10,18 @@
             <th class="col-push">Last push</th>
             <th class="col-recent">Recent</th>
             <th class="col-backlog">Backlog</th>
-            <th class="col-status">Status</th>
+            <th class="col-sync">
+                <button class="sync-refresh-btn"
+                        hx-post="/sync"
+                        hx-target="closest table"
+                        hx-select=".project-table"
+                        hx-swap="outerHTML"
+                        hx-indicator="this"
+                        title="Fetch all remotes and refresh">
+                    <span class="sync-label">Sync</span>
+                    <span class="sync-icon">&#x21bb;</span>
+                </button>
+            </th>
         </tr>
     </thead>
     <tbody>
@@ -21,7 +32,7 @@
             <td><span class="push-time{{if .IsStale}} stale{{end}}">{{if .LastCommitAgo}}{{.LastCommitAgo}}{{else}}--{{end}}</span></td>
             <td><span class="recent-msg">{{if .RecentCommit}}{{.RecentCommit}}{{else}}--{{end}}</span></td>
             <td><span class="backlog-count{{if gt .BacklogLen 0}} has-items{{end}}">{{if gt .BacklogLen 0}}{{.BacklogLen}}{{else}}--{{end}}</span></td>
-            <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+            <td><span class="sync-status sync-{{.GitSync | syncClass}}">{{.GitSync}}</span></td>
         </tr>
         <tr class="detail-row hidden" id="detail-{{.Slug}}"><td colspan="6"></td></tr>
     {{else}}

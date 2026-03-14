@@ -182,7 +182,44 @@ h1 {
 .col-push { width: 10%; white-space: nowrap; }
 .col-recent { width: 35%; }
 .col-backlog { width: 8%; text-align: right; white-space: nowrap; }
-.col-status { width: 5%; text-align: centre; }
+.col-sync { width: 8%; text-align: centre; white-space: nowrap; }
+
+.sync-refresh-btn {
+    background: none;
+    border: none;
+    color: var(--fg-muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.sync-refresh-btn:hover {
+    color: var(--accent);
+}
+.sync-icon {
+    font-size: 0.85rem;
+    display: inline-block;
+    transition: transform 0.2s;
+}
+.sync-refresh-btn:hover .sync-icon {
+    transform: rotate(45deg);
+}
+.sync-refresh-btn.htmx-request .sync-icon {
+    animation: spin 0.8s linear infinite;
+}
+.sync-refresh-btn.htmx-request {
+    pointer-events: none;
+    opacity: 0.6;
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
 
 .project-name {
     font-weight: 600;
@@ -316,6 +353,21 @@ h1 {
 .badge-active  { color: var(--green); border-color: var(--green); }
 .badge-paused  { color: var(--yellow); border-color: var(--yellow); }
 .badge-archived { color: var(--fg-muted); border-color: var(--surface1); }
+
+.sync-status {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid;
+}
+.sync-clean     { color: var(--green); border-color: var(--green); }
+.sync-ahead     { color: var(--yellow); border-color: var(--yellow); }
+.sync-behind    { color: var(--blue); border-color: var(--blue); }
+.sync-diverged  { color: var(--red); border-color: var(--red); }
+.sync-no-remote { color: var(--fg-muted); border-color: var(--surface1); }
 
 .tag {
     display: inline-block;

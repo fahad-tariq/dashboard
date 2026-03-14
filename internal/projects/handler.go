@@ -179,6 +179,11 @@ func (h *Handler) ExpandRow(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *Handler) SyncRefresh(w http.ResponseWriter, r *http.Request) {
+	h.svc.FetchAllRemotes()
+	h.Dashboard(w, r)
+}
+
 func (h *Handler) StatusEdit(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	project, err := h.svc.Get(slug)
