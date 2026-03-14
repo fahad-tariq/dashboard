@@ -286,11 +286,12 @@ func (s *Service) GetDetail(slug string) (*ProjectDetail, error) {
 	backlog, _ := ParseBacklog(p.Path)
 	var active []BacklogItem
 	for _, item := range backlog {
-		if item.Section == "Active" {
-			active = append(active, item)
-			if len(active) >= 5 {
-				break
-			}
+		if isDoneSection(item) {
+			continue
+		}
+		active = append(active, item)
+		if len(active) >= 5 {
+			break
 		}
 	}
 
@@ -330,18 +331,24 @@ func (s *Service) Get(slug string) (*Project, error) {
 }
 
 func (s *Service) countBacklogItems(projectPath string) int {
-	backlog := filepath.Join(projectPath, "backlog.md")
-	data, err := os.ReadFile(backlog)
+	items, err := ParseBacklog(projectPath)
 	if err != nil {
 		return 0
 	}
 	count := 0
-	for line := range strings.SplitSeq(string(data), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "### ") {
+	for _, item := range items {
+		if !isDoneSection(item) {
 			count++
 		}
 	}
 	return count
+}
+
+// isDoneSection returns true if the item belongs to a "done" section
+// or is individually marked as done.
+func isDoneSection(item BacklogItem) bool {
+	s := strings.ToLower(item.Section)
+	return s == "done" || s == "completed" || item.Done != ""
 }
 
 func isStale(isoDate string) bool {

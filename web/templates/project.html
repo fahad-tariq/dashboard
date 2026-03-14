@@ -27,7 +27,7 @@
 
 <div class="tab-panel active" id="panel-readme">
     <div class="panel-toolbar">
-        <button class="toolbar-btn" onclick="toggleEdit('readme', '{{.Project.Slug}}')">edit</button>
+        <button class="toolbar-btn" onclick="toggleEdit('readme')">edit</button>
     </div>
     <div class="panel-view" id="view-readme">
         <div class="markdown-body">{{.ReadmeHTML}}</div>
@@ -37,7 +37,7 @@
             <textarea name="content" class="file-editor" id="editor-readme">{{.ReadmeRaw}}</textarea>
             <div class="editor-actions">
                 <button type="submit" class="form-btn">save</button>
-                <button type="button" class="toolbar-btn" onclick="toggleEdit('readme', '{{.Project.Slug}}')">cancel</button>
+                <button type="button" class="toolbar-btn" onclick="toggleEdit('readme')">cancel</button>
             </div>
         </form>
     </div>
@@ -45,7 +45,7 @@
 
 <div class="tab-panel" id="panel-backlog">
     <div class="panel-toolbar">
-        <button class="toolbar-btn" onclick="toggleEdit('backlog', '{{.Project.Slug}}')">edit</button>
+        <button class="toolbar-btn" onclick="toggleEdit('backlog')">edit</button>
     </div>
     <div class="panel-view" id="view-backlog">
         {{if .BacklogRaw}}
@@ -59,7 +59,7 @@
             <textarea name="content" class="file-editor" id="editor-backlog">{{.BacklogRaw}}</textarea>
             <div class="editor-actions">
                 <button type="submit" class="form-btn">save</button>
-                <button type="button" class="toolbar-btn" onclick="toggleEdit('backlog', '{{.Project.Slug}}')">cancel</button>
+                <button type="button" class="toolbar-btn" onclick="toggleEdit('backlog')">cancel</button>
             </div>
         </form>
     </div>
