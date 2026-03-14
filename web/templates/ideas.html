@@ -1,0 +1,90 @@
+{{define "idea-card"}}
+<div class="idea-card">
+    <div class="idea-header">
+        <a href="/ideas/{{.Idea.Slug}}" class="idea-title">{{.Idea.Title}}</a>
+        {{if .Idea.Type}}<span class="badge badge-type">{{.Idea.Type}}</span>{{end}}
+    </div>
+    {{if .Idea.SuggestedProject}}
+    <span class="meta-dim">suggested: {{.Idea.SuggestedProject}}</span>
+    {{end}}
+    <div class="idea-actions">
+        {{if ne .Idea.Status "parked"}}
+        <form method="POST" action="/ideas/{{.Idea.Slug}}/triage" class="inline-triage">
+            <input type="hidden" name="action" value="park">
+            <button type="submit" class="action-btn">park</button>
+        </form>
+        {{end}}
+        {{if ne .Idea.Status "dropped"}}
+        <form method="POST" action="/ideas/{{.Idea.Slug}}/triage" class="inline-triage">
+            <input type="hidden" name="action" value="drop">
+            <button type="submit" class="action-btn action-drop">drop</button>
+        </form>
+        {{end}}
+        <form method="POST" action="/ideas/{{.Idea.Slug}}/triage" class="inline-triage">
+            <input type="hidden" name="action" value="assign">
+            <select name="project" class="form-select-sm">
+                {{range .Projects}}
+                <option value="{{.Slug}}">{{.Slug}}</option>
+                {{end}}
+            </select>
+            <button type="submit" class="action-btn action-assign">assign</button>
+        </form>
+    </div>
+</div>
+{{end}}
+
+{{define "content"}}
+<h1>Ideas Inbox</h1>
+
+<details class="quick-add" open>
+    <summary>Quick add</summary>
+    <form method="POST" action="/ideas/add" class="idea-form">
+        <input type="text" name="title" placeholder="Idea title" required class="form-input">
+        <select name="type" class="form-select">
+            <option value="feature">feature</option>
+            <option value="technical-exploration">technical-exploration</option>
+            <option value="wild-idea">wild-idea</option>
+            <option value="new-project">new-project</option>
+        </select>
+        <select name="suggested_project" class="form-select">
+            <option value="">no project</option>
+            {{range .Projects}}
+            <option value="{{.Slug}}">{{.Slug}}</option>
+            {{end}}
+        </select>
+        <textarea name="body" placeholder="Description (optional)" rows="2" class="form-textarea"></textarea>
+        <button type="submit" class="form-btn">add</button>
+    </form>
+</details>
+
+{{if .Untriaged}}
+<section>
+    <h2>Untriaged ({{len .Untriaged}})</h2>
+    {{range .Untriaged}}
+    {{template "idea-card" dict "Idea" . "Projects" $.Projects}}
+    {{end}}
+</section>
+{{end}}
+
+{{if .Parked}}
+<section>
+    <h2>Parked ({{len .Parked}})</h2>
+    {{range .Parked}}
+    {{template "idea-card" dict "Idea" . "Projects" $.Projects}}
+    {{end}}
+</section>
+{{end}}
+
+{{if .Dropped}}
+<section>
+    <h2>Dropped ({{len .Dropped}})</h2>
+    {{range .Dropped}}
+    {{template "idea-card" dict "Idea" . "Projects" $.Projects}}
+    {{end}}
+</section>
+{{end}}
+
+{{if and (not .Untriaged) (not .Parked) (not .Dropped)}}
+<p class="empty">No ideas yet. Add one above or POST to /api/v1/ideas.</p>
+{{end}}
+{{end}}

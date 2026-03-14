@@ -1,0 +1,14 @@
+services:
+  dashboard:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ~/projects:/data/projects
+      - ./ideas:/data/ideas
+      - ./data:/data/db
+    environment:
+      - PROJECTS_DIR=/data/projects
+      - IDEAS_DIR=/data/ideas
+      - DB_PATH=/data/db/dashboard.db
+      - DASHBOARD_API_TOKEN=${DASHBOARD_API_TOKEN}

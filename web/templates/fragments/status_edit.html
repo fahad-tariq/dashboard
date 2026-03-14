@@ -1,0 +1,13 @@
+{{define "status-edit"}}
+<form class="inline-form"
+      hx-put="/projects/{{.Slug}}/status"
+      hx-target="this"
+      hx-swap="outerHTML">
+    <select name="status" class="inline-select">
+        <option value="active" {{if eq .Status "active"}}selected{{end}}>active</option>
+        <option value="paused" {{if eq .Status "paused"}}selected{{end}}>paused</option>
+        <option value="archived" {{if eq .Status "archived"}}selected{{end}}>archived</option>
+    </select>
+    <button type="submit" class="inline-btn">save</button>
+</form>
+{{end}}

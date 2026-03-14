@@ -1,0 +1,14 @@
+# Build output
+bin/
+
+# Database
+data/
+
+# Ideas (runtime data, not source)
+ideas/
+
+# Environment
+.env
+
+# OS
+.DS_Store
