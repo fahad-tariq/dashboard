@@ -70,7 +70,7 @@
                         <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
                     </select>
                 </form>
-                {{if not .Graduated}}
+                {{if and (not .Graduated) (projectsEnabled)}}
                 <form method="POST" action="/tracker/{{.Slug}}/graduate" class="inline-triage">
                     <button type="submit" class="action-btn" onclick="return confirm('Graduate this item to a project?')">graduate</button>
                 </form>

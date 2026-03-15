@@ -44,7 +44,10 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projs, _ := h.projectSvc.List()
+	var projs []projects.Project
+	if h.projectSvc != nil {
+		projs, _ = h.projectSvc.List()
+	}
 
 	grouped := map[string][]Idea{
 		"untriaged": {},
@@ -138,6 +141,11 @@ func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 
 	action := r.FormValue("action")
 	project := r.FormValue("project")
+
+	if action == "assign" && h.projectsDir == "" {
+		http.Error(w, "Projects not configured", http.StatusBadRequest)
+		return
+	}
 
 	if err := h.svc.Triage(slug, action, project, h.projectsDir); err != nil {
 		slog.Error("triaging idea", "slug", slug, "action", action, "error", err)
@@ -248,6 +256,11 @@ func (h *Handler) APITriageIdea(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Action == "assign" && h.projectsDir == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "projects not configured"})
+		return
+	}
+
 	if err := h.svc.Triage(slug, req.Action, req.Project, h.projectsDir); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -277,6 +290,10 @@ func (h *Handler) APIAddResearch(w http.ResponseWriter, r *http.Request) {
 
 // APIListProjects returns all projects as JSON.
 func (h *Handler) APIListProjects(w http.ResponseWriter, r *http.Request) {
+	if h.projectSvc == nil {
+		writeJSON(w, http.StatusOK, []any{})
+		return
+	}
 	projs, err := h.projectSvc.List()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -287,6 +304,10 @@ func (h *Handler) APIListProjects(w http.ResponseWriter, r *http.Request) {
 
 // APIProjectDetail returns a single project as JSON.
 func (h *Handler) APIProjectDetail(w http.ResponseWriter, r *http.Request) {
+	if h.projectSvc == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "projects not configured"})
+		return
+	}
 	slug := chi.URLParam(r, "slug")
 	proj, err := h.projectSvc.Get(slug)
 	if err != nil {

@@ -120,8 +120,8 @@ func TestCountBacklogItems(t *testing.T) {
 	if len(list) != 1 {
 		t.Fatalf("expected 1 project, got %d", len(list))
 	}
-	// All ### headings count (active + done).
-	if list[0].BacklogLen != 3 {
-		t.Errorf("expected 3 backlog items, got %d", list[0].BacklogLen)
+	// Only active items count (done items are excluded).
+	if list[0].BacklogLen != 2 {
+		t.Errorf("expected 2 active backlog items, got %d", list[0].BacklogLen)
 	}
 }

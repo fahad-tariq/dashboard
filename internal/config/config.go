@@ -2,22 +2,29 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 )
 
 type Config struct {
-	ProjectsDir string
-	IdeasDir    string
-	TrackerPath string
-	DBPath      string
-	APIToken    string
-	Addr        string
+	ProjectsDir     string
+	ProjectsEnabled bool
+	IdeasDir        string
+	TrackerPath     string
+	DBPath          string
+	APIToken        string
+	Addr            string
 }
 
 func Load() (*Config, error) {
+	projectsDir := "/data/projects"
+	if v, ok := os.LookupEnv("PROJECTS_DIR"); ok {
+		projectsDir = v
+	}
+
 	c := &Config{
-		ProjectsDir: envOr("PROJECTS_DIR", "/data/projects"),
+		ProjectsDir: projectsDir,
 		IdeasDir:    envOr("IDEAS_DIR", "/data/ideas"),
 		TrackerPath: envOr("TRACKER_PATH", "/data/tracker.md"),
 		DBPath:      envOr("DB_PATH", "/data/db/dashboard.db"),
@@ -32,9 +39,13 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) validate() error {
-	if info, err := os.Stat(c.ProjectsDir); err != nil || !info.IsDir() {
-		return fmt.Errorf("PROJECTS_DIR %q is not a valid directory", c.ProjectsDir)
+	if c.ProjectsDir != "" {
+		if info, err := os.Stat(c.ProjectsDir); err != nil || !info.IsDir() {
+			slog.Warn("PROJECTS_DIR not available, projects feature disabled", "path", c.ProjectsDir)
+			c.ProjectsDir = ""
+		}
 	}
+	c.ProjectsEnabled = c.ProjectsDir != ""
 
 	// Ensure ideas subdirectories exist.
 	for _, sub := range []string{"untriaged", "parked", "dropped", "research"} {

@@ -14,17 +14,41 @@ Currently only Catppuccin Latte/Mocha. Add theme switcher extensibility for cust
 
 Touch targets, single-column layout adjustments, disable glow effects on mobile.
 
-### Tailscale integration documentation
-- priority: medium
+### Tailscale: install client on dashboard host
+- priority: low
 - added: 2026-03-15
 
-Document how to expose the dashboard over Tailscale for remote API access from ironclaw.
+Install and configure Tailscale client on the machine running the dashboard so it is reachable on the tailnet.
+
+### Tailscale: install client on ironclaw
+- priority: low
+- added: 2026-03-15
+
+Install and configure Tailscale client on ironclaw so it can reach the dashboard over the tailnet.
 
 ### Backups and visual inspection of markdown files
 - priority: medium
 - added: 2026-03-15
 
 Add a mechanism to back up tracker.md and ideas files before writes. Consider a visual diff or preview of the raw markdown in the UI for manual inspection.
+
+### Make PROJECTS_DIR optional
+- priority: high
+- added: 2026-03-15
+
+Gracefully degrade when PROJECTS_DIR is empty or missing. Tracker, ideas, and goals work as normal. Projects page shows empty state. Allows running on a server without git repos.
+
+### CI: GitHub Actions image build and ghcr.io push
+- priority: high
+- added: 2026-03-15
+
+On push to main, build Docker image and push to ghcr.io. Both macOS and home server pull the same image with different docker-compose configs.
+
+### Syncthing data sync between instances
+- priority: high
+- added: 2026-03-15
+
+Use Syncthing over Tailscale to sync tracker.md and ideas/ between macOS and home server. Exclude SQLite DB files (*.db, *.db-wal, *.db-shm) — each instance rebuilds its own cache via Resync(). fsnotify already detects changes and triggers SSE updates.
 
 ### Error handling and edge cases
 - priority: low

@@ -327,6 +327,10 @@ func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 
 // Graduate creates a project from a tracker item.
 func (h *Handler) Graduate(w http.ResponseWriter, r *http.Request) {
+	if h.projectsDir == "" {
+		http.Error(w, "Projects not configured", http.StatusBadRequest)
+		return
+	}
 	slug := chi.URLParam(r, "slug")
 	if err := h.svc.Graduate(slug, h.projectsDir); err != nil {
 		slog.Error("graduating tracker item", "slug", slug, "error", err)

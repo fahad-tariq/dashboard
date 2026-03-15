@@ -89,17 +89,23 @@ func main() {
 	}
 	defer database.Close()
 
+	funcMap["projectsEnabled"] = func() bool { return cfg.ProjectsEnabled }
+
 	templates, err := parseTemplates()
 	if err != nil {
 		slog.Error("parsing templates", "error", err)
 		os.Exit(1)
 	}
 
-	projectSvc := projects.NewService(database, cfg.ProjectsDir)
-	projectStore := projects.NewStore(database)
-	if err := projectSvc.Scan(); err != nil {
-		slog.Error("initial project scan", "error", err)
-		os.Exit(1)
+	var projectSvc *projects.Service
+	var projectStore *projects.Store
+	if cfg.ProjectsEnabled {
+		projectSvc = projects.NewService(database, cfg.ProjectsDir)
+		projectStore = projects.NewStore(database)
+		if err := projectSvc.Scan(); err != nil {
+			slog.Error("initial project scan", "error", err)
+			os.Exit(1)
+		}
 	}
 
 	ideaSvc := ideas.NewService(cfg.IdeasDir)
@@ -111,29 +117,39 @@ func main() {
 	broker := sse.NewBroker()
 
 	// Start file watcher.
-	watchDirs := []string{cfg.ProjectsDir, cfg.IdeasDir}
+	var watchDirs []string
+	if cfg.ProjectsEnabled {
+		watchDirs = append(watchDirs, cfg.ProjectsDir)
+	}
+	watchDirs = append(watchDirs, cfg.IdeasDir)
 	if dir := filepath.Dir(cfg.TrackerPath); dir != cfg.ProjectsDir && dir != cfg.IdeasDir {
 		watchDirs = append(watchDirs, dir)
 	}
-	if err := watcher.Watch(watchDirs, broker, map[string]func(){
-		"projects": func() {
-			if err := projectSvc.Scan(); err != nil {
-				slog.Error("rescan failed", "error", err)
-			}
-		},
+	callbacks := map[string]func(){
 		"tracker": func() {
 			if err := trackerSvc.Resync(); err != nil {
 				slog.Error("tracker resync failed", "error", err)
 			}
 		},
-	}); err != nil {
+	}
+	if cfg.ProjectsEnabled {
+		callbacks["projects"] = func() {
+			if err := projectSvc.Scan(); err != nil {
+				slog.Error("rescan failed", "error", err)
+			}
+		}
+	}
+	if err := watcher.Watch(watchDirs, broker, callbacks); err != nil {
 		slog.Warn("file watcher failed to start", "error", err)
 	}
 
-	projectHandler := projects.NewHandler(projectSvc, projectStore, func() (int, int, error) {
-		s, err := trackerSvc.Summary()
-		return s.OpenTasks, s.ActiveGoals, err
-	}, templates)
+	var projectHandler *projects.Handler
+	if cfg.ProjectsEnabled {
+		projectHandler = projects.NewHandler(projectSvc, projectStore, func() (int, int, error) {
+			s, err := trackerSvc.Summary()
+			return s.OpenTasks, s.ActiveGoals, err
+		}, templates)
+	}
 	ideaHandler := ideas.NewHandler(ideaSvc, projectSvc, cfg.ProjectsDir, func(title, body, typeTag string) error {
 		item := tracker.Item{
 			Title: title,
@@ -173,14 +189,16 @@ func main() {
 	r.Post("/tracker/{slug}/priority", trackerHandler.UpdatePriority)
 	r.Post("/tracker/{slug}/tags", trackerHandler.UpdateTags)
 
-	r.Get("/projects", projectHandler.Dashboard)
-	r.Post("/sync", projectHandler.SyncRefresh)
-	r.Get("/projects/{slug}", projectHandler.ProjectDetail)
-	r.Get("/projects/{slug}/plans/*", projectHandler.PlanView)
-	r.Get("/projects/{slug}/expand", projectHandler.ExpandRow)
-	r.Post("/projects/{slug}/save/{filename}", projectHandler.SaveFile)
-	r.Get("/projects/{slug}/status-edit", projectHandler.StatusEdit)
-	r.Put("/projects/{slug}/status", projectHandler.StatusUpdate)
+	if cfg.ProjectsEnabled {
+		r.Get("/projects", projectHandler.Dashboard)
+		r.Post("/sync", projectHandler.SyncRefresh)
+		r.Get("/projects/{slug}", projectHandler.ProjectDetail)
+		r.Get("/projects/{slug}/plans/*", projectHandler.PlanView)
+		r.Get("/projects/{slug}/expand", projectHandler.ExpandRow)
+		r.Post("/projects/{slug}/save/{filename}", projectHandler.SaveFile)
+		r.Get("/projects/{slug}/status-edit", projectHandler.StatusEdit)
+		r.Put("/projects/{slug}/status", projectHandler.StatusUpdate)
+	}
 
 	r.Get("/ideas", ideaHandler.IdeasPage)
 	r.Get("/ideas/{slug}", ideaHandler.IdeaDetail)

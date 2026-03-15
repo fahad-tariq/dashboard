@@ -20,7 +20,7 @@
         <div class="nav-links">
             <a href="/">tasks</a>
             <a href="/goals">goals</a>
-            <a href="/projects">projects</a>
+            {{if projectsEnabled}}<a href="/projects">projects</a>{{end}}
             <a href="/ideas">ideas</a>
         </div>
         <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme"></button>

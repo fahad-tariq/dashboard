@@ -38,7 +38,7 @@ All configuration is via environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PROJECTS_DIR` | `/data/projects` | Directory containing project repos |
+| `PROJECTS_DIR` | `/data/projects` | Directory containing project repos (optional — omit or set empty for tracker-only mode) |
 | `IDEAS_DIR` | `/data/ideas` | Directory for idea markdown files |
 | `TRACKER_PATH` | `/data/tracker.md` | Path to the tracker markdown file |
 | `DB_PATH` | `/data/db/dashboard.db` | SQLite database path |

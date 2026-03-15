@@ -29,6 +29,7 @@
         <form method="POST" action="/ideas/{{.Idea.Slug}}/to-task" class="inline-triage">
             <button type="submit" class="action-btn action-assign">to task</button>
         </form>
+        {{if .Projects}}
         <form method="POST" action="/ideas/{{.Idea.Slug}}/triage" class="inline-triage">
             <input type="hidden" name="action" value="assign">
             <select name="project" class="form-select-sm">
@@ -38,6 +39,7 @@
             </select>
             <button type="submit" class="action-btn action-assign">assign</button>
         </form>
+        {{end}}
     </div>
 </div>
 {{end}}
@@ -64,12 +66,14 @@
             <option value="wild-idea">wild-idea</option>
             <option value="new-project">new-project</option>
         </select>
+        {{if .Projects}}
         <select name="suggested_project" class="form-select">
             <option value="">no project</option>
             {{range .Projects}}
             <option value="{{.Slug}}">{{.Slug}}</option>
             {{end}}
         </select>
+        {{end}}
         <textarea name="body" placeholder="Description (optional)" rows="2" class="form-textarea"></textarea>
         <button type="submit" class="form-btn">add</button>
     </form>
