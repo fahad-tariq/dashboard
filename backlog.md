@@ -8,11 +8,6 @@
 
 Currently only Catppuccin Latte/Mocha. Add theme switcher extensibility for custom colour schemes.
 
-### Mobile layout refinements
-- priority: medium
-- added: 2026-03-15
-
-Touch targets, single-column layout adjustments, disable glow effects on mobile.
 
 ### Tailscale: install client on dashboard host
 - priority: low
@@ -40,6 +35,12 @@ Audit error paths: malformed markdown, missing directories, concurrent file oper
 
 
 ## Done
+
+### Mobile layout refinements
+- added: 2026-03-15
+- done: 2026-03-16
+
+Touch targets meet 44px WCAG minimum, nav scrolls horizontally, tracker headers wrap, project table hides non-essential columns, iOS zoom-on-focus prevented, tabs and stats responsive.
 
 ### Make PROJECTS_DIR optional
 - added: 2026-03-15
