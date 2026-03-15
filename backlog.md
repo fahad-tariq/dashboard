@@ -32,24 +32,6 @@ Install and configure Tailscale client on ironclaw so it can reach the dashboard
 
 Add a mechanism to back up tracker.md and ideas files before writes. Consider a visual diff or preview of the raw markdown in the UI for manual inspection.
 
-### Make PROJECTS_DIR optional
-- priority: high
-- added: 2026-03-15
-
-Gracefully degrade when PROJECTS_DIR is empty or missing. Tracker, ideas, and goals work as normal. Projects page shows empty state. Allows running on a server without git repos.
-
-### CI: GitHub Actions image build and ghcr.io push
-- priority: high
-- added: 2026-03-15
-
-On push to main, build Docker image and push to ghcr.io. Both macOS and home server pull the same image with different docker-compose configs.
-
-### Syncthing data sync between instances
-- priority: high
-- added: 2026-03-15
-
-Use Syncthing over Tailscale to sync tracker.md and ideas/ between macOS and home server. Exclude SQLite DB files (*.db, *.db-wal, *.db-shm) — each instance rebuilds its own cache via Resync(). fsnotify already detects changes and triggers SSE updates.
-
 ### Error handling and edge cases
 - priority: low
 - added: 2026-03-15
@@ -58,6 +40,24 @@ Audit error paths: malformed markdown, missing directories, concurrent file oper
 
 
 ## Done
+
+### Make PROJECTS_DIR optional
+- added: 2026-03-15
+- done: 2026-03-16
+
+Gracefully degrade when PROJECTS_DIR is empty or missing. Tracker, ideas, and goals work as normal. Projects nav, graduate buttons, and assign forms hidden. API returns empty lists.
+
+### CI: GitHub Actions image build and ghcr.io push
+- added: 2026-03-15
+- done: 2026-03-16
+
+On push to main, build Docker image and push to ghcr.io/fahad-tariq/dashboard with latest + SHA tags.
+
+### Deployment model: NAS primary, macOS read-only
+- added: 2026-03-16
+- done: 2026-03-16
+
+Decided on single-writer architecture: NAS (ironclaw) runs the writable instance with tracker/ideas over Tailscale. macOS runs a projects-only instance locally. No data sync needed. Syncthing item dropped.
 
 ### Tracker feature: tasks and goals
 - added: 2026-03-15

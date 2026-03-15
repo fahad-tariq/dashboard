@@ -1173,15 +1173,33 @@ section h2 {
 /* --- Mobile --- */
 @media (max-width: 768px) {
     .container {
-        padding: 1rem 0.5rem;
+        padding: 0.75rem 0.5rem;
     }
+
+    /* Nav: horizontal scroll instead of wrapping */
     .nav {
-        padding: 0.5rem 1rem;
+        padding: 0.5rem 0.75rem;
+        gap: 0.75rem;
     }
+    .nav-links {
+        gap: 0.75rem;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .nav-links::-webkit-scrollbar { display: none; }
+    .nav-links a {
+        white-space: nowrap;
+    }
+
+    /* Project table: hide non-essential columns */
     .project-table {
         font-size: 0.8rem;
     }
     .col-activity, .col-recent {
+        display: none;
+    }
+    .col-push {
         display: none;
     }
     .detail-content {
@@ -1189,11 +1207,62 @@ section h2 {
         gap: 1rem;
         padding-left: 0.75rem;
     }
+
+    /* Touch targets: min 44px as per WCAG */
     .action-btn, .item-complete-btn, .item-undo-btn, .item-toggle {
-        min-height: 2.2rem;
-        min-width: 2.2rem;
+        min-height: 2.75rem;
+        min-width: 2.75rem;
         font-size: 0.85rem;
     }
+    .form-select-sm {
+        min-height: 2.75rem;
+        font-size: 0.85rem;
+        padding: 0.3rem 0.4rem;
+    }
+    .filter-tag {
+        min-height: 2.2rem;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.75rem;
+    }
+    .toolbar-btn {
+        min-height: 2.75rem;
+        padding: 0.4rem 0.8rem;
+    }
+    .theme-toggle {
+        min-height: 2.75rem;
+        min-width: 2.75rem;
+        font-size: 1.1rem;
+    }
+
+    /* Tracker header: allow meta to wrap below title */
+    .tracker-item-header {
+        flex-wrap: wrap;
+    }
+    .tracker-item-title {
+        flex-basis: calc(100% - 2rem);
+        white-space: normal;
+    }
+    .tracker-item-meta {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        width: 100%;
+        padding-left: 1.9rem;
+    }
+
+    /* Tracker actions: full width, wrap */
+    .tracker-item-actions {
+        flex-wrap: wrap;
+    }
+
+    /* Ideas: actions wrap properly */
+    .idea-actions {
+        gap: 0.35rem;
+    }
+    .idea-header {
+        flex-wrap: wrap;
+    }
+
+    /* Forms: full width inputs */
     .goal-form-row {
         flex-wrap: wrap;
     }
@@ -1201,7 +1270,28 @@ section h2 {
         max-width: none;
         flex: 1;
     }
-    .filter-tag {
-        padding: 0.3rem 0.6rem;
+    .idea-form .form-select {
+        width: 100%;
+    }
+    .form-input, .form-select, .form-textarea {
+        font-size: 16px; /* prevents iOS zoom on focus */
+    }
+
+    /* Summary stats: wrap on narrow screens */
+    .summary-stats {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    /* Tabs: scrollable */
+    .tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab {
+        white-space: nowrap;
+        min-height: 2.75rem;
     }
 }
