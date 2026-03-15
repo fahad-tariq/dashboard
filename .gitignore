@@ -5,7 +5,7 @@ bin/
 data/
 
 # Ideas (runtime data, not source)
-ideas/
+/ideas/
 
 # Environment
 .env

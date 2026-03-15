@@ -1,7 +1,10 @@
 {{define "content"}}
 <h1>Projects</h1>
+<div class="summary-stats">
+    <span class="stat-item"><span class="stat-value">{{len .Projects}}</span> projects</span>
+</div>
 <table class="project-table"
-       hx-get="/" hx-select=".project-table" hx-target="this" hx-swap="outerHTML"
+       hx-get="/projects" hx-select=".project-table" hx-target="this" hx-swap="outerHTML"
        hx-trigger="sse:file-changed">
     <thead>
         <tr>

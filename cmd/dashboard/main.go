@@ -3,11 +3,14 @@ package main
 import (
 	"crypto/subtle"
 	"fmt"
+	"html"
 	"html/template"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -18,6 +21,7 @@ import (
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/projects"
 	"github.com/fahad/dashboard/internal/sse"
+	"github.com/fahad/dashboard/internal/tracker"
 	"github.com/fahad/dashboard/internal/watcher"
 	"github.com/fahad/dashboard/web"
 )
@@ -44,7 +48,29 @@ var funcMap = template.FuncMap{
 			return "no-remote"
 		}
 	},
+	"percentage": func(current, target float64) int {
+		if target == 0 {
+			return 0
+		}
+		p := int(current / target * 100)
+		return max(0, min(p, 100))
+	},
+	"formatNum": func(f float64) string {
+		if f == float64(int(f)) {
+			return fmt.Sprintf("%d", int(f))
+		}
+		return fmt.Sprintf("%g", f)
+	},
+	"linkify": func(text string) template.HTML {
+		escaped := html.EscapeString(text)
+		linked := urlRe.ReplaceAllStringFunc(escaped, func(u string) string {
+			return `<a href="` + u + `" target="_blank" rel="noopener">` + u + `</a>`
+		})
+		return template.HTML(linked)
+	},
 }
+
+var urlRe = regexp.MustCompile(`https?://[^\s<>"` + "`" + `]+`)
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -77,23 +103,49 @@ func main() {
 	}
 
 	ideaSvc := ideas.NewService(cfg.IdeasDir)
+	trackerStore := tracker.NewStore(database)
+	trackerSvc := tracker.NewService(cfg.TrackerPath, trackerStore)
+	if err := trackerSvc.Resync(); err != nil {
+		slog.Warn("initial tracker sync", "error", err)
+	}
 	broker := sse.NewBroker()
 
 	// Start file watcher.
-	if err := watcher.Watch(
-		[]string{cfg.ProjectsDir, cfg.IdeasDir},
-		broker,
-		func() {
+	watchDirs := []string{cfg.ProjectsDir, cfg.IdeasDir}
+	if dir := filepath.Dir(cfg.TrackerPath); dir != cfg.ProjectsDir && dir != cfg.IdeasDir {
+		watchDirs = append(watchDirs, dir)
+	}
+	if err := watcher.Watch(watchDirs, broker, map[string]func(){
+		"projects": func() {
 			if err := projectSvc.Scan(); err != nil {
 				slog.Error("rescan failed", "error", err)
 			}
 		},
-	); err != nil {
+		"tracker": func() {
+			if err := trackerSvc.Resync(); err != nil {
+				slog.Error("tracker resync failed", "error", err)
+			}
+		},
+	}); err != nil {
 		slog.Warn("file watcher failed to start", "error", err)
 	}
 
-	projectHandler := projects.NewHandler(projectSvc, projectStore, templates)
-	ideaHandler := ideas.NewHandler(ideaSvc, projectSvc, cfg.ProjectsDir, templates)
+	projectHandler := projects.NewHandler(projectSvc, projectStore, func() (int, int, error) {
+		s, err := trackerSvc.Summary()
+		return s.OpenTasks, s.ActiveGoals, err
+	}, templates)
+	ideaHandler := ideas.NewHandler(ideaSvc, projectSvc, cfg.ProjectsDir, func(title, body, typeTag string) error {
+		item := tracker.Item{
+			Title: title,
+			Type:  tracker.TaskType,
+			Body:  body,
+		}
+		if typeTag != "" {
+			item.Tags = []string{typeTag}
+		}
+		return trackerSvc.AddItem(item)
+	}, templates)
+	trackerHandler := tracker.NewHandler(trackerSvc, cfg.ProjectsDir, templates)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
@@ -107,8 +159,21 @@ func main() {
 	// SSE endpoint for live reload.
 	r.Get("/events", broker.ServeHTTP)
 
-	// Web UI.
-	r.Get("/", projectHandler.Dashboard)
+	// Web UI -- tasks homepage, goals separate tab.
+	r.Get("/", trackerHandler.TrackerPage)
+	r.Get("/goals", trackerHandler.GoalsPage)
+	r.Post("/tracker/add", trackerHandler.QuickAdd)
+	r.Post("/tracker/add-goal", trackerHandler.AddGoal)
+	r.Post("/tracker/{slug}/complete", trackerHandler.Complete)
+	r.Post("/tracker/{slug}/uncomplete", trackerHandler.Uncomplete)
+	r.Post("/tracker/{slug}/progress", trackerHandler.UpdateProgress)
+	r.Post("/tracker/{slug}/graduate", trackerHandler.Graduate)
+	r.Post("/tracker/{slug}/notes", trackerHandler.UpdateNotes)
+	r.Post("/tracker/{slug}/delete", trackerHandler.Delete)
+	r.Post("/tracker/{slug}/priority", trackerHandler.UpdatePriority)
+	r.Post("/tracker/{slug}/tags", trackerHandler.UpdateTags)
+
+	r.Get("/projects", projectHandler.Dashboard)
 	r.Post("/sync", projectHandler.SyncRefresh)
 	r.Get("/projects/{slug}", projectHandler.ProjectDetail)
 	r.Get("/projects/{slug}/plans/*", projectHandler.PlanView)
@@ -121,6 +186,7 @@ func main() {
 	r.Get("/ideas/{slug}", ideaHandler.IdeaDetail)
 	r.Post("/ideas/add", ideaHandler.QuickAdd)
 	r.Post("/ideas/{slug}/triage", ideaHandler.TriageAction)
+	r.Post("/ideas/{slug}/to-task", ideaHandler.ToTask)
 
 	// REST API with bearer token auth.
 	r.Route("/api/v1", func(r chi.Router) {
@@ -167,7 +233,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		return nil, fmt.Errorf("parsing layout: %w", err)
 	}
 
-	pages := []string{"dashboard.html", "project.html", "plan.html", "ideas.html", "idea.html"}
+	pages := []string{"dashboard.html", "project.html", "plan.html", "ideas.html", "idea.html", "tracker.html", "goals.html"}
 	templates := make(map[string]*template.Template, len(pages)+1)
 
 	for _, page := range pages {

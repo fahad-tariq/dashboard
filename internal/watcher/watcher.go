@@ -15,7 +15,8 @@ import (
 const debounceInterval = 500 * time.Millisecond
 
 // Watch monitors directories for file changes and broadcasts SSE events.
-func Watch(dirs []string, broker *sse.Broker, rescan func()) error {
+// The callbacks map dispatches by event category (e.g. "projects", "ideas", "tracker").
+func Watch(dirs []string, broker *sse.Broker, callbacks map[string]func()) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -28,11 +29,11 @@ func Watch(dirs []string, broker *sse.Broker, rescan func()) error {
 		}
 	}
 
-	go run(w, broker, rescan)
+	go run(w, broker, callbacks)
 	return nil
 }
 
-func run(w *fsnotify.Watcher, broker *sse.Broker, rescan func()) {
+func run(w *fsnotify.Watcher, broker *sse.Broker, callbacks map[string]func()) {
 	defer w.Close()
 
 	timer := time.NewTimer(0)
@@ -69,8 +70,8 @@ func run(w *fsnotify.Watcher, broker *sse.Broker, rescan func()) {
 			if pending != "" {
 				slog.Info("file change detected", "type", pending)
 				broker.Send("file-changed", pending)
-				if pending == "projects" {
-					rescan()
+				if cb, ok := callbacks[pending]; ok {
+					cb()
 				}
 				pending = ""
 			}
@@ -97,6 +98,11 @@ func classifyEvent(path string) string {
 	// Skip anything inside .git directories.
 	if strings.Contains(path, string(filepath.Separator)+".git"+string(filepath.Separator)) {
 		return ""
+	}
+
+	// Tracker file detection (by filename).
+	if name == "tracker.md" {
+		return "tracker"
 	}
 
 	dir := filepath.Dir(path)

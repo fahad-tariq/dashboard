@@ -20,6 +20,12 @@ Touch targets, single-column layout adjustments, disable glow effects on mobile.
 
 Document how to expose the dashboard over Tailscale for remote API access from ironclaw.
 
+### Backups and visual inspection of markdown files
+- priority: medium
+- added: 2026-03-15
+
+Add a mechanism to back up tracker.md and ideas files before writes. Consider a visual diff or preview of the raw markdown in the UI for manual inspection.
+
 ### Error handling and edge cases
 - priority: low
 - added: 2026-03-15
@@ -28,6 +34,12 @@ Audit error paths: malformed markdown, missing directories, concurrent file oper
 
 
 ## Done
+
+### Tracker feature: tasks and goals
+- added: 2026-03-15
+- done: 2026-03-15
+
+Full personal tracker with tasks (/) and goals (/goals) pages. Features: tags, priorities, progress bars, quick-add forms, complete/uncomplete/delete, graduation to projects, inline notes/tag/priority editing, filter bar with persistence, SSE live reload, expand/collapse animation, idea-to-task conversion. Markdown source of truth (tracker.md) with SQLite cache.
 
 ### Rename project directory
 - added: 2026-03-15

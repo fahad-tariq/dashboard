@@ -1,14 +1,15 @@
 # Dashboard
 
-Personal project dashboard that scans `~/projects/` directories, renders their README and backlog files, and provides an ideas inbox with triage workflow. Built to solve three problems: ideas getting lost, context loss when returning to projects after weeks, and no cross-project overview.
+Personal dashboard for tracking tasks, goals, projects, and ideas. Four tabs: tasks (homepage), goals, projects, ideas. Markdown source of truth with SQLite cache, live reload via SSE, Catppuccin themes.
 
 ## What it does
 
-- Scans a projects directory for git repos containing `README.md`
-- Displays projects in a table with git activity sparklines, last push time, recent commit messages, and backlog counts
-- Renders `README.md` and `backlog.md` per project with inline editing
-- Ideas inbox: capture ideas as individual markdown files, triage them (park, drop, assign to a project's backlog)
-- REST API for external integrations (e.g. pushing ideas from an AI assistant via Tailscale)
+- **Tasks** (`/`): personal task tracker with tags, priorities, notes, complete/uncomplete/delete, filter by tag or priority, expand/collapse items
+- **Goals** (`/goals`): measurable goals with optional progress bars (current/target), +1/-1 and set controls
+- **Projects** (`/projects`): scans a directory for git repos, displays activity sparklines, last push, recent commits, backlog counts, expandable detail rows
+- **Ideas** (`/ideas`): capture ideas as markdown files, triage (park, drop, assign to project backlog, convert to task)
+- **Graduation**: promote a task or goal to a full project (creates directory with git init + README)
+- REST API for external integrations
 - Live reload via SSE when files change on disk
 - Catppuccin colour themes (Latte for light, Mocha for dark)
 
@@ -39,6 +40,7 @@ All configuration is via environment variables:
 |----------|---------|-------------|
 | `PROJECTS_DIR` | `/data/projects` | Directory containing project repos |
 | `IDEAS_DIR` | `/data/ideas` | Directory for idea markdown files |
+| `TRACKER_PATH` | `/data/tracker.md` | Path to the tracker markdown file |
 | `DB_PATH` | `/data/db/dashboard.db` | SQLite database path |
 | `DASHBOARD_API_TOKEN` | _(empty)_ | Bearer token for API auth (disabled if empty) |
 | `ADDR` | `:8080` | Listen address |
@@ -73,6 +75,21 @@ curl -X POST http://localhost:8080/api/v1/ideas \
   -H "Content-Type: application/json" \
   -d '{"title":"Try Caddy instead of nginx","type":"technical-exploration","body":"Replace nginx with Caddy for automatic HTTPS."}'
 ```
+
+## Tracker storage
+
+Tasks and goals are stored in a single markdown file (`tracker.md`):
+
+```markdown
+# Tracker
+
+- [ ] Deploy app !high [added: 2026-03-15] [tags: work, devops]
+  Notes and links go here as indented body text
+- [ ] Read 40 books [goal: 12/40 books] [added: 2026-03-15] [tags: reading]
+- [x] Set up CI [added: 2026-03-10] [completed: 2026-03-15] [tags: work]
+```
+
+Inline metadata: `!priority`, `[goal: current/target unit]`, `[added: date]`, `[completed: date]`, `[tags: comma, separated]`, `[graduated]`.
 
 ## Ideas storage
 

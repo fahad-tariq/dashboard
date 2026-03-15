@@ -10,5 +10,6 @@ services:
     environment:
       - PROJECTS_DIR=/data/projects
       - IDEAS_DIR=/data/ideas
+      - TRACKER_PATH=/data/db/tracker.md
       - DB_PATH=/data/db/dashboard.db
       - DASHBOARD_API_TOKEN=${DASHBOARD_API_TOKEN}

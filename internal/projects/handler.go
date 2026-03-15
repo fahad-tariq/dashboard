@@ -13,14 +13,18 @@ import (
 	"github.com/fahad/dashboard/internal/markdown"
 )
 
+// TrackerSummaryFunc returns tracker summary counts for the dashboard.
+type TrackerSummaryFunc func() (openTasks int, activeGoals int, err error)
+
 type Handler struct {
-	svc       *Service
-	store     *Store
-	templates map[string]*template.Template
+	svc            *Service
+	store          *Store
+	trackerSummary TrackerSummaryFunc
+	templates      map[string]*template.Template
 }
 
-func NewHandler(svc *Service, store *Store, templates map[string]*template.Template) *Handler {
-	return &Handler{svc: svc, store: store, templates: templates}
+func NewHandler(svc *Service, store *Store, trackerSummary TrackerSummaryFunc, templates map[string]*template.Template) *Handler {
+	return &Handler{svc: svc, store: store, trackerSummary: trackerSummary, templates: templates}
 }
 
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
@@ -31,9 +35,16 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var openTasks, activeGoals int
+	if h.trackerSummary != nil {
+		openTasks, activeGoals, _ = h.trackerSummary()
+	}
+
 	data := map[string]any{
-		"Title":    "Dashboard",
-		"Projects": projects,
+		"Title":       "Dashboard",
+		"Projects":    projects,
+		"OpenTasks":   openTasks,
+		"ActiveGoals": activeGoals,
 	}
 
 	if err := h.templates["dashboard.html"].ExecuteTemplate(w, "layout.html", data); err != nil {

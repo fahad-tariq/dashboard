@@ -8,6 +8,12 @@
     <span class="meta-dim">suggested: {{.Idea.SuggestedProject}}</span>
     {{end}}
     <div class="idea-actions">
+        {{if ne .Idea.Status "untriaged"}}
+        <form method="POST" action="/ideas/{{.Idea.Slug}}/triage" class="inline-triage">
+            <input type="hidden" name="action" value="untriage">
+            <button type="submit" class="action-btn">untriage</button>
+        </form>
+        {{end}}
         {{if ne .Idea.Status "parked"}}
         <form method="POST" action="/ideas/{{.Idea.Slug}}/triage" class="inline-triage">
             <input type="hidden" name="action" value="park">
@@ -20,6 +26,9 @@
             <button type="submit" class="action-btn action-drop">drop</button>
         </form>
         {{end}}
+        <form method="POST" action="/ideas/{{.Idea.Slug}}/to-task" class="inline-triage">
+            <button type="submit" class="action-btn action-assign">to task</button>
+        </form>
         <form method="POST" action="/ideas/{{.Idea.Slug}}/triage" class="inline-triage">
             <input type="hidden" name="action" value="assign">
             <select name="project" class="form-select-sm">
@@ -34,7 +43,16 @@
 {{end}}
 
 {{define "content"}}
-<h1>Ideas Inbox</h1>
+<div class="ideas-page"
+     hx-get="/ideas" hx-select=".ideas-page" hx-target="this" hx-swap="outerHTML"
+     hx-trigger="sse:file-changed">
+
+<h1>Ideas</h1>
+<div class="summary-stats">
+    {{if .Untriaged}}<span class="stat-item"><span class="stat-value">{{len .Untriaged}}</span> untriaged</span>{{end}}
+    {{if .Parked}}<span class="stat-item"><span class="stat-value">{{len .Parked}}</span> parked</span>{{end}}
+    {{if .Dropped}}<span class="stat-item"><span class="stat-value">{{len .Dropped}}</span> dropped</span>{{end}}
+</div>
 
 <details class="quick-add" open>
     <summary>Quick add</summary>
@@ -87,4 +105,6 @@
 {{if and (not .Untriaged) (not .Parked) (not .Dropped)}}
 <p class="empty">No ideas yet. Add one above or POST to /api/v1/ideas.</p>
 {{end}}
+
+</div>
 {{end}}
