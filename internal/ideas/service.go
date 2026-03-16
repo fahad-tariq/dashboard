@@ -118,6 +118,47 @@ func (s *Service) Delete(slug string) error {
 	return fmt.Errorf("idea %q not found", slug)
 }
 
+func (s *Service) Edit(slug, body string, tags, images []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	idea, err := s.getUnlocked(slug)
+	if err != nil {
+		return err
+	}
+
+	idea.Body = body
+	idea.Tags = tags
+	idea.Images = images
+
+	// Extract title from first # heading in body.
+	idea.Title = ""
+	for line := range strings.SplitSeq(body, "\n") {
+		if title, ok := strings.CutPrefix(strings.TrimSpace(line), "# "); ok {
+			idea.Title = title
+			break
+		}
+	}
+
+	dir := filepath.Join(s.ideasDir, idea.Status)
+	return WriteIdea(dir, idea)
+}
+
+func (s *Service) getUnlocked(slug string) (*Idea, error) {
+	for _, status := range []string{"untriaged", "parked", "dropped"} {
+		path := filepath.Join(s.ideasDir, status, slug+".md")
+		if _, err := os.Stat(path); err == nil {
+			idea, err := ParseIdea(path)
+			if err != nil {
+				return nil, err
+			}
+			idea.Status = status
+			return idea, nil
+		}
+	}
+	return nil, fmt.Errorf("idea %q not found", slug)
+}
+
 func (s *Service) AddResearch(slug string, content string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

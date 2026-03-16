@@ -171,6 +171,8 @@ func main() {
 	r.Post("/ideas/add", ideaHandler.QuickAdd)
 	r.Post("/ideas/{slug}/triage", ideaHandler.TriageAction)
 	r.Post("/ideas/{slug}/to-task", ideaHandler.ToTask)
+	r.Post("/ideas/{slug}/edit", ideaHandler.Edit)
+	r.Post("/ideas/{slug}/delete", ideaHandler.DeleteIdea)
 
 	r.Get("/exploration", explorationHandler.ExplorationsPage)
 	r.Get("/exploration/{slug}", explorationHandler.ExplorationDetail)

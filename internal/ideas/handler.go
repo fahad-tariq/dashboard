@@ -167,6 +167,37 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
 }
 
+func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	body := strings.TrimSpace(r.FormValue("body"))
+	tags := parseCSV(r.FormValue("tags"))
+	images := parseCSV(r.FormValue("images"))
+
+	if err := h.svc.Edit(slug, body, tags, images); err != nil {
+		slog.Error("editing idea", "slug", slug, "error", err)
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	http.Redirect(w, r, "/ideas/"+slug, http.StatusSeeOther)
+}
+
+func (h *Handler) DeleteIdea(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	if err := h.svc.Delete(slug); err != nil {
+		slog.Error("deleting idea", "slug", slug, "error", err)
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
+}
+
 // --- API handlers ---
 
 func (h *Handler) APIListIdeas(w http.ResponseWriter, r *http.Request) {
