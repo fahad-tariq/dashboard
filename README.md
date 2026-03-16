@@ -129,6 +129,44 @@ All API routes are under `/api/v1` and require a bearer token if `DASHBOARD_API_
 | `PUT` | `/api/v1/ideas/{slug}/triage` | Triage idea (park/drop/untriage) |
 | `POST` | `/api/v1/ideas/{slug}/research` | Add research content |
 
+## Backup
+
+All user data is plain markdown files. The SQLite database is a read cache rebuilt automatically on startup -- it does not need to be backed up.
+
+| Data | Location | Format |
+|---|---|---|
+| Tasks and goals | `TRACKER_PATH` | Single markdown file |
+| Ideas and research | `IDEAS_DIR` | Directory of markdown files |
+| Database | `DB_PATH` | SQLite (disposable cache) |
+
+To back up the dashboard, copy the tracker file and ideas directory. A few options:
+
+**Docker volume snapshot**
+
+```bash
+docker run --rm -v dashboard_data:/data -v "$(pwd)":/backup alpine \
+  tar czf /backup/dashboard-backup-$(date +%F).tar.gz /data
+```
+
+**Scheduled sync to cloud storage**
+
+Use `rclone` or `rsync` on a cron schedule to sync the data directory to S3, GCS, Backblaze, or a remote host:
+
+```bash
+# Example: sync to an rclone remote every 6 hours
+0 */6 * * * rclone sync /data remote:dashboard-backup
+```
+
+**Git-based version history**
+
+Initialise a git repo in your data directory to track changes over time:
+
+```bash
+cd /data
+git init && git add -A && git commit -m "initial"
+# Add a cron job to auto-commit periodically
+```
+
 ## Stack
 
 Go, chi, SQLite (modernc), goldmark, fsnotify, htmx.
