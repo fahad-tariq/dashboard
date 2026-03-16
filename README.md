@@ -94,17 +94,14 @@ The compose file mounts `./ideas` for idea files and `./data` for the database a
 
 ## Tracker file format
 
-Tasks and goals are stored in `tracker.md` as checkbox items:
+Tasks and goals are stored in `tracker.md` as a flat checkbox list. Tags are inline via `[tags: ...]`. Section headers (`## ...`) are ignored by the parser.
 
 ```markdown
 # Tracker
 
-## Health
-- [ ] Run 5km !high [added: 2026-03-10] [tags: fitness]
-- [ ] Reach 90kg [goal: 85.5/90 kg] [added: 2026-03-01]
+- [ ] Run 5km !high [added: 2026-03-10] [tags: fitness, health]
+- [ ] Reach 90kg [goal: 85.5/90 kg] [added: 2026-03-01] [tags: health]
 - [ ] Document setup [tags: infra] [images: screenshot.png]
-
-## Reading
 - [x] Finish book club pick [completed: 2026-03-15] [tags: books]
 ```
 

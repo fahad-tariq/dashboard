@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -37,9 +36,15 @@ type Item struct {
 	Images    []string // uploaded image filenames
 }
 
-// HasTag returns true if the item has the given tag.
+// HasTag returns true if the item has the given tag (case-insensitive).
 func (it *Item) HasTag(tag string) bool {
-	return slices.Contains(it.Tags, tag)
+	lower := strings.ToLower(tag)
+	for _, t := range it.Tags {
+		if strings.ToLower(t) == lower {
+			return true
+		}
+	}
+	return false
 }
 
 // Summary holds aggregate counts for the tracker stats row.
@@ -66,24 +71,17 @@ func ParseTracker(path string) ([]Item, error) {
 
 	var items []Item
 	var current *Item
-	category := ""
 
 	for line := range strings.SplitSeq(string(data), "\n") {
 		trimmed := strings.TrimSpace(line)
 
-		// Section headers: ## Category
-		if sectionName, ok := strings.CutPrefix(trimmed, "## "); ok {
+		// Skip headings (section headers and top-level heading).
+		if strings.HasPrefix(trimmed, "#") {
 			if current != nil {
 				current.Body = strings.TrimSpace(current.Body)
 				items = append(items, *current)
 				current = nil
 			}
-			category = sectionName
-			continue
-		}
-
-		// Skip top-level heading.
-		if strings.HasPrefix(trimmed, "# ") {
 			continue
 		}
 
@@ -93,7 +91,7 @@ func ParseTracker(path string) ([]Item, error) {
 				current.Body = strings.TrimSpace(current.Body)
 				items = append(items, *current)
 			}
-			current = parseItemLine(title, done, category)
+			current = parseItemLine(title, done)
 			continue
 		}
 
@@ -135,7 +133,7 @@ func parseCheckbox(line string) (title string, done bool) {
 }
 
 // parseItemLine builds an Item from the title text after the checkbox.
-func parseItemLine(raw string, done bool, sectionTag string) *Item {
+func parseItemLine(raw string, done bool) *Item {
 	item := &Item{
 		Type: TaskType,
 		Done: done,
@@ -204,11 +202,6 @@ func parseItemLine(raw string, done bool, sectionTag string) *Item {
 
 	item.Title = strings.TrimSpace(title)
 	item.Slug = Slugify(item.Title)
-
-	// Merge section header as a tag if not already present from [tags:].
-	if sectionTag != "" && !item.HasTag(sectionTag) {
-		item.Tags = append([]string{sectionTag}, item.Tags...)
-	}
 
 	return item
 }

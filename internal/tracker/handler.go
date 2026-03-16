@@ -73,7 +73,7 @@ func collectFilters(items []Item) (allTags, priorities []string) {
 	priSet := map[string]bool{}
 	for _, it := range items {
 		for _, t := range it.Tags {
-			tagSet[t] = true
+			tagSet[strings.ToLower(t)] = true
 		}
 		if it.Priority != "" {
 			priSet[it.Priority] = true

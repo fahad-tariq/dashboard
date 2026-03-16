@@ -50,8 +50,8 @@ func TestParseTrackerSingleTask(t *testing.T) {
 	if it.Type != tracker.TaskType {
 		t.Errorf("type: got %q", it.Type)
 	}
-	if !it.HasTag("Work") {
-		t.Errorf("expected tag 'Work', got %v", it.Tags)
+	if len(it.Tags) != 0 {
+		t.Errorf("expected no tags (section headers ignored), got %v", it.Tags)
 	}
 	if it.Done {
 		t.Error("expected not done")
@@ -90,17 +90,16 @@ func TestParseTrackerMultipleSections(t *testing.T) {
 		idx      int
 		title    string
 		typ      tracker.ItemType
-		tag      string
 		priority string
 		done     bool
 		current  float64
 		target   float64
 		unit     string
 	}{
-		{0, "Run 5km", tracker.TaskType, "Health", "high", false, 0, 0, ""},
-		{1, "Drink more water", tracker.TaskType, "Health", "", false, 0, 0, ""},
-		{2, "Read 40 books", tracker.GoalType, "Reading", "", false, 12, 40, "books"},
-		{3, "Set up standing desk", tracker.TaskType, "Done", "", true, 0, 0, ""},
+		{0, "Run 5km", tracker.TaskType, "high", false, 0, 0, ""},
+		{1, "Drink more water", tracker.TaskType, "", false, 0, 0, ""},
+		{2, "Read 40 books", tracker.GoalType, "", false, 12, 40, "books"},
+		{3, "Set up standing desk", tracker.TaskType, "", true, 0, 0, ""},
 	}
 
 	for _, tt := range tests {
@@ -111,8 +110,8 @@ func TestParseTrackerMultipleSections(t *testing.T) {
 		if it.Type != tt.typ {
 			t.Errorf("[%d] type: got %q, want %q", tt.idx, it.Type, tt.typ)
 		}
-		if !it.HasTag(tt.tag) {
-			t.Errorf("[%d] expected tag %q, got %v", tt.idx, tt.tag, it.Tags)
+		if len(it.Tags) != 0 {
+			t.Errorf("[%d] expected no tags, got %v", tt.idx, it.Tags)
 		}
 		if it.Priority != tt.priority {
 			t.Errorf("[%d] priority: got %q, want %q", tt.idx, it.Priority, tt.priority)

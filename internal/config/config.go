@@ -53,7 +53,7 @@ func (c *Config) validate() error {
 		return fmt.Errorf("creating tracker directory: %w", err)
 	}
 	if _, err := os.Stat(c.TrackerPath); os.IsNotExist(err) {
-		skeleton := "# Tracker\n\n## General\n"
+		skeleton := "# Tracker\n\n"
 		if err := os.WriteFile(c.TrackerPath, []byte(skeleton), 0o644); err != nil {
 			return fmt.Errorf("creating tracker.md skeleton: %w", err)
 		}
