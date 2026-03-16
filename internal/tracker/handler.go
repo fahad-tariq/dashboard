@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/fahad/dashboard/internal/auth"
 )
 
 var priorityWeight = map[string]int{"high": 0, "medium": 1, "low": 2, "": 3}
@@ -39,15 +41,34 @@ func sanitisePriority(p string) string {
 	return ""
 }
 
+// ServiceResolver returns the (svc, otherSvc) pair for a request.
+// For personal handlers, svc is the user's personal service and otherSvc is family.
+// For family handlers, svc is family and otherSvc is the user's personal service.
+type ServiceResolver func(r *http.Request) (svc *Service, otherSvc *Service)
+
 type Handler struct {
-	svc       *Service
-	otherSvc  *Service
+	resolve   ServiceResolver
 	templates map[string]*template.Template
 	listName  string
 }
 
 func NewHandler(svc, otherSvc *Service, templates map[string]*template.Template, listName string) *Handler {
-	return &Handler{svc: svc, otherSvc: otherSvc, templates: templates, listName: listName}
+	return &Handler{
+		resolve: func(r *http.Request) (*Service, *Service) {
+			return svc, otherSvc
+		},
+		templates: templates,
+		listName:  listName,
+	}
+}
+
+// NewHandlerWithResolver creates a handler that resolves services per-request.
+func NewHandlerWithResolver(resolver ServiceResolver, templates map[string]*template.Template, listName string) *Handler {
+	return &Handler{
+		resolve:   resolver,
+		templates: templates,
+		listName:  listName,
+	}
 }
 
 func (h *Handler) otherListName() string {
@@ -103,7 +124,8 @@ func collectFilters(items []Item) (allTags, priorities []string) {
 }
 
 func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
-	items, err := h.svc.List()
+	svc, _ := h.resolve(r)
+	items, err := svc.List()
 	if err != nil {
 		slog.Error("listing tracker items", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -126,6 +148,7 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 	allTags, priorities := collectFilters(tasks)
 
 	title := strings.ToUpper(h.listName[:1]) + h.listName[1:] + " Tasks"
+	userName := auth.UserName(r.Context())
 	data := map[string]any{
 		"Title":         title,
 		"ListName":      h.listName,
@@ -134,6 +157,12 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 		"DoneTasks":     doneTasks,
 		"Categories":    allTags,
 		"Priorities":    priorities,
+		"UserName":      userName,
+		"IsAdmin":       auth.IsAdmin(r.Context()),
+	}
+	// Show subtitle for personal pages only, not family.
+	if h.listName == "personal" && userName != "" {
+		data["Subtitle"] = userName + "'s list"
 	}
 
 	if err := h.templates["tracker.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -142,7 +171,8 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GoalsPage(w http.ResponseWriter, r *http.Request) {
-	items, err := h.svc.List()
+	svc, _ := h.resolve(r)
+	items, err := svc.List()
 	if err != nil {
 		slog.Error("listing tracker items", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -159,11 +189,17 @@ func (h *Handler) GoalsPage(w http.ResponseWriter, r *http.Request) {
 
 	allTags, priorities := collectFilters(goals)
 
+	userName := auth.UserName(r.Context())
 	data := map[string]any{
 		"Title":      "Goals",
 		"Goals":      goals,
 		"Categories": allTags,
 		"Priorities": priorities,
+		"UserName":   userName,
+		"IsAdmin":    auth.IsAdmin(r.Context()),
+	}
+	if userName != "" {
+		data["Subtitle"] = userName + "'s goals"
 	}
 
 	if err := h.templates["goals.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -192,7 +228,8 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		Images:   parseTags(r.FormValue("images")),
 	}
 
-	if err := h.svc.AddItem(item); err != nil {
+	svc, _ := h.resolve(r)
+	if err := svc.AddItem(item); err != nil {
 		slog.Error("adding task", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -228,7 +265,8 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 		Images:   parseTags(r.FormValue("images")),
 	}
 
-	if err := h.svc.AddItem(item); err != nil {
+	svc, _ := h.resolve(r)
+	if err := svc.AddItem(item); err != nil {
 		slog.Error("adding goal", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -264,7 +302,8 @@ func (h *Handler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body := strings.TrimSpace(r.FormValue("body"))
-	if err := h.svc.UpdateNotes(slug, body); err != nil {
+	svc, _ := h.resolve(r)
+	if err := svc.UpdateNotes(slug, body); err != nil {
 		slog.Error("updating notes", "slug", slug, "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
@@ -275,7 +314,8 @@ func (h *Handler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	if err := h.svc.Complete(slug); err != nil {
+	svc, _ := h.resolve(r)
+	if err := svc.Complete(slug); err != nil {
 		slog.Error("completing tracker item", "slug", slug, "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
@@ -285,7 +325,8 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Uncomplete(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	if err := h.svc.Uncomplete(slug); err != nil {
+	svc, _ := h.resolve(r)
+	if err := svc.Uncomplete(slug); err != nil {
 		slog.Error("uncompleting tracker item", "slug", slug, "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
@@ -306,14 +347,15 @@ func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	svc, _ := h.resolve(r)
 	if r.FormValue("set") != "" {
-		if err := h.svc.SetProgress(slug, val); err != nil {
+		if err := svc.SetProgress(slug, val); err != nil {
 			slog.Error("setting progress", "slug", slug, "error", err)
 			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}
 	} else {
-		if err := h.svc.UpdateProgress(slug, val); err != nil {
+		if err := svc.UpdateProgress(slug, val); err != nil {
 			slog.Error("updating progress", "slug", slug, "error", err)
 			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
@@ -325,7 +367,8 @@ func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	if err := h.svc.Delete(slug); err != nil {
+	svc, _ := h.resolve(r)
+	if err := svc.Delete(slug); err != nil {
 		slog.Error("deleting tracker item", "slug", slug, "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
@@ -340,7 +383,8 @@ func (h *Handler) UpdatePriority(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	priority := sanitisePriority(r.FormValue("priority"))
-	if err := h.svc.UpdatePriority(slug, priority); err != nil {
+	svc, _ := h.resolve(r)
+	if err := svc.UpdatePriority(slug, priority); err != nil {
 		slog.Error("updating priority", "slug", slug, "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
@@ -364,7 +408,8 @@ func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if err := h.svc.UpdateTags(slug, tags); err != nil {
+	svc, _ := h.resolve(r)
+	if err := svc.UpdateTags(slug, tags); err != nil {
 		slog.Error("updating tags", "slug", slug, "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
@@ -383,7 +428,8 @@ func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 	tags := parseTags(r.FormValue("tags"))
 	images := parseTags(r.FormValue("images"))
 
-	if err := h.svc.UpdateEdit(slug, body, tags, images); err != nil {
+	svc, _ := h.resolve(r)
+	if err := svc.UpdateEdit(slug, body, tags, images); err != nil {
 		slog.Error("updating item", "slug", slug, "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
@@ -395,7 +441,8 @@ func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 
-	item, err := h.svc.Get(slug)
+	svc, otherSvc := h.resolve(r)
+	item, err := svc.Get(slug)
 	if err != nil {
 		slog.Error("getting item for move", "slug", slug, "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
@@ -404,17 +451,17 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 
 	// Check for slug collision in target list and deduplicate if needed.
 	movedItem := *item
-	if _, err := h.otherSvc.Get(movedItem.Slug); err == nil {
+	if _, err := otherSvc.Get(movedItem.Slug); err == nil {
 		movedItem.Slug = movedItem.Slug + "-" + fmt.Sprintf("%d", time.Now().Unix())
 	}
 
-	if err := h.otherSvc.AddItem(movedItem); err != nil {
+	if err := otherSvc.AddItem(movedItem); err != nil {
 		slog.Error("adding item to target list", "slug", slug, "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	if err := h.svc.Delete(slug); err != nil {
+	if err := svc.Delete(slug); err != nil {
 		slog.Error("deleting item from source list", "slug", slug, "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

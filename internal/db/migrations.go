@@ -27,6 +27,22 @@ var migrations = []string{
 	)`,
 	`ALTER TABLE tracker_items ADD COLUMN images TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE tracker_items ADD COLUMN list TEXT NOT NULL DEFAULT 'personal'`,
+	`CREATE TABLE IF NOT EXISTS sessions (
+		token  TEXT PRIMARY KEY,
+		data   BLOB NOT NULL,
+		expiry REAL NOT NULL
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expiry)`,
+	`CREATE TABLE IF NOT EXISTS users (
+		id            INTEGER PRIMARY KEY AUTOINCREMENT,
+		email         TEXT UNIQUE NOT NULL,
+		password_hash TEXT NOT NULL,
+		created_at    TEXT NOT NULL
+	)`,
+	`ALTER TABLE tracker_items ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1`,
+	`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`,
+	`UPDATE users SET role = 'admin' WHERE id = (SELECT MIN(id) FROM users)`,
+	`ALTER TABLE sessions ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0`,
 }
 
 func Migrate(db *sql.DB) error {

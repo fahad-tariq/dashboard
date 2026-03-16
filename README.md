@@ -9,17 +9,54 @@ cp .env.example .env
 # Edit .env as needed
 ```
 
+### Fresh install
+
+1. Set `DASHBOARD_PASSWORD_HASH` in `.env` (generates the first admin user automatically):
+   ```bash
+   # Generate a bcrypt hash
+   htpasswd -nbBC 10 "" 'your-password' | cut -d: -f2
+   ```
+2. Start the app: `docker compose up --build`
+3. Log in as `admin@localhost` with your password
+4. Go to `/admin/users` to create real users and update your email
+
+### Starting over
+
+If you want a clean slate (new database, no existing data):
+
+```bash
+docker compose down
+rm data/dashboard.db    # Remove the database
+docker compose up --build
+```
+
+The app auto-creates `admin@localhost` from `DASHBOARD_PASSWORD_HASH` on first start. All data entered after this point persists in Docker volumes across rebuilds.
+
+### Migrating legacy data
+
+If you have data from before multi-user support (files at `/data/personal.md`, `/data/ideas/`, `/data/explorations/`), move them to a user's directory:
+
+```bash
+docker exec <container> /usr/local/bin/dashboard migrate-data --user-id 1
+```
+
+This copies old files into `/data/users/1/`. Idempotent -- safe to run multiple times.
+
 ## Configuration
 
 | Variable | Default | Description |
 |---|---|---|
-| `IDEAS_DIR` | `/data/ideas` | Directory for idea files (auto-created) |
-| `EXPLORATION_DIR` | `/data/explorations` | Directory for exploration files (auto-created) |
-| `UPLOADS_DIR` | `/data/uploads` | Directory for uploaded images (auto-created) |
-| `PERSONAL_PATH` | `/data/personal.md` | Path to the personal tasks markdown file |
-| `FAMILY_PATH` | `/data/family.md` | Path to the family tasks markdown file |
-| `DB_PATH` | `/data/db/dashboard.db` | SQLite database path (cache) |
+| `IDEAS_DIR` | `/data/ideas` | Legacy ideas directory (pre-multi-user) |
+| `EXPLORATION_DIR` | `/data/explorations` | Legacy explorations directory (pre-multi-user) |
+| `UPLOADS_DIR` | `/data/uploads` | Directory for uploaded images (shared, auto-created) |
+| `PERSONAL_PATH` | `/data/personal.md` | Legacy personal tasks file (pre-multi-user) |
+| `FAMILY_PATH` | `/data/family.md` | Shared family tasks file |
+| `USER_DATA_DIR` | `/data/users` | Per-user data directory (auto-created) |
+| `DB_PATH` | `/data/db/dashboard.db` | SQLite database path |
+| `DASHBOARD_PASSWORD_HASH` | (empty) | Bcrypt hash for auto-creating first admin user |
 | `DASHBOARD_API_TOKEN` | (empty) | Bearer token for API auth (optional) |
+| `SESSION_LIFETIME` | `720h` | Session cookie lifetime (30 days) |
+| `DASHBOARD_SECURE_COOKIES` | `false` | Set `true` when serving over HTTPS |
 | `ADDR` | `:8080` | Server listen address |
 
 ## Running
@@ -36,20 +73,23 @@ make build
 ./bin/dashboard
 ```
 
+### CLI commands
+
+```bash
+# Create a user (bootstrap only -- use /admin/users in the browser)
+./dashboard useradd --email alice@example.com --password secret123
+
+# Migrate legacy data to a user's directory
+./dashboard migrate-data --user-id 1
+```
+
 ## Docker
 
 ```bash
-make docker-build
-make docker-run
+docker compose up --build
 ```
 
-Or manually:
-
-```bash
-docker compose up
-```
-
-The compose file mounts `./ideas` for idea files and `./data` for the database and task files.
+The compose file mounts `./ideas` for legacy idea files, `./data` for the database and family tasks, and `./users` for per-user data (personal tasks, ideas, explorations).
 
 ## Features
 
@@ -89,6 +129,17 @@ The compose file mounts `./ideas` for idea files and `./data` for the database a
 - MIME-based validation (PNG, JPEG, GIF, WebP only)
 - Canonical extension mapping (ignores original filename extension)
 - 10 MB size limit per upload
+
+### Authentication and multi-user
+- Email + password login with bcrypt, server-side sessions (SQLite-backed)
+- Multi-user: each user gets isolated personal tasks, goals, ideas, and explorations
+- Shared family task list visible to all users
+- Two roles: `admin` (can manage users) and `user`
+- Admin UI at `/admin/users` for creating, editing, and deleting users
+- Self-service password change at `/account/password`
+- Session invalidation on role change, password reset, and user deletion
+- Rate limiting on login (5 attempts/minute per IP)
+- First user auto-created from `DASHBOARD_PASSWORD_HASH` env var
 
 ### General
 - Live reload via SSE on file changes
@@ -156,6 +207,14 @@ Notes and findings here.
 | `POST` | `/upload` | Image upload (multipart, returns JSON) |
 | `GET` | `/uploads/{filename}` | Serve uploaded images |
 | `GET` | `/events` | SSE endpoint for live reload |
+| `GET` | `/login` | Login page |
+| `POST` | `/login` | Login submission |
+| `POST` | `/logout` | Logout |
+| `GET` | `/account/password` | Self-service password change |
+| `GET` | `/admin/users` | Admin: user list (admin only) |
+| `GET` | `/admin/users/new` | Admin: create user form |
+| `GET` | `/admin/users/{id}/edit` | Admin: edit user form |
+| `GET` | `/admin/users/{id}/password` | Admin: reset password form |
 
 ### API
 
@@ -168,18 +227,22 @@ All API routes are under `/api/v1` and require a bearer token if `DASHBOARD_API_
 | `PUT` | `/api/v1/ideas/{slug}/triage` | Triage idea (park/drop/untriage) |
 | `POST` | `/api/v1/ideas/{slug}/research` | Add research content |
 
-## Backup
+## Data storage
 
-All user data is plain markdown files. The SQLite database is a read cache rebuilt automatically on startup -- it does not need to be backed up.
+With multi-user, personal data is stored per-user under `USER_DATA_DIR/{user_id}/`. Family data is shared.
 
 | Data | Location | Format |
 |---|---|---|
-| Personal tasks and goals | `PERSONAL_PATH` | Markdown file |
-| Family tasks | `FAMILY_PATH` | Markdown file |
-| Ideas and research | `IDEAS_DIR` | Directory of markdown files |
-| Explorations | `EXPLORATION_DIR` | Directory of markdown files |
-| Uploaded images | `UPLOADS_DIR` | Image files |
-| Database | `DB_PATH` | SQLite (disposable cache) |
+| Personal tasks and goals | `USER_DATA_DIR/{id}/personal.md` | Markdown file |
+| Ideas and research | `USER_DATA_DIR/{id}/ideas/` | Directory of markdown files |
+| Explorations | `USER_DATA_DIR/{id}/explorations/` | Directory of markdown files |
+| Family tasks | `FAMILY_PATH` | Shared markdown file |
+| Uploaded images | `UPLOADS_DIR` | Shared image files |
+| Database | `DB_PATH` | SQLite (users, sessions, tracker cache) |
+
+## Backup
+
+All user data is plain markdown files. The SQLite database stores users, sessions, and a tracker cache. The tracker cache is rebuilt from markdown on startup, but the users table is authoritative.
 
 To back up the dashboard, copy the task files and ideas directory. A few options:
 

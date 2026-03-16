@@ -135,8 +135,14 @@ a:hover {
     padding-bottom: 2px;
 }
 
-.theme-toggle {
+.nav-user {
+    color: var(--fg-dim);
+    font-size: 0.85rem;
     margin-left: auto;
+    padding-right: 0.5rem;
+}
+
+.theme-toggle {
     background: none;
     border: 1px solid var(--border);
     color: var(--fg-dim);
@@ -416,6 +422,12 @@ section h2 {
     gap: 0.75rem;
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
+}
+
+.page-subtitle {
+    color: var(--fg-dim);
+    font-size: 0.85rem;
+    margin: -0.5rem 0 0.75rem 0;
 }
 
 /* --- Summary stats --- */
@@ -846,6 +858,105 @@ section h2 {
     width: fit-content;
 }
 
+/* --- Form error (shared across login, admin) --- */
+.form-error {
+    color: var(--red);
+    font-size: 0.85rem;
+}
+
+/* --- Flash messages --- */
+.flash-msg {
+    background: var(--bg-card);
+    border: 1px solid var(--green);
+    color: var(--green);
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+}
+.flash-msg-error {
+    border-color: var(--red);
+    color: var(--red);
+}
+
+/* --- Admin nav link --- */
+.nav-admin {
+    color: var(--mauve);
+    font-size: 0.85rem;
+    margin-left: auto;
+    text-decoration: none;
+}
+.nav-admin:hover {
+    color: var(--fg);
+    text-decoration: underline;
+}
+
+/* --- Admin form card --- */
+.admin-form-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem;
+    max-width: 480px;
+    margin: 0 auto;
+}
+.admin-form-card .admin-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.admin-form-card .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.admin-form-card .form-group label {
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* --- Admin user list --- */
+.admin-user-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.admin-user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+.admin-user-email {
+    font-weight: 600;
+    color: var(--fg);
+}
+.admin-user-meta {
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+}
+.admin-user-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+.badge-admin { color: var(--mauve); border-color: var(--mauve); }
+.badge-user { color: var(--fg-dim); border-color: var(--surface1); }
+.action-delete:hover {
+    color: var(--red);
+    border-color: var(--red);
+}
+
 /* --- Empty state --- */
 .empty {
     color: var(--fg-dim);
@@ -879,6 +990,7 @@ section h2 {
         scrollbar-width: none;
     }
     .nav-links::-webkit-scrollbar { display: none; }
+    .nav-user { display: none; }
     .nav-links a {
         white-space: nowrap;
     }

@@ -1,0 +1,32 @@
+{{define "content"}}
+<div class="breadcrumb">admin / users</div>
+<h1>Users</h1>
+
+<div style="margin-bottom: 1rem;">
+    <a href="/admin/users/new" class="form-btn" style="display:inline-block;text-decoration:none;">+ New User</a>
+</div>
+
+{{range .Users}}
+<div class="admin-user-card">
+    <div class="admin-user-info">
+        <span class="admin-user-email">{{.Email}}</span>
+        <span class="admin-user-meta">ID {{.ID}} &middot; created {{.CreatedAt}}</span>
+        {{with index $.UserStats .ID}}
+        <span class="admin-user-meta">{{.PersonalTasks}} tasks &middot; {{.Ideas}} ideas &middot; {{.Explorations}} explorations</span>
+        {{end}}
+    </div>
+    <div class="admin-user-actions">
+        {{if eq .Role "admin"}}<span class="badge badge-admin">admin</span>{{else}}<span class="badge badge-user">user</span>{{end}}
+        <a href="/admin/users/{{.ID}}/edit" class="action-btn">edit</a>
+        <a href="/admin/users/{{.ID}}/password" class="action-btn">password</a>
+        <form method="POST" action="/admin/users/{{.ID}}/delete" style="margin:0;display:inline">
+            <button type="submit" class="action-btn action-delete" onclick="return confirm('Delete user {{.Email}}?')">delete</button>
+        </form>
+    </div>
+</div>
+{{end}}
+
+{{if not .Users}}
+<p class="empty">No users yet.</p>
+{{end}}
+{{end}}

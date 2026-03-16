@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,12 +15,23 @@ import (
 
 const debounceInterval = 500 * time.Millisecond
 
+// UserCallback receives file change events with user context.
+// userID=0 means the change is for a shared resource (e.g. family list).
+type UserCallback func(userID int64, category string)
+
 // Watch monitors directories for file changes and broadcasts SSE events.
 // dirCategories maps absolute directory paths to category names
 // (e.g. {"/data/ideas": "ideas"}).
 // fileCategories maps absolute file paths to category names
 // (e.g. {"/data/personal.md": "personal"}).
 func Watch(dirCategories, fileCategories map[string]string, broker *sse.Broker, callbacks map[string]func()) error {
+	return WatchWithUserCallbacks(dirCategories, fileCategories, "", broker, callbacks, nil)
+}
+
+// WatchWithUserCallbacks monitors directories for file changes, including
+// per-user directories under userDataDir. Broadcasts SSE events and calls
+// both legacy callbacks (for shared resources) and user callbacks (for per-user changes).
+func WatchWithUserCallbacks(dirCategories, fileCategories map[string]string, userDataDir string, broker *sse.Broker, callbacks map[string]func(), userCallback UserCallback) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -40,18 +52,30 @@ func Watch(dirCategories, fileCategories map[string]string, broker *sse.Broker, 
 		}
 	}
 
-	go run(w, dirCategories, fileCategories, broker, callbacks)
+	// Watch the user data directory if provided.
+	if userDataDir != "" {
+		if err := addRecursive(w, userDataDir); err != nil {
+			slog.Warn("failed to watch user data directory", "path", userDataDir, "error", err)
+		}
+	}
+
+	go run(w, dirCategories, fileCategories, userDataDir, broker, callbacks, userCallback)
 	return nil
 }
 
-func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, broker *sse.Broker, callbacks map[string]func()) {
+type pendingEvent struct {
+	userID   int64
+	category string
+}
+
+func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, userDataDir string, broker *sse.Broker, callbacks map[string]func(), userCallback UserCallback) {
 	defer w.Close()
 
 	timer := time.NewTimer(0)
 	if !timer.Stop() {
 		<-timer.C
 	}
-	pending := map[string]bool{}
+	pending := map[pendingEvent]bool{}
 
 	for {
 		select {
@@ -68,23 +92,28 @@ func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, b
 				addRecursive(w, event.Name)
 			}
 
-			category := classifyEvent(event.Name, dirCategories, fileCategories)
+			userID, category := classifyEventWithUser(event.Name, dirCategories, fileCategories, userDataDir)
 			if category == "" {
 				continue
 			}
 
-			pending[category] = true
+			pending[pendingEvent{userID: userID, category: category}] = true
 			timer.Reset(debounceInterval)
 
 		case <-timer.C:
-			for category := range pending {
-				slog.Info("file change detected", "type", category)
-				broker.Send("file-changed", category)
-				if cb, ok := callbacks[category]; ok {
-					cb()
+			for pe := range pending {
+				slog.Info("file change detected", "type", pe.category, "user_id", pe.userID)
+				broker.Send("file-changed", pe.category)
+				if pe.userID == 0 {
+					if cb, ok := callbacks[pe.category]; ok {
+						cb()
+					}
+				}
+				if userCallback != nil {
+					userCallback(pe.userID, pe.category)
 				}
 			}
-			pending = map[string]bool{}
+			pending = map[pendingEvent]bool{}
 
 		case err, ok := <-w.Errors:
 			if !ok {
@@ -95,15 +124,21 @@ func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, b
 	}
 }
 
-func classifyEvent(path string, dirCategories, fileCategories map[string]string) string {
+// ClassifyEventWithUser determines the category and user ID from a file path.
+// Exported for testing.
+func ClassifyEventWithUser(path string, dirCategories, fileCategories map[string]string, userDataDir string) (int64, string) {
+	return classifyEventWithUser(path, dirCategories, fileCategories, userDataDir)
+}
+
+func classifyEventWithUser(path string, dirCategories, fileCategories map[string]string, userDataDir string) (int64, string) {
 	name := filepath.Base(path)
 
 	if !strings.HasSuffix(name, ".md") {
-		return ""
+		return 0, ""
 	}
 
 	if strings.Contains(path, string(filepath.Separator)+".git"+string(filepath.Separator)) {
-		return ""
+		return 0, ""
 	}
 
 	// Check file-level categories first (most specific match).
@@ -111,7 +146,31 @@ func classifyEvent(path string, dirCategories, fileCategories map[string]string)
 	for filePath, category := range fileCategories {
 		absFile, _ := filepath.Abs(filePath)
 		if absPath == absFile {
-			return category
+			return 0, category
+		}
+	}
+
+	// Check per-user data directory.
+	if userDataDir != "" {
+		absUserDir, _ := filepath.Abs(userDataDir)
+		if strings.HasPrefix(absPath, absUserDir+string(filepath.Separator)) {
+			rel := absPath[len(absUserDir)+1:]
+			// Expected format: {user_id}/...
+			parts := strings.SplitN(rel, string(filepath.Separator), 2)
+			if len(parts) >= 2 {
+				uid, err := strconv.ParseInt(parts[0], 10, 64)
+				if err == nil {
+					subpath := parts[1]
+					switch {
+					case subpath == "personal.md" || strings.HasPrefix(subpath, "personal"):
+						return uid, "personal"
+					case strings.HasPrefix(subpath, "ideas"):
+						return uid, "ideas"
+					case strings.HasPrefix(subpath, "explorations"):
+						return uid, "exploration"
+					}
+				}
+			}
 		}
 	}
 
@@ -119,11 +178,11 @@ func classifyEvent(path string, dirCategories, fileCategories map[string]string)
 	for dir, category := range dirCategories {
 		absDir, _ := filepath.Abs(dir)
 		if strings.HasPrefix(absPath, absDir+string(filepath.Separator)) {
-			return category
+			return 0, category
 		}
 	}
 
-	return ""
+	return 0, ""
 }
 
 func addRecursive(w *fsnotify.Watcher, path string) error {

@@ -4,6 +4,7 @@
      hx-trigger="sse:file-changed">
 
 <h1>Exploration</h1>
+{{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
 <div class="summary-stats">
     {{if .Explorations}}<span class="stat-item"><span class="stat-value">{{len .Explorations}}</span> entries</span>{{end}}
 </div>

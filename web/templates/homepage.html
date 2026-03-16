@@ -4,7 +4,7 @@
      hx-trigger="sse:file-changed">
 
 {{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .UntriagedCount 0) (eq .ExplorationCount 0)}}
-<p class="empty">Nothing here yet. Use the nav above to get started.</p>
+<p class="empty">Nothing here yet{{if .UserName}}, {{.UserName}}{{end}}. Use the nav above to get started.</p>
 {{else}}
 <div class="homepage-grid">
 

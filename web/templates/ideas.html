@@ -36,6 +36,7 @@
      hx-trigger="sse:file-changed">
 
 <h1>Ideas</h1>
+{{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
 <div class="summary-stats">
     {{if .Untriaged}}<span class="stat-item"><span class="stat-value">{{len .Untriaged}}</span> untriaged</span>{{end}}
     {{if .Parked}}<span class="stat-item"><span class="stat-value">{{len .Parked}}</span> parked</span>{{end}}

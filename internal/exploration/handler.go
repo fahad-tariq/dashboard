@@ -9,29 +9,53 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/fahad/dashboard/internal/auth"
 	"github.com/fahad/dashboard/internal/markdown"
 )
 
+// ServiceResolver returns the exploration service for the current request.
+type ServiceResolver func(r *http.Request) *Service
+
 type Handler struct {
-	svc       *Service
+	resolve   ServiceResolver
 	templates map[string]*template.Template
 }
 
 func NewHandler(svc *Service, templates map[string]*template.Template) *Handler {
-	return &Handler{svc: svc, templates: templates}
+	return &Handler{
+		resolve: func(r *http.Request) *Service {
+			return svc
+		},
+		templates: templates,
+	}
+}
+
+// NewHandlerWithResolver creates a handler that resolves the service per-request.
+func NewHandlerWithResolver(resolver ServiceResolver, templates map[string]*template.Template) *Handler {
+	return &Handler{
+		resolve:   resolver,
+		templates: templates,
+	}
 }
 
 func (h *Handler) ExplorationsPage(w http.ResponseWriter, r *http.Request) {
-	explorations, err := h.svc.List()
+	svc := h.resolve(r)
+	explorations, err := svc.List()
 	if err != nil {
 		slog.Error("listing explorations", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
+	userName := auth.UserName(r.Context())
 	data := map[string]any{
 		"Title":        "Exploration",
 		"Explorations": explorations,
+		"UserName":     userName,
+		"IsAdmin":      auth.IsAdmin(r.Context()),
+	}
+	if userName != "" {
+		data["Subtitle"] = userName + "'s explorations"
 	}
 
 	if err := h.templates["exploration.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -41,7 +65,8 @@ func (h *Handler) ExplorationsPage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ExplorationDetail(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	e, err := h.svc.Get(slug)
+	svc := h.resolve(r)
+	e, err := svc.Get(slug)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -53,6 +78,8 @@ func (h *Handler) ExplorationDetail(w http.ResponseWriter, r *http.Request) {
 		"Title":       e.Title,
 		"Exploration": e,
 		"BodyHTML":    template.HTML(bodyHTML),
+		"UserName":    auth.UserName(r.Context()),
+		"IsAdmin":     auth.IsAdmin(r.Context()),
 	}
 
 	if err := h.templates["exploration-detail.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -82,7 +109,8 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		Body:  "# " + title + "\n\n" + strings.TrimSpace(r.FormValue("body")),
 	}
 
-	if err := h.svc.Add(e); err != nil {
+	svc := h.resolve(r)
+	if err := svc.Add(e); err != nil {
 		slog.Error("adding exploration", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -102,7 +130,8 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 	tags := parseTags(r.FormValue("tags"))
 	images := parseTags(r.FormValue("images"))
 
-	if err := h.svc.Update(slug, body, tags, images); err != nil {
+	svc := h.resolve(r)
+	if err := svc.Update(slug, body, tags, images); err != nil {
 		slog.Error("updating exploration", "slug", slug, "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
@@ -113,7 +142,8 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	if err := h.svc.Delete(slug); err != nil {
+	svc := h.resolve(r)
+	if err := svc.Delete(slug); err != nil {
 		slog.Error("deleting exploration", "slug", slug, "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return

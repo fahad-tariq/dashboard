@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login - dash</title>
+    <link rel="stylesheet" href="/static/theme.css">
+    <script>
+        (function() {
+            var t = localStorage.getItem('theme');
+            if (t) document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
+    <style>
+        .login-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 360px;
+        }
+        .login-brand {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: var(--fg);
+            letter-spacing: 0.5px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .login-prefill {
+            font-size: 0.8rem;
+            color: var(--fg-dim);
+            text-align: right;
+        }
+        .login-prefill a {
+            color: var(--fg-dim);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-wrap">
+        <div class="login-card">
+            <div class="login-brand">dash&gt;_</div>
+            {{if .Error}}<div class="form-error">{{.Error}}</div>{{end}}
+            <form class="login-form" method="POST" action="/login" id="login-form" onsubmit="saveEmail(); this.querySelector('button').disabled=true">
+                <input type="hidden" name="next" value="{{.Next}}">
+                <input type="email" name="email" id="email-input" class="form-input" placeholder="Email" value="{{.Email}}" autofocus required>
+                <div id="prefill-hint" class="login-prefill" style="display:none">
+                    Not <span id="prefill-name"></span>? <a onclick="clearEmail()">Change</a>
+                </div>
+                <input type="password" name="password" class="form-input" placeholder="Password" required>
+                <button type="submit" class="form-btn">Login</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        (function() {
+            var emailInput = document.getElementById('email-input');
+            var hint = document.getElementById('prefill-hint');
+            var nameSpan = document.getElementById('prefill-name');
+
+            // Pre-fill from localStorage if no server-provided value.
+            if (!emailInput.value) {
+                var saved = localStorage.getItem('lastEmail');
+                if (saved) {
+                    emailInput.value = saved;
+                    var local = saved.split('@')[0];
+                    nameSpan.textContent = local;
+                    hint.style.display = 'block';
+                    // Focus password instead since email is pre-filled.
+                    document.querySelector('input[name="password"]').focus();
+                }
+            } else {
+                // Server sent an email value (e.g. on error re-render).
+                document.querySelector('input[name="password"]').focus();
+            }
+        })();
+
+        function saveEmail() {
+            var email = document.getElementById('email-input').value;
+            if (email) localStorage.setItem('lastEmail', email);
+        }
+
+        function clearEmail() {
+            localStorage.removeItem('lastEmail');
+            var emailInput = document.getElementById('email-input');
+            emailInput.value = '';
+            emailInput.focus();
+            document.getElementById('prefill-hint').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

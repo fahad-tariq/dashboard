@@ -4,29 +4,47 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 )
 
 type Config struct {
-	IdeasDir       string
-	ExplorationDir string
-	UploadsDir     string
-	PersonalPath   string
-	FamilyPath     string
-	DBPath         string
-	APIToken       string
-	Addr           string
+	IdeasDir        string
+	ExplorationDir  string
+	UploadsDir      string
+	PersonalPath    string
+	FamilyPath      string
+	UserDataDir     string
+	DBPath          string
+	APIToken        string
+	Addr            string
+	PasswordHash    string
+	SessionLifetime time.Duration
+	SecureCookies   bool
+	HasUsers        bool // Set at startup after checking the users table.
 }
 
 func Load() (*Config, error) {
+	sessionLifetime, err := time.ParseDuration(envOr("SESSION_LIFETIME", "720h"))
+	if err != nil {
+		return nil, fmt.Errorf("parsing SESSION_LIFETIME: %w", err)
+	}
+
+	secureCookies, _ := strconv.ParseBool(os.Getenv("DASHBOARD_SECURE_COOKIES"))
+
 	c := &Config{
-		IdeasDir:       envOr("IDEAS_DIR", "/data/ideas"),
-		ExplorationDir: envOr("EXPLORATION_DIR", "/data/explorations"),
-		UploadsDir:     envOr("UPLOADS_DIR", "/data/uploads"),
-		PersonalPath:   envOr("PERSONAL_PATH", "/data/personal.md"),
-		FamilyPath:     envOr("FAMILY_PATH", "/data/family.md"),
-		DBPath:         envOr("DB_PATH", "/data/db/dashboard.db"),
-		APIToken:       os.Getenv("DASHBOARD_API_TOKEN"),
-		Addr:           envOr("ADDR", ":8080"),
+		IdeasDir:        envOr("IDEAS_DIR", "/data/ideas"),
+		ExplorationDir:  envOr("EXPLORATION_DIR", "/data/explorations"),
+		UploadsDir:      envOr("UPLOADS_DIR", "/data/uploads"),
+		PersonalPath:    envOr("PERSONAL_PATH", "/data/personal.md"),
+		FamilyPath:      envOr("FAMILY_PATH", "/data/family.md"),
+		UserDataDir:     envOr("USER_DATA_DIR", "/data/users"),
+		DBPath:          envOr("DB_PATH", "/data/db/dashboard.db"),
+		APIToken:        os.Getenv("DASHBOARD_API_TOKEN"),
+		Addr:            envOr("ADDR", ":8080"),
+		PasswordHash:    os.Getenv("DASHBOARD_PASSWORD_HASH"),
+		SessionLifetime: sessionLifetime,
+		SecureCookies:   secureCookies,
 	}
 
 	if err := c.validate(); err != nil {
@@ -81,4 +99,9 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// AuthEnabled returns true if authentication should be enforced.
+func (c *Config) AuthEnabled() bool {
+	return c.PasswordHash != "" || c.HasUsers
 }
