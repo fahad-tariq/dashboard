@@ -16,13 +16,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/fahad/tracker/internal/config"
-	"github.com/fahad/tracker/internal/db"
-	"github.com/fahad/tracker/internal/ideas"
-	"github.com/fahad/tracker/internal/sse"
-	"github.com/fahad/tracker/internal/tracker"
-	"github.com/fahad/tracker/internal/watcher"
-	"github.com/fahad/tracker/web"
+	"github.com/fahad/dashboard/internal/config"
+	"github.com/fahad/dashboard/internal/db"
+	"github.com/fahad/dashboard/internal/ideas"
+	"github.com/fahad/dashboard/internal/sse"
+	"github.com/fahad/dashboard/internal/tracker"
+	"github.com/fahad/dashboard/internal/watcher"
+	"github.com/fahad/dashboard/web"
 )
 
 var funcMap = template.FuncMap{

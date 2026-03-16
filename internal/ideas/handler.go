@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/fahad/tracker/internal/markdown"
+	"github.com/fahad/dashboard/internal/markdown"
 )
 
 type ToTaskFunc func(title, body, typeTag string) error

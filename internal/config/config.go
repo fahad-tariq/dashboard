@@ -18,7 +18,7 @@ func Load() (*Config, error) {
 	c := &Config{
 		IdeasDir:    envOr("IDEAS_DIR", "/data/ideas"),
 		TrackerPath: envOr("TRACKER_PATH", "/data/tracker.md"),
-		DBPath:      envOr("DB_PATH", "/data/db/tracker.db"),
+		DBPath:      envOr("DB_PATH", "/data/db/dashboard.db"),
 		APIToken:    os.Getenv("DASHBOARD_API_TOKEN"),
 		Addr:        envOr("ADDR", ":8080"),
 	}

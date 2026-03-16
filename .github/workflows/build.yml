@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: fahad-tariq/tracker
+  IMAGE_NAME: fahad-tariq/dashboard
 
 jobs:
   test:

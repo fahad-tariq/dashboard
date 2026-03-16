@@ -1,6 +1,6 @@
-# Tracker
+# Dashboard
 
-A personal task, goal, and idea tracker backed by a single markdown file. Tasks and goals live in `tracker.md`, ideas are file-per-idea in status directories. Web UI with htmx for live updates.
+A personal task, goal, and idea dashboard backed by a single markdown file. Tasks and goals live in `tracker.md`, ideas are file-per-idea in status directories. Web UI with htmx for live updates.
 
 ## Setup
 
@@ -15,7 +15,7 @@ cp .env.example .env
 |---|---|---|
 | `IDEAS_DIR` | `/data/ideas` | Directory for idea files (auto-created) |
 | `TRACKER_PATH` | `/data/tracker.md` | Path to the tracker markdown file |
-| `DB_PATH` | `/data/db/tracker.db` | SQLite database path (cache) |
+| `DB_PATH` | `/data/db/dashboard.db` | SQLite database path (cache) |
 | `DASHBOARD_API_TOKEN` | (empty) | Bearer token for API auth (optional) |
 | `ADDR` | `:8080` | Server listen address |
 
@@ -26,11 +26,11 @@ cp .env.example .env
 make run
 
 # Or directly
-IDEAS_DIR=./ideas TRACKER_PATH=./data/tracker.md go run ./cmd/tracker
+IDEAS_DIR=./ideas TRACKER_PATH=./data/tracker.md go run ./cmd/dashboard
 
 # Build binary
 make build
-./bin/tracker
+./bin/dashboard
 ```
 
 ## Docker

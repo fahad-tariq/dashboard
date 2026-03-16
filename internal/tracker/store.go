@@ -49,7 +49,7 @@ func (s *Store) ReplaceAll(items []Item) error {
 	return tx.Commit()
 }
 
-// Summary returns aggregate counts for the dashboard stats row.
+// Summary returns aggregate counts for the tracker stats row.
 func (s *Store) Summary() (Summary, error) {
 	var sum Summary
 	err := s.db.QueryRow(`

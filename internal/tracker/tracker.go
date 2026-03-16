@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -35,15 +36,10 @@ type Item struct {
 
 // HasTag returns true if the item has the given tag.
 func (it *Item) HasTag(tag string) bool {
-	for _, t := range it.Tags {
-		if t == tag {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(it.Tags, tag)
 }
 
-// Summary holds aggregate counts for the dashboard stats row.
+// Summary holds aggregate counts for the tracker stats row.
 type Summary struct {
 	OpenTasks   int
 	ActiveGoals int
@@ -176,7 +172,7 @@ func parseItemLine(raw string, done bool, sectionTag string) *Item {
 
 	// Extract tags: [tags: tech, study]
 	if m := tagsRe.FindStringSubmatch(title); m != nil {
-		for _, t := range strings.Split(m[1], ",") {
+		for t := range strings.SplitSeq(m[1], ",") {
 			t = strings.TrimSpace(t)
 			if t != "" {
 				item.Tags = append(item.Tags, t)

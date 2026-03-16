@@ -1,5 +1,5 @@
 services:
-  tracker:
+  dashboard:
     build: .
     ports:
       - "8080:8080"
@@ -9,5 +9,5 @@ services:
     environment:
       - IDEAS_DIR=/data/ideas
       - TRACKER_PATH=/data/db/tracker.md
-      - DB_PATH=/data/db/tracker.db
+      - DB_PATH=/data/db/dashboard.db
       - DASHBOARD_API_TOKEN=${DASHBOARD_API_TOKEN}

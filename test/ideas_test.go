@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fahad/tracker/internal/ideas"
+	"github.com/fahad/dashboard/internal/ideas"
 )
 
 func TestParseIdea(t *testing.T) {

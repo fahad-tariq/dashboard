@@ -1,4 +1,4 @@
-module github.com/fahad/tracker
+module github.com/fahad/dashboard
 
 go 1.26.1
 

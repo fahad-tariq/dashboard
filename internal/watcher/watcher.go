@@ -9,7 +9,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/fahad/tracker/internal/sse"
+	"github.com/fahad/dashboard/internal/sse"
 )
 
 const debounceInterval = 500 * time.Millisecond
