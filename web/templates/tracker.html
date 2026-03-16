@@ -49,7 +49,6 @@
         <div class="tracker-item-meta">
             {{range .Tags}}<span class="badge badge-tag" onclick="event.stopPropagation();trackerFilter('category','{{.}}')">{{.}}</span>{{end}}
             {{if .Priority}}<span class="badge badge-priority-{{.Priority}}" onclick="event.stopPropagation();trackerFilter('priority','{{.Priority}}')">{{.Priority}}</span>{{end}}
-            {{if .Graduated}}<span class="badge graduated">graduated</span>{{end}}
             {{if .Added}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
             <form method="POST" action="/tracker/{{.Slug}}/complete" class="item-complete-form" onclick="event.stopPropagation()">
                 <button type="submit" class="item-complete-btn" title="Complete">&#x2713;</button>
@@ -70,11 +69,6 @@
                         <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
                     </select>
                 </form>
-                {{if and (not .Graduated) (projectsEnabled)}}
-                <form method="POST" action="/tracker/{{.Slug}}/graduate" class="inline-triage">
-                    <button type="submit" class="action-btn" onclick="return confirm('Graduate this item to a project?')">graduate</button>
-                </form>
-                {{end}}
                 <form method="POST" action="/tracker/{{.Slug}}/delete" class="inline-triage">
                     <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this item?')">delete</button>
                 </form>

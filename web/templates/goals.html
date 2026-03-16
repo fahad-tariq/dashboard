@@ -53,7 +53,6 @@
         <div class="tracker-item-meta">
             {{range .Tags}}<span class="badge badge-tag" onclick="trackerFilter('category','{{.}}')">{{.}}</span>{{end}}
             {{if .Priority}}<span class="badge badge-priority-{{.Priority}}" onclick="trackerFilter('priority','{{.Priority}}')">{{.Priority}}</span>{{end}}
-            {{if .Graduated}}<span class="badge graduated">graduated</span>{{end}}
         </div>
     </div>
     {{if gt .Target 0.0}}
@@ -92,11 +91,6 @@
                 <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
             </select>
         </form>
-        {{if and (not .Graduated) (projectsEnabled)}}
-        <form method="POST" action="/tracker/{{.Slug}}/graduate" class="inline-triage">
-            <button type="submit" class="action-btn" onclick="return confirm('Graduate this item to a project?')">graduate</button>
-        </form>
-        {{end}}
         <form method="POST" action="/tracker/{{.Slug}}/delete" class="inline-triage">
             <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this goal?')">delete</button>
         </form>

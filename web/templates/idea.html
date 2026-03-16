@@ -5,7 +5,6 @@
 <h1>{{.Idea.Title}}</h1>
 <div class="idea-meta-detail">
     {{if .Idea.Type}}<span class="badge badge-type">{{.Idea.Type}}</span>{{end}}
-    {{if .Idea.SuggestedProject}}<span class="meta-dim">suggested: {{.Idea.SuggestedProject}}</span>{{end}}
     {{if .Idea.Date}}<span class="meta-dim">{{.Idea.Date}}</span>{{end}}
     <span class="badge badge-{{.Idea.Status}}">{{.Idea.Status}}</span>
 </div>

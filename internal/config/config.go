@@ -2,32 +2,23 @@ package config
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 )
 
 type Config struct {
-	ProjectsDir     string
-	ProjectsEnabled bool
-	IdeasDir        string
-	TrackerPath     string
-	DBPath          string
-	APIToken        string
-	Addr            string
+	IdeasDir    string
+	TrackerPath string
+	DBPath      string
+	APIToken    string
+	Addr        string
 }
 
 func Load() (*Config, error) {
-	projectsDir := "/data/projects"
-	if v, ok := os.LookupEnv("PROJECTS_DIR"); ok {
-		projectsDir = v
-	}
-
 	c := &Config{
-		ProjectsDir: projectsDir,
 		IdeasDir:    envOr("IDEAS_DIR", "/data/ideas"),
 		TrackerPath: envOr("TRACKER_PATH", "/data/tracker.md"),
-		DBPath:      envOr("DB_PATH", "/data/db/dashboard.db"),
+		DBPath:      envOr("DB_PATH", "/data/db/tracker.db"),
 		APIToken:    os.Getenv("DASHBOARD_API_TOKEN"),
 		Addr:        envOr("ADDR", ":8080"),
 	}
@@ -39,15 +30,6 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) validate() error {
-	if c.ProjectsDir != "" {
-		if info, err := os.Stat(c.ProjectsDir); err != nil || !info.IsDir() {
-			slog.Warn("PROJECTS_DIR not available, projects feature disabled", "path", c.ProjectsDir)
-			c.ProjectsDir = ""
-		}
-	}
-	c.ProjectsEnabled = c.ProjectsDir != ""
-
-	// Ensure ideas subdirectories exist.
 	for _, sub := range []string{"untriaged", "parked", "dropped", "research"} {
 		dir := filepath.Join(c.IdeasDir, sub)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -55,7 +37,6 @@ func (c *Config) validate() error {
 		}
 	}
 
-	// Ensure tracker parent directory exists and create skeleton if missing.
 	if err := os.MkdirAll(filepath.Dir(c.TrackerPath), 0o755); err != nil {
 		return fmt.Errorf("creating tracker directory: %w", err)
 	}
@@ -66,7 +47,6 @@ func (c *Config) validate() error {
 		}
 	}
 
-	// Ensure DB parent directory exists.
 	if err := os.MkdirAll(filepath.Dir(c.DBPath), 0o755); err != nil {
 		return fmt.Errorf("creating DB directory: %w", err)
 	}

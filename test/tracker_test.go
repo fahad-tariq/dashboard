@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/fahad/dashboard/internal/tracker"
+	"github.com/fahad/tracker/internal/tracker"
 )
 
 func TestParseTrackerEmpty(t *testing.T) {

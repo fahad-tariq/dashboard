@@ -1,45 +1,31 @@
 {{define "idea-card"}}
 <div class="idea-card">
     <div class="idea-header">
-        <a href="/ideas/{{.Idea.Slug}}" class="idea-title">{{.Idea.Title}}</a>
-        {{if .Idea.Type}}<span class="badge badge-type">{{.Idea.Type}}</span>{{end}}
+        <a href="/ideas/{{.Slug}}" class="idea-title">{{.Title}}</a>
+        {{if .Type}}<span class="badge badge-type">{{.Type}}</span>{{end}}
     </div>
-    {{if .Idea.SuggestedProject}}
-    <span class="meta-dim">suggested: {{.Idea.SuggestedProject}}</span>
-    {{end}}
     <div class="idea-actions">
-        {{if ne .Idea.Status "untriaged"}}
-        <form method="POST" action="/ideas/{{.Idea.Slug}}/triage" class="inline-triage">
+        {{if ne .Status "untriaged"}}
+        <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage">
             <input type="hidden" name="action" value="untriage">
             <button type="submit" class="action-btn">untriage</button>
         </form>
         {{end}}
-        {{if ne .Idea.Status "parked"}}
-        <form method="POST" action="/ideas/{{.Idea.Slug}}/triage" class="inline-triage">
+        {{if ne .Status "parked"}}
+        <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage">
             <input type="hidden" name="action" value="park">
             <button type="submit" class="action-btn">park</button>
         </form>
         {{end}}
-        {{if ne .Idea.Status "dropped"}}
-        <form method="POST" action="/ideas/{{.Idea.Slug}}/triage" class="inline-triage">
+        {{if ne .Status "dropped"}}
+        <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage">
             <input type="hidden" name="action" value="drop">
             <button type="submit" class="action-btn action-drop">drop</button>
         </form>
         {{end}}
-        <form method="POST" action="/ideas/{{.Idea.Slug}}/to-task" class="inline-triage">
+        <form method="POST" action="/ideas/{{.Slug}}/to-task" class="inline-triage">
             <button type="submit" class="action-btn action-assign">to task</button>
         </form>
-        {{if .Projects}}
-        <form method="POST" action="/ideas/{{.Idea.Slug}}/triage" class="inline-triage">
-            <input type="hidden" name="action" value="assign">
-            <select name="project" class="form-select-sm">
-                {{range .Projects}}
-                <option value="{{.Slug}}">{{.Slug}}</option>
-                {{end}}
-            </select>
-            <button type="submit" class="action-btn action-assign">assign</button>
-        </form>
-        {{end}}
     </div>
 </div>
 {{end}}
@@ -66,14 +52,6 @@
             <option value="wild-idea">wild-idea</option>
             <option value="new-project">new-project</option>
         </select>
-        {{if .Projects}}
-        <select name="suggested_project" class="form-select">
-            <option value="">no project</option>
-            {{range .Projects}}
-            <option value="{{.Slug}}">{{.Slug}}</option>
-            {{end}}
-        </select>
-        {{end}}
         <textarea name="body" placeholder="Description (optional)" rows="2" class="form-textarea"></textarea>
         <button type="submit" class="form-btn">add</button>
     </form>
@@ -83,7 +61,7 @@
 <section>
     <h2>Untriaged ({{len .Untriaged}})</h2>
     {{range .Untriaged}}
-    {{template "idea-card" dict "Idea" . "Projects" $.Projects}}
+    {{template "idea-card" .}}
     {{end}}
 </section>
 {{end}}
@@ -92,7 +70,7 @@
 <section>
     <h2>Parked ({{len .Parked}})</h2>
     {{range .Parked}}
-    {{template "idea-card" dict "Idea" . "Projects" $.Projects}}
+    {{template "idea-card" .}}
     {{end}}
 </section>
 {{end}}
@@ -101,7 +79,7 @@
 <section>
     <h2>Dropped ({{len .Dropped}})</h2>
     {{range .Dropped}}
-    {{template "idea-card" dict "Idea" . "Projects" $.Projects}}
+    {{template "idea-card" .}}
     {{end}}
 </section>
 {{end}}

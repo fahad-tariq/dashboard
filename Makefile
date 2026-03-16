@@ -1,7 +1,7 @@
 .PHONY: lint build test run docker-build docker-run clean tidy
 
-BIN := dashboard
-CMD := ./cmd/dashboard
+BIN := tracker
+CMD := ./cmd/tracker
 
 lint:
 	golangci-lint run ./...

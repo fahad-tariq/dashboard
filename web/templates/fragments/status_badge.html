@@ -1,7 +1,0 @@
-{{define "status-badge"}}
-<span class="badge badge-{{.Status}}"
-      hx-get="/projects/{{.Slug}}/status-edit"
-      hx-target="this"
-      hx-swap="outerHTML"
-      title="Click to edit">{{.Status}}</span>
-{{end}}

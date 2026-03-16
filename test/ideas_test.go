@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fahad/dashboard/internal/ideas"
+	"github.com/fahad/tracker/internal/ideas"
 )
 
 func TestParseIdea(t *testing.T) {
@@ -120,7 +120,7 @@ func TestTriagePark(t *testing.T) {
 		Body:  "# Park Me",
 	})
 
-	if err := svc.Triage("park-me", "park", "", ""); err != nil {
+	if err := svc.Triage("park-me", "park"); err != nil {
 		t.Fatalf("triage park: %v", err)
 	}
 
@@ -132,54 +132,4 @@ func TestTriagePark(t *testing.T) {
 	if idea.Status != "parked" {
 		t.Errorf("status: got %q, want 'parked'", idea.Status)
 	}
-}
-
-func TestTriageAssign(t *testing.T) {
-	dir := t.TempDir()
-	for _, sub := range []string{"untriaged", "parked", "dropped", "research"} {
-		os.MkdirAll(filepath.Join(dir, sub), 0o755)
-	}
-
-	projectsDir := t.TempDir()
-	projDir := filepath.Join(projectsDir, "myproj")
-	os.MkdirAll(projDir, 0o755)
-
-	svc := ideas.NewService(dir)
-	svc.Add(&ideas.Idea{
-		Slug:  "assign-me",
-		Title: "Assign Me",
-		Date:  "2026-03-14",
-		Body:  "# Assign Me\n\nSome detail.",
-	})
-
-	if err := svc.Triage("assign-me", "assign", "myproj", projectsDir); err != nil {
-		t.Fatalf("triage assign: %v", err)
-	}
-
-	// Idea file should be gone.
-	if _, err := svc.Get("assign-me"); err == nil {
-		t.Error("expected idea to be removed after assign")
-	}
-
-	// Backlog should exist in project.
-	data, err := os.ReadFile(filepath.Join(projDir, "backlog.md"))
-	if err != nil {
-		t.Fatalf("reading backlog: %v", err)
-	}
-	if !contains(string(data), "Assign Me") {
-		t.Error("backlog should contain the assigned idea title")
-	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsCheck(s, substr))
-}
-
-func containsCheck(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

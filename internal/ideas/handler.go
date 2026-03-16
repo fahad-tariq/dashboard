@@ -10,43 +10,31 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/fahad/dashboard/internal/markdown"
-	"github.com/fahad/dashboard/internal/projects"
+	"github.com/fahad/tracker/internal/markdown"
 )
 
-// ToTaskFunc creates a tracker task from an idea title, body, and type tag.
 type ToTaskFunc func(title, body, typeTag string) error
 
 type Handler struct {
-	svc         *Service
-	projectSvc  *projects.Service
-	projectsDir string
-	toTask      ToTaskFunc
-	templates   map[string]*template.Template
+	svc       *Service
+	toTask    ToTaskFunc
+	templates map[string]*template.Template
 }
 
-func NewHandler(svc *Service, projectSvc *projects.Service, projectsDir string, toTask ToTaskFunc, templates map[string]*template.Template) *Handler {
+func NewHandler(svc *Service, toTask ToTaskFunc, templates map[string]*template.Template) *Handler {
 	return &Handler{
-		svc:         svc,
-		projectSvc:  projectSvc,
-		projectsDir: projectsDir,
-		toTask:      toTask,
-		templates:   templates,
+		svc:       svc,
+		toTask:    toTask,
+		templates: templates,
 	}
 }
 
-// IdeasPage renders the ideas inbox.
 func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 	ideas, err := h.svc.List()
 	if err != nil {
 		slog.Error("listing ideas", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
-	}
-
-	var projs []projects.Project
-	if h.projectSvc != nil {
-		projs, _ = h.projectSvc.List()
 	}
 
 	grouped := map[string][]Idea{
@@ -63,7 +51,6 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 		"Untriaged": grouped["untriaged"],
 		"Parked":    grouped["parked"],
 		"Dropped":   grouped["dropped"],
-		"Projects":  projs,
 	}
 
 	if err := h.templates["ideas.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -71,7 +58,6 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// IdeaDetail renders a single idea with optional research.
 func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	idea, err := h.svc.Get(slug)
@@ -99,7 +85,6 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// QuickAdd handles the web form submission for adding a new idea.
 func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
@@ -114,12 +99,11 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 
 	slug := slugify(title)
 	idea := &Idea{
-		Slug:             slug,
-		Title:            title,
-		Type:             r.FormValue("type"),
-		SuggestedProject: r.FormValue("suggested_project"),
-		Date:             time.Now().Format("2006-01-02"),
-		Body:             "# " + title + "\n\n" + strings.TrimSpace(r.FormValue("body")),
+		Slug:  slug,
+		Title: title,
+		Type:  r.FormValue("type"),
+		Date:  time.Now().Format("2006-01-02"),
+		Body:  "# " + title + "\n\n" + strings.TrimSpace(r.FormValue("body")),
 	}
 
 	if err := h.svc.Add(idea); err != nil {
@@ -131,7 +115,6 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
 }
 
-// TriageAction handles triage form submissions.
 func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
@@ -140,14 +123,8 @@ func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	action := r.FormValue("action")
-	project := r.FormValue("project")
 
-	if action == "assign" && h.projectsDir == "" {
-		http.Error(w, "Projects not configured", http.StatusBadRequest)
-		return
-	}
-
-	if err := h.svc.Triage(slug, action, project, h.projectsDir); err != nil {
+	if err := h.svc.Triage(slug, action); err != nil {
 		slog.Error("triaging idea", "slug", slug, "action", action, "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -156,7 +133,6 @@ func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
 }
 
-// ToTask converts an idea into a tracker task, then deletes the idea.
 func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 
@@ -166,7 +142,6 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Strip the "# Title" heading from the body if present.
 	body := idea.Body
 	if lines := strings.SplitN(body, "\n", 2); len(lines) > 0 {
 		if strings.HasPrefix(strings.TrimSpace(lines[0]), "# ") {
@@ -185,7 +160,6 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete the idea file by "dropping" then removing.
 	_ = h.svc.Delete(slug)
 
 	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
@@ -193,7 +167,6 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 
 // --- API handlers ---
 
-// APIListIdeas returns all ideas as JSON.
 func (h *Handler) APIListIdeas(w http.ResponseWriter, r *http.Request) {
 	ideas, err := h.svc.List()
 	if err != nil {
@@ -203,13 +176,11 @@ func (h *Handler) APIListIdeas(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, ideas)
 }
 
-// APIAddIdea creates a new idea from JSON payload.
 func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Title            string `json:"title"`
-		Type             string `json:"type"`
-		SuggestedProject string `json:"suggested_project"`
-		Body             string `json:"body"`
+		Title string `json:"title"`
+		Type  string `json:"type"`
+		Body  string `json:"body"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
@@ -228,12 +199,11 @@ func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 	}
 
 	idea := &Idea{
-		Slug:             slug,
-		Title:            req.Title,
-		Type:             req.Type,
-		SuggestedProject: req.SuggestedProject,
-		Date:             time.Now().Format("2006-01-02"),
-		Body:             body,
+		Slug:  slug,
+		Title: req.Title,
+		Type:  req.Type,
+		Date:  time.Now().Format("2006-01-02"),
+		Body:  body,
 	}
 
 	if err := h.svc.Add(idea); err != nil {
@@ -244,24 +214,17 @@ func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, idea)
 }
 
-// APITriageIdea triages an idea via JSON payload.
 func (h *Handler) APITriageIdea(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	var req struct {
-		Action  string `json:"action"`
-		Project string `json:"project"`
+		Action string `json:"action"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		return
 	}
 
-	if req.Action == "assign" && h.projectsDir == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "projects not configured"})
-		return
-	}
-
-	if err := h.svc.Triage(slug, req.Action, req.Project, h.projectsDir); err != nil {
+	if err := h.svc.Triage(slug, req.Action); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -269,7 +232,6 @@ func (h *Handler) APITriageIdea(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// APIAddResearch adds research content to an idea.
 func (h *Handler) APIAddResearch(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	var req struct {
@@ -286,35 +248,6 @@ func (h *Handler) APIAddResearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
-}
-
-// APIListProjects returns all projects as JSON.
-func (h *Handler) APIListProjects(w http.ResponseWriter, r *http.Request) {
-	if h.projectSvc == nil {
-		writeJSON(w, http.StatusOK, []any{})
-		return
-	}
-	projs, err := h.projectSvc.List()
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, projs)
-}
-
-// APIProjectDetail returns a single project as JSON.
-func (h *Handler) APIProjectDetail(w http.ResponseWriter, r *http.Request) {
-	if h.projectSvc == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "projects not configured"})
-		return
-	}
-	slug := chi.URLParam(r, "slug")
-	proj, err := h.projectSvc.Get(slug)
-	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
-		return
-	}
-	writeJSON(w, http.StatusOK, proj)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -334,7 +267,6 @@ func slugify(title string) string {
 		}
 		return -1
 	}, s)
-	// Collapse multiple dashes.
 	for strings.Contains(s, "--") {
 		s = strings.ReplaceAll(s, "--", "-")
 	}

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{.Title}} - Dashboard</title>
+    <title>{{.Title}} - Tracker</title>
     <link rel="stylesheet" href="/static/theme.css">
     <script>
         (function() {
@@ -16,11 +16,10 @@
 </head>
 <body hx-ext="sse" sse-connect="/events">
     <nav class="nav">
-        <a href="/" class="nav-brand">dash&gt;_</a>
+        <a href="/" class="nav-brand">tracker&gt;_</a>
         <div class="nav-links">
             <a href="/">tasks</a>
             <a href="/goals">goals</a>
-            {{if projectsEnabled}}<a href="/projects">projects</a>{{end}}
             <a href="/ideas">ideas</a>
         </div>
         <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme"></button>
@@ -42,7 +41,6 @@
             setLabel();
         }
         setLabel();
-        // Highlight active nav link.
         (function() {
             var path = window.location.pathname;
             document.querySelectorAll('.nav-links a').forEach(function(a) {

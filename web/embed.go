@@ -2,7 +2,7 @@ package web
 
 import "embed"
 
-//go:embed templates/*.html templates/fragments/*.html
+//go:embed templates/*.html
 var TemplateFS embed.FS
 
 //go:embed static/*

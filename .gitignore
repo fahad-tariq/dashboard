@@ -1,6 +1,5 @@
-# Environment
+bin/
+data/
+/ideas/
 .env
-.env.example
-
-# OS
 .DS_Store

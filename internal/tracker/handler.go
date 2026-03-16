@@ -37,19 +37,15 @@ func sanitisePriority(p string) string {
 	return ""
 }
 
-// Handler serves the tracker web UI.
 type Handler struct {
-	svc         *Service
-	projectsDir string
-	templates   map[string]*template.Template
+	svc       *Service
+	templates map[string]*template.Template
 }
 
-// NewHandler creates a tracker handler.
-func NewHandler(svc *Service, projectsDir string, templates map[string]*template.Template) *Handler {
-	return &Handler{svc: svc, projectsDir: projectsDir, templates: templates}
+func NewHandler(svc *Service, templates map[string]*template.Template) *Handler {
+	return &Handler{svc: svc, templates: templates}
 }
 
-// sortItems sorts by priority (high first), then by added date (newest first).
 func sortItems(s []Item) {
 	slices.SortFunc(s, func(a, b Item) int {
 		pa, pb := priorityWeight[a.Priority], priorityWeight[b.Priority]
@@ -72,7 +68,6 @@ func sortItems(s []Item) {
 	})
 }
 
-// collectFilters extracts unique tags and priorities from items.
 func collectFilters(items []Item) (allTags, priorities []string) {
 	tagSet := map[string]bool{}
 	priSet := map[string]bool{}
@@ -96,7 +91,6 @@ func collectFilters(items []Item) (allTags, priorities []string) {
 	return
 }
 
-// TrackerPage renders the tasks page (homepage).
 func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 	items, err := h.svc.List()
 	if err != nil {
@@ -133,7 +127,6 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GoalsPage renders the goals page.
 func (h *Handler) GoalsPage(w http.ResponseWriter, r *http.Request) {
 	items, err := h.svc.List()
 	if err != nil {
@@ -164,7 +157,6 @@ func (h *Handler) GoalsPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// QuickAdd handles the task add form submission.
 func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
@@ -194,7 +186,6 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// AddGoal handles the goal add form submission.
 func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
@@ -230,13 +221,9 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/goals", http.StatusSeeOther)
 }
 
-// redirectBack sends the user back to the referring page, defaulting to /.
-// If anchor is non-empty, it's appended as a URL fragment.
-// Only allows relative paths to prevent open redirects.
 func redirectBack(w http.ResponseWriter, r *http.Request, anchor string) {
 	dest := r.Header.Get("Referer")
 
-	// Extract path only -- reject external URLs.
 	if dest != "" {
 		if u, err := url.Parse(dest); err == nil {
 			dest = u.Path
@@ -253,7 +240,6 @@ func redirectBack(w http.ResponseWriter, r *http.Request, anchor string) {
 	http.Redirect(w, r, dest, http.StatusSeeOther)
 }
 
-// UpdateNotes updates the body text of an item.
 func (h *Handler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
@@ -271,7 +257,6 @@ func (h *Handler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 	redirectBack(w, r, slug)
 }
 
-// Complete marks a task as done.
 func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := h.svc.Complete(slug); err != nil {
@@ -282,7 +267,6 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	redirectBack(w, r, "")
 }
 
-// Uncomplete marks a done task as not done.
 func (h *Handler) Uncomplete(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := h.svc.Uncomplete(slug); err != nil {
@@ -293,7 +277,6 @@ func (h *Handler) Uncomplete(w http.ResponseWriter, r *http.Request) {
 	redirectBack(w, r, "")
 }
 
-// UpdateProgress increments/decrements or sets a goal's current value.
 func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
@@ -307,7 +290,6 @@ func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If "set" param is present, set the absolute value instead of delta.
 	if r.FormValue("set") != "" {
 		if err := h.svc.SetProgress(slug, val); err != nil {
 			slog.Error("setting progress", "slug", slug, "error", err)
@@ -325,22 +307,6 @@ func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 	redirectBack(w, r, slug)
 }
 
-// Graduate creates a project from a tracker item.
-func (h *Handler) Graduate(w http.ResponseWriter, r *http.Request) {
-	if h.projectsDir == "" {
-		http.Error(w, "Projects not configured", http.StatusBadRequest)
-		return
-	}
-	slug := chi.URLParam(r, "slug")
-	if err := h.svc.Graduate(slug, h.projectsDir); err != nil {
-		slog.Error("graduating tracker item", "slug", slug, "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-	redirectBack(w, r, "")
-}
-
-// Delete removes an item.
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := h.svc.Delete(slug); err != nil {
@@ -351,7 +317,6 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	redirectBack(w, r, "")
 }
 
-// UpdatePriority changes an item's priority.
 func (h *Handler) UpdatePriority(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
@@ -367,7 +332,6 @@ func (h *Handler) UpdatePriority(w http.ResponseWriter, r *http.Request) {
 	redirectBack(w, r, slug)
 }
 
-// UpdateTags changes an item's additional tags.
 func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {

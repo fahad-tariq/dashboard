@@ -6,24 +6,6 @@ import (
 )
 
 var migrations = []string{
-	`CREATE TABLE IF NOT EXISTS projects (
-		id          INTEGER PRIMARY KEY AUTOINCREMENT,
-		slug        TEXT NOT NULL UNIQUE,
-		path        TEXT NOT NULL,
-		status      TEXT NOT NULL DEFAULT 'active'
-		            CHECK (status IN ('active', 'paused', 'archived')),
-		tags        TEXT,
-		last_commit TEXT,
-		created     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now', 'localtime')),
-		updated     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now', 'localtime'))
-	)`,
-	`CREATE TABLE IF NOT EXISTS sessions (
-		id          INTEGER PRIMARY KEY AUTOINCREMENT,
-		project_id  INTEGER REFERENCES projects(id),
-		session_id  TEXT,
-		description TEXT,
-		created     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now', 'localtime'))
-	)`,
 	`CREATE TABLE IF NOT EXISTS schema_version (
 		version INTEGER NOT NULL
 	)`,
@@ -38,11 +20,11 @@ var migrations = []string{
 		target_val  REAL NOT NULL DEFAULT 0,
 		unit        TEXT NOT NULL DEFAULT '',
 		done        INTEGER NOT NULL DEFAULT 0,
-		graduated   INTEGER NOT NULL DEFAULT 0
+		graduated   INTEGER NOT NULL DEFAULT 0,
+		added       TEXT NOT NULL DEFAULT '',
+		completed   TEXT NOT NULL DEFAULT '',
+		tags        TEXT NOT NULL DEFAULT '[]'
 	)`,
-	`ALTER TABLE tracker_items ADD COLUMN added TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE tracker_items ADD COLUMN completed TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE tracker_items ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`,
 }
 
 func Migrate(db *sql.DB) error {
