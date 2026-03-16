@@ -1072,6 +1072,7 @@ section h2 {
 .homepage-grid {
     display: grid;
     grid-template-columns: 3fr 2fr;
+    grid-auto-flow: dense;
     gap: 0 1rem;
     align-items: start;
 }
