@@ -11,9 +11,10 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/markdown"
+	"github.com/fahad/dashboard/internal/slug"
 )
 
-type ToTaskFunc func(title, body, typeTag string) error
+type ToTaskFunc func(title, body string, tags []string) error
 
 type Handler struct {
 	svc       *Service
@@ -91,19 +92,21 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := strings.TrimSpace(r.FormValue("title"))
-	if title == "" {
+	raw := strings.TrimSpace(r.FormValue("title"))
+	if raw == "" {
 		http.Error(w, "Title required", http.StatusBadRequest)
 		return
 	}
 
+	title, tags := parseTagsFromInput(raw)
 	slug := slugify(title)
 	idea := &Idea{
-		Slug:  slug,
-		Title: title,
-		Type:  r.FormValue("type"),
-		Date:  time.Now().Format("2006-01-02"),
-		Body:  "# " + title + "\n\n" + strings.TrimSpace(r.FormValue("body")),
+		Slug:   slug,
+		Title:  title,
+		Tags:   tags,
+		Images: parseCSV(r.FormValue("images")),
+		Date:   time.Now().Format("2006-01-02"),
+		Body:   "# " + title + "\n\n" + strings.TrimSpace(r.FormValue("body")),
 	}
 
 	if err := h.svc.Add(idea); err != nil {
@@ -153,8 +156,7 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	typeTag := idea.Type
-	if err := h.toTask(idea.Title, body, typeTag); err != nil {
+	if err := h.toTask(idea.Title, body, idea.Tags); err != nil {
 		slog.Error("converting idea to task", "slug", slug, "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -178,9 +180,10 @@ func (h *Handler) APIListIdeas(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Title string `json:"title"`
-		Type  string `json:"type"`
-		Body  string `json:"body"`
+		Title string   `json:"title"`
+		Tags  []string `json:"tags"`
+		Type  string   `json:"type"` // Legacy: converted to single tag.
+		Body  string   `json:"body"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
@@ -192,6 +195,11 @@ func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tags := req.Tags
+	if len(tags) == 0 && req.Type != "" {
+		tags = []string{req.Type}
+	}
+
 	slug := slugify(req.Title)
 	body := req.Body
 	if body == "" {
@@ -201,7 +209,7 @@ func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 	idea := &Idea{
 		Slug:  slug,
 		Title: req.Title,
-		Type:  req.Type,
+		Tags:  tags,
 		Date:  time.Now().Format("2006-01-02"),
 		Body:  body,
 	}
@@ -256,19 +264,37 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-func slugify(title string) string {
-	s := strings.ToLower(title)
-	s = strings.Map(func(r rune) rune {
-		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
-			return r
+// parseTagsFromInput extracts #tag tokens from input, returning the cleaned
+// title and collected tags.
+func parseTagsFromInput(input string) (title string, tags []string) {
+	parts := strings.Fields(input)
+	var titleParts []string
+	for _, p := range parts {
+		if strings.HasPrefix(p, "#") && len(p) > 1 {
+			tags = append(tags, p[1:])
+		} else {
+			titleParts = append(titleParts, p)
 		}
-		if r == ' ' || r == '-' || r == '_' {
-			return '-'
-		}
-		return -1
-	}, s)
-	for strings.Contains(s, "--") {
-		s = strings.ReplaceAll(s, "--", "-")
 	}
-	return strings.Trim(s, "-")
+	title = strings.Join(titleParts, " ")
+	return
+}
+
+func parseCSV(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var out []string
+	for v := range strings.SplitSeq(raw, ",") {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func slugify(title string) string {
+	return slug.Slugify(title)
 }

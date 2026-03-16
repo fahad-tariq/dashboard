@@ -25,6 +25,7 @@ var migrations = []string{
 		completed   TEXT NOT NULL DEFAULT '',
 		tags        TEXT NOT NULL DEFAULT '[]'
 	)`,
+	`ALTER TABLE tracker_items ADD COLUMN images TEXT NOT NULL DEFAULT ''`,
 }
 
 func Migrate(db *sql.DB) error {

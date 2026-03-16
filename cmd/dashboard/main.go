@@ -18,9 +18,11 @@ import (
 
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/db"
+	"github.com/fahad/dashboard/internal/exploration"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/sse"
 	"github.com/fahad/dashboard/internal/tracker"
+	"github.com/fahad/dashboard/internal/upload"
 	"github.com/fahad/dashboard/internal/watcher"
 	"github.com/fahad/dashboard/web"
 )
@@ -74,6 +76,7 @@ func main() {
 	}
 
 	ideaSvc := ideas.NewService(cfg.IdeasDir)
+	explorationSvc := exploration.NewService(cfg.ExplorationDir)
 	trackerStore := tracker.NewStore(database)
 	trackerSvc := tracker.NewService(cfg.TrackerPath, trackerStore)
 	if err := trackerSvc.Resync(); err != nil {
@@ -81,10 +84,12 @@ func main() {
 	}
 	broker := sse.NewBroker()
 
-	var watchDirs []string
-	watchDirs = append(watchDirs, cfg.IdeasDir)
-	if dir := filepath.Dir(cfg.TrackerPath); dir != cfg.IdeasDir {
-		watchDirs = append(watchDirs, dir)
+	dirCategories := map[string]string{
+		cfg.IdeasDir:       "ideas",
+		cfg.ExplorationDir: "exploration",
+	}
+	if dir := filepath.Dir(cfg.TrackerPath); dir != cfg.IdeasDir && dir != cfg.ExplorationDir {
+		dirCategories[dir] = "tracker"
 	}
 	callbacks := map[string]func(){
 		"tracker": func() {
@@ -93,22 +98,23 @@ func main() {
 			}
 		},
 	}
-	if err := watcher.Watch(watchDirs, broker, callbacks); err != nil {
+	if err := watcher.Watch(dirCategories, broker, callbacks); err != nil {
 		slog.Warn("file watcher failed to start", "error", err)
 	}
 
-	ideaHandler := ideas.NewHandler(ideaSvc, func(title, body, typeTag string) error {
+	uploadHandler := upload.NewHandler(cfg.UploadsDir)
+
+	ideaHandler := ideas.NewHandler(ideaSvc, func(title, body string, tags []string) error {
 		item := tracker.Item{
 			Title: title,
 			Type:  tracker.TaskType,
 			Body:  body,
-		}
-		if typeTag != "" {
-			item.Tags = []string{typeTag}
+			Tags:  tags,
 		}
 		return trackerSvc.AddItem(item)
 	}, templates)
 	trackerHandler := tracker.NewHandler(trackerSvc, templates)
+	explorationHandler := exploration.NewHandler(explorationSvc, templates)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
@@ -117,6 +123,9 @@ func main() {
 
 	staticSub, _ := fs.Sub(web.StaticFS, "static")
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServerFS(staticSub)))
+
+	r.Post("/upload", uploadHandler.Upload)
+	r.Handle("/uploads/*", http.StripPrefix("/uploads/", noDirectoryListing(http.Dir(cfg.UploadsDir))))
 
 	r.Get("/events", broker.ServeHTTP)
 
@@ -131,12 +140,19 @@ func main() {
 	r.Post("/tracker/{slug}/delete", trackerHandler.Delete)
 	r.Post("/tracker/{slug}/priority", trackerHandler.UpdatePriority)
 	r.Post("/tracker/{slug}/tags", trackerHandler.UpdateTags)
+	r.Post("/tracker/{slug}/edit", trackerHandler.UpdateEdit)
 
 	r.Get("/ideas", ideaHandler.IdeasPage)
 	r.Get("/ideas/{slug}", ideaHandler.IdeaDetail)
 	r.Post("/ideas/add", ideaHandler.QuickAdd)
 	r.Post("/ideas/{slug}/triage", ideaHandler.TriageAction)
 	r.Post("/ideas/{slug}/to-task", ideaHandler.ToTask)
+
+	r.Get("/exploration", explorationHandler.ExplorationsPage)
+	r.Get("/exploration/{slug}", explorationHandler.ExplorationDetail)
+	r.Post("/exploration/add", explorationHandler.QuickAdd)
+	r.Post("/exploration/{slug}/edit", explorationHandler.Edit)
+	r.Post("/exploration/{slug}/delete", explorationHandler.Delete)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		if cfg.APIToken != "" {
@@ -153,6 +169,17 @@ func main() {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}
+}
+
+func noDirectoryListing(root http.FileSystem) http.Handler {
+	fs := http.FileServer(root)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/") || r.URL.Path == "" {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		fs.ServeHTTP(w, r)
+	})
 }
 
 func bearerAuth(token string) func(http.Handler) http.Handler {
@@ -177,7 +204,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		return nil, fmt.Errorf("parsing layout: %w", err)
 	}
 
-	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html"}
+	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "exploration.html", "exploration-detail.html"}
 	templates := make(map[string]*template.Template, len(pages))
 
 	for _, page := range pages {

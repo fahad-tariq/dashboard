@@ -794,6 +794,58 @@ section h2 {
     margin-top: 0.75rem;
 }
 
+/* --- Image upload/gallery --- */
+.image-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+    margin-bottom: 0.3rem;
+}
+.image-thumb-wrap {
+    position: relative;
+    display: inline-block;
+}
+.image-thumb {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+}
+.image-thumb-remove {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--red);
+    color: var(--base);
+    border: none;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.upload-area {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-top: 0.25rem;
+}
+.upload-file-input {
+    display: none;
+}
+.upload-label {
+    cursor: pointer;
+    display: inline-block;
+    width: fit-content;
+}
+
 /* --- Empty state --- */
 .empty {
     color: var(--fg-dim);

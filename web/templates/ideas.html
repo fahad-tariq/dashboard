@@ -2,7 +2,7 @@
 <div class="idea-card">
     <div class="idea-header">
         <a href="/ideas/{{.Slug}}" class="idea-title">{{.Title}}</a>
-        {{if .Type}}<span class="badge badge-type">{{.Type}}</span>{{end}}
+        {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
     </div>
     <div class="idea-actions">
         {{if ne .Status "untriaged"}}
@@ -45,13 +45,7 @@
 <details class="quick-add" open>
     <summary>Quick add</summary>
     <form method="POST" action="/ideas/add" class="idea-form">
-        <input type="text" name="title" placeholder="Idea title" required class="form-input">
-        <select name="type" class="form-select">
-            <option value="feature">feature</option>
-            <option value="technical-exploration">technical-exploration</option>
-            <option value="wild-idea">wild-idea</option>
-            <option value="new-project">new-project</option>
-        </select>
+        <input type="text" name="title" placeholder="Idea title #tag1 #tag2" required class="form-input">
         <textarea name="body" placeholder="Description (optional)" rows="2" class="form-textarea"></textarea>
         <button type="submit" class="form-btn">add</button>
     </form>

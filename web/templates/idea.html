@@ -4,10 +4,16 @@
 </div>
 <h1>{{.Idea.Title}}</h1>
 <div class="idea-meta-detail">
-    {{if .Idea.Type}}<span class="badge badge-type">{{.Idea.Type}}</span>{{end}}
+    {{range .Idea.Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
     {{if .Idea.Date}}<span class="meta-dim">{{.Idea.Date}}</span>{{end}}
     <span class="badge badge-{{.Idea.Status}}">{{.Idea.Status}}</span>
 </div>
+
+{{if .Idea.Images}}
+<div class="image-gallery">
+    {{range .Idea.Images}}<div class="image-thumb-wrap"><img src="/uploads/{{.}}" class="image-thumb" loading="lazy"></div>{{end}}
+</div>
+{{end}}
 
 <section>
     <div class="markdown-body">{{.BodyHTML}}</div>

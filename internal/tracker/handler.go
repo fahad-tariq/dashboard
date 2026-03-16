@@ -21,7 +21,7 @@ func parseTags(raw string) []string {
 		return nil
 	}
 	var tags []string
-	for _, t := range strings.Split(raw, ",") {
+	for t := range strings.SplitSeq(raw, ",") {
 		t = strings.TrimSpace(t)
 		if t != "" {
 			tags = append(tags, t)
@@ -175,6 +175,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		Priority: sanitisePriority(r.FormValue("priority")),
 		Body:     strings.TrimSpace(r.FormValue("body")),
 		Tags:     parseTags(r.FormValue("tags")),
+		Images:   parseTags(r.FormValue("images")),
 	}
 
 	if err := h.svc.AddItem(item); err != nil {
@@ -210,6 +211,7 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 		Unit:     strings.TrimSpace(r.FormValue("unit")),
 		Body:     strings.TrimSpace(r.FormValue("body")),
 		Tags:     parseTags(r.FormValue("tags")),
+		Images:   parseTags(r.FormValue("images")),
 	}
 
 	if err := h.svc.AddItem(item); err != nil {
@@ -341,7 +343,7 @@ func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
 	raw := strings.TrimSpace(r.FormValue("tags"))
 	var tags []string
 	if raw != "" {
-		for _, t := range strings.Split(raw, ",") {
+		for t := range strings.SplitSeq(raw, ",") {
 			t = strings.TrimSpace(t)
 			if t != "" {
 				tags = append(tags, t)
@@ -353,5 +355,25 @@ func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
+	redirectBack(w, r, slug)
+}
+
+func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	body := strings.TrimSpace(r.FormValue("body"))
+	tags := parseTags(r.FormValue("tags"))
+	images := parseTags(r.FormValue("images"))
+
+	if err := h.svc.UpdateEdit(slug, body, tags, images); err != nil {
+		slog.Error("updating item", "slug", slug, "error", err)
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
 	redirectBack(w, r, slug)
 }

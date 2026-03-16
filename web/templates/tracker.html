@@ -73,15 +73,18 @@
                     <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this item?')">delete</button>
                 </form>
             </div>
+            {{if .Images}}
+            <div class="image-gallery">
+                {{range .Images}}<div class="image-thumb-wrap"><img src="/uploads/{{.}}" class="image-thumb" loading="lazy"></div>{{end}}
+            </div>
+            {{end}}
             <details class="tracker-notes-edit">
                 <summary>edit</summary>
-                <form method="POST" action="/tracker/{{.Slug}}/notes" class="tracker-notes-form">
+                <form method="POST" action="/tracker/{{.Slug}}/edit" class="tracker-notes-form">
                     <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context...">{{.Body}}</textarea>
-                    <button type="submit" class="form-btn form-btn-sm">save notes</button>
-                </form>
-                <form method="POST" action="/tracker/{{.Slug}}/tags" class="tracker-notes-form">
                     <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
-                    <button type="submit" class="form-btn form-btn-sm">save tags</button>
+                    <input type="hidden" name="images" value="{{range $i, $img := .Images}}{{if $i}},{{end}}{{$img}}{{end}}">
+                    <button type="submit" class="form-btn form-btn-sm">save</button>
                 </form>
             </details>
         </div>

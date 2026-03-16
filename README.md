@@ -1,6 +1,6 @@
 # Dashboard
 
-A personal task, goal, and idea dashboard backed by a single markdown file. Tasks and goals live in `tracker.md`, ideas are file-per-idea in status directories. Web UI with htmx for live updates.
+A personal task, goal, idea, and exploration dashboard backed by markdown files. Tasks and goals live in `tracker.md`, ideas and explorations are file-per-item in their own directories. Web UI with htmx for live updates. Supports image upload and clipboard paste across all content types.
 
 ## Setup
 
@@ -14,6 +14,8 @@ cp .env.example .env
 | Variable | Default | Description |
 |---|---|---|
 | `IDEAS_DIR` | `/data/ideas` | Directory for idea files (auto-created) |
+| `EXPLORATION_DIR` | `/data/explorations` | Directory for exploration files (auto-created) |
+| `UPLOADS_DIR` | `/data/uploads` | Directory for uploaded images (auto-created) |
 | `TRACKER_PATH` | `/data/tracker.md` | Path to the tracker markdown file |
 | `DB_PATH` | `/data/db/dashboard.db` | SQLite database path (cache) |
 | `DASHBOARD_API_TOKEN` | (empty) | Bearer token for API auth (optional) |
@@ -66,10 +68,24 @@ The compose file mounts `./ideas` for idea files and `./data` for the database a
 
 ### Ideas
 - File-per-idea with frontmatter metadata
+- Tag-based categorisation (replaces fixed type dropdown)
 - Triage workflow: untriaged -> parked / dropped
-- Convert idea to task
+- Convert idea to task (tags carry over)
 - Research notes per idea
-- Quick add from web UI
+- Quick add with `#tag` syntax
+
+### Exploration
+- File-per-item for open-ended explorations and research
+- Tag-based categorisation with `#tag` syntax
+- Markdown body with rendered detail view
+- Inline editing of body, tags, and images
+
+### Image upload
+- Attach images to any task, goal, idea, or exploration
+- Upload via file picker or clipboard paste (Ctrl+V in any textarea)
+- MIME-based validation (PNG, JPEG, GIF, WebP only)
+- Canonical extension mapping (ignores original filename extension)
+- 10 MB size limit per upload
 
 ### General
 - Live reload via SSE on file changes
@@ -86,6 +102,7 @@ Tasks and goals are stored in `tracker.md` as checkbox items:
 ## Health
 - [ ] Run 5km !high [added: 2026-03-10] [tags: fitness]
 - [ ] Reach 90kg [goal: 85.5/90 kg] [added: 2026-03-01]
+- [ ] Document setup [tags: infra] [images: screenshot.png]
 
 ## Reading
 - [x] Finish book club pick [completed: 2026-03-15] [tags: books]
@@ -97,8 +114,9 @@ Each idea is a markdown file in `IDEAS_DIR/{status}/`:
 
 ```markdown
 ---
-type: feature
+tags: feature, exploration
 date: 2026-03-14
+images: abc123.png
 ---
 
 # Idea title
@@ -106,7 +124,22 @@ date: 2026-03-14
 Description here.
 ```
 
-Status directories: `untriaged/`, `parked/`, `dropped/`. Research notes are stored separately in `research/`.
+Status directories: `untriaged/`, `parked/`, `dropped/`. Research notes are stored separately in `research/`. Legacy files with `type:` frontmatter are automatically migrated to `tags:` on read.
+
+## Exploration file format
+
+Each exploration is a markdown file in `EXPLORATION_DIR/`:
+
+```markdown
+---
+tags: rust, systems
+date: 2026-03-16
+---
+
+# Exploring Rust for CLI tools
+
+Notes and findings here.
+```
 
 ## Routes
 
@@ -116,6 +149,10 @@ Status directories: `untriaged/`, `parked/`, `dropped/`. Research notes are stor
 | `GET` | `/goals` | Goals page |
 | `GET` | `/ideas` | Ideas inbox |
 | `GET` | `/ideas/{slug}` | Idea detail |
+| `GET` | `/exploration` | Exploration list |
+| `GET` | `/exploration/{slug}` | Exploration detail |
+| `POST` | `/upload` | Image upload (multipart, returns JSON) |
+| `GET` | `/uploads/{filename}` | Serve uploaded images |
 | `GET` | `/events` | SSE endpoint for live reload |
 
 ### API
@@ -137,6 +174,8 @@ All user data is plain markdown files. The SQLite database is a read cache rebui
 |---|---|---|
 | Tasks and goals | `TRACKER_PATH` | Single markdown file |
 | Ideas and research | `IDEAS_DIR` | Directory of markdown files |
+| Explorations | `EXPLORATION_DIR` | Directory of markdown files |
+| Uploaded images | `UPLOADS_DIR` | Image files |
 | Database | `DB_PATH` | SQLite (disposable cache) |
 
 To back up the dashboard, copy the tracker file and ideas directory. A few options:

@@ -14,24 +14,27 @@ import (
 
 const debounceInterval = 500 * time.Millisecond
 
-func Watch(dirs []string, broker *sse.Broker, callbacks map[string]func()) error {
+// Watch monitors directories for file changes and broadcasts SSE events.
+// dirCategories maps absolute directory paths to category names
+// (e.g. {"/data/ideas": "ideas", "/data": "tracker"}).
+func Watch(dirCategories map[string]string, broker *sse.Broker, callbacks map[string]func()) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
 	}
 
-	for _, dir := range dirs {
+	for dir := range dirCategories {
 		if err := addRecursive(w, dir); err != nil {
 			w.Close()
 			return err
 		}
 	}
 
-	go run(w, broker, callbacks)
+	go run(w, dirCategories, broker, callbacks)
 	return nil
 }
 
-func run(w *fsnotify.Watcher, broker *sse.Broker, callbacks map[string]func()) {
+func run(w *fsnotify.Watcher, dirCategories map[string]string, broker *sse.Broker, callbacks map[string]func()) {
 	defer w.Close()
 
 	timer := time.NewTimer(0)
@@ -55,7 +58,7 @@ func run(w *fsnotify.Watcher, broker *sse.Broker, callbacks map[string]func()) {
 				addRecursive(w, event.Name)
 			}
 
-			category := classifyEvent(event.Name)
+			category := classifyEvent(event.Name, dirCategories)
 			if category == "" {
 				continue
 			}
@@ -82,7 +85,7 @@ func run(w *fsnotify.Watcher, broker *sse.Broker, callbacks map[string]func()) {
 	}
 }
 
-func classifyEvent(path string) string {
+func classifyEvent(path string, dirCategories map[string]string) string {
 	name := filepath.Base(path)
 
 	if !strings.HasSuffix(name, ".md") {
@@ -93,14 +96,18 @@ func classifyEvent(path string) string {
 		return ""
 	}
 
+	// Check if the path is tracker.md specifically.
 	if name == "tracker.md" {
 		return "tracker"
 	}
 
-	dir := filepath.Dir(path)
-	if strings.Contains(dir, "untriaged") || strings.Contains(dir, "parked") ||
-		strings.Contains(dir, "dropped") || strings.Contains(dir, "research") {
-		return "ideas"
+	// Match against registered directory categories.
+	absPath, _ := filepath.Abs(path)
+	for dir, category := range dirCategories {
+		absDir, _ := filepath.Abs(dir)
+		if strings.HasPrefix(absPath, absDir+string(filepath.Separator)) {
+			return category
+		}
 	}
 
 	return ""

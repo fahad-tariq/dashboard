@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/fahad/dashboard/internal/slug"
 )
 
 // ItemType distinguishes tasks from goals.
@@ -32,6 +34,7 @@ type Item struct {
 	Added     string   // date added, YYYY-MM-DD
 	Completed string   // date completed, YYYY-MM-DD
 	Tags      []string // tags for categorisation and filtering
+	Images    []string // uploaded image filenames
 }
 
 // HasTag returns true if the item has the given tag.
@@ -49,6 +52,7 @@ var goalRe = regexp.MustCompile(`\[goal:\s*([\d.]+)\s*/\s*([\d.]+)\s*(.*?)\]`)
 var addedRe = regexp.MustCompile(`\[added:\s*(\d{4}-\d{2}-\d{2})\]`)
 var completedRe = regexp.MustCompile(`\[completed:\s*(\d{4}-\d{2}-\d{2})\]`)
 var tagsRe = regexp.MustCompile(`\[tags:\s*(.*?)\]`)
+var imagesRe = regexp.MustCompile(`\[images:\s*(.*?)\]`)
 
 // ParseTracker reads a tracker.md file and returns structured items.
 func ParseTracker(path string) ([]Item, error) {
@@ -181,6 +185,17 @@ func parseItemLine(raw string, done bool, sectionTag string) *Item {
 		title = strings.TrimSpace(tagsRe.ReplaceAllString(title, ""))
 	}
 
+	// Extract images: [images: img1.jpg, img2.jpg]
+	if m := imagesRe.FindStringSubmatch(title); m != nil {
+		for img := range strings.SplitSeq(m[1], ",") {
+			img = strings.TrimSpace(img)
+			if img != "" {
+				item.Images = append(item.Images, img)
+			}
+		}
+		title = strings.TrimSpace(imagesRe.ReplaceAllString(title, ""))
+	}
+
 	// Extract graduated marker.
 	if strings.Contains(title, "[graduated]") {
 		item.Graduated = true
@@ -238,6 +253,9 @@ func writeItem(sb *strings.Builder, it Item) {
 	if len(it.Tags) > 0 {
 		sb.WriteString(" [tags: " + strings.Join(it.Tags, ", ") + "]")
 	}
+	if len(it.Images) > 0 {
+		sb.WriteString(" [images: " + strings.Join(it.Images, ", ") + "]")
+	}
 	if it.Graduated {
 		sb.WriteString(" [graduated]")
 	}
@@ -285,20 +303,6 @@ func ParseQuickAdd(input string) Item {
 }
 
 // Slugify converts a title to a URL-safe slug.
-// Strips path traversal characters and all non-alphanumeric/hyphen chars.
 func Slugify(title string) string {
-	s := strings.ToLower(title)
-	s = strings.Map(func(r rune) rune {
-		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
-			return r
-		}
-		if r == ' ' || r == '-' || r == '_' {
-			return '-'
-		}
-		return -1
-	}, s)
-	for strings.Contains(s, "--") {
-		s = strings.ReplaceAll(s, "--", "-")
-	}
-	return strings.Trim(s, "-")
+	return slug.Slugify(title)
 }

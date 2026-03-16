@@ -7,17 +7,21 @@ import (
 )
 
 type Config struct {
-	IdeasDir    string
-	TrackerPath string
-	DBPath      string
-	APIToken    string
-	Addr        string
+	IdeasDir       string
+	ExplorationDir string
+	UploadsDir     string
+	TrackerPath    string
+	DBPath         string
+	APIToken       string
+	Addr           string
 }
 
 func Load() (*Config, error) {
 	c := &Config{
-		IdeasDir:    envOr("IDEAS_DIR", "/data/ideas"),
-		TrackerPath: envOr("TRACKER_PATH", "/data/tracker.md"),
+		IdeasDir:       envOr("IDEAS_DIR", "/data/ideas"),
+		ExplorationDir: envOr("EXPLORATION_DIR", "/data/explorations"),
+		UploadsDir:     envOr("UPLOADS_DIR", "/data/uploads"),
+		TrackerPath:    envOr("TRACKER_PATH", "/data/tracker.md"),
 		DBPath:      envOr("DB_PATH", "/data/db/dashboard.db"),
 		APIToken:    os.Getenv("DASHBOARD_API_TOKEN"),
 		Addr:        envOr("ADDR", ":8080"),
@@ -35,6 +39,14 @@ func (c *Config) validate() error {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("creating ideas dir %q: %w", dir, err)
 		}
+	}
+
+	if err := os.MkdirAll(c.ExplorationDir, 0o755); err != nil {
+		return fmt.Errorf("creating exploration dir %q: %w", c.ExplorationDir, err)
+	}
+
+	if err := os.MkdirAll(c.UploadsDir, 0o755); err != nil {
+		return fmt.Errorf("creating uploads dir %q: %w", c.UploadsDir, err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(c.TrackerPath), 0o755); err != nil {

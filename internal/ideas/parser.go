@@ -8,14 +8,15 @@ import (
 )
 
 type Idea struct {
-	Slug             string `json:"slug"`
-	Title            string `json:"title"`
-	Type             string `json:"type,omitempty"`
-	SuggestedProject string `json:"suggested_project,omitempty"`
-	Date             string `json:"date,omitempty"`
-	Research         string `json:"research,omitempty"`
-	Body             string `json:"body"`
-	Status           string `json:"status"` // untriaged, parked, dropped
+	Slug             string   `json:"slug"`
+	Title            string   `json:"title"`
+	Tags             []string `json:"tags,omitempty"`
+	Images           []string `json:"images,omitempty"`
+	SuggestedProject string   `json:"suggested_project,omitempty"`
+	Date             string   `json:"date,omitempty"`
+	Research         string   `json:"research,omitempty"`
+	Body             string   `json:"body"`
+	Status           string   `json:"status"` // untriaged, parked, dropped
 }
 
 // ParseIdea reads a single idea markdown file and returns a structured Idea.
@@ -37,8 +38,26 @@ func ParseIdea(path string) (*Idea, error) {
 		line = strings.TrimSpace(line)
 		if k, v, ok := strings.Cut(line, ": "); ok {
 			switch k {
+			case "tags":
+				for t := range strings.SplitSeq(v, ",") {
+					t = strings.TrimSpace(t)
+					if t != "" {
+						idea.Tags = append(idea.Tags, t)
+					}
+				}
 			case "type":
-				idea.Type = v
+				// Legacy: migrate single type to tags.
+				v = strings.TrimSpace(v)
+				if v != "" {
+					idea.Tags = append(idea.Tags, v)
+				}
+			case "images":
+				for img := range strings.SplitSeq(v, ",") {
+					img = strings.TrimSpace(img)
+					if img != "" {
+						idea.Images = append(idea.Images, img)
+					}
+				}
 			case "suggested-project":
 				idea.SuggestedProject = v
 			case "date":
@@ -66,8 +85,11 @@ func ParseIdea(path string) (*Idea, error) {
 func WriteIdea(dir string, idea *Idea) error {
 	var b strings.Builder
 	b.WriteString("---\n")
-	if idea.Type != "" {
-		fmt.Fprintf(&b, "type: %s\n", idea.Type)
+	if len(idea.Tags) > 0 {
+		fmt.Fprintf(&b, "tags: %s\n", strings.Join(idea.Tags, ", "))
+	}
+	if len(idea.Images) > 0 {
+		fmt.Fprintf(&b, "images: %s\n", strings.Join(idea.Images, ", "))
 	}
 	if idea.SuggestedProject != "" {
 		fmt.Fprintf(&b, "suggested-project: %s\n", idea.SuggestedProject)

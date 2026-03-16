@@ -225,6 +225,35 @@ func (s *Service) UpdateTags(slug string, tags []string) error {
 	return s.store.ReplaceAll(items)
 }
 
+func (s *Service) UpdateEdit(slug, body string, tags, images []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	items, err := ParseTracker(s.trackerPath)
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for i := range items {
+		if items[i].Slug == slug {
+			items[i].Body = body
+			items[i].Tags = tags
+			items[i].Images = images
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("tracker item %q not found", slug)
+	}
+
+	if err := WriteTracker(s.trackerPath, items); err != nil {
+		return err
+	}
+	return s.store.ReplaceAll(items)
+}
+
 func (s *Service) SetProgress(slug string, value float64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

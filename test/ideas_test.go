@@ -3,6 +3,8 @@ package test
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/fahad/dashboard/internal/ideas"
@@ -35,8 +37,8 @@ Replace nginx reverse proxy with Caddy for automatic HTTPS and simpler config.
 	if idea.Title != "Try Caddy instead of nginx" {
 		t.Errorf("title: got %q", idea.Title)
 	}
-	if idea.Type != "technical-exploration" {
-		t.Errorf("type: got %q", idea.Type)
+	if !slices.Equal(idea.Tags, []string{"technical-exploration"}) {
+		t.Errorf("tags: got %v, want [technical-exploration]", idea.Tags)
 	}
 	if idea.SuggestedProject != "homelabs" {
 		t.Errorf("suggested-project: got %q", idea.SuggestedProject)
@@ -51,7 +53,7 @@ func TestWriteAndParseRoundTrip(t *testing.T) {
 	original := &ideas.Idea{
 		Slug:             "test-idea",
 		Title:            "Test Idea",
-		Type:             "feature",
+		Tags:             []string{"feature"},
 		SuggestedProject: "dashboard",
 		Date:             "2026-03-14",
 		Body:             "# Test Idea\n\nSome description here.",
@@ -66,8 +68,8 @@ func TestWriteAndParseRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if parsed.Type != original.Type {
-		t.Errorf("type: got %q, want %q", parsed.Type, original.Type)
+	if !slices.Equal(parsed.Tags, original.Tags) {
+		t.Errorf("tags: got %v, want %v", parsed.Tags, original.Tags)
 	}
 	if parsed.Title != original.Title {
 		t.Errorf("title: got %q, want %q", parsed.Title, original.Title)
@@ -88,7 +90,7 @@ func TestServiceAddAndList(t *testing.T) {
 	idea := &ideas.Idea{
 		Slug:  "my-idea",
 		Title: "My Idea",
-		Type:  "wild-idea",
+		Tags:  []string{"wild-idea"},
 		Body:  "# My Idea\n\nThis is wild.",
 	}
 	if err := svc.Add(idea); err != nil {
@@ -124,7 +126,6 @@ func TestTriagePark(t *testing.T) {
 		t.Fatalf("triage park: %v", err)
 	}
 
-	// Should now be in parked.
 	idea, err := svc.Get("park-me")
 	if err != nil {
 		t.Fatalf("get: %v", err)
@@ -133,3 +134,96 @@ func TestTriagePark(t *testing.T) {
 		t.Errorf("status: got %q, want 'parked'", idea.Status)
 	}
 }
+
+func TestParseIdea_TagsMigration(t *testing.T) {
+	dir := t.TempDir()
+	content := `---
+type: feature
+date: 2026-03-14
+---
+
+# Legacy idea
+`
+	path := filepath.Join(dir, "legacy.md")
+	os.WriteFile(path, []byte(content), 0o644)
+
+	idea, err := ideas.ParseIdea(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !slices.Equal(idea.Tags, []string{"feature"}) {
+		t.Errorf("tags: got %v, want [feature]", idea.Tags)
+	}
+}
+
+func TestParseIdea_Tags(t *testing.T) {
+	dir := t.TempDir()
+	content := `---
+tags: foo, bar
+date: 2026-03-14
+---
+
+# Multi-tag idea
+`
+	path := filepath.Join(dir, "multi-tag.md")
+	os.WriteFile(path, []byte(content), 0o644)
+
+	idea, err := ideas.ParseIdea(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !slices.Equal(idea.Tags, []string{"foo", "bar"}) {
+		t.Errorf("tags: got %v, want [foo bar]", idea.Tags)
+	}
+}
+
+func TestWriteIdea_Tags(t *testing.T) {
+	dir := t.TempDir()
+	idea := &ideas.Idea{
+		Slug:             "tagged",
+		Title:            "Tagged Idea",
+		Tags:             []string{"feature", "exploration"},
+		SuggestedProject: "dashboard",
+		Date:             "2026-03-14",
+		Research:         "research/tagged.md",
+		Body:             "# Tagged Idea\n\nBody here.",
+	}
+
+	if err := ideas.WriteIdea(dir, idea); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "tagged.md"))
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "tags: feature, exploration") {
+		t.Errorf("expected tags line, got:\n%s", content)
+	}
+	if strings.Contains(content, "type:") {
+		t.Errorf("should not contain type: line, got:\n%s", content)
+	}
+	if !strings.Contains(content, "suggested-project: dashboard") {
+		t.Errorf("should preserve suggested-project, got:\n%s", content)
+	}
+	if !strings.Contains(content, "research: research/tagged.md") {
+		t.Errorf("should preserve research, got:\n%s", content)
+	}
+
+	parsed, err := ideas.ParseIdea(filepath.Join(dir, "tagged.md"))
+	if err != nil {
+		t.Fatalf("roundtrip parse: %v", err)
+	}
+	if !slices.Equal(parsed.Tags, idea.Tags) {
+		t.Errorf("roundtrip tags: got %v, want %v", parsed.Tags, idea.Tags)
+	}
+	if parsed.SuggestedProject != idea.SuggestedProject {
+		t.Errorf("roundtrip suggested-project: got %q", parsed.SuggestedProject)
+	}
+	if parsed.Research != idea.Research {
+		t.Errorf("roundtrip research: got %q", parsed.Research)
+	}
+}
+

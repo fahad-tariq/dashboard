@@ -1,0 +1,34 @@
+{{define "content"}}
+<div class="breadcrumb">
+    <a href="/exploration">exploration</a> / {{.Exploration.Slug}}
+</div>
+<h1>{{.Exploration.Title}}</h1>
+<div class="idea-meta-detail">
+    {{range .Exploration.Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
+    {{if .Exploration.Date}}<span class="meta-dim">{{.Exploration.Date}}</span>{{end}}
+</div>
+
+{{if .Exploration.Images}}
+<div class="image-gallery">
+    {{range .Exploration.Images}}<div class="image-thumb-wrap"><img src="/uploads/{{.}}" class="image-thumb" loading="lazy"></div>{{end}}
+</div>
+{{end}}
+
+<section>
+    <div class="markdown-body">{{.BodyHTML}}</div>
+</section>
+
+<details class="tracker-notes-edit">
+    <summary>edit</summary>
+    <form method="POST" action="/exploration/{{.Exploration.Slug}}/edit" class="tracker-notes-form">
+        <textarea name="body" rows="6" class="form-textarea">{{.Exploration.Body}}</textarea>
+        <input type="text" name="tags" value="{{range $i, $t := .Exploration.Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
+        <input type="hidden" name="images" value="{{range $i, $img := .Exploration.Images}}{{if $i}},{{end}}{{$img}}{{end}}">
+        <button type="submit" class="form-btn form-btn-sm">save</button>
+    </form>
+</details>
+
+<form method="POST" action="/exploration/{{.Exploration.Slug}}/delete" style="margin-top: 1rem;">
+    <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this exploration?')">delete</button>
+</form>
+{{end}}

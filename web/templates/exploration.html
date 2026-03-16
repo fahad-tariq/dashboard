@@ -1,0 +1,40 @@
+{{define "content"}}
+<div class="ideas-page"
+     hx-get="/exploration" hx-select=".ideas-page" hx-target="this" hx-swap="outerHTML"
+     hx-trigger="sse:file-changed">
+
+<h1>Exploration</h1>
+<div class="summary-stats">
+    {{if .Explorations}}<span class="stat-item"><span class="stat-value">{{len .Explorations}}</span> entries</span>{{end}}
+</div>
+
+<details class="quick-add" open>
+    <summary>Quick add</summary>
+    <form method="POST" action="/exploration/add" class="idea-form">
+        <input type="text" name="title" placeholder="Exploration title #tag1 #tag2" required class="form-input">
+        <textarea name="body" placeholder="Description (optional)" rows="2" class="form-textarea"></textarea>
+        <button type="submit" class="form-btn">add</button>
+    </form>
+</details>
+
+{{range .Explorations}}
+<div class="idea-card">
+    <div class="idea-header">
+        <a href="/exploration/{{.Slug}}" class="idea-title">{{.Title}}</a>
+        {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
+    </div>
+    <div class="idea-actions">
+        {{if .Date}}<span class="meta-dim">{{.Date}}</span>{{end}}
+        <form method="POST" action="/exploration/{{.Slug}}/delete" class="inline-triage">
+            <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this exploration?')">delete</button>
+        </form>
+    </div>
+</div>
+{{end}}
+
+{{if not .Explorations}}
+<p class="empty">No explorations yet. Add one above.</p>
+{{end}}
+
+</div>
+{{end}}

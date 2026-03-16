@@ -29,8 +29,8 @@ func (s *Store) ReplaceAll(items []Item) error {
 	}
 
 	stmt, err := tx.Prepare(`
-		INSERT INTO tracker_items (slug, title, type, category, priority, current_val, target_val, unit, done, graduated, added, completed, tags)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO tracker_items (slug, title, type, category, priority, current_val, target_val, unit, done, graduated, added, completed, tags, images)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -40,7 +40,8 @@ func (s *Store) ReplaceAll(items []Item) error {
 	for _, it := range items {
 		tagsJSON, _ := json.Marshal(it.Tags)
 		_, err := stmt.Exec(it.Slug, it.Title, string(it.Type), strings.Join(it.Tags, ","), it.Priority,
-			it.Current, it.Target, it.Unit, it.Done, it.Graduated, it.Added, it.Completed, string(tagsJSON))
+			it.Current, it.Target, it.Unit, it.Done, it.Graduated, it.Added, it.Completed, string(tagsJSON),
+			strings.Join(it.Images, ","))
 		if err != nil {
 			return err
 		}
