@@ -855,6 +855,14 @@ section h2 {
 
 /* --- Mobile --- */
 @media (max-width: 768px) {
+    .homepage-grid {
+        grid-template-columns: 1fr;
+    }
+    .homepage-col-left,
+    .homepage-col-right {
+        grid-column: 1;
+    }
+
     .container {
         padding: 0.75rem 0.5rem;
     }
@@ -946,6 +954,23 @@ section h2 {
         gap: 0.75rem;
     }
 
+}
+
+/* --- Homepage grid --- */
+.homepage-grid {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 0 1rem;
+    align-items: start;
+}
+.homepage-grid .homepage-card {
+    margin-bottom: 0.75rem;
+}
+.homepage-col-left {
+    grid-column: 1;
+}
+.homepage-col-right {
+    grid-column: 2;
 }
 
 /* --- Homepage cards --- */

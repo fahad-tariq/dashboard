@@ -6,9 +6,10 @@
 {{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .UntriagedCount 0) (eq .ExplorationCount 0)}}
 <p class="empty">Nothing here yet. Use the nav above to get started.</p>
 {{else}}
+<div class="homepage-grid">
 
 {{if or .PersonalTasks (gt .PersonalTaskCount 0)}}
-<section class="homepage-card">
+<section class="homepage-card homepage-col-left">
     <div class="homepage-card-header">
         <a href="/personal" class="homepage-card-title">Personal Tasks</a>
         <span><span class="stat-value">{{.PersonalTaskCount}}</span> <span class="meta-dim">open</span></span>
@@ -28,7 +29,7 @@
 {{end}}
 
 {{if or .FamilyTasks (gt .FamilyTaskCount 0)}}
-<section class="homepage-card">
+<section class="homepage-card homepage-col-left">
     <div class="homepage-card-header">
         <a href="/family" class="homepage-card-title">Family Tasks</a>
         <span><span class="stat-value">{{.FamilyTaskCount}}</span> <span class="meta-dim">open</span></span>
@@ -48,7 +49,7 @@
 {{end}}
 
 {{if .Goals}}
-<section class="homepage-card">
+<section class="homepage-card homepage-col-right">
     <div class="homepage-card-header">
         <a href="/goals" class="homepage-card-title">Goals</a>
         <span><span class="stat-value">{{len .Goals}}</span> <span class="meta-dim">active</span></span>
@@ -73,7 +74,7 @@
 {{end}}
 
 {{if or .UntriagedIdeas (gt .UntriagedCount 0)}}
-<section class="homepage-card">
+<section class="homepage-card homepage-col-right">
     <div class="homepage-card-header">
         <a href="/ideas" class="homepage-card-title">Ideas</a>
         <span><span class="stat-value">{{.UntriagedCount}}</span> <span class="meta-dim">untriaged</span></span>
@@ -90,7 +91,7 @@
 {{end}}
 
 {{if gt .ExplorationCount 0}}
-<section class="homepage-card">
+<section class="homepage-card homepage-col-right">
     <div class="homepage-card-header">
         <a href="/exploration" class="homepage-card-title">Exploration</a>
         <span><span class="stat-value">{{.ExplorationCount}}</span> <span class="meta-dim">entries</span></span>
@@ -107,6 +108,7 @@
 </section>
 {{end}}
 
+</div>
 {{end}}
 </div>
 {{end}}
