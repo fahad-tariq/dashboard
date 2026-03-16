@@ -1,0 +1,22 @@
+{{define "content"}}
+<div class="breadcrumb">
+    <a href="/ideas">ideas</a> / {{.Idea.Slug}}
+</div>
+<h1>{{.Idea.Title}}</h1>
+<div class="idea-meta-detail">
+    {{if .Idea.Type}}<span class="badge badge-type">{{.Idea.Type}}</span>{{end}}
+    {{if .Idea.Date}}<span class="meta-dim">{{.Idea.Date}}</span>{{end}}
+    <span class="badge badge-{{.Idea.Status}}">{{.Idea.Status}}</span>
+</div>
+
+<section>
+    <div class="markdown-body">{{.BodyHTML}}</div>
+</section>
+
+{{if .ResearchHTML}}
+<section>
+    <h2>Research</h2>
+    <div class="markdown-body">{{.ResearchHTML}}</div>
+</section>
+{{end}}
+{{end}}

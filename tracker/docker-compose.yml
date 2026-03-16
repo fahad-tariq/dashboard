@@ -1,0 +1,13 @@
+services:
+  tracker:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./ideas:/data/ideas
+      - ./data:/data/db
+    environment:
+      - IDEAS_DIR=/data/ideas
+      - TRACKER_PATH=/data/db/tracker.md
+      - DB_PATH=/data/db/tracker.db
+      - DASHBOARD_API_TOKEN=${DASHBOARD_API_TOKEN}

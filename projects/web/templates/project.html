@@ -1,0 +1,101 @@
+{{define "content"}}
+<div class="breadcrumb">
+    <a href="/">projects</a> / {{.Project.Slug}}
+</div>
+<div class="project-header">
+    <h1>{{.Project.Slug}}</h1>
+    <div class="project-meta">
+        <span class="badge badge-{{.Project.Status}}"
+              hx-get="/projects/{{.Project.Slug}}/status-edit"
+              hx-target="this"
+              hx-swap="outerHTML"
+              title="Click to edit">{{.Project.Status}}</span>
+        {{if .Project.Tags}}
+        <div class="card-tags">
+            {{range .Project.Tags}}<span class="tag">{{.}}</span>{{end}}
+        </div>
+        {{end}}
+        {{if .Project.IsStale}}<span class="badge badge-stale">stale</span>{{end}}
+        {{if .Project.LastCommitAgo}}<span class="meta-dim">last push: {{.Project.LastCommitAgo}}</span>{{end}}
+    </div>
+</div>
+
+<div class="tabs">
+    <button class="tab active" onclick="switchTab(this, 'readme')">README.md</button>
+    <button class="tab" onclick="switchTab(this, 'backlog')">backlog.md</button>
+    {{if .Plans}}
+    <button class="tab" onclick="switchTab(this, 'plans')">plans/</button>
+    {{end}}
+</div>
+
+<div class="tab-panel active" id="panel-readme">
+    <div class="panel-toolbar">
+        <button class="toolbar-btn" onclick="toggleEdit('readme')">edit</button>
+    </div>
+    <div class="panel-view" id="view-readme">
+        <div class="markdown-body">{{.ReadmeHTML}}</div>
+    </div>
+    <div class="panel-edit hidden" id="edit-readme">
+        <form method="POST" action="/projects/{{.Project.Slug}}/save/README.md">
+            <textarea name="content" class="file-editor" id="editor-readme">{{.ReadmeRaw}}</textarea>
+            <div class="editor-actions">
+                <button type="submit" class="form-btn">save</button>
+                <button type="button" class="toolbar-btn" onclick="toggleEdit('readme')">cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="tab-panel" id="panel-backlog">
+    <div class="panel-toolbar">
+        <button class="toolbar-btn" onclick="toggleEdit('backlog')">edit</button>
+    </div>
+    <div class="panel-view" id="view-backlog">
+        {{if .BacklogRaw}}
+        <div class="markdown-body">{{.BacklogHTML}}</div>
+        {{else}}
+        <p class="empty">No backlog items yet. Click edit to add some.</p>
+        {{end}}
+    </div>
+    <div class="panel-edit hidden" id="edit-backlog">
+        <form method="POST" action="/projects/{{.Project.Slug}}/save/backlog.md">
+            <textarea name="content" class="file-editor" id="editor-backlog">{{.BacklogRaw}}</textarea>
+            <div class="editor-actions">
+                <button type="submit" class="form-btn">save</button>
+                <button type="button" class="toolbar-btn" onclick="toggleEdit('backlog')">cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{if .Plans}}
+<div class="tab-panel" id="panel-plans">
+    <ul class="plans-list">
+        {{range .Plans}}
+        <li><a href="/projects/{{$.Project.Slug}}/plans/plans/{{.}}">{{.}}</a></li>
+        {{end}}
+    </ul>
+</div>
+{{end}}
+
+<script>
+function switchTab(btn, name) {
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('panel-' + name).classList.add('active');
+}
+
+function toggleEdit(name) {
+    var view = document.getElementById('view-' + name);
+    var edit = document.getElementById('edit-' + name);
+    view.classList.toggle('hidden');
+    edit.classList.toggle('hidden');
+    if (!edit.classList.contains('hidden')) {
+        var ta = document.getElementById('editor-' + name);
+        ta.style.height = Math.max(300, ta.scrollHeight) + 'px';
+        ta.focus();
+    }
+}
+</script>
+{{end}}

@@ -1,0 +1,117 @@
+{{define "content"}}
+
+<div class="tracker-page"
+     hx-get="/goals" hx-select=".tracker-page" hx-target="this" hx-swap="outerHTML"
+     hx-trigger="sse:file-changed">
+
+<h1>Goals</h1>
+<div class="summary-stats">
+    <span class="stat-item"><span class="stat-value">{{len .Goals}}</span> active</span>
+</div>
+
+<details class="quick-add tracker-add-form">
+    <summary>Add goal</summary>
+    <form method="POST" action="/tracker/add-goal" class="tracker-goal-form" onsubmit="clearTrackerFilter()">
+        <input type="text" name="title" placeholder="Goal title" required class="form-input">
+        <div class="goal-form-row">
+            <input type="number" name="current" placeholder="Current" step="any" value="0" class="form-input form-input-sm">
+            <span class="goal-form-slash">/</span>
+            <input type="number" name="target" placeholder="Target (optional)" step="any" class="form-input form-input-sm">
+            <input type="text" name="unit" placeholder="Unit (e.g. kg)" class="form-input form-input-sm">
+        </div>
+        <div class="goal-form-row">
+            <input type="text" name="tags" placeholder="Tags (comma-separated)" class="form-input">
+            <select name="priority" class="form-select">
+                <option value="">no priority</option>
+                <option value="high">high</option>
+                <option value="medium">medium</option>
+                <option value="low">low</option>
+            </select>
+        </div>
+        <textarea name="body" placeholder="Notes (optional)" rows="2" class="form-textarea"></textarea>
+        <button type="submit" class="form-btn">add goal</button>
+    </form>
+</details>
+
+{{if or .Categories .Priorities}}
+<div class="tracker-filters">
+    <button class="filter-tag active" onclick="trackerFilter('','')">all</button>
+    {{range .Categories}}
+    <button class="filter-tag filter-cat" data-value="{{.}}" onclick="trackerFilter('category','{{.}}')">{{.}}</button>
+    {{end}}
+    {{if .Priorities}}<span class="filter-sep"></span>{{end}}
+    {{range .Priorities}}
+    <button class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" onclick="trackerFilter('priority','{{.}}')">{{.}}</button>
+    {{end}}
+</div>
+{{end}}
+
+{{range .Goals}}
+<div class="tracker-item" id="item-{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+    <div class="tracker-item-header">
+        <span class="tracker-item-title">{{linkify .Title}}</span>
+        <div class="tracker-item-meta">
+            {{range .Tags}}<span class="badge badge-tag" onclick="trackerFilter('category','{{.}}')">{{.}}</span>{{end}}
+            {{if .Priority}}<span class="badge badge-priority-{{.Priority}}" onclick="trackerFilter('priority','{{.Priority}}')">{{.Priority}}</span>{{end}}
+        </div>
+    </div>
+    {{if gt .Target 0.0}}
+    <div class="tracker-progress-row">
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {{percentage .Current .Target}}%"></div>
+        </div>
+        <span class="progress-text">{{formatNum .Current}}/{{formatNum .Target}}{{if .Unit}} {{.Unit}}{{end}}</span>
+    </div>
+    {{end}}
+    {{if .Body}}
+    <div class="tracker-item-body">{{linkify .Body}}</div>
+    {{end}}
+    {{if .Added}}<div class="tracker-item-date" style="margin-top:0.2rem">{{.Added}}</div>{{end}}
+    <div class="tracker-item-actions">
+        {{if gt .Target 0.0}}
+        <form method="POST" action="/tracker/{{.Slug}}/progress" class="inline-triage">
+            <input type="hidden" name="delta" value="-1">
+            <button type="submit" class="action-btn">-1</button>
+        </form>
+        <form method="POST" action="/tracker/{{.Slug}}/progress" class="inline-triage">
+            <input type="hidden" name="delta" value="1">
+            <button type="submit" class="action-btn action-assign">+1</button>
+        </form>
+        <form method="POST" action="/tracker/{{.Slug}}/progress" class="inline-triage goal-set-form">
+            <input type="number" name="delta" step="any" placeholder="set" class="form-input goal-set-input" required>
+            <input type="hidden" name="set" value="1">
+            <button type="submit" class="action-btn">set</button>
+        </form>
+        {{end}}
+        <form method="POST" action="/tracker/{{.Slug}}/priority" class="inline-triage">
+            <select name="priority" class="form-select-sm" onchange="this.form.submit()">
+                <option value="" {{if eq .Priority ""}}selected{{end}}>--</option>
+                <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
+                <option value="medium" {{if eq .Priority "medium"}}selected{{end}}>medium</option>
+                <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
+            </select>
+        </form>
+        <form method="POST" action="/tracker/{{.Slug}}/delete" class="inline-triage">
+            <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this goal?')">delete</button>
+        </form>
+    </div>
+    <details class="tracker-notes-edit">
+        <summary>edit</summary>
+        <form method="POST" action="/tracker/{{.Slug}}/notes" class="tracker-notes-form">
+            <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context...">{{.Body}}</textarea>
+            <button type="submit" class="form-btn form-btn-sm">save notes</button>
+        </form>
+        <form method="POST" action="/tracker/{{.Slug}}/tags" class="tracker-notes-form">
+            <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
+            <button type="submit" class="form-btn form-btn-sm">save tags</button>
+        </form>
+    </details>
+</div>
+{{end}}
+
+{{if not .Goals}}
+<p class="empty">No goals yet. Add one above.</p>
+{{end}}
+
+</div>
+{{end}}

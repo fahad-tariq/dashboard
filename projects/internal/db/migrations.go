@@ -1,0 +1,53 @@
+package db
+
+import (
+	"database/sql"
+	"fmt"
+)
+
+var migrations = []string{
+	`CREATE TABLE IF NOT EXISTS projects (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		slug        TEXT NOT NULL UNIQUE,
+		path        TEXT NOT NULL,
+		status      TEXT NOT NULL DEFAULT 'active'
+		            CHECK (status IN ('active', 'paused', 'archived')),
+		tags        TEXT,
+		last_commit TEXT,
+		created     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now', 'localtime')),
+		updated     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now', 'localtime'))
+	)`,
+	`CREATE TABLE IF NOT EXISTS schema_version (
+		version INTEGER NOT NULL
+	)`,
+}
+
+func Migrate(db *sql.DB) error {
+	current := currentVersion(db)
+
+	for i := current; i < len(migrations); i++ {
+		if _, err := db.Exec(migrations[i]); err != nil {
+			return fmt.Errorf("migration %d: %w", i, err)
+		}
+	}
+
+	if current < len(migrations) {
+		if _, err := db.Exec("DELETE FROM schema_version"); err != nil {
+			return err
+		}
+		if _, err := db.Exec("INSERT INTO schema_version (version) VALUES (?)", len(migrations)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func currentVersion(db *sql.DB) int {
+	var v int
+	err := db.QueryRow("SELECT version FROM schema_version LIMIT 1").Scan(&v)
+	if err != nil {
+		return 0
+	}
+	return v
+}

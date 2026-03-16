@@ -106,7 +106,7 @@ date: 2026-03-14
 Description here.
 ```
 
-Status directories: `untriaged/`, `parked/`, `dropped/`. Research notes are stored separately in `research/`.
+Status directories: `untriaged/`, `parked/`, `dropped/`, `research/`.
 
 ## Routes
 

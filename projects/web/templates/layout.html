@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{.Title}} - Projects</title>
+    <link rel="stylesheet" href="/static/theme.css">
+    <script>
+        (function() {
+            var t = localStorage.getItem('theme');
+            if (t) document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
+    <script src="/static/htmx.min.js"></script>
+    <script src="/static/htmx-sse.js"></script>
+</head>
+<body hx-ext="sse" sse-connect="/events">
+    <nav class="nav">
+        <a href="/" class="nav-brand">projects&gt;_</a>
+        <div class="nav-links">
+            <a href="/">projects</a>
+        </div>
+        <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme"></button>
+    </nav>
+    <main class="container">
+        {{template "content" .}}
+    </main>
+    <script>
+        function getTheme() {
+            return document.documentElement.getAttribute('data-theme') || 'dark';
+        }
+        function setLabel() {
+            document.getElementById('theme-btn').textContent = getTheme() === 'dark' ? '☀' : '☽';
+        }
+        function toggleTheme() {
+            var next = getTheme() === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+            setLabel();
+        }
+        setLabel();
+        (function() {
+            var path = window.location.pathname;
+            document.querySelectorAll('.nav-links a').forEach(function(a) {
+                var href = a.getAttribute('href');
+                if (href === path || (href === '/' && path === '/')) {
+                    a.classList.add('nav-active');
+                } else if (href !== '/' && path.startsWith(href)) {
+                    a.classList.add('nav-active');
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
