@@ -16,8 +16,10 @@ const debounceInterval = 500 * time.Millisecond
 
 // Watch monitors directories for file changes and broadcasts SSE events.
 // dirCategories maps absolute directory paths to category names
-// (e.g. {"/data/ideas": "ideas", "/data": "tracker"}).
-func Watch(dirCategories map[string]string, broker *sse.Broker, callbacks map[string]func()) error {
+// (e.g. {"/data/ideas": "ideas"}).
+// fileCategories maps absolute file paths to category names
+// (e.g. {"/data/personal.md": "personal"}).
+func Watch(dirCategories, fileCategories map[string]string, broker *sse.Broker, callbacks map[string]func()) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -30,18 +32,26 @@ func Watch(dirCategories map[string]string, broker *sse.Broker, callbacks map[st
 		}
 	}
 
-	go run(w, dirCategories, broker, callbacks)
+	// Ensure parent directories of file-level categories are watched.
+	for filePath := range fileCategories {
+		dir := filepath.Dir(filePath)
+		if err := addRecursive(w, dir); err != nil {
+			slog.Warn("failed to watch file category directory", "path", dir, "error", err)
+		}
+	}
+
+	go run(w, dirCategories, fileCategories, broker, callbacks)
 	return nil
 }
 
-func run(w *fsnotify.Watcher, dirCategories map[string]string, broker *sse.Broker, callbacks map[string]func()) {
+func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, broker *sse.Broker, callbacks map[string]func()) {
 	defer w.Close()
 
 	timer := time.NewTimer(0)
 	if !timer.Stop() {
 		<-timer.C
 	}
-	var pending string
+	pending := map[string]bool{}
 
 	for {
 		select {
@@ -58,23 +68,23 @@ func run(w *fsnotify.Watcher, dirCategories map[string]string, broker *sse.Broke
 				addRecursive(w, event.Name)
 			}
 
-			category := classifyEvent(event.Name, dirCategories)
+			category := classifyEvent(event.Name, dirCategories, fileCategories)
 			if category == "" {
 				continue
 			}
 
-			pending = category
+			pending[category] = true
 			timer.Reset(debounceInterval)
 
 		case <-timer.C:
-			if pending != "" {
-				slog.Info("file change detected", "type", pending)
-				broker.Send("file-changed", pending)
-				if cb, ok := callbacks[pending]; ok {
+			for category := range pending {
+				slog.Info("file change detected", "type", category)
+				broker.Send("file-changed", category)
+				if cb, ok := callbacks[category]; ok {
 					cb()
 				}
-				pending = ""
 			}
+			pending = map[string]bool{}
 
 		case err, ok := <-w.Errors:
 			if !ok {
@@ -85,7 +95,7 @@ func run(w *fsnotify.Watcher, dirCategories map[string]string, broker *sse.Broke
 	}
 }
 
-func classifyEvent(path string, dirCategories map[string]string) string {
+func classifyEvent(path string, dirCategories, fileCategories map[string]string) string {
 	name := filepath.Base(path)
 
 	if !strings.HasSuffix(name, ".md") {
@@ -96,13 +106,16 @@ func classifyEvent(path string, dirCategories map[string]string) string {
 		return ""
 	}
 
-	// Check if the path is tracker.md specifically.
-	if name == "tracker.md" {
-		return "tracker"
+	// Check file-level categories first (most specific match).
+	absPath, _ := filepath.Abs(path)
+	for filePath, category := range fileCategories {
+		absFile, _ := filepath.Abs(filePath)
+		if absPath == absFile {
+			return category
+		}
 	}
 
-	// Match against registered directory categories.
-	absPath, _ := filepath.Abs(path)
+	// Fall back to directory-level categories.
 	for dir, category := range dirCategories {
 		absDir, _ := filepath.Abs(dir)
 		if strings.HasPrefix(absPath, absDir+string(filepath.Separator)) {

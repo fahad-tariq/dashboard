@@ -198,7 +198,7 @@ func TestWriteTrackerRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "tracker.md")
 
-	if err := tracker.WriteTracker(path, input); err != nil {
+	if err := tracker.WriteTracker(path, "Test", input); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
@@ -238,7 +238,7 @@ func TestWriteTrackerPreservesBody(t *testing.T) {
 	}
 
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	if err := tracker.WriteTracker(path, input); err != nil {
+	if err := tracker.WriteTracker(path, "Test", input); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
@@ -391,7 +391,7 @@ func TestTrackerImagesRoundTrip(t *testing.T) {
 	}
 
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	if err := tracker.WriteTracker(path, input); err != nil {
+	if err := tracker.WriteTracker(path, "Test", input); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 

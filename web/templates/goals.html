@@ -11,7 +11,7 @@
 
 <details class="quick-add tracker-add-form">
     <summary>Add goal</summary>
-    <form method="POST" action="/tracker/add-goal" class="tracker-goal-form" onsubmit="clearTrackerFilter()">
+    <form method="POST" action="/personal/add-goal" class="tracker-goal-form" onsubmit="clearTrackerFilter()">
         <input type="text" name="title" placeholder="Goal title" required class="form-input">
         <div class="goal-form-row">
             <input type="number" name="current" placeholder="Current" step="any" value="0" class="form-input form-input-sm">
@@ -69,21 +69,21 @@
     {{if .Added}}<div class="tracker-item-date" style="margin-top:0.2rem">{{.Added}}</div>{{end}}
     <div class="tracker-item-actions">
         {{if gt .Target 0.0}}
-        <form method="POST" action="/tracker/{{.Slug}}/progress" class="inline-triage">
+        <form method="POST" action="/personal/{{.Slug}}/progress" class="inline-triage">
             <input type="hidden" name="delta" value="-1">
             <button type="submit" class="action-btn">-1</button>
         </form>
-        <form method="POST" action="/tracker/{{.Slug}}/progress" class="inline-triage">
+        <form method="POST" action="/personal/{{.Slug}}/progress" class="inline-triage">
             <input type="hidden" name="delta" value="1">
             <button type="submit" class="action-btn action-assign">+1</button>
         </form>
-        <form method="POST" action="/tracker/{{.Slug}}/progress" class="inline-triage goal-set-form">
+        <form method="POST" action="/personal/{{.Slug}}/progress" class="inline-triage goal-set-form">
             <input type="number" name="delta" step="any" placeholder="set" class="form-input goal-set-input" required>
             <input type="hidden" name="set" value="1">
             <button type="submit" class="action-btn">set</button>
         </form>
         {{end}}
-        <form method="POST" action="/tracker/{{.Slug}}/priority" class="inline-triage">
+        <form method="POST" action="/personal/{{.Slug}}/priority" class="inline-triage">
             <select name="priority" class="form-select-sm" onchange="this.form.submit()">
                 <option value="" {{if eq .Priority ""}}selected{{end}}>--</option>
                 <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
@@ -91,7 +91,7 @@
                 <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
             </select>
         </form>
-        <form method="POST" action="/tracker/{{.Slug}}/delete" class="inline-triage">
+        <form method="POST" action="/personal/{{.Slug}}/delete" class="inline-triage">
             <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this goal?')">delete</button>
         </form>
     </div>
@@ -102,7 +102,7 @@
     {{end}}
     <details class="tracker-notes-edit">
         <summary>edit</summary>
-        <form method="POST" action="/tracker/{{.Slug}}/edit" class="tracker-notes-form">
+        <form method="POST" action="/personal/{{.Slug}}/edit" class="tracker-notes-form">
             <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context...">{{.Body}}</textarea>
             <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
             <input type="hidden" name="images" value="{{range $i, $img := .Images}}{{if $i}},{{end}}{{$img}}{{end}}">

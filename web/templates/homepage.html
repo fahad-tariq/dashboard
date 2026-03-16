@@ -1,0 +1,112 @@
+{{define "content"}}
+<div class="homepage-page"
+     hx-get="/" hx-select=".homepage-page" hx-target="this" hx-swap="outerHTML"
+     hx-trigger="sse:file-changed">
+
+{{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .UntriagedCount 0) (eq .ExplorationCount 0)}}
+<p class="empty">Nothing here yet. Use the nav above to get started.</p>
+{{else}}
+
+{{if or .PersonalTasks (gt .PersonalTaskCount 0)}}
+<section class="homepage-card">
+    <div class="homepage-card-header">
+        <a href="/personal" class="homepage-card-title">Personal Tasks</a>
+        <span><span class="stat-value">{{.PersonalTaskCount}}</span> <span class="meta-dim">open</span></span>
+    </div>
+    <div class="homepage-card-body">
+        {{range .PersonalTasks}}
+        <div class="homepage-task" data-priority="{{.Priority}}">
+            <a href="/personal#{{.Slug}}">{{.Title}}</a>
+        </div>
+        {{end}}
+        {{if gt .PersonalTaskCount (len .PersonalTasks)}}
+        <a href="/personal" class="homepage-card-link">+{{subtract .PersonalTaskCount (len .PersonalTasks)}} more</a>
+        {{end}}
+    </div>
+    <a href="/personal" class="homepage-card-link">view all</a>
+</section>
+{{end}}
+
+{{if or .FamilyTasks (gt .FamilyTaskCount 0)}}
+<section class="homepage-card">
+    <div class="homepage-card-header">
+        <a href="/family" class="homepage-card-title">Family Tasks</a>
+        <span><span class="stat-value">{{.FamilyTaskCount}}</span> <span class="meta-dim">open</span></span>
+    </div>
+    <div class="homepage-card-body">
+        {{range .FamilyTasks}}
+        <div class="homepage-task" data-priority="{{.Priority}}">
+            <a href="/family#{{.Slug}}">{{.Title}}</a>
+        </div>
+        {{end}}
+        {{if gt .FamilyTaskCount (len .FamilyTasks)}}
+        <a href="/family" class="homepage-card-link">+{{subtract .FamilyTaskCount (len .FamilyTasks)}} more</a>
+        {{end}}
+    </div>
+    <a href="/family" class="homepage-card-link">view all</a>
+</section>
+{{end}}
+
+{{if .Goals}}
+<section class="homepage-card">
+    <div class="homepage-card-header">
+        <a href="/goals" class="homepage-card-title">Goals</a>
+        <span><span class="stat-value">{{len .Goals}}</span> <span class="meta-dim">active</span></span>
+    </div>
+    <div class="homepage-card-body">
+        {{range .Goals}}
+        <div class="homepage-goal">
+            <span class="homepage-goal-title">{{.Title}}</span>
+            {{if gt .Target 0.0}}
+            <div class="homepage-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{percentage .Current .Target}}%"></div>
+                </div>
+                <span class="progress-text">{{formatNum .Current}}/{{formatNum .Target}}{{if .Unit}} {{.Unit}}{{end}}</span>
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+    <a href="/goals" class="homepage-card-link">view all</a>
+</section>
+{{end}}
+
+{{if or .UntriagedIdeas (gt .UntriagedCount 0)}}
+<section class="homepage-card">
+    <div class="homepage-card-header">
+        <a href="/ideas" class="homepage-card-title">Ideas</a>
+        <span><span class="stat-value">{{.UntriagedCount}}</span> <span class="meta-dim">untriaged</span></span>
+    </div>
+    <div class="homepage-card-body">
+        {{range .UntriagedIdeas}}
+        <div class="homepage-idea">
+            <a href="/ideas/{{.Slug}}">{{.Title}}</a>
+        </div>
+        {{end}}
+    </div>
+    <a href="/ideas" class="homepage-card-link">view all</a>
+</section>
+{{end}}
+
+{{if gt .ExplorationCount 0}}
+<section class="homepage-card">
+    <div class="homepage-card-header">
+        <a href="/exploration" class="homepage-card-title">Exploration</a>
+        <span><span class="stat-value">{{.ExplorationCount}}</span> <span class="meta-dim">entries</span></span>
+    </div>
+    <div class="homepage-card-body">
+        {{range .RecentExplorations}}
+        <div class="homepage-exploration">
+            <a href="/exploration/{{.Slug}}">{{.Title}}</a>
+            {{if .Date}}<span class="meta-dim">{{.Date}}</span>{{end}}
+        </div>
+        {{end}}
+    </div>
+    <a href="/exploration" class="homepage-card-link">view all</a>
+</section>
+{{end}}
+
+{{end}}
+</div>
+{{end}}

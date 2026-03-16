@@ -8,12 +8,13 @@ import (
 
 type Service struct {
 	trackerPath string
+	heading     string
 	store       *Store
 	mu          sync.RWMutex
 }
 
-func NewService(trackerPath string, store *Store) *Service {
-	return &Service{trackerPath: trackerPath, store: store}
+func NewService(trackerPath, heading string, store *Store) *Service {
+	return &Service{trackerPath: trackerPath, heading: heading, store: store}
 }
 
 func (s *Service) List() ([]Item, error) {
@@ -55,7 +56,7 @@ func (s *Service) AddItem(item Item) error {
 	}
 
 	items = append(items, item)
-	if err := WriteTracker(s.trackerPath, items); err != nil {
+	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
 		return err
 	}
 	return s.store.ReplaceAll(items)
@@ -82,7 +83,7 @@ func (s *Service) UpdateNotes(slug, body string) error {
 		return fmt.Errorf("tracker item %q not found", slug)
 	}
 
-	if err := WriteTracker(s.trackerPath, items); err != nil {
+	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
 		return err
 	}
 	return s.store.ReplaceAll(items)
@@ -110,7 +111,7 @@ func (s *Service) Complete(slug string) error {
 		return fmt.Errorf("tracker item %q not found", slug)
 	}
 
-	if err := WriteTracker(s.trackerPath, items); err != nil {
+	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
 		return err
 	}
 	return s.store.ReplaceAll(items)
@@ -138,7 +139,7 @@ func (s *Service) Uncomplete(slug string) error {
 		return fmt.Errorf("tracker item %q not found", slug)
 	}
 
-	if err := WriteTracker(s.trackerPath, items); err != nil {
+	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
 		return err
 	}
 	return s.store.ReplaceAll(items)
@@ -165,7 +166,7 @@ func (s *Service) Delete(slug string) error {
 	}
 
 	items = append(items[:idx], items[idx+1:]...)
-	if err := WriteTracker(s.trackerPath, items); err != nil {
+	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
 		return err
 	}
 	return s.store.ReplaceAll(items)
@@ -192,7 +193,7 @@ func (s *Service) UpdatePriority(slug, priority string) error {
 		return fmt.Errorf("tracker item %q not found", slug)
 	}
 
-	if err := WriteTracker(s.trackerPath, items); err != nil {
+	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
 		return err
 	}
 	return s.store.ReplaceAll(items)
@@ -219,7 +220,7 @@ func (s *Service) UpdateTags(slug string, tags []string) error {
 		return fmt.Errorf("tracker item %q not found", slug)
 	}
 
-	if err := WriteTracker(s.trackerPath, items); err != nil {
+	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
 		return err
 	}
 	return s.store.ReplaceAll(items)
@@ -248,7 +249,7 @@ func (s *Service) UpdateEdit(slug, body string, tags, images []string) error {
 		return fmt.Errorf("tracker item %q not found", slug)
 	}
 
-	if err := WriteTracker(s.trackerPath, items); err != nil {
+	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
 		return err
 	}
 	return s.store.ReplaceAll(items)
@@ -278,7 +279,7 @@ func (s *Service) SetProgress(slug string, value float64) error {
 		return fmt.Errorf("goal %q not found", slug)
 	}
 
-	if err := WriteTracker(s.trackerPath, items); err != nil {
+	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
 		return err
 	}
 	return s.store.ReplaceAll(items)
@@ -308,7 +309,7 @@ func (s *Service) UpdateProgress(slug string, delta float64) error {
 		return fmt.Errorf("goal %q not found", slug)
 	}
 
-	if err := WriteTracker(s.trackerPath, items); err != nil {
+	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
 		return err
 	}
 	return s.store.ReplaceAll(items)

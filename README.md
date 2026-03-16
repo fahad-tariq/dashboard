@@ -1,6 +1,6 @@
 # Dashboard
 
-A personal task, goal, idea, and exploration dashboard backed by markdown files. Tasks and goals live in `tracker.md`, ideas and explorations are file-per-item in their own directories. Web UI with htmx for live updates. Supports image upload and clipboard paste across all content types.
+A personal task, goal, idea, and exploration dashboard backed by markdown files. Tasks and goals are split into personal (`personal.md`) and family (`family.md`) lists. Ideas and explorations are file-per-item in their own directories. Web UI with htmx for live updates. Supports image upload and clipboard paste across all content types.
 
 ## Setup
 
@@ -16,7 +16,8 @@ cp .env.example .env
 | `IDEAS_DIR` | `/data/ideas` | Directory for idea files (auto-created) |
 | `EXPLORATION_DIR` | `/data/explorations` | Directory for exploration files (auto-created) |
 | `UPLOADS_DIR` | `/data/uploads` | Directory for uploaded images (auto-created) |
-| `TRACKER_PATH` | `/data/tracker.md` | Path to the tracker markdown file |
+| `PERSONAL_PATH` | `/data/personal.md` | Path to the personal tasks markdown file |
+| `FAMILY_PATH` | `/data/family.md` | Path to the family tasks markdown file |
 | `DB_PATH` | `/data/db/dashboard.db` | SQLite database path (cache) |
 | `DASHBOARD_API_TOKEN` | (empty) | Bearer token for API auth (optional) |
 | `ADDR` | `:8080` | Server listen address |
@@ -28,7 +29,7 @@ cp .env.example .env
 make run
 
 # Or directly
-IDEAS_DIR=./ideas TRACKER_PATH=./data/tracker.md go run ./cmd/dashboard
+IDEAS_DIR=./ideas PERSONAL_PATH=./data/personal.md FAMILY_PATH=./data/family.md go run ./cmd/dashboard
 
 # Build binary
 make build
@@ -48,17 +49,19 @@ Or manually:
 docker compose up
 ```
 
-The compose file mounts `./ideas` for idea files and `./data` for the database and tracker.md.
+The compose file mounts `./ideas` for idea files and `./data` for the database and task files.
 
 ## Features
 
 ### Tasks
+- Separate personal and family task lists
 - Quick add with optional tags and priority (high/medium/low)
 - Inline notes, tag, and priority editing
 - Filter by tag or priority
 - Expand/collapse all
 - Complete/uncomplete/delete
-- Stored as checkbox items in `tracker.md`
+- Move tasks between personal and family lists
+- Stored as checkbox items in `personal.md` and `family.md`
 
 ### Goals
 - Progress tracking with current/target and unit (e.g. 12/40 books)
@@ -92,12 +95,12 @@ The compose file mounts `./ideas` for idea files and `./data` for the database a
 - Catppuccin dark/light theme
 - REST API with optional bearer token auth
 
-## Tracker file format
+## Task file format
 
-Tasks and goals are stored in `tracker.md` as a flat checkbox list. Tags are inline via `[tags: ...]`. Section headers (`## ...`) are ignored by the parser.
+Tasks and goals are stored in `personal.md` and `family.md` as flat checkbox lists. Tags are inline via `[tags: ...]`. Section headers (`## ...`) are ignored by the parser. Goals are supported in `personal.md` only.
 
 ```markdown
-# Tracker
+# Personal
 
 - [ ] Run 5km !high [added: 2026-03-10] [tags: fitness, health]
 - [ ] Reach 90kg [goal: 85.5/90 kg] [added: 2026-03-01] [tags: health]
@@ -142,8 +145,10 @@ Notes and findings here.
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/` | Tasks page |
-| `GET` | `/goals` | Goals page |
+| `GET` | `/` | Homepage (summary of all sections) |
+| `GET` | `/personal` | Personal tasks page |
+| `GET` | `/family` | Family tasks page |
+| `GET` | `/goals` | Goals page (personal only) |
 | `GET` | `/ideas` | Ideas inbox |
 | `GET` | `/ideas/{slug}` | Idea detail |
 | `GET` | `/exploration` | Exploration list |
@@ -169,13 +174,14 @@ All user data is plain markdown files. The SQLite database is a read cache rebui
 
 | Data | Location | Format |
 |---|---|---|
-| Tasks and goals | `TRACKER_PATH` | Single markdown file |
+| Personal tasks and goals | `PERSONAL_PATH` | Markdown file |
+| Family tasks | `FAMILY_PATH` | Markdown file |
 | Ideas and research | `IDEAS_DIR` | Directory of markdown files |
 | Explorations | `EXPLORATION_DIR` | Directory of markdown files |
 | Uploaded images | `UPLOADS_DIR` | Image files |
 | Database | `DB_PATH` | SQLite (disposable cache) |
 
-To back up the dashboard, copy the tracker file and ideas directory. A few options:
+To back up the dashboard, copy the task files and ideas directory. A few options:
 
 **Docker volume snapshot**
 

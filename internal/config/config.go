@@ -10,7 +10,8 @@ type Config struct {
 	IdeasDir       string
 	ExplorationDir string
 	UploadsDir     string
-	TrackerPath    string
+	PersonalPath   string
+	FamilyPath     string
 	DBPath         string
 	APIToken       string
 	Addr           string
@@ -21,10 +22,11 @@ func Load() (*Config, error) {
 		IdeasDir:       envOr("IDEAS_DIR", "/data/ideas"),
 		ExplorationDir: envOr("EXPLORATION_DIR", "/data/explorations"),
 		UploadsDir:     envOr("UPLOADS_DIR", "/data/uploads"),
-		TrackerPath:    envOr("TRACKER_PATH", "/data/tracker.md"),
-		DBPath:      envOr("DB_PATH", "/data/db/dashboard.db"),
-		APIToken:    os.Getenv("DASHBOARD_API_TOKEN"),
-		Addr:        envOr("ADDR", ":8080"),
+		PersonalPath:   envOr("PERSONAL_PATH", "/data/personal.md"),
+		FamilyPath:     envOr("FAMILY_PATH", "/data/family.md"),
+		DBPath:         envOr("DB_PATH", "/data/db/dashboard.db"),
+		APIToken:       os.Getenv("DASHBOARD_API_TOKEN"),
+		Addr:           envOr("ADDR", ":8080"),
 	}
 
 	if err := c.validate(); err != nil {
@@ -49,13 +51,21 @@ func (c *Config) validate() error {
 		return fmt.Errorf("creating uploads dir %q: %w", c.UploadsDir, err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(c.TrackerPath), 0o755); err != nil {
-		return fmt.Errorf("creating tracker directory: %w", err)
-	}
-	if _, err := os.Stat(c.TrackerPath); os.IsNotExist(err) {
-		skeleton := "# Tracker\n\n"
-		if err := os.WriteFile(c.TrackerPath, []byte(skeleton), 0o644); err != nil {
-			return fmt.Errorf("creating tracker.md skeleton: %w", err)
+	for _, entry := range []struct {
+		path    string
+		heading string
+	}{
+		{c.PersonalPath, "Personal"},
+		{c.FamilyPath, "Family"},
+	} {
+		if err := os.MkdirAll(filepath.Dir(entry.path), 0o755); err != nil {
+			return fmt.Errorf("creating directory for %s: %w", entry.path, err)
+		}
+		if _, err := os.Stat(entry.path); os.IsNotExist(err) {
+			skeleton := "# " + entry.heading + "\n\n"
+			if err := os.WriteFile(entry.path, []byte(skeleton), 0o644); err != nil {
+				return fmt.Errorf("creating %s skeleton: %w", entry.path, err)
+			}
 		}
 	}
 

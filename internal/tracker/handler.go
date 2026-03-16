@@ -1,6 +1,7 @@
 package tracker
 
 import (
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -39,11 +41,20 @@ func sanitisePriority(p string) string {
 
 type Handler struct {
 	svc       *Service
+	otherSvc  *Service
 	templates map[string]*template.Template
+	listName  string
 }
 
-func NewHandler(svc *Service, templates map[string]*template.Template) *Handler {
-	return &Handler{svc: svc, templates: templates}
+func NewHandler(svc, otherSvc *Service, templates map[string]*template.Template, listName string) *Handler {
+	return &Handler{svc: svc, otherSvc: otherSvc, templates: templates, listName: listName}
+}
+
+func (h *Handler) otherListName() string {
+	if h.listName == "personal" {
+		return "family"
+	}
+	return "personal"
 }
 
 func sortItems(s []Item) {
@@ -114,12 +125,15 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 
 	allTags, priorities := collectFilters(tasks)
 
+	title := strings.ToUpper(h.listName[:1]) + h.listName[1:] + " Tasks"
 	data := map[string]any{
-		"Title":      "Tasks",
-		"Tasks":      tasks,
-		"DoneTasks":  doneTasks,
-		"Categories": allTags,
-		"Priorities": priorities,
+		"Title":         title,
+		"ListName":      h.listName,
+		"OtherListName": h.otherListName(),
+		"Tasks":         tasks,
+		"DoneTasks":     doneTasks,
+		"Categories":    allTags,
+		"Priorities":    priorities,
 	}
 
 	if err := h.templates["tracker.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -184,7 +198,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, "/"+h.listName, http.StatusSeeOther)
 }
 
 func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
@@ -223,18 +237,18 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/goals", http.StatusSeeOther)
 }
 
-func redirectBack(w http.ResponseWriter, r *http.Request, anchor string) {
+func (h *Handler) redirectBack(w http.ResponseWriter, r *http.Request, anchor string) {
 	dest := r.Header.Get("Referer")
 
 	if dest != "" {
 		if u, err := url.Parse(dest); err == nil {
 			dest = u.Path
 		} else {
-			dest = "/"
+			dest = "/" + h.listName
 		}
 	}
 	if dest == "" || !strings.HasPrefix(dest, "/") {
-		dest = "/"
+		dest = "/" + h.listName
 	}
 	if anchor != "" {
 		dest += "#" + anchor
@@ -256,7 +270,7 @@ func (h *Handler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectBack(w, r, slug)
+	h.redirectBack(w, r, slug)
 }
 
 func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
@@ -266,7 +280,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	redirectBack(w, r, "")
+	h.redirectBack(w, r, "")
 }
 
 func (h *Handler) Uncomplete(w http.ResponseWriter, r *http.Request) {
@@ -276,7 +290,7 @@ func (h *Handler) Uncomplete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	redirectBack(w, r, "")
+	h.redirectBack(w, r, "")
 }
 
 func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
@@ -306,7 +320,7 @@ func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	redirectBack(w, r, slug)
+	h.redirectBack(w, r, slug)
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -316,7 +330,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	redirectBack(w, r, "")
+	h.redirectBack(w, r, "")
 }
 
 func (h *Handler) UpdatePriority(w http.ResponseWriter, r *http.Request) {
@@ -331,7 +345,7 @@ func (h *Handler) UpdatePriority(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	redirectBack(w, r, slug)
+	h.redirectBack(w, r, slug)
 }
 
 func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
@@ -355,7 +369,7 @@ func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	redirectBack(w, r, slug)
+	h.redirectBack(w, r, slug)
 }
 
 func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
@@ -375,5 +389,36 @@ func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectBack(w, r, slug)
+	h.redirectBack(w, r, slug)
+}
+
+func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+
+	item, err := h.svc.Get(slug)
+	if err != nil {
+		slog.Error("getting item for move", "slug", slug, "error", err)
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	// Check for slug collision in target list and deduplicate if needed.
+	movedItem := *item
+	if _, err := h.otherSvc.Get(movedItem.Slug); err == nil {
+		movedItem.Slug = movedItem.Slug + "-" + fmt.Sprintf("%d", time.Now().Unix())
+	}
+
+	if err := h.otherSvc.AddItem(movedItem); err != nil {
+		slog.Error("adding item to target list", "slug", slug, "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.svc.Delete(slug); err != nil {
+		slog.Error("deleting item from source list", "slug", slug, "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/"+h.listName, http.StatusSeeOther)
 }

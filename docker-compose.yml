@@ -8,6 +8,7 @@ services:
       - ./data:/data/db
     environment:
       - IDEAS_DIR=/data/ideas
-      - TRACKER_PATH=/data/db/tracker.md
+      - PERSONAL_PATH=/data/db/personal.md
+      - FAMILY_PATH=/data/db/family.md
       - DB_PATH=/data/db/dashboard.db
       - DASHBOARD_API_TOKEN=${DASHBOARD_API_TOKEN}

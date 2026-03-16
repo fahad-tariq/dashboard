@@ -3,6 +3,10 @@
 var activeFilterType = '';
 var activeFilterValue = '';
 
+function filterKeyPrefix() {
+    return window.location.pathname.replace(/\//g, '_');
+}
+
 function trackerFilter(type, value) {
     if (activeFilterType === type && activeFilterValue === value) {
         type = '';
@@ -11,8 +15,9 @@ function trackerFilter(type, value) {
     activeFilterType = type;
     activeFilterValue = value;
 
-    localStorage.setItem('trackerFilterType', type);
-    localStorage.setItem('trackerFilterValue', value);
+    var prefix = filterKeyPrefix();
+    localStorage.setItem(prefix + '_filterType', type);
+    localStorage.setItem(prefix + '_filterValue', value);
 
     applyFilter();
 }
@@ -70,14 +75,16 @@ function trackerToggleAll() {
 }
 
 function clearTrackerFilter() {
-    localStorage.removeItem('trackerFilterType');
-    localStorage.removeItem('trackerFilterValue');
+    var prefix = filterKeyPrefix();
+    localStorage.removeItem(prefix + '_filterType');
+    localStorage.removeItem(prefix + '_filterValue');
 }
 
 // On page load: restore filter, expand hash target.
 (function() {
-    var savedType = localStorage.getItem('trackerFilterType') || '';
-    var savedValue = localStorage.getItem('trackerFilterValue') || '';
+    var prefix = filterKeyPrefix();
+    var savedType = localStorage.getItem(prefix + '_filterType') || '';
+    var savedValue = localStorage.getItem(prefix + '_filterValue') || '';
     if (savedType) {
         activeFilterType = savedType;
         activeFilterValue = savedValue;

@@ -1,10 +1,10 @@
 {{define "content"}}
 
 <div class="tracker-page"
-     hx-get="/" hx-select=".tracker-page" hx-target="this" hx-swap="outerHTML"
+     hx-get="/{{.ListName}}" hx-select=".tracker-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
 
-<h1>Tasks</h1>
+<h1>{{.Title}}</h1>
 <div class="summary-stats">
     <span class="stat-item"><span class="stat-value">{{len .Tasks}}</span> open</span>
     {{if .DoneTasks}}<span class="stat-item"><span class="stat-value">{{len .DoneTasks}}</span> done</span>{{end}}
@@ -12,7 +12,7 @@
 
 <details class="quick-add tracker-add-form">
     <summary>Add task</summary>
-    <form method="POST" action="/tracker/add" class="tracker-goal-form" onsubmit="clearTrackerFilter()">
+    <form method="POST" action="/{{.ListName}}/add" class="tracker-goal-form" onsubmit="clearTrackerFilter()">
         <input type="text" name="title" placeholder="Task title" required class="form-input">
         <div class="goal-form-row">
             <input type="text" name="tags" placeholder="Tags (comma-separated)" class="form-input">
@@ -50,7 +50,7 @@
             {{range .Tags}}<span class="badge badge-tag" onclick="event.stopPropagation();trackerFilter('category','{{.}}')">{{.}}</span>{{end}}
             {{if .Priority}}<span class="badge badge-priority-{{.Priority}}" onclick="event.stopPropagation();trackerFilter('priority','{{.Priority}}')">{{.Priority}}</span>{{end}}
             {{if .Added}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
-            <form method="POST" action="/tracker/{{.Slug}}/complete" class="item-complete-form" onclick="event.stopPropagation()">
+            <form method="POST" action="/{{$.ListName}}/{{.Slug}}/complete" class="item-complete-form" onclick="event.stopPropagation()">
                 <button type="submit" class="item-complete-btn" title="Complete">&#x2713;</button>
             </form>
         </div>
@@ -61,7 +61,7 @@
             <div class="tracker-item-body">{{linkify .Body}}</div>
             {{end}}
             <div class="tracker-item-actions">
-                <form method="POST" action="/tracker/{{.Slug}}/priority" class="inline-triage">
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/priority" class="inline-triage">
                     <select name="priority" class="form-select-sm" onchange="this.form.submit()">
                         <option value="" {{if eq .Priority ""}}selected{{end}}>--</option>
                         <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
@@ -69,8 +69,11 @@
                         <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
                     </select>
                 </form>
-                <form method="POST" action="/tracker/{{.Slug}}/delete" class="inline-triage">
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="inline-triage">
                     <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this item?')">delete</button>
+                </form>
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/move" class="inline-triage">
+                    <button type="submit" class="action-btn" onclick="return confirm('Move to {{$.OtherListName}}?')">move to {{$.OtherListName}}</button>
                 </form>
             </div>
             {{if .Images}}
@@ -80,7 +83,7 @@
             {{end}}
             <details class="tracker-notes-edit">
                 <summary>edit</summary>
-                <form method="POST" action="/tracker/{{.Slug}}/edit" class="tracker-notes-form">
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/edit" class="tracker-notes-form">
                     <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context...">{{.Body}}</textarea>
                     <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
                     <input type="hidden" name="images" value="{{range $i, $img := .Images}}{{if $i}},{{end}}{{$img}}{{end}}">
@@ -103,10 +106,10 @@
             <div class="tracker-item-meta">
                 {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
                 {{if .Completed}}<span class="tracker-item-date">{{.Completed}}</span>{{end}}
-                <form method="POST" action="/tracker/{{.Slug}}/uncomplete" class="item-complete-form" onclick="event.stopPropagation()">
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/uncomplete" class="item-complete-form" onclick="event.stopPropagation()">
                     <button type="submit" class="item-undo-btn" title="Undo">&#x21A9;</button>
                 </form>
-                <form method="POST" action="/tracker/{{.Slug}}/delete" class="item-complete-form" onclick="event.stopPropagation()">
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="item-complete-form" onclick="event.stopPropagation()">
                     <button type="submit" class="item-undo-btn" title="Delete" onclick="return confirm('Delete this item?')">&#x2715;</button>
                 </form>
             </div>

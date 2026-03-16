@@ -206,11 +206,11 @@ func parseItemLine(raw string, done bool) *Item {
 	return item
 }
 
-// WriteTracker writes items back to a tracker.md file as a flat list.
+// WriteTracker writes items back to a markdown file as a flat list.
 // Tags are stored inline on each item via [tags:].
-func WriteTracker(path string, items []Item) error {
+func WriteTracker(path, heading string, items []Item) error {
 	var sb strings.Builder
-	sb.WriteString("# Tracker\n\n")
+	sb.WriteString("# " + heading + "\n\n")
 
 	for _, it := range items {
 		writeItem(&sb, it)

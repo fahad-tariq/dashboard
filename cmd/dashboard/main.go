@@ -9,8 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -40,6 +40,9 @@ var funcMap = template.FuncMap{
 			return fmt.Sprintf("%d", int(f))
 		}
 		return fmt.Sprintf("%g", f)
+	},
+	"subtract": func(a, b int) int {
+		return a - b
 	},
 	"linkify": func(text string) template.HTML {
 		escaped := html.EscapeString(text)
@@ -77,10 +80,15 @@ func main() {
 
 	ideaSvc := ideas.NewService(cfg.IdeasDir)
 	explorationSvc := exploration.NewService(cfg.ExplorationDir)
-	trackerStore := tracker.NewStore(database)
-	trackerSvc := tracker.NewService(cfg.TrackerPath, trackerStore)
-	if err := trackerSvc.Resync(); err != nil {
-		slog.Warn("initial tracker sync", "error", err)
+	personalStore := tracker.NewStore(database, "personal")
+	familyStore := tracker.NewStore(database, "family")
+	personalSvc := tracker.NewService(cfg.PersonalPath, "Personal", personalStore)
+	familySvc := tracker.NewService(cfg.FamilyPath, "Family", familyStore)
+	if err := personalSvc.Resync(); err != nil {
+		slog.Warn("initial personal sync", "error", err)
+	}
+	if err := familySvc.Resync(); err != nil {
+		slog.Warn("initial family sync", "error", err)
 	}
 	broker := sse.NewBroker()
 
@@ -88,17 +96,23 @@ func main() {
 		cfg.IdeasDir:       "ideas",
 		cfg.ExplorationDir: "exploration",
 	}
-	if dir := filepath.Dir(cfg.TrackerPath); dir != cfg.IdeasDir && dir != cfg.ExplorationDir {
-		dirCategories[dir] = "tracker"
+	fileCategories := map[string]string{
+		cfg.PersonalPath: "personal",
+		cfg.FamilyPath:   "family",
 	}
 	callbacks := map[string]func(){
-		"tracker": func() {
-			if err := trackerSvc.Resync(); err != nil {
-				slog.Error("tracker resync failed", "error", err)
+		"personal": func() {
+			if err := personalSvc.Resync(); err != nil {
+				slog.Error("personal resync failed", "error", err)
+			}
+		},
+		"family": func() {
+			if err := familySvc.Resync(); err != nil {
+				slog.Error("family resync failed", "error", err)
 			}
 		},
 	}
-	if err := watcher.Watch(dirCategories, broker, callbacks); err != nil {
+	if err := watcher.Watch(dirCategories, fileCategories, broker, callbacks); err != nil {
 		slog.Warn("file watcher failed to start", "error", err)
 	}
 
@@ -111,9 +125,10 @@ func main() {
 			Body:  body,
 			Tags:  tags,
 		}
-		return trackerSvc.AddItem(item)
+		return personalSvc.AddItem(item)
 	}, templates)
-	trackerHandler := tracker.NewHandler(trackerSvc, templates)
+	personalHandler := tracker.NewHandler(personalSvc, familySvc, templates, "personal")
+	familyHandler := tracker.NewHandler(familySvc, personalSvc, templates, "family")
 	explorationHandler := exploration.NewHandler(explorationSvc, templates)
 
 	r := chi.NewRouter()
@@ -129,18 +144,27 @@ func main() {
 
 	r.Get("/events", broker.ServeHTTP)
 
-	r.Get("/", trackerHandler.TrackerPage)
-	r.Get("/goals", trackerHandler.GoalsPage)
-	r.Post("/tracker/add", trackerHandler.QuickAdd)
-	r.Post("/tracker/add-goal", trackerHandler.AddGoal)
-	r.Post("/tracker/{slug}/complete", trackerHandler.Complete)
-	r.Post("/tracker/{slug}/uncomplete", trackerHandler.Uncomplete)
-	r.Post("/tracker/{slug}/progress", trackerHandler.UpdateProgress)
-	r.Post("/tracker/{slug}/notes", trackerHandler.UpdateNotes)
-	r.Post("/tracker/{slug}/delete", trackerHandler.Delete)
-	r.Post("/tracker/{slug}/priority", trackerHandler.UpdatePriority)
-	r.Post("/tracker/{slug}/tags", trackerHandler.UpdateTags)
-	r.Post("/tracker/{slug}/edit", trackerHandler.UpdateEdit)
+	r.Get("/", homePage(personalSvc, familySvc, ideaSvc, explorationSvc, templates))
+	r.Get("/personal", personalHandler.TrackerPage)
+	r.Get("/family", familyHandler.TrackerPage)
+	r.Get("/goals", personalHandler.GoalsPage)
+
+	for prefix, h := range map[string]*tracker.Handler{
+		"/personal": personalHandler,
+		"/family":   familyHandler,
+	} {
+		r.Post(prefix+"/add", h.QuickAdd)
+		r.Post(prefix+"/{slug}/complete", h.Complete)
+		r.Post(prefix+"/{slug}/uncomplete", h.Uncomplete)
+		r.Post(prefix+"/{slug}/progress", h.UpdateProgress)
+		r.Post(prefix+"/{slug}/notes", h.UpdateNotes)
+		r.Post(prefix+"/{slug}/delete", h.Delete)
+		r.Post(prefix+"/{slug}/priority", h.UpdatePriority)
+		r.Post(prefix+"/{slug}/tags", h.UpdateTags)
+		r.Post(prefix+"/{slug}/edit", h.UpdateEdit)
+		r.Post(prefix+"/{slug}/move", h.MoveToList)
+	}
+	r.Post("/personal/add-goal", personalHandler.AddGoal)
 
 	r.Get("/ideas", ideaHandler.IdeasPage)
 	r.Get("/ideas/{slug}", ideaHandler.IdeaDetail)
@@ -169,6 +193,97 @@ func main() {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}
+}
+
+func homePage(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, explorationSvc *exploration.Service, templates map[string]*template.Template) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		personalSummary, _ := personalSvc.Summary()
+		familySummary, _ := familySvc.Summary()
+
+		personalItems, _ := personalSvc.List()
+		familyItems, _ := familySvc.List()
+		allIdeas, _ := ideaSvc.List()
+		explorations, _ := explorationSvc.List()
+
+		data := map[string]any{
+			"Title":              "Home",
+			"PersonalTasks":      topTasks(personalItems, 5),
+			"PersonalTaskCount":  personalSummary.OpenTasks,
+			"FamilyTasks":        topTasks(familyItems, 5),
+			"FamilyTaskCount":    familySummary.OpenTasks,
+			"Goals":              activeGoals(personalItems),
+			"UntriagedIdeas":     filterUntriaged(allIdeas, 3),
+			"UntriagedCount":     countUntriaged(allIdeas),
+			"RecentExplorations": recentExplorations(explorations, 3),
+			"ExplorationCount":   len(explorations),
+		}
+
+		if err := templates["homepage.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
+			slog.Error("rendering homepage", "error", err)
+		}
+	}
+}
+
+func topTasks(items []tracker.Item, n int) []tracker.Item {
+	var tasks []tracker.Item
+	for _, it := range items {
+		if it.Type == tracker.TaskType && !it.Done {
+			tasks = append(tasks, it)
+		}
+	}
+	slices.SortFunc(tasks, func(a, b tracker.Item) int {
+		pa, pb := priorityWeight[a.Priority], priorityWeight[b.Priority]
+		if pa != pb {
+			return pa - pb
+		}
+		return 0
+	})
+	if len(tasks) > n {
+		tasks = tasks[:n]
+	}
+	return tasks
+}
+
+var priorityWeight = map[string]int{"high": 0, "medium": 1, "low": 2, "": 3}
+
+func activeGoals(items []tracker.Item) []tracker.Item {
+	var goals []tracker.Item
+	for _, it := range items {
+		if it.Type == tracker.GoalType && !it.Done {
+			goals = append(goals, it)
+		}
+	}
+	return goals
+}
+
+func filterUntriaged(allIdeas []ideas.Idea, n int) []ideas.Idea {
+	var untriaged []ideas.Idea
+	for _, idea := range allIdeas {
+		if idea.Status == "untriaged" {
+			untriaged = append(untriaged, idea)
+		}
+	}
+	if len(untriaged) > n {
+		untriaged = untriaged[:n]
+	}
+	return untriaged
+}
+
+func countUntriaged(allIdeas []ideas.Idea) int {
+	count := 0
+	for _, idea := range allIdeas {
+		if idea.Status == "untriaged" {
+			count++
+		}
+	}
+	return count
+}
+
+func recentExplorations(explorations []exploration.Exploration, n int) []exploration.Exploration {
+	if len(explorations) > n {
+		explorations = explorations[:n]
+	}
+	return explorations
 }
 
 func noDirectoryListing(root http.FileSystem) http.Handler {
@@ -204,7 +319,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		return nil, fmt.Errorf("parsing layout: %w", err)
 	}
 
-	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "exploration.html", "exploration-detail.html"}
+	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "exploration.html", "exploration-detail.html", "homepage.html"}
 	templates := make(map[string]*template.Template, len(pages))
 
 	for _, page := range pages {
