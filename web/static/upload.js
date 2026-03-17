@@ -134,7 +134,7 @@
 
     // Initialise on load and after htmx swaps.
     function init() {
-        initImageUpload('.tracker-notes-form, .tracker-goal-form, .idea-form');
+        initImageUpload('.tracker-notes-form, .tracker-goal-form');
     }
 
     document.addEventListener('DOMContentLoaded', init);

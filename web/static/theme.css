@@ -263,38 +263,9 @@ section h2 {
     border-bottom: 1px solid var(--border);
 }
 
-/* --- Backlog (project detail page) --- */
-.backlog-item {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
-}
-.backlog-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.25rem;
-}
-.backlog-title {
-    font-weight: bold;
-}
-.backlog-body {
-    font-size: 0.85rem;
-    color: var(--fg-dim);
-    margin-bottom: 0.25rem;
-}
-.backlog-meta {
-    display: flex;
-    gap: 1rem;
-    font-size: 0.8rem;
-    color: var(--fg-dim);
-}
 .badge-priority-high { color: var(--priority-high); border-color: var(--priority-high); cursor: pointer; }
 .badge-priority-medium { color: var(--priority-medium); border-color: var(--priority-medium); cursor: pointer; }
 .badge-priority-low { color: var(--priority-low); border-color: var(--priority-low); cursor: pointer; }
-.badge-done { color: var(--green); border-color: var(--green); }
 
 /* --- Ideas --- */
 .quick-add {
@@ -308,12 +279,6 @@ section h2 {
     cursor: pointer;
     color: var(--accent);
     font-weight: 600;
-}
-.idea-form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
 }
 .form-input, .form-select, .form-textarea {
     background: var(--surface0);
@@ -349,29 +314,6 @@ section h2 {
 }
 .form-btn:active {
     transform: scale(0.97);
-}
-.idea-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
-}
-.idea-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.25rem;
-}
-.idea-title {
-    font-weight: 600;
-}
-.idea-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-    flex-wrap: wrap;
-    align-items: center;
 }
 .inline-triage {
     display: inline-flex;
@@ -412,10 +354,6 @@ section h2 {
     font-size: 0.8rem;
     padding: 0.1rem 0.25rem;
     border-radius: 3px;
-}
-.badge-type {
-    color: var(--mauve);
-    border-color: var(--mauve);
 }
 .badge-untriaged { color: var(--priority-medium); border-color: var(--priority-medium); }
 .badge-parked { color: var(--fg-muted); border-color: var(--surface1); }
@@ -644,16 +582,6 @@ section h2 {
 }
 
 /* Tracker badges */
-.badge-category {
-    color: var(--lavender);
-    border-color: var(--lavender);
-    cursor: pointer;
-    transition: background 0.1s, color 0.1s;
-}
-.badge-category:hover {
-    background: var(--lavender);
-    color: var(--base);
-}
 .badge-tag {
     color: var(--teal);
     border-color: var(--teal);
@@ -883,18 +811,6 @@ section h2 {
     color: var(--red);
 }
 
-/* --- Admin nav link --- */
-.nav-admin {
-    color: var(--mauve);
-    font-size: 0.85rem;
-    margin-left: auto;
-    text-decoration: none;
-}
-.nav-admin:hover {
-    color: var(--fg);
-    text-decoration: underline;
-}
-
 /* --- Admin form card --- */
 .admin-form-card {
     background: var(--bg-card);
@@ -1035,14 +951,6 @@ section h2 {
         flex-wrap: wrap;
     }
 
-    /* Ideas: actions wrap properly */
-    .idea-actions {
-        gap: 0.35rem;
-    }
-    .idea-header {
-        flex-wrap: wrap;
-    }
-
     /* Forms: full width inputs */
     .goal-form-row {
         flex-wrap: wrap;
@@ -1050,9 +958,6 @@ section h2 {
     .form-input-sm {
         max-width: none;
         flex: 1;
-    }
-    .idea-form .form-select {
-        width: 100%;
     }
     .form-input, .form-select, .form-textarea {
         font-size: 16px; /* prevents iOS zoom on focus */
