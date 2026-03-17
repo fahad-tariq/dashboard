@@ -73,8 +73,8 @@
     {{if .Dropped}}<span class="stat-item"><span class="stat-value">{{len .Dropped}}</span> dropped</span>{{end}}
 </div>
 
-<details class="quick-add tracker-add-form" open>
-    <summary>Quick add</summary>
+<details class="quick-add tracker-add-form">
+    <summary>Add idea</summary>
     <form method="POST" action="/ideas/add" class="tracker-goal-form">
         <label for="idea-title" class="sr-only">Idea title</label>
         <input type="text" name="title" id="idea-title" placeholder="Idea title" required class="form-input">
