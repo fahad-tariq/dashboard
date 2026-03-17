@@ -58,12 +58,19 @@
     {{range .Priorities}}
     <button class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" onclick="trackerFilter('priority','{{.}}')">{{.}}</button>
     {{end}}
+    <span class="filter-sep"></span>
+    <button class="select-toggle-btn" id="select-toggle" onclick="toggleSelectMode()">select</button>
+</div>
+{{else}}
+<div class="tracker-filters">
+    <button class="select-toggle-btn" id="select-toggle" onclick="toggleSelectMode()">select</button>
 </div>
 {{end}}
 
 {{range .Goals}}
-<div class="tracker-item" id="item-{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+<div class="tracker-item" id="item-{{.Slug}}" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
     <div class="tracker-item-header">
+        <input type="checkbox" class="bulk-checkbox" onclick="event.stopPropagation();bulkCheckboxChanged(this)" aria-label="Select {{.Title}}">
         <span class="tracker-item-title">{{linkify .Title}}</span>
         <div class="tracker-item-meta">
             {{range .Tags}}<span class="badge badge-tag badge-clickable" role="button" tabindex="0" onclick="trackerFilter('category','{{.}}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();trackerFilter('category','{{.}}')}">{{.}}</span>{{end}}
@@ -171,6 +178,26 @@
 <p class="empty">No goals yet. Goals track measurable progress over time -- things like fitness targets, reading goals, or savings milestones.</p>
 {{end}}
 <p class="empty filter-empty" style="display:none">No goals match the current filter.</p>
+
+<div class="bulk-bar" id="bulk-bar" role="toolbar" aria-label="Bulk actions">
+    <span class="bulk-bar-count" id="bulk-bar-count" aria-live="polite">0 selected</span>
+    <button type="button" class="action-btn" onclick="selectAllVisible()">select all</button>
+    <button type="button" class="action-btn" onclick="deselectAll()">deselect</button>
+    <form method="POST" action="/todos/bulk/delete" id="bulk-delete-form" style="display:inline" onsubmit="return confirmBulkDelete(this)">
+        <input type="hidden" name="slugs" value="">
+        <button type="submit" class="action-btn action-drop">trash</button>
+    </form>
+    <form method="POST" action="/todos/bulk/priority" id="bulk-priority-form" style="display:inline">
+        <input type="hidden" name="slugs" value="">
+        <select name="priority" class="form-select-sm">
+            <option value="">--</option>
+            <option value="high">high</option>
+            <option value="medium">medium</option>
+            <option value="low">low</option>
+        </select>
+        <button type="submit" class="action-btn" onclick="return submitBulkAction('bulk-priority-form')">set priority</button>
+    </form>
+</div>
 
 </div>
 {{end}}

@@ -106,14 +106,23 @@ if (searchInput) {
 }
 
 document.addEventListener('keydown', function(e) {
-    // Close any open modal on Escape.
+    // Close overlays on Escape. Priority: confirm modal > search > shortcut help > select mode.
     if (e.key === 'Escape') {
+        var confirmModal = document.getElementById('confirm-modal');
+        if (confirmModal && confirmModal.classList.contains('visible')) {
+            // Confirm modal handled by dialog.js.
+            return;
+        }
         if (searchOverlay.classList.contains('visible')) {
             closeSearch();
             return;
         }
         if (shortcutHelp.classList.contains('visible')) {
             closeShortcutHelp();
+            return;
+        }
+        if (typeof bulkSelectActive !== 'undefined' && bulkSelectActive) {
+            exitSelectMode();
             return;
         }
     }

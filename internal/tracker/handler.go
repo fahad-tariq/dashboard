@@ -34,11 +34,16 @@ var flashMessages = map[string]string{
 	"item-moved":        "Moved to the other list.",
 	"item-restored":     "Item restored from trash.",
 	"item-purged":       "Item permanently deleted.",
+	"bulk-completed":    "Items completed.",
+	"bulk-deleted":      "Items moved to trash.",
+	"bulk-priority":     "Priority updated for selected items.",
+	"bulk-tagged":       "Tag added to selected items.",
 }
 
 var flashErrorKeys = map[string]bool{
 	"title-required": true,
 	"item-purged":    true,
+	"bulk-deleted":   true,
 }
 
 func sanitisePriority(p string) string {
@@ -480,6 +485,84 @@ func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.redirectBack(w, r, slug, "item-updated")
+}
+
+func (h *Handler) BulkComplete(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	if len(slugs) == 0 {
+		http.Error(w, "No items selected", http.StatusBadRequest)
+		return
+	}
+	svc, _ := h.resolve(r)
+	if err := svc.BulkComplete(slugs); err != nil {
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
+		return
+	}
+	h.redirectBack(w, r, "", "bulk-completed")
+}
+
+func (h *Handler) BulkDelete(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	if len(slugs) == 0 {
+		http.Error(w, "No items selected", http.StatusBadRequest)
+		return
+	}
+	svc, _ := h.resolve(r)
+	if err := svc.BulkDelete(slugs); err != nil {
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
+		return
+	}
+	h.redirectBack(w, r, "", "bulk-deleted")
+}
+
+func (h *Handler) BulkPriority(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	if len(slugs) == 0 {
+		http.Error(w, "No items selected", http.StatusBadRequest)
+		return
+	}
+	priority := sanitisePriority(r.FormValue("priority"))
+	svc, _ := h.resolve(r)
+	if err := svc.BulkUpdatePriority(slugs, priority); err != nil {
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
+		return
+	}
+	h.redirectBack(w, r, "", "bulk-priority")
+}
+
+func (h *Handler) BulkAddTag(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	if len(slugs) == 0 {
+		http.Error(w, "No items selected", http.StatusBadRequest)
+		return
+	}
+	tag := strings.TrimSpace(r.FormValue("tag"))
+	if tag == "" {
+		http.Error(w, "Tag is required", http.StatusBadRequest)
+		return
+	}
+	svc, _ := h.resolve(r)
+	if err := svc.BulkAddTag(slugs, tag); err != nil {
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
+		return
+	}
+	h.redirectBack(w, r, "", "bulk-tagged")
 }
 
 func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {

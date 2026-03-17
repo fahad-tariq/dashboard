@@ -47,11 +47,14 @@
     {{end}}
     <span class="filter-sep"></span>
     <button class="filter-tag filter-toggle" onclick="trackerToggleAll()" title="Expand/collapse all">expand</button>
+    <span class="filter-sep"></span>
+    <button class="select-toggle-btn" id="select-toggle" onclick="toggleSelectMode()">select</button>
 </div>
 
 {{range .Tasks}}
-<div class="tracker-item minimised" id="item-{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+<div class="tracker-item minimised" id="item-{{.Slug}}" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
     <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
+        <input type="checkbox" class="bulk-checkbox" onclick="event.stopPropagation();bulkCheckboxChanged(this)" aria-label="Select {{.Title}}">
         <button class="item-toggle" onclick="event.stopPropagation()" title="Minimise/expand">&#x25B8;</button>
         <span class="tracker-item-title">{{linkify .Title}}</span>
         <div class="tracker-item-meta">
@@ -175,6 +178,35 @@
 <p class="empty">{{if eq .ListName "family"}}No family tasks yet. Use this list to coordinate shared household tasks.{{else}}No tasks yet. Todos are for things you want to get done -- open the form above to add your first.{{end}}</p>
 {{end}}
 <p class="empty filter-empty" style="display:none">No tasks match the current filter.</p>
+
+<div class="bulk-bar" id="bulk-bar" role="toolbar" aria-label="Bulk actions">
+    <span class="bulk-bar-count" id="bulk-bar-count" aria-live="polite">0 selected</span>
+    <button type="button" class="action-btn" onclick="selectAllVisible()">select all</button>
+    <button type="button" class="action-btn" onclick="deselectAll()">deselect</button>
+    <form method="POST" action="/{{.ListName}}/bulk/complete" id="bulk-complete-form" style="display:inline">
+        <input type="hidden" name="slugs" value="">
+        <button type="submit" class="action-btn action-assign" onclick="return submitBulkAction('bulk-complete-form')">complete</button>
+    </form>
+    <form method="POST" action="/{{.ListName}}/bulk/delete" id="bulk-delete-form" style="display:inline" onsubmit="return confirmBulkDelete(this)">
+        <input type="hidden" name="slugs" value="">
+        <button type="submit" class="action-btn action-drop">trash</button>
+    </form>
+    <form method="POST" action="/{{.ListName}}/bulk/priority" id="bulk-priority-form" style="display:inline">
+        <input type="hidden" name="slugs" value="">
+        <select name="priority" class="form-select-sm">
+            <option value="">--</option>
+            <option value="high">high</option>
+            <option value="medium">medium</option>
+            <option value="low">low</option>
+        </select>
+        <button type="submit" class="action-btn" onclick="return submitBulkAction('bulk-priority-form')">set priority</button>
+    </form>
+    <form method="POST" action="/{{.ListName}}/bulk/tag" id="bulk-tag-form" style="display:inline">
+        <input type="hidden" name="slugs" value="">
+        <input type="text" name="tag" placeholder="tag" class="form-input-sm">
+        <button type="submit" class="action-btn" onclick="return submitBulkAction('bulk-tag-form')">add tag</button>
+    </form>
+</div>
 
 </div>
 {{end}}

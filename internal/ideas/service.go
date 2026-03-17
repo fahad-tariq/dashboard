@@ -236,6 +236,69 @@ func (s *Service) PurgeExpired(days int) error {
 	return nil
 }
 
+// mutateBatch acquires the lock once, parses the file once, applies fn to all
+// matched slugs, writes once, and updates cache once. If any slug is not found,
+// the entire batch fails with no changes written.
+func (s *Service) mutateBatch(slugs []string, fn func(*Idea) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ideas, err := ParseIdeas(s.ideasPath)
+	if err != nil {
+		return err
+	}
+
+	slugSet := make(map[string]bool, len(slugs))
+	for _, sl := range slugs {
+		slugSet[sl] = true
+	}
+
+	found := 0
+	for i := range ideas {
+		if slugSet[ideas[i].Slug] {
+			if err := fn(&ideas[i]); err != nil {
+				return err
+			}
+			found++
+		}
+	}
+	if found != len(slugSet) {
+		return fmt.Errorf("one or more ideas not found")
+	}
+
+	if err := WriteIdeas(s.ideasPath, "Ideas", ideas); err != nil {
+		return err
+	}
+	s.cache = ideas
+	return nil
+}
+
+// BulkDelete soft-deletes multiple ideas in a single file write.
+func (s *Service) BulkDelete(slugs []string) error {
+	now := time.Now().Format("2006-01-02")
+	return s.mutateBatch(slugs, func(idea *Idea) error {
+		idea.DeletedAt = now
+		return nil
+	})
+}
+
+// BulkTriage changes the status of multiple ideas in a single file write.
+func (s *Service) BulkTriage(slugs []string, action string) error {
+	var status string
+	switch action {
+	case "park":
+		status = "parked"
+	case "drop":
+		status = "dropped"
+	default:
+		return fmt.Errorf("unknown bulk triage action %q", action)
+	}
+	return s.mutateBatch(slugs, func(idea *Idea) error {
+		idea.Status = status
+		return nil
+	})
+}
+
 // MarkConverted sets an idea's status to "converted" and records the task slug.
 func (s *Service) MarkConverted(slug, taskSlug string) error {
 	return s.mutate(slug, func(idea *Idea) error {

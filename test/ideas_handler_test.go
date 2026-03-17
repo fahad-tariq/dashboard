@@ -87,6 +87,8 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 	r.Post("/ideas/{slug}/delete", handler.DeleteIdea)
 	r.Post("/ideas/{slug}/restore", handler.RestoreIdea)
 	r.Post("/ideas/{slug}/purge", handler.PermanentDeleteIdea)
+	r.Post("/ideas/bulk/delete", handler.BulkDeleteIdeas)
+	r.Post("/ideas/bulk/triage", handler.BulkTriageIdeas)
 
 	return &ideasTestEnv{
 		handler:     handler,
@@ -480,5 +482,70 @@ func TestIdeasPurge(t *testing.T) {
 	_, err := env.ideasSvc.Get(slug)
 	if err == nil {
 		t.Error("expected idea to be permanently deleted")
+	}
+}
+
+func TestBulkDeleteIdeasHandler(t *testing.T) {
+	env := setupIdeasEnv(t)
+	slug1 := addTestIdea(t, env.ideasSvc, "Alpha idea")
+	slug2 := addTestIdea(t, env.ideasSvc, "Beta idea")
+	addTestIdea(t, env.ideasSvc, "Gamma idea")
+
+	form := url.Values{"slugs": {slug1 + ", " + slug2}}
+	req := httptest.NewRequest("POST", "/ideas/bulk/delete", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	env.router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
+	}
+	loc := rr.Header().Get("Location")
+	if !strings.Contains(loc, "msg=bulk-deleted") {
+		t.Errorf("expected bulk-deleted flash, got %q", loc)
+	}
+
+	list, _ := env.ideasSvc.List()
+	if len(list) != 1 {
+		t.Errorf("expected 1 active idea, got %d", len(list))
+	}
+}
+
+func TestBulkTriageIdeasHandler(t *testing.T) {
+	env := setupIdeasEnv(t)
+	slug1 := addTestIdea(t, env.ideasSvc, "Triage alpha")
+	slug2 := addTestIdea(t, env.ideasSvc, "Triage beta")
+
+	form := url.Values{
+		"slugs":  {slug1 + ", " + slug2},
+		"action": {"park"},
+	}
+	req := httptest.NewRequest("POST", "/ideas/bulk/triage", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	env.router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
+	}
+
+	a, _ := env.ideasSvc.Get(slug1)
+	b, _ := env.ideasSvc.Get(slug2)
+	if a.Status != "parked" || b.Status != "parked" {
+		t.Errorf("expected both parked, got %q and %q", a.Status, b.Status)
+	}
+}
+
+func TestBulkDeleteIdeasNoSlugs(t *testing.T) {
+	env := setupIdeasEnv(t)
+
+	form := url.Values{"slugs": {""}}
+	req := httptest.NewRequest("POST", "/ideas/bulk/delete", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	env.router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
 	}
 }

@@ -315,6 +315,109 @@ func TestIdeasServicePurgeExpiredMalformedDate(t *testing.T) {
 	}
 }
 
+func TestIdeasServiceBulkDelete(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+
+	svc := ideas.NewService(path)
+	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."})
+	svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."})
+	svc.Add(&ideas.Idea{Slug: "gamma", Title: "Gamma", Body: "Third."})
+
+	if err := svc.BulkDelete([]string{"alpha", "gamma"}); err != nil {
+		t.Fatalf("BulkDelete: %v", err)
+	}
+
+	list, _ := svc.List()
+	if len(list) != 1 {
+		t.Fatalf("expected 1 active idea, got %d", len(list))
+	}
+	if list[0].Slug != "beta" {
+		t.Errorf("expected Beta, got %q", list[0].Title)
+	}
+
+	deleted := svc.ListDeleted()
+	if len(deleted) != 2 {
+		t.Fatalf("expected 2 deleted ideas, got %d", len(deleted))
+	}
+}
+
+func TestIdeasServiceBulkTriage(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+
+	svc := ideas.NewService(path)
+	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."})
+	svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."})
+
+	if err := svc.BulkTriage([]string{"alpha", "beta"}, "park"); err != nil {
+		t.Fatalf("BulkTriage: %v", err)
+	}
+
+	alpha, _ := svc.Get("alpha")
+	if alpha.Status != "parked" {
+		t.Errorf("Alpha status: got %q, want %q", alpha.Status, "parked")
+	}
+	beta, _ := svc.Get("beta")
+	if beta.Status != "parked" {
+		t.Errorf("Beta status: got %q, want %q", beta.Status, "parked")
+	}
+}
+
+func TestIdeasServiceBulkTriageDrop(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+
+	svc := ideas.NewService(path)
+	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha"})
+
+	if err := svc.BulkTriage([]string{"alpha"}, "drop"); err != nil {
+		t.Fatalf("BulkTriage drop: %v", err)
+	}
+
+	alpha, _ := svc.Get("alpha")
+	if alpha.Status != "dropped" {
+		t.Errorf("Alpha status: got %q, want %q", alpha.Status, "dropped")
+	}
+}
+
+func TestIdeasServiceBulkTriageInvalidAction(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+
+	svc := ideas.NewService(path)
+	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha"})
+
+	err := svc.BulkTriage([]string{"alpha"}, "invalid")
+	if err == nil {
+		t.Fatal("expected error for invalid triage action")
+	}
+}
+
+func TestIdeasServiceBulkInvalidSlugRollsBack(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+
+	svc := ideas.NewService(path)
+	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha"})
+
+	err := svc.BulkDelete([]string{"alpha", "nonexistent"})
+	if err == nil {
+		t.Fatal("expected error for invalid slug")
+	}
+
+	// Alpha should NOT be deleted because the batch failed atomically.
+	alpha, _ := svc.Get("alpha")
+	if alpha.DeletedAt != "" {
+		t.Error("Alpha should not be deleted -- batch should have failed atomically")
+	}
+}
+
 func TestIdeasDeletedAtRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")

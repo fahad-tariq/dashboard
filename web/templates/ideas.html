@@ -1,6 +1,7 @@
 {{define "idea-card"}}
-<div class="tracker-item minimised" id="idea-{{.Slug}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+<div class="tracker-item minimised" id="idea-{{.Slug}}" data-slug="{{.Slug}}" data-tags="{{range .Tags}}{{.}} {{end}}">
     <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
+        <input type="checkbox" class="bulk-checkbox" onclick="event.stopPropagation();bulkCheckboxChanged(this)" aria-label="Select {{.Title}}">
         <button class="item-toggle" onclick="event.stopPropagation()" title="Expand/collapse">&#x25B8;</button>
         <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
         <div class="tracker-item-meta">
@@ -103,6 +104,12 @@
     {{range .Categories}}
     <button class="filter-tag filter-cat" data-value="{{.}}" onclick="trackerFilter('category','{{.}}')">{{.}}</button>
     {{end}}
+    <span class="filter-sep"></span>
+    <button class="select-toggle-btn" id="select-toggle" onclick="toggleSelectMode()">select</button>
+</div>
+{{else}}
+<div class="tracker-filters">
+    <button class="select-toggle-btn" id="select-toggle" onclick="toggleSelectMode()">select</button>
 </div>
 {{end}}
 
@@ -193,6 +200,24 @@
 <p class="empty">No ideas yet. Ideas are for things you might want to explore someday -- projects, topics, half-formed thoughts worth capturing.</p>
 {{end}}
 <p class="empty filter-empty" style="display:none">No ideas match the current filter.</p>
+
+<div class="bulk-bar" id="bulk-bar" role="toolbar" aria-label="Bulk actions">
+    <span class="bulk-bar-count" id="bulk-bar-count" aria-live="polite">0 selected</span>
+    <button type="button" class="action-btn" onclick="selectAllVisible()">select all</button>
+    <button type="button" class="action-btn" onclick="deselectAll()">deselect</button>
+    <form method="POST" action="/ideas/bulk/delete" id="bulk-delete-form" style="display:inline" onsubmit="return confirmBulkDelete(this)">
+        <input type="hidden" name="slugs" value="">
+        <button type="submit" class="action-btn action-drop">trash</button>
+    </form>
+    <form method="POST" action="/ideas/bulk/triage" id="bulk-triage-form" style="display:inline">
+        <input type="hidden" name="slugs" value="">
+        <select name="action" class="form-select-sm">
+            <option value="park">park</option>
+            <option value="drop">drop</option>
+        </select>
+        <button type="submit" class="action-btn" onclick="return submitBulkAction('bulk-triage-form')">triage</button>
+    </form>
+</div>
 
 </div>
 {{end}}

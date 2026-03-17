@@ -174,12 +174,118 @@ function triageAnimate(form) {
     el.scrollIntoView({block: 'nearest'});
 })();
 
+// --- Bulk select mode ---
+var bulkSelectActive = false;
+
+function toggleSelectMode() {
+    bulkSelectActive = !bulkSelectActive;
+    var page = document.querySelector('.tracker-page, .ideas-page');
+    var btn = document.getElementById('select-toggle');
+    if (bulkSelectActive) {
+        if (page) page.classList.add('select-mode');
+        if (btn) { btn.classList.add('active'); btn.textContent = 'cancel'; }
+    } else {
+        exitSelectMode();
+    }
+}
+
+function exitSelectMode() {
+    bulkSelectActive = false;
+    var page = document.querySelector('.tracker-page, .ideas-page');
+    if (page) page.classList.remove('select-mode');
+    var btn = document.getElementById('select-toggle');
+    if (btn) { btn.classList.remove('active'); btn.textContent = 'select'; btn.focus(); }
+    deselectAll();
+    var bar = document.getElementById('bulk-bar');
+    if (bar) bar.classList.remove('visible');
+}
+
+function bulkCheckboxChanged() {
+    updateBulkBar();
+}
+
+function getSelectedSlugs() {
+    var slugs = [];
+    var checkboxes = document.querySelectorAll('.bulk-checkbox:checked');
+    checkboxes.forEach(function(cb) {
+        var item = cb.closest('.tracker-item');
+        if (item) {
+            var slug = item.getAttribute('data-slug');
+            if (slug) slugs.push(slug);
+            item.classList.add('bulk-selected');
+        }
+    });
+    // Clear unselected items.
+    document.querySelectorAll('.bulk-checkbox:not(:checked)').forEach(function(cb) {
+        var item = cb.closest('.tracker-item');
+        if (item) item.classList.remove('bulk-selected');
+    });
+    return slugs;
+}
+
+function updateBulkBar() {
+    var slugs = getSelectedSlugs();
+    var bar = document.getElementById('bulk-bar');
+    var countEl = document.getElementById('bulk-bar-count');
+    if (!bar) return;
+    if (slugs.length > 0) {
+        bar.classList.add('visible');
+        if (countEl) countEl.textContent = slugs.length + ' selected';
+    } else {
+        bar.classList.remove('visible');
+        if (countEl) countEl.textContent = '0 selected';
+    }
+}
+
+function selectAllVisible() {
+    var items = document.querySelectorAll('.tracker-item:not(.tracker-item-done)');
+    items.forEach(function(el) {
+        if (el.style.display === 'none') return;
+        if (!el.getAttribute('data-slug')) return;
+        var cb = el.querySelector('.bulk-checkbox');
+        if (cb) cb.checked = true;
+    });
+    updateBulkBar();
+}
+
+function deselectAll() {
+    document.querySelectorAll('.bulk-checkbox').forEach(function(cb) {
+        cb.checked = false;
+    });
+    document.querySelectorAll('.tracker-item.bulk-selected').forEach(function(el) {
+        el.classList.remove('bulk-selected');
+    });
+    updateBulkBar();
+}
+
+function submitBulkAction(formId) {
+    var form = document.getElementById(formId);
+    if (!form) return false;
+    var slugs = getSelectedSlugs();
+    if (slugs.length === 0) return false;
+    var input = form.querySelector('input[name="slugs"]');
+    if (input) input.value = slugs.join(', ');
+    return true;
+}
+
+function confirmBulkDelete(form) {
+    var slugs = getSelectedSlugs();
+    if (slugs.length === 0) return false;
+    var input = form.querySelector('input[name="slugs"]');
+    if (input) input.value = slugs.join(', ');
+    return confirmAction(form, 'Delete ' + slugs.length + ' items? This cannot be undone.');
+}
+
 // Re-apply filter and badge after HTMX SSE swap.
 document.addEventListener('htmx:afterSwap', function() {
     if (activeFilterType) {
         applyFilter();
     }
     updateFilterBadge();
+    // Reset select mode after swap (page was replaced).
+    if (bulkSelectActive) {
+        exitSelectMode();
+    }
 });
 
 // Delay SSE swap when a completion celebration is in progress so the
@@ -189,6 +295,13 @@ var pendingSwap = null;
 document.addEventListener('htmx:beforeSwap', function(evt) {
     var target = evt.detail.target;
     if (!target) return;
+
+    // Suppress SSE swaps while select mode is active.
+    if (bulkSelectActive) {
+        evt.detail.shouldSwap = false;
+        return;
+    }
+
     var completing = target.querySelector && target.querySelector('.tracker-item-completing');
     if (!completing) return;
 

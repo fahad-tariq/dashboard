@@ -33,11 +33,14 @@ var flashMessages = map[string]string{
 	"idea-deleted":   "Idea moved to trash.",
 	"idea-restored":  "Idea restored from trash.",
 	"idea-purged":    "Idea permanently deleted.",
+	"bulk-deleted":   "Ideas moved to trash.",
+	"bulk-triaged":   "Ideas triaged.",
 }
 
 var flashErrorKeys = map[string]bool{
 	"title-required": true,
 	"idea-purged":    true,
+	"bulk-deleted":   true,
 }
 
 // Handler handles HTTP requests for ideas.
@@ -278,6 +281,45 @@ func (h *Handler) PermanentDeleteIdea(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/ideas?msg=idea-purged", http.StatusSeeOther)
+}
+
+// BulkDeleteIdeas soft-deletes multiple ideas in a single operation.
+func (h *Handler) BulkDeleteIdeas(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	slugs := ParseCSV(r.FormValue("slugs"))
+	if len(slugs) == 0 {
+		http.Error(w, "No ideas selected", http.StatusBadRequest)
+		return
+	}
+	svc := h.resolve(r)
+	if err := svc.BulkDelete(slugs); err != nil {
+		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/ideas?msg=bulk-deleted", http.StatusSeeOther)
+}
+
+// BulkTriageIdeas changes the status of multiple ideas in a single operation.
+func (h *Handler) BulkTriageIdeas(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	slugs := ParseCSV(r.FormValue("slugs"))
+	if len(slugs) == 0 {
+		http.Error(w, "No ideas selected", http.StatusBadRequest)
+		return
+	}
+	action := r.FormValue("action")
+	svc := h.resolve(r)
+	if err := svc.BulkTriage(slugs, action); err != nil {
+		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/ideas?msg=bulk-triaged", http.StatusSeeOther)
 }
 
 // --- API handlers ---

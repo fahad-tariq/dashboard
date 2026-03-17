@@ -83,6 +83,10 @@ func setupTrackerEnv(t *testing.T) *trackerTestEnv {
 	r.Post("/todos/{slug}/progress", personalHandler.UpdateProgress)
 	r.Post("/todos/{slug}/restore", personalHandler.Restore)
 	r.Post("/todos/{slug}/purge", personalHandler.Purge)
+	r.Post("/todos/bulk/complete", personalHandler.BulkComplete)
+	r.Post("/todos/bulk/delete", personalHandler.BulkDelete)
+	r.Post("/todos/bulk/priority", personalHandler.BulkPriority)
+	r.Post("/todos/bulk/tag", personalHandler.BulkAddTag)
 
 	r.Get("/family", familyHandler.TrackerPage)
 	r.Post("/family/add", familyHandler.QuickAdd)
@@ -575,5 +579,108 @@ func TestPurgeTask(t *testing.T) {
 	_, err := env.personalSvc.Get("existing-task")
 	if err == nil {
 		t.Error("expected item to be permanently deleted")
+	}
+}
+
+func TestBulkCompleteHandler(t *testing.T) {
+	env := setupTrackerEnv(t)
+	// Add another task.
+	postForm(env.router, "/todos/add", url.Values{"title": {"Second task"}})
+
+	rr := postForm(env.router, "/todos/bulk/complete", url.Values{
+		"slugs": {"existing-task, second-task"},
+	})
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
+	}
+	loc := rr.Header().Get("Location")
+	if !strings.Contains(loc, "msg=bulk-completed") {
+		t.Errorf("expected bulk-completed flash, got %q", loc)
+	}
+
+	a, _ := env.personalSvc.Get("existing-task")
+	b, _ := env.personalSvc.Get("second-task")
+	if !a.Done || !b.Done {
+		t.Error("expected both tasks to be completed")
+	}
+}
+
+func TestBulkDeleteHandler(t *testing.T) {
+	env := setupTrackerEnv(t)
+	postForm(env.router, "/todos/add", url.Values{"title": {"Second task"}})
+
+	rr := postForm(env.router, "/todos/bulk/delete", url.Values{
+		"slugs": {"existing-task, second-task"},
+	})
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
+	}
+
+	items, _ := env.personalSvc.List()
+	if len(items) != 0 {
+		t.Errorf("expected 0 active items, got %d", len(items))
+	}
+}
+
+func TestBulkPriorityHandler(t *testing.T) {
+	env := setupTrackerEnv(t)
+
+	rr := postForm(env.router, "/todos/bulk/priority", url.Values{
+		"slugs":    {"existing-task"},
+		"priority": {"high"},
+	})
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
+	}
+
+	item, _ := env.personalSvc.Get("existing-task")
+	if item.Priority != "high" {
+		t.Errorf("expected priority 'high', got %q", item.Priority)
+	}
+}
+
+func TestBulkAddTagHandler(t *testing.T) {
+	env := setupTrackerEnv(t)
+
+	rr := postForm(env.router, "/todos/bulk/tag", url.Values{
+		"slugs": {"existing-task"},
+		"tag":   {"urgent"},
+	})
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
+	}
+
+	item, _ := env.personalSvc.Get("existing-task")
+	if len(item.Tags) != 1 || item.Tags[0] != "urgent" {
+		t.Errorf("expected tags [urgent], got %v", item.Tags)
+	}
+}
+
+func TestBulkNoSlugsReturns400(t *testing.T) {
+	env := setupTrackerEnv(t)
+
+	rr := postForm(env.router, "/todos/bulk/complete", url.Values{
+		"slugs": {""},
+	})
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestBulkAddTagMissingTag(t *testing.T) {
+	env := setupTrackerEnv(t)
+
+	rr := postForm(env.router, "/todos/bulk/tag", url.Values{
+		"slugs": {"existing-task"},
+		"tag":   {""},
+	})
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
 	}
 }

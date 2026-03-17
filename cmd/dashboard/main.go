@@ -563,6 +563,8 @@ func mountAppRoutes(r chi.Router, homePage http.HandlerFunc, digestPage http.Han
 	r.Post("/ideas/{slug}/delete", ideaHandler.DeleteIdea)
 	r.Post("/ideas/{slug}/restore", ideaHandler.RestoreIdea)
 	r.Post("/ideas/{slug}/purge", ideaHandler.PermanentDeleteIdea)
+	r.Post("/ideas/bulk/delete", ideaHandler.BulkDeleteIdeas)
+	r.Post("/ideas/bulk/triage", ideaHandler.BulkTriageIdeas)
 
 	r.Get("/exploration", http.RedirectHandler("/ideas", http.StatusMovedPermanently).ServeHTTP)
 	r.Get("/exploration/{slug}", func(w http.ResponseWriter, r *http.Request) {
@@ -587,6 +589,10 @@ func mountTrackerRoutes(r chi.Router, personalHandler, familyHandler *tracker.Ha
 		r.Post(prefix+"/{slug}/move", h.MoveToList)
 		r.Post(prefix+"/{slug}/restore", h.Restore)
 		r.Post(prefix+"/{slug}/purge", h.Purge)
+		r.Post(prefix+"/bulk/complete", h.BulkComplete)
+		r.Post(prefix+"/bulk/delete", h.BulkDelete)
+		r.Post(prefix+"/bulk/priority", h.BulkPriority)
+		r.Post(prefix+"/bulk/tag", h.BulkAddTag)
 	}
 	r.Post("/todos/add-goal", personalHandler.AddGoal)
 }

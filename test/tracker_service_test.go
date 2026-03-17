@@ -486,6 +486,110 @@ func TestTrackerServicePurgeExpiredBoundary(t *testing.T) {
 	}
 }
 
+func TestTrackerServiceBulkComplete(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] Alpha\n- [ ] Beta\n- [ ] Gamma\n")
+
+	if err := svc.BulkComplete([]string{"alpha", "gamma"}); err != nil {
+		t.Fatalf("BulkComplete: %v", err)
+	}
+
+	alpha, _ := svc.Get("alpha")
+	if !alpha.Done {
+		t.Error("expected Alpha to be done")
+	}
+	gamma, _ := svc.Get("gamma")
+	if !gamma.Done {
+		t.Error("expected Gamma to be done")
+	}
+	beta, _ := svc.Get("beta")
+	if beta.Done {
+		t.Error("Beta should not be done")
+	}
+}
+
+func TestTrackerServiceBulkDelete(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] Alpha\n- [ ] Beta\n- [ ] Gamma\n")
+
+	if err := svc.BulkDelete([]string{"alpha", "beta"}); err != nil {
+		t.Fatalf("BulkDelete: %v", err)
+	}
+
+	items, _ := svc.List()
+	if len(items) != 1 {
+		t.Fatalf("expected 1 active item, got %d", len(items))
+	}
+	if items[0].Slug != "gamma" {
+		t.Errorf("expected Gamma, got %q", items[0].Title)
+	}
+
+	deleted := svc.ListDeleted()
+	if len(deleted) != 2 {
+		t.Fatalf("expected 2 deleted items, got %d", len(deleted))
+	}
+}
+
+func TestTrackerServiceBulkUpdatePriority(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] Alpha\n- [ ] Beta\n")
+
+	if err := svc.BulkUpdatePriority([]string{"alpha", "beta"}, "high"); err != nil {
+		t.Fatalf("BulkUpdatePriority: %v", err)
+	}
+
+	alpha, _ := svc.Get("alpha")
+	if alpha.Priority != "high" {
+		t.Errorf("Alpha priority: got %q, want %q", alpha.Priority, "high")
+	}
+	beta, _ := svc.Get("beta")
+	if beta.Priority != "high" {
+		t.Errorf("Beta priority: got %q, want %q", beta.Priority, "high")
+	}
+}
+
+func TestTrackerServiceBulkAddTag(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] Alpha [tags: existing]\n- [ ] Beta\n")
+
+	if err := svc.BulkAddTag([]string{"alpha", "beta"}, "urgent"); err != nil {
+		t.Fatalf("BulkAddTag: %v", err)
+	}
+
+	alpha, _ := svc.Get("alpha")
+	if len(alpha.Tags) != 2 {
+		t.Errorf("Alpha should have 2 tags, got %v", alpha.Tags)
+	}
+	beta, _ := svc.Get("beta")
+	if len(beta.Tags) != 1 || beta.Tags[0] != "urgent" {
+		t.Errorf("Beta tags: got %v", beta.Tags)
+	}
+}
+
+func TestTrackerServiceBulkAddTagSkipsDuplicates(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] Alpha [tags: urgent]\n")
+
+	if err := svc.BulkAddTag([]string{"alpha"}, "urgent"); err != nil {
+		t.Fatalf("BulkAddTag: %v", err)
+	}
+
+	alpha, _ := svc.Get("alpha")
+	if len(alpha.Tags) != 1 {
+		t.Errorf("expected 1 tag (no duplicate), got %v", alpha.Tags)
+	}
+}
+
+func TestTrackerServiceBulkInvalidSlugRollsBack(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] Alpha\n- [ ] Beta\n")
+
+	err := svc.BulkComplete([]string{"alpha", "nonexistent"})
+	if err == nil {
+		t.Fatal("expected error for invalid slug")
+	}
+
+	// Alpha should NOT be completed because the batch failed atomically.
+	alpha, _ := svc.Get("alpha")
+	if alpha.Done {
+		t.Error("Alpha should not be done -- batch should have failed atomically")
+	}
+}
+
 func TestTrackerServicePurgeExpiredMalformedDate(t *testing.T) {
 	// Use a date that matches the regex pattern but is invalid for time.Parse.
 	content := "# Tracker\n\n- [ ] Bad date [deleted: 2026-13-45]\n"

@@ -1659,3 +1659,93 @@ section h2 {
     display: flex;
     gap: 0.5rem;
 }
+
+/* --- Bulk select mode --- */
+.bulk-checkbox {
+    display: none;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    margin-right: 0.5rem;
+    flex-shrink: 0;
+    accent-color: var(--accent);
+}
+.select-mode .bulk-checkbox {
+    display: inline-block;
+}
+.select-mode .tracker-item {
+    cursor: pointer;
+}
+.select-mode .tracker-item.bulk-selected {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    border-radius: 4px;
+}
+.select-toggle-btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--fg);
+    cursor: pointer;
+}
+.select-toggle-btn:hover {
+    background: var(--row-hover);
+}
+.select-toggle-btn.active {
+    background: var(--accent);
+    color: var(--base);
+    border-color: var(--accent);
+}
+.bulk-bar {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    padding: 0.5rem 1rem;
+    z-index: 150;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
+    animation: bulk-bar-slide 150ms ease-out;
+}
+.bulk-bar.visible {
+    display: flex;
+}
+@keyframes bulk-bar-slide {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+.bulk-bar-count {
+    font-weight: 600;
+    margin-right: 0.5rem;
+    white-space: nowrap;
+}
+.bulk-bar .action-btn {
+    font-size: 0.8rem;
+}
+.bulk-bar .form-select-sm {
+    font-size: 0.8rem;
+    padding: 0.15rem 0.25rem;
+}
+.bulk-bar .form-input-sm {
+    font-size: 0.8rem;
+    padding: 0.15rem 0.25rem;
+    width: 100px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .bulk-bar {
+        animation: none;
+    }
+}
+@media (max-width: 768px) {
+    .bulk-bar {
+        padding: 0.5rem;
+        gap: 0.35rem;
+    }
+}

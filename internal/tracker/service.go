@@ -240,6 +240,84 @@ func (s *Service) PurgeExpired(days int) error {
 	return s.store.ReplaceAll(activeItems(kept))
 }
 
+// mutateBatch acquires the lock once, parses the file once, applies fn to all
+// matched slugs, writes once, and updates cache once. If any slug is not found,
+// the entire batch fails with no changes written.
+func (s *Service) mutateBatch(slugs []string, fn func(*Item) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	items, err := ParseTracker(s.trackerPath)
+	if err != nil {
+		return err
+	}
+
+	slugSet := make(map[string]bool, len(slugs))
+	for _, sl := range slugs {
+		slugSet[sl] = true
+	}
+
+	found := 0
+	for i := range items {
+		if slugSet[items[i].Slug] {
+			if err := fn(&items[i]); err != nil {
+				return err
+			}
+			found++
+		}
+	}
+	if found != len(slugSet) {
+		return fmt.Errorf("one or more tracker items not found")
+	}
+
+	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
+		return err
+	}
+	s.cache = items
+	return s.store.ReplaceAll(activeItems(items))
+}
+
+// BulkComplete marks multiple items as done in a single file write.
+func (s *Service) BulkComplete(slugs []string) error {
+	now := time.Now().Format("2006-01-02")
+	return s.mutateBatch(slugs, func(it *Item) error {
+		it.Done = true
+		it.Completed = now
+		return nil
+	})
+}
+
+// BulkDelete soft-deletes multiple items in a single file write.
+func (s *Service) BulkDelete(slugs []string) error {
+	now := time.Now().Format("2006-01-02")
+	return s.mutateBatch(slugs, func(it *Item) error {
+		it.DeletedAt = now
+		return nil
+	})
+}
+
+// BulkUpdatePriority sets the priority on multiple items in a single file write.
+func (s *Service) BulkUpdatePriority(slugs []string, priority string) error {
+	return s.mutateBatch(slugs, func(it *Item) error {
+		it.Priority = priority
+		return nil
+	})
+}
+
+// BulkAddTag appends a tag to multiple items in a single file write.
+// Skips items that already have the tag.
+func (s *Service) BulkAddTag(slugs []string, tag string) error {
+	return s.mutateBatch(slugs, func(it *Item) error {
+		for _, t := range it.Tags {
+			if t == tag {
+				return nil
+			}
+		}
+		it.Tags = append(it.Tags, tag)
+		return nil
+	})
+}
+
 func (s *Service) UpdatePriority(slug, priority string) error {
 	return s.mutate(slug, func(it *Item) error {
 		it.Priority = priority
