@@ -420,6 +420,41 @@ func TestTrackerImagesRoundTrip(t *testing.T) {
 	}
 }
 
+func TestTrackerCaptionedImagesRoundTrip(t *testing.T) {
+	input := []tracker.Item{
+		{Slug: "captioned", Title: "Captioned item", Type: tracker.TaskType, Images: []string{"abc.png|My caption", "def.jpg"}},
+		{Slug: "no-images", Title: "No images", Type: tracker.TaskType},
+	}
+
+	path := filepath.Join(t.TempDir(), "tracker.md")
+	if err := tracker.WriteTracker(path, "Test", input); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	output, err := tracker.ParseTracker(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(output) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(output))
+	}
+
+	bySlug := map[string]tracker.Item{}
+	for _, it := range output {
+		bySlug[it.Slug] = it
+	}
+
+	captioned := bySlug["captioned-item"]
+	if !slices.Equal(captioned.Images, []string{"abc.png|My caption", "def.jpg"}) {
+		t.Errorf("images: got %v, want [abc.png|My caption def.jpg]", captioned.Images)
+	}
+
+	noImg := bySlug["no-images"]
+	if len(noImg.Images) != 0 {
+		t.Errorf("expected no images, got %v", noImg.Images)
+	}
+}
+
 func TestParseTrackerGoalAt100Percent(t *testing.T) {
 	content := "## Fitness\n\n- [ ] Do 100 pushups [goal: 100/100 pushups]\n"
 	path := filepath.Join(t.TempDir(), "tracker.md")

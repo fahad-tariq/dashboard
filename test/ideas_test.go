@@ -492,6 +492,37 @@ func TestConversionFlowWithLinkage(t *testing.T) {
 	}
 }
 
+func TestIdeasCaptionedImagesRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+
+	original := []ideas.Idea{
+		{
+			Slug:   "captioned-idea",
+			Title:  "Captioned Idea",
+			Status: "untriaged",
+			Added:  "2026-03-16",
+			Images: []string{"photo.png|A nice photo", "diagram.jpg"},
+			Body:   "Some body text.",
+		},
+	}
+
+	if err := ideas.WriteIdeas(path, "Ideas", original); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	parsed, err := ideas.ParseIdeas(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(parsed) != 1 {
+		t.Fatalf("expected 1 idea, got %d", len(parsed))
+	}
+	if !slices.Equal(parsed[0].Images, []string{"photo.png|A nice photo", "diagram.jpg"}) {
+		t.Errorf("images: got %v, want [photo.png|A nice photo diagram.jpg]", parsed[0].Images)
+	}
+}
+
 func TestServiceAddResearch(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")

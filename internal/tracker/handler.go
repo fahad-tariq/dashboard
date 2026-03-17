@@ -264,7 +264,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		Priority: sanitisePriority(r.FormValue("priority")),
 		Body:     strings.TrimSpace(r.FormValue("body")),
 		Tags:     ideas.ParseCSV(r.FormValue("tags")),
-		Images:   ideas.ParseCSV(r.FormValue("images")),
+		Images:   httputil.ReconstructImages(r),
 	}
 
 	svc, _ := h.resolve(r)
@@ -301,7 +301,7 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 		Deadline: strings.TrimSpace(r.FormValue("deadline")),
 		Body:     strings.TrimSpace(r.FormValue("body")),
 		Tags:     ideas.ParseCSV(r.FormValue("tags")),
-		Images:   ideas.ParseCSV(r.FormValue("images")),
+		Images:   httputil.ReconstructImages(r),
 	}
 
 	svc, _ := h.resolve(r)
@@ -471,7 +471,7 @@ func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 	title := strings.TrimSpace(r.FormValue("title"))
 	body := strings.TrimSpace(r.FormValue("body"))
 	tags := ideas.ParseCSV(r.FormValue("tags"))
-	images := ideas.ParseCSV(r.FormValue("images"))
+	images := httputil.ReconstructImages(r)
 
 	svc, _ := h.resolve(r)
 	if err := svc.UpdateEdit(slug, title, body, tags, images); err != nil {

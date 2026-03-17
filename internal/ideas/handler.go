@@ -169,7 +169,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		Slug:   Slugify(title),
 		Title:  title,
 		Tags:   ParseCSV(r.FormValue("tags")),
-		Images: ParseCSV(r.FormValue("images")),
+		Images: httputil.ReconstructImages(r),
 		Added:  time.Now().Format("2006-01-02"),
 		Body:   strings.TrimSpace(r.FormValue("body")),
 	}
@@ -235,7 +235,7 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 	title := strings.TrimSpace(r.FormValue("title"))
 	body := strings.TrimSpace(r.FormValue("body"))
 	tags := ParseCSV(r.FormValue("tags"))
-	images := ParseCSV(r.FormValue("images"))
+	images := httputil.ReconstructImages(r)
 
 	svc := h.resolve(r)
 	if err := svc.Edit(slug, title, body, tags, images); err != nil {
