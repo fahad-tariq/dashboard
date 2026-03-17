@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fahad/dashboard/internal/httputil"
 )
 
 type Service struct {
@@ -211,8 +213,7 @@ func (s *Service) PurgeExpired(days int) error {
 		return err
 	}
 
-	now := time.Now()
-	cutoff := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -days)
+	cutoff := httputil.CutoffDate(days)
 	var kept []Item
 	for _, it := range items {
 		if it.DeletedAt != "" {

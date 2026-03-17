@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fahad/dashboard/internal/httputil"
 )
 
 // Service manages ideas stored in a single flat-file (ideas.md).
@@ -207,8 +209,7 @@ func (s *Service) PurgeExpired(days int) error {
 		return err
 	}
 
-	now := time.Now()
-	cutoff := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -days)
+	cutoff := httputil.CutoffDate(days)
 	var kept []Idea
 	for _, idea := range ideas {
 		if idea.DeletedAt != "" {

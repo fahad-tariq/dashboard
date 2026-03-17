@@ -2,7 +2,10 @@ package httputil
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
+	"unicode/utf8"
 )
 
 const maxCaptionLength = 200
@@ -43,8 +46,9 @@ func SanitiseCaption(caption string) string {
 		}
 	}, caption)
 	caption = strings.TrimSpace(caption)
-	if len(caption) > maxCaptionLength {
-		caption = caption[:maxCaptionLength]
+	if utf8.RuneCountInString(caption) > maxCaptionLength {
+		r := []rune(caption)
+		caption = string(r[:maxCaptionLength])
 	}
 	return caption
 }
@@ -55,7 +59,7 @@ func SanitiseCaption(caption string) string {
 // via the caption-N fields.
 func ReconstructImages(r *http.Request) []string {
 	raw := strings.ReplaceAll(r.FormValue("images"), "|", "")
-	filenames := parseCSV(raw)
+	filenames := ParseCSV(raw)
 	var out []string
 	for i, f := range filenames {
 		caption := SanitiseCaption(r.FormValue(captionFieldName(i)))
@@ -66,24 +70,18 @@ func ReconstructImages(r *http.Request) []string {
 
 // captionFieldName returns the form field name for the caption at index i.
 func captionFieldName(i int) string {
-	return "caption-" + itoa(i)
+	return "caption-" + strconv.Itoa(i)
 }
 
-// itoa is a minimal int-to-string without importing strconv.
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var digits []byte
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	return string(digits)
+// CutoffDate returns the date `days` ago at midnight UTC, used for
+// determining whether soft-deleted items should be purged.
+func CutoffDate(days int) time.Time {
+	now := time.Now()
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -days)
 }
 
-// parseCSV splits a comma-separated string into trimmed non-empty parts.
-func parseCSV(raw string) []string {
+// ParseCSV splits a comma-separated string into trimmed non-empty parts.
+func ParseCSV(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil

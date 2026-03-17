@@ -40,6 +40,8 @@ import (
 	"github.com/fahad/dashboard/web"
 )
 
+const trashRetentionDays = 7
+
 var (
 	version         = "dev"
 	authEnabledFlag bool
@@ -77,10 +79,6 @@ var funcMap = template.FuncMap{
 	"splitImageCaption": func(entry string) []string {
 		file, caption := httputil.SplitImageCaption(entry)
 		return []string{file, caption}
-	},
-	"imageFilename": func(entry string) string {
-		file, _ := httputil.SplitImageCaption(entry)
-		return file
 	},
 	"linkify": func(text string) template.HTML {
 		var b strings.Builder
@@ -357,7 +355,7 @@ func main() {
 
 		purgeFunc = func() {
 			// Purge family (shared) service.
-			if err := registry.Family().PurgeExpired(7); err != nil {
+			if err := registry.Family().PurgeExpired(trashRetentionDays); err != nil {
 				slog.Error("family purge failed", "error", err)
 			}
 			// Purge each user's personal and ideas services.
@@ -368,10 +366,10 @@ func main() {
 			}
 			for _, u := range allUsers {
 				svc := registry.ForUser(u.ID)
-				if err := svc.Personal.PurgeExpired(7); err != nil {
+				if err := svc.Personal.PurgeExpired(trashRetentionDays); err != nil {
 					slog.Error("personal purge failed", "user_id", u.ID, "error", err)
 				}
-				if err := svc.Ideas.PurgeExpired(7); err != nil {
+				if err := svc.Ideas.PurgeExpired(trashRetentionDays); err != nil {
 					slog.Error("ideas purge failed", "user_id", u.ID, "error", err)
 				}
 			}
@@ -439,13 +437,13 @@ func main() {
 		mountAppRoutes(r, homePage, digestPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir)
 
 		purgeFunc = func() {
-			if err := personalSvc.PurgeExpired(7); err != nil {
+			if err := personalSvc.PurgeExpired(trashRetentionDays); err != nil {
 				slog.Error("personal purge failed", "error", err)
 			}
-			if err := familySvc.PurgeExpired(7); err != nil {
+			if err := familySvc.PurgeExpired(trashRetentionDays); err != nil {
 				slog.Error("family purge failed", "error", err)
 			}
-			if err := ideaSvc.PurgeExpired(7); err != nil {
+			if err := ideaSvc.PurgeExpired(trashRetentionDays); err != nil {
 				slog.Error("ideas purge failed", "error", err)
 			}
 		}

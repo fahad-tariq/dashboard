@@ -5,11 +5,17 @@ Go + chi + htmx server-rendered dashboard. Markdown files are the source of trut
 - Tracker (`internal/tracker/`): tasks and goals in `personal.md`/`family.md`. Drops blank lines in bodies. DB-backed via `Store` for summary counts. In-memory cache serves reads; invalidated by mutations and file watcher.
 - Ideas (`internal/ideas/`): ideas in `ideas.md`. Preserves blank lines in bodies (rich markdown with paragraphs). In-memory cache serves reads; no DB cache. Ideas have a `converted` status with `ConvertedTo` field linking to the resulting task slug.
 
-Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file, find by slug, apply callback, write back, update cache, release lock. Title edits re-slugify the item; the old slug becomes invalid after mutation.
+Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file, find by slug, apply callback, write back, update cache, release lock. Title edits re-slugify the item; the old slug becomes invalid after mutation. `mutateBatch(slugs, fn)` applies to multiple items atomically -- if any slug is missing, the entire batch fails with no changes written.
+
+**Soft delete:** Deleting an item sets `[deleted: YYYY-MM-DD]` inline metadata instead of removing it. `List()` and `Search()` filter deleted items at read time. `s.cache` holds ALL items (including soft-deleted); `store.ReplaceAll()` receives only active items so `Summary()` counts stay correct. `Get(slug)` returns items regardless of deleted status (needed by restore/purge handlers). Hourly auto-purge goroutine removes items trashed more than `trashRetentionDays` (7) ago.
+
+**Image captions:** Stored inline as `filename|caption` in `[images:]` tags. `httputil.SplitImageCaption`/`JoinImageCaption`/`SanitiseCaption` are shared helpers (in `httputil` to avoid import cycles between tracker and ideas). Captions are sent via separate `caption-N` form fields, not through the comma-separated `images` hidden input. `httputil.ReconstructImages(r)` zips both server-side. `splitImageCaption` template function returns plain strings, never `template.HTML`.
 
 **Service registry** (`internal/services/`): Caches per-user service instances. `sync.RWMutex` with RLock fast path for cache hits; filesystem I/O (`EnsureUserDirs`) runs outside the lock. `EnsureUserDirs` is deliberately separate from `ForUser` -- directory creation is an explicit side effect, not hidden in a getter.
 
-**Package layout:** Handlers are split across `internal/tracker/`, `internal/ideas/`, `internal/admin/`, `internal/account/`, `internal/home/`, and `internal/search/`. Shared utilities: `internal/httputil/` (JSON response, `ServerError` with correlation IDs), `internal/auth/` (middleware, context helpers, `TemplateData`), `internal/insights/` (pure computation for age badges, velocity, streaks, goal pace, tag aggregation -- no state, no DB dependency). Routes are registered once via `mountAppRoutes`, conditionally wrapped with auth middleware.
+**Package layout:** Handlers are split across `internal/tracker/`, `internal/ideas/`, `internal/admin/`, `internal/account/`, `internal/home/`, and `internal/search/`. Shared utilities: `internal/httputil/` (JSON response, `ServerError` with correlation IDs, image caption helpers, `ParseCSV`, `CutoffDate`), `internal/auth/` (middleware, context helpers, `TemplateData`), `internal/insights/` (pure computation for age badges, velocity, streaks, goal pace, tag aggregation, digest -- no state, no DB dependency). Routes are registered once via `mountAppRoutes`, conditionally wrapped with auth middleware.
+
+**Digest** (`internal/home/digest.go`): `/digest` page with period-specific activity summaries. `insights.Digest()` is a pure function; the handler merges personal + family items before calling it. `weekStart()` is a shared helper used by both `WeeklyVelocity` and `periodBounds`.
 
 **Search** (`internal/search/`): Queries in-memory caches across personal tracker, family tracker, and ideas. Locks services sequentially (never simultaneously) to prevent deadlock. Returns HTML fragments for htmx consumption. Standalone template parsed separately from layout.
 
@@ -21,7 +27,7 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 <CONVENTIONS>
 - `tracker.NewUserStore` filters by `user_id`; `NewSharedStore` never does. Two constructors make intent explicit -- no conditional SQL.
 - `user_id DEFAULT 1` in `tracker_items` means existing rows auto-belong to the first user with no data migration.
-- Inline metadata tags (`[status: ...]`, `[tags: ...]`, `[deadline: ...]`, `[from-idea: ...]`, `[converted-to: ...]`) are parsed from checkbox lines only. Titles containing bracket patterns are a known limitation.
+- Inline metadata tags (`[status: ...]`, `[tags: ...]`, `[deadline: ...]`, `[from-idea: ...]`, `[converted-to: ...]`, `[deleted: YYYY-MM-DD]`) are parsed from checkbox lines only. Titles containing bracket patterns are a known limitation.
 - `auth.TemplateData(r)` returns a base `map[string]any` with `UserName` and `IsAdmin`. All handlers merge page-specific data into this map. Use comma-ok type assertions when reading `UserName`: `if name, ok := data["UserName"].(string); ok { ... }`.
 - Uploads are shared (not per-user). Random hex filenames with no ownership tracking.
 - POST for destructive actions (delete, triage) -- HTML forms only support GET/POST. Destructive actions use themed confirmation modals (`dialog.js` + `#confirm-modal` in layout), not browser `confirm()`.
@@ -31,6 +37,8 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 - `SecureCookies` defaults to `true`. Set `DASHBOARD_SECURE_COOKIES=false` for local HTTP development.
 - All CSS animations respect `prefers-reduced-motion: reduce`. JS is ES5 compatible (no const/let/arrow functions).
 - Modal system uses `.modal-overlay`/`.modal-content` as shared base CSS classes with `.visible` to toggle display. All modals (confirm, search, shortcut help) reuse this infrastructure.
+- Bulk actions use `mutateBatch` for single-file-write atomicity. Select mode toggle on list pages; sticky bulk bar with `role="toolbar"` and `aria-live="polite"`. Escape key priority: confirm modal > search overlay > shortcut help > select mode. SSE swaps are suppressed while select mode is active.
+- Permanent delete flash messages (`item-purged`, `idea-purged`) use error styling via `flashErrorKeys`. "Move to trash" is the user-facing label for soft delete.
 </CONVENTIONS>
 
 <GOTCHAS>
@@ -48,7 +56,17 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 
 **insights package avoids import cycles:** `TagAggregation` accepts `[]TagInfo` (a simple struct) instead of concrete `tracker.Item`/`ideas.Idea` types. The homepage handler converts items to `TagInfo` before passing them. `WeeklyVelocity` returns a `VelocityInsight` struct (not a string) so templates can style parts independently.
 
-**Shared tracker template:** `tracker.html` renders both `/todos` and `/family`. Empty state copy uses a conditional on `.ListName` to show family-specific text.
+**Shared tracker template:** `tracker.html` renders both `/todos` and `/family`. Empty state copy and "Recently Deleted" section both use `.ListName` context to scope routes correctly.
+
+**MoveToList calls PermanentDelete, not Delete:** After soft-delete was added, `MoveToList` must use `PermanentDelete` on the source service. Using `Delete` would leave a ghost `[deleted:]` item in the source list's "Recently Deleted" section.
+
+**Auto-purge multi-user iteration:** The service registry is lazily populated and has no iteration method. The purge goroutine queries `auth.AllUsers(database)` in auth-enabled mode to iterate all users. `shutdownCtx` is extracted before the auth/single-user branch so both modes can use it.
+
+**Converted idea linkage survives soft-delete:** Trashing a converted idea does NOT affect the linked task (and vice versa). Permanent delete of either side leaves a dangling `[from-idea:]`/`[converted-to:]` reference -- accepted limitation.
+
+**Caption XSS prevention:** `splitImageCaption` template function returns plain strings, never `template.HTML`. Following the `linkify` pattern (which returns `template.HTML`) would bypass all escaping. `SanitiseCaption` strips `|,]<>"` and truncates to 200 runes.
+
+**`httputil.ParseCSV` vs `ideas.ParseCSV`:** Both exist. `httputil.ParseCSV` is used internally by `ReconstructImages`. `ideas.ParseCSV` is used by handlers for tags and slugs. Consolidating would require a larger import refactor.
 </GOTCHAS>
 
 <TESTING>

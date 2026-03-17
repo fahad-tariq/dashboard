@@ -45,17 +45,8 @@ func renderDigestPage(w http.ResponseWriter, r *http.Request, personalSvc, famil
 	}
 
 	// Merge personal and family tracker items into digest items.
-	var digestItems []insights.DigestItem
-	for _, it := range personalItems {
-		digestItems = append(digestItems, insights.DigestItem{
-			Added:     it.Added,
-			Completed: it.Completed,
-			Done:      it.Done,
-			Tags:      it.Tags,
-			Type:      string(it.Type),
-		})
-	}
-	for _, it := range familyItems {
+	digestItems := make([]insights.DigestItem, 0, len(personalItems)+len(familyItems)+len(allIdeas))
+	for _, it := range append(personalItems, familyItems...) {
 		digestItems = append(digestItems, insights.DigestItem{
 			Added:     it.Added,
 			Completed: it.Completed,
@@ -77,7 +68,7 @@ func renderDigestPage(w http.ResponseWriter, r *http.Request, personalSvc, famil
 
 	// Compute all-time idea totals (period filtering unavailable for these).
 	convertedCount := countIdeaStatus(allIdeas, "converted")
-	triagedCount := countTriagedIdeas(allIdeas)
+	triagedCount := len(allIdeas) - countIdeaStatus(allIdeas, "untriaged")
 
 	data := auth.TemplateData(r)
 	data["Title"] = "Digest"
@@ -101,12 +92,3 @@ func countIdeaStatus(allIdeas []ideas.Idea, status string) int {
 	return count
 }
 
-func countTriagedIdeas(allIdeas []ideas.Idea) int {
-	count := 0
-	for _, idea := range allIdeas {
-		if idea.Status != "untriaged" {
-			count++
-		}
-	}
-	return count
-}
