@@ -10,16 +10,16 @@ No pending items.
 
 ## Done
 
-- [Combine ideas and explorations with flat-file storage](plans/combine-ideas-explorations.md)
-- [Reorder top navigation](plans/combine-ideas-explorations.md) (completed as part of ideas merge)
-- [Display first name in nav + self-service account page](plans/first-name-display.md)
-- [Fix login redirect on SSE errors](plans/quick-wins.md)
-- [Remove "View All" buttons on home page](plans/quick-wins.md)
-- [Single column layout on mobile home page](plans/quick-wins.md) (already implemented)
-- [Simplify mobile list items](plans/quick-wins.md)
-- [Two-row mobile nav](plans/quick-wins.md)
-- [Rename "Personal" to "Todos"](plans/quick-wins.md)
-- [Admin UI for user management](plans/admin-ui.md)
-- [Multi-user support](plans/multi-user.md)
-- [Password authentication](plans/password-auth.md)
-- [Split tasks into personal/family + add homepage](plans/split-tasks-and-homepage.md)
+- Combine ideas and explorations with flat-file storage
+- Reorder top navigation
+- Display first name in nav + self-service account page
+- Fix login redirect on SSE errors
+- Remove "View All" buttons on home page
+- Single column layout on mobile home page
+- Simplify mobile list items
+- Two-row mobile nav
+- Rename "Personal" to "Todos"
+- Admin UI for user management
+- Multi-user support
+- Password authentication
+- Split tasks into personal/family + add homepage
