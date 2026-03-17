@@ -99,7 +99,7 @@ func createTestUser(t *testing.T, database *sql.DB, email, password string) int6
 }
 
 var loginTmpl = template.Must(template.New("login").Parse(
-	`{{.Error}}|{{.Next}}|{{.Email}}`,
+	`{{.Error}}|{{.Next}}|{{.Email}}|expired={{.SessionExpired}}`,
 ))
 
 func hashPassword(t *testing.T, password string) string {
@@ -109,6 +109,48 @@ func hashPassword(t *testing.T, password string) string {
 		t.Fatalf("hashing password: %v", err)
 	}
 	return string(h)
+}
+
+// --- Login Page ---
+
+func TestLoginPageExpiredParam(t *testing.T) {
+	sm, database := newTestSessionManager(t)
+	rl := auth.NewRateLimiter()
+	h := auth.NewHandler(sm, database, rl, loginTmpl)
+
+	handler := sm.LoadAndSave(http.HandlerFunc(h.LoginPage))
+
+	req := httptest.NewRequest("GET", "/login?expired=1&next=/ideas", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "expired=true") {
+		t.Errorf("expected SessionExpired=true, got: %s", body)
+	}
+	if !strings.Contains(body, "|/ideas|") {
+		t.Errorf("expected next=/ideas in response, got: %s", body)
+	}
+}
+
+func TestLoginPageNoExpiredParam(t *testing.T) {
+	sm, database := newTestSessionManager(t)
+	rl := auth.NewRateLimiter()
+	h := auth.NewHandler(sm, database, rl, loginTmpl)
+
+	handler := sm.LoadAndSave(http.HandlerFunc(h.LoginPage))
+
+	req := httptest.NewRequest("GET", "/login", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "expired=false") {
+		t.Errorf("expected SessionExpired=false, got: %s", body)
+	}
 }
 
 // --- Middleware ---

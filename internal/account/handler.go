@@ -11,6 +11,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/fahad/dashboard/internal/auth"
+	"github.com/fahad/dashboard/internal/httputil"
 )
 
 var flashMessages = map[string]string{
@@ -36,8 +37,7 @@ func (h *Handler) currentUser(w http.ResponseWriter, r *http.Request) *auth.User
 	uid := auth.UserID(r.Context())
 	user, err := auth.FindByID(h.db, uid)
 	if err != nil {
-		slog.Error("finding user", "user_id", uid, "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		httputil.ServerError(w, "finding user", err, "user_id", uid)
 		return nil
 	}
 	if user == nil {
@@ -70,7 +70,7 @@ func (h *Handler) NameSubmit(w http.ResponseWriter, r *http.Request) {
 	uid := auth.UserID(r.Context())
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
@@ -102,7 +102,7 @@ func (h *Handler) PasswordSubmit(w http.ResponseWriter, r *http.Request) {
 	uid := auth.UserID(r.Context())
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 

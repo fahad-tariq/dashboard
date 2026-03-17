@@ -55,6 +55,7 @@
     <div class="login-wrap">
         <div class="login-card">
             <div class="login-brand">dash&gt;_</div>
+            {{if .SessionExpired}}<div class="form-info">Your session has expired.</div>{{end}}
             {{if .Error}}<div class="form-error">{{.Error}}</div>{{end}}
             <form class="login-form" method="POST" action="/login" id="login-form" onsubmit="saveEmail(); this.querySelector('button').disabled=true">
                 <input type="hidden" name="next" value="{{.Next}}">

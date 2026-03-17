@@ -28,7 +28,8 @@ func NewHandler(sm *scs.SessionManager, db *sql.DB, limiter *RateLimiter, tmpl *
 }
 
 func (h *Handler) LoginPage(w http.ResponseWriter, r *http.Request) {
-	h.renderLogin(w, r.URL.Query().Get("next"), "", "")
+	expired := r.URL.Query().Get("expired") == "1"
+	h.renderLogin(w, r.URL.Query().Get("next"), "", "", expired)
 }
 
 func (h *Handler) LoginSubmit(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +42,7 @@ func (h *Handler) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 		mins := int(retryAfter.Minutes()) + 1
 		msg := fmt.Sprintf("Too many attempts. Try again in %d minute(s).", mins)
 		slog.Warn("login rate limited", "ip", ip)
-		h.renderLogin(w, next, msg, email)
+		h.renderLogin(w, next, msg, email, false)
 		return
 	}
 
@@ -50,18 +51,18 @@ func (h *Handler) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 	user, err := FindByEmail(h.db, email)
 	if err != nil {
 		slog.Error("finding user", "error", err)
-		h.renderLogin(w, next, "Internal error.", email)
+		h.renderLogin(w, next, "Internal error.", email, false)
 		return
 	}
 	if user == nil {
 		slog.Warn("login failed: unknown email", "ip", ip, "email", email)
-		h.renderLogin(w, next, "Incorrect email or password.", email)
+		h.renderLogin(w, next, "Incorrect email or password.", email, false)
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		slog.Warn("login failed: wrong password", "ip", ip, "email", email)
-		h.renderLogin(w, next, "Incorrect email or password.", email)
+		h.renderLogin(w, next, "Incorrect email or password.", email, false)
 		return
 	}
 
@@ -95,11 +96,12 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
-func (h *Handler) renderLogin(w http.ResponseWriter, next, errMsg, email string) {
+func (h *Handler) renderLogin(w http.ResponseWriter, next, errMsg, email string, sessionExpired bool) {
 	data := map[string]any{
-		"Error": errMsg,
-		"Next":  next,
-		"Email": email,
+		"Error":          errMsg,
+		"Next":           next,
+		"Email":          email,
+		"SessionExpired": sessionExpired,
 	}
 	if err := h.tmpl.Execute(w, data); err != nil {
 		slog.Error("rendering login page", "error", err)

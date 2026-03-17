@@ -3,7 +3,6 @@ package tracker
 import (
 	"fmt"
 	"html/template"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -14,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/auth"
+	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
 )
 
@@ -113,12 +113,19 @@ func collectFilters(items []Item) (allTags, priorities []string) {
 	return
 }
 
+// classifyTrackerError returns an appropriate HTTP error message for a service error.
+func classifyTrackerError(err error) string {
+	if httputil.IsNotFound(err) {
+		return "Item not found"
+	}
+	return "Failed to update item"
+}
+
 func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 	svc, _ := h.resolve(r)
 	items, err := svc.List()
 	if err != nil {
-		slog.Error("listing tracker items", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		httputil.ServerError(w, "listing tracker items", err)
 		return
 	}
 
@@ -160,7 +167,7 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.templates["tracker.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
-		slog.Error("rendering tracker", "error", err)
+		httputil.ServerError(w, "rendering tracker", err)
 	}
 }
 
@@ -168,8 +175,7 @@ func (h *Handler) GoalsPage(w http.ResponseWriter, r *http.Request) {
 	svc, _ := h.resolve(r)
 	items, err := svc.List()
 	if err != nil {
-		slog.Error("listing tracker items", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		httputil.ServerError(w, "listing tracker items", err)
 		return
 	}
 
@@ -197,13 +203,13 @@ func (h *Handler) GoalsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.templates["goals.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
-		slog.Error("rendering goals", "error", err)
+		httputil.ServerError(w, "rendering goals", err)
 	}
 }
 
 func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
@@ -224,8 +230,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 
 	svc, _ := h.resolve(r)
 	if err := svc.AddItem(item); err != nil {
-		slog.Error("adding task", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		httputil.ServerError(w, "adding task", err)
 		return
 	}
 
@@ -234,7 +239,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
@@ -261,8 +266,7 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 
 	svc, _ := h.resolve(r)
 	if err := svc.AddItem(item); err != nil {
-		slog.Error("adding goal", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		httputil.ServerError(w, "adding goal", err)
 		return
 	}
 
@@ -291,15 +295,14 @@ func (h *Handler) redirectBack(w http.ResponseWriter, r *http.Request, anchor st
 func (h *Handler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
 	body := strings.TrimSpace(r.FormValue("body"))
 	svc, _ := h.resolve(r)
 	if err := svc.UpdateNotes(slug, body); err != nil {
-		slog.Error("updating notes", "slug", slug, "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
 
@@ -310,8 +313,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	svc, _ := h.resolve(r)
 	if err := svc.Complete(slug); err != nil {
-		slog.Error("completing tracker item", "slug", slug, "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
 	h.redirectBack(w, r, "")
@@ -321,8 +323,7 @@ func (h *Handler) Uncomplete(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	svc, _ := h.resolve(r)
 	if err := svc.Uncomplete(slug); err != nil {
-		slog.Error("uncompleting tracker item", "slug", slug, "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
 	h.redirectBack(w, r, "")
@@ -331,7 +332,7 @@ func (h *Handler) Uncomplete(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
@@ -344,14 +345,12 @@ func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 	svc, _ := h.resolve(r)
 	if r.FormValue("set") != "" {
 		if err := svc.SetProgress(slug, val); err != nil {
-			slog.Error("setting progress", "slug", slug, "error", err)
-			http.Error(w, "Bad request", http.StatusBadRequest)
+			http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 			return
 		}
 	} else {
 		if err := svc.UpdateProgress(slug, val); err != nil {
-			slog.Error("updating progress", "slug", slug, "error", err)
-			http.Error(w, "Bad request", http.StatusBadRequest)
+			http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 			return
 		}
 	}
@@ -363,8 +362,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	svc, _ := h.resolve(r)
 	if err := svc.Delete(slug); err != nil {
-		slog.Error("deleting tracker item", "slug", slug, "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
 	h.redirectBack(w, r, "")
@@ -373,14 +371,13 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdatePriority(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 	priority := sanitisePriority(r.FormValue("priority"))
 	svc, _ := h.resolve(r)
 	if err := svc.UpdatePriority(slug, priority); err != nil {
-		slog.Error("updating priority", "slug", slug, "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
 	h.redirectBack(w, r, slug)
@@ -389,14 +386,13 @@ func (h *Handler) UpdatePriority(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 	tags := ideas.ParseCSV(r.FormValue("tags"))
 	svc, _ := h.resolve(r)
 	if err := svc.UpdateTags(slug, tags); err != nil {
-		slog.Error("updating tags", "slug", slug, "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
 	h.redirectBack(w, r, slug)
@@ -405,7 +401,7 @@ func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
@@ -415,8 +411,7 @@ func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 
 	svc, _ := h.resolve(r)
 	if err := svc.UpdateEdit(slug, body, tags, images); err != nil {
-		slog.Error("updating item", "slug", slug, "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
 
@@ -429,16 +424,14 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 	svc, otherSvc := h.resolve(r)
 	item, err := svc.Get(slug)
 	if err != nil {
-		slog.Error("getting item for move", "slug", slug, "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Item not found", http.StatusBadRequest)
 		return
 	}
 
 	movedItem := *item
 
 	if err := svc.Delete(slug); err != nil {
-		slog.Error("deleting item from source list", "slug", slug, "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		httputil.ServerError(w, "deleting item from source list", err, "slug", slug)
 		return
 	}
 
@@ -447,9 +440,7 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := otherSvc.AddItem(movedItem); err != nil {
-		slog.Warn("item deleted from source but failed to add to target, manual recovery may be needed",
-			"slug", slug, "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		httputil.ServerError(w, "item deleted from source but failed to add to target, manual recovery may be needed", err, "slug", slug)
 		return
 	}
 
