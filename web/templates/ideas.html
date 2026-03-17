@@ -1,5 +1,5 @@
 {{define "idea-card"}}
-<div class="tracker-item minimised" id="idea-{{.Slug}}">
+<div class="tracker-item minimised" id="idea-{{.Slug}}" data-tags="{{range .Tags}}{{.}} {{end}}">
     <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
         <button class="item-toggle" onclick="event.stopPropagation()" title="Expand/collapse">&#x25B8;</button>
         <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
@@ -47,7 +47,8 @@
             <details class="tracker-notes-edit">
                 <summary>edit</summary>
                 <form method="POST" action="/ideas/{{.Slug}}/edit" class="tracker-notes-form">
-                    <textarea name="body" rows="3" class="form-textarea" placeholder="Description, notes, research...">{{.Body}}</textarea>
+                    <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input">
+                    <textarea name="body" rows="8" class="form-textarea" placeholder="Description, notes, research...">{{.Body}}</textarea>
                     <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
                     <input type="hidden" name="images" value="{{range $i, $img := .Images}}{{if $i}},{{end}}{{$img}}{{end}}">
                     <button type="submit" class="form-btn form-btn-sm">save</button>
@@ -85,6 +86,15 @@
         <button type="submit" class="form-btn">add</button>
     </form>
 </details>
+
+{{if .Categories}}
+<div class="tracker-filters">
+    <button class="filter-tag active" onclick="trackerFilter('','')">all</button>
+    {{range .Categories}}
+    <button class="filter-tag filter-cat" data-value="{{.}}" onclick="trackerFilter('category','{{.}}')">{{.}}</button>
+    {{end}}
+</div>
+{{end}}
 
 {{if .Untriaged}}
 <section>

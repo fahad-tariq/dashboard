@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -68,15 +69,27 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 		"parked":    {},
 		"dropped":   {},
 	}
+	tagSet := map[string]string{}
 	for _, idea := range ideas {
 		grouped[idea.Status] = append(grouped[idea.Status], idea)
+		for _, t := range idea.Tags {
+			tagSet[strings.ToLower(t)] = t
+		}
 	}
+	var allTags []string
+	for _, t := range tagSet {
+		allTags = append(allTags, t)
+	}
+	slices.SortFunc(allTags, func(a, b string) int {
+		return strings.Compare(strings.ToLower(a), strings.ToLower(b))
+	})
 
 	data := auth.TemplateData(r)
 	data["Title"] = "Ideas"
 	data["Untriaged"] = grouped["untriaged"]
 	data["Parked"] = grouped["parked"]
 	data["Dropped"] = grouped["dropped"]
+	data["Categories"] = allTags
 	if flashMsg := flashMessages[r.URL.Query().Get("msg")]; flashMsg != "" {
 		data["FlashMsg"] = flashMsg
 		data["FlashError"] = true
@@ -194,12 +207,13 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	title := strings.TrimSpace(r.FormValue("title"))
 	body := strings.TrimSpace(r.FormValue("body"))
 	tags := ParseCSV(r.FormValue("tags"))
 	images := ParseCSV(r.FormValue("images"))
 
 	svc := h.resolve(r)
-	if err := svc.Edit(slug, body, tags, images); err != nil {
+	if err := svc.Edit(slug, title, body, tags, images); err != nil {
 		slog.Error("editing idea", "slug", slug, "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return

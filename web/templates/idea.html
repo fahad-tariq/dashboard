@@ -22,7 +22,8 @@
 <details class="tracker-notes-edit">
     <summary>edit</summary>
     <form method="POST" action="/ideas/{{.Idea.Slug}}/edit" class="tracker-notes-form">
-        <textarea name="body" rows="6" class="form-textarea">{{.Idea.Body}}</textarea>
+        <input type="text" name="title" value="{{.Idea.Title}}" placeholder="Title" class="form-input">
+        <textarea name="body" rows="12" class="form-textarea">{{.Idea.Body}}</textarea>
         <input type="text" name="tags" value="{{range $i, $t := .Idea.Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
         <input type="hidden" name="images" value="{{range $i, $img := .Idea.Images}}{{if $i}},{{end}}{{$img}}{{end}}">
         <button type="submit" class="form-btn form-btn-sm">save</button>

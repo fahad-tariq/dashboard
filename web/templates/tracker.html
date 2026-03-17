@@ -92,6 +92,7 @@
             <details class="tracker-notes-edit">
                 <summary>edit</summary>
                 <form method="POST" action="/{{$.ListName}}/{{.Slug}}/edit" class="tracker-notes-form">
+                    <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input">
                     <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context...">{{.Body}}</textarea>
                     <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
                     <input type="hidden" name="images" value="{{range $i, $img := .Images}}{{if $i}},{{end}}{{$img}}{{end}}">

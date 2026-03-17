@@ -409,12 +409,13 @@ func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	title := strings.TrimSpace(r.FormValue("title"))
 	body := strings.TrimSpace(r.FormValue("body"))
 	tags := ideas.ParseCSV(r.FormValue("tags"))
 	images := ideas.ParseCSV(r.FormValue("images"))
 
 	svc, _ := h.resolve(r)
-	if err := svc.UpdateEdit(slug, body, tags, images); err != nil {
+	if err := svc.UpdateEdit(slug, title, body, tags, images); err != nil {
 		slog.Error("updating item", "slug", slug, "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return

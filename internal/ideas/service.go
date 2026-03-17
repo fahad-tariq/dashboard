@@ -117,16 +117,23 @@ func (s *Service) Triage(slug, action string) error {
 	})
 }
 
-func (s *Service) Edit(slug, body string, tags, images []string) error {
+func (s *Service) Edit(slug, title, body string, tags, images []string) error {
 	return s.mutate(slug, func(idea *Idea) error {
+		if title != "" {
+			idea.Title = title
+			idea.Slug = Slugify(title)
+		}
 		idea.Body = body
 		idea.Tags = tags
 		idea.Images = images
-		for line := range strings.SplitSeq(body, "\n") {
-			if title, ok := strings.CutPrefix(strings.TrimSpace(line), "# "); ok {
-				idea.Title = title
-				idea.Slug = Slugify(title)
-				break
+		// Fallback: extract title from body heading when no explicit title given.
+		if title == "" {
+			for line := range strings.SplitSeq(body, "\n") {
+				if t, ok := strings.CutPrefix(strings.TrimSpace(line), "# "); ok {
+					idea.Title = t
+					idea.Slug = Slugify(t)
+					break
+				}
 			}
 		}
 		return nil

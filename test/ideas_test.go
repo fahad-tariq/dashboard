@@ -234,7 +234,7 @@ func TestServiceCRUD(t *testing.T) {
 	}
 
 	// Edit.
-	if err := svc.Edit("my-idea", "Updated content.", []string{"test", "updated"}, nil); err != nil {
+	if err := svc.Edit("my-idea", "", "Updated content.", []string{"test", "updated"}, nil); err != nil {
 		t.Fatalf("edit: %v", err)
 	}
 	updated, _ := svc.Get("my-idea")

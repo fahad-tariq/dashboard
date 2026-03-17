@@ -20,7 +20,7 @@ func TestIdeasServiceEdit_TitleOnly(t *testing.T) {
 		Body:  "Some body text.",
 	})
 
-	err := svc.Edit("original-title", "# New Title\n\nSome body text.", nil, nil)
+	err := svc.Edit("original-title", "", "# New Title\n\nSome body text.", nil, nil)
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestIdeasServiceEdit_BodyOnly(t *testing.T) {
 		Body:  "Old body.",
 	})
 
-	err := svc.Edit("keep-slug", "Updated body content.", nil, nil)
+	err := svc.Edit("keep-slug", "", "Updated body content.", nil, nil)
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestIdeasServiceEdit_TitleCollision(t *testing.T) {
 	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."})
 	svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."})
 
-	err := svc.Edit("beta", "# Alpha\n\nNew body for beta.", nil, nil)
+	err := svc.Edit("beta", "", "# Alpha\n\nNew body for beta.", nil, nil)
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
@@ -118,13 +118,65 @@ func TestIdeasServiceEdit_BlankTitle(t *testing.T) {
 	svc := ideas.NewService(path)
 	svc.Add(&ideas.Idea{Slug: "has-title", Title: "Has Title", Body: "Content."})
 
-	err := svc.Edit("has-title", "# \n\nBody without title.", nil, nil)
+	err := svc.Edit("has-title", "", "# \n\nBody without title.", nil, nil)
 
 	// The service permits blank titles from headings (no validation).
 	// Verify the idea still exists regardless of slug change.
 	list, _ := svc.List()
 	if len(list) != 1 {
 		t.Fatalf("expected 1 idea after edit, got %d (edit err: %v)", len(list), err)
+	}
+}
+
+func TestIdeasServiceEdit_ExplicitTitle(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+
+	svc := ideas.NewService(path)
+	svc.Add(&ideas.Idea{Slug: "old-idea", Title: "Old Idea", Body: "Body."})
+
+	err := svc.Edit("old-idea", "Renamed Idea", "Body.", nil, nil)
+	if err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+
+	// Old slug gone.
+	_, err = svc.Get("old-idea")
+	if err == nil {
+		t.Error("old slug should no longer resolve")
+	}
+
+	// New slug exists with updated title.
+	got, err := svc.Get("renamed-idea")
+	if err != nil {
+		t.Fatalf("get by new slug: %v", err)
+	}
+	if got.Title != "Renamed Idea" {
+		t.Errorf("title: got %q, want %q", got.Title, "Renamed Idea")
+	}
+}
+
+func TestIdeasServiceEdit_ExplicitTitleOverridesBodyHeading(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+
+	svc := ideas.NewService(path)
+	svc.Add(&ideas.Idea{Slug: "test", Title: "Test", Body: "Body."})
+
+	// Explicit title should win over body heading.
+	err := svc.Edit("test", "Explicit Title", "# Body Heading\n\nContent.", nil, nil)
+	if err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+
+	got, err := svc.Get("explicit-title")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.Title != "Explicit Title" {
+		t.Errorf("title: got %q, want %q", got.Title, "Explicit Title")
 	}
 }
 
@@ -136,7 +188,7 @@ func TestIdeasServiceEdit_NonExistentSlug(t *testing.T) {
 	svc := ideas.NewService(path)
 	svc.Add(&ideas.Idea{Slug: "exists", Title: "Exists", Body: "Here."})
 
-	err := svc.Edit("does-not-exist", "New body.", nil, nil)
+	err := svc.Edit("does-not-exist", "", "New body.", nil, nil)
 	if err == nil {
 		t.Fatal("expected error editing non-existent slug, got nil")
 	}

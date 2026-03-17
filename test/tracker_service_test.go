@@ -179,7 +179,7 @@ func TestTrackerServiceUpdateTags(t *testing.T) {
 func TestTrackerServiceUpdateEdit(t *testing.T) {
 	svc := newTestService(t, "# Tracker\n\n- [ ] Old title\n  Old body\n")
 
-	err := svc.UpdateEdit("old-title", "New body content", []string{"updated"}, []string{"img1.png"})
+	err := svc.UpdateEdit("old-title", "", "New body content", []string{"updated"}, []string{"img1.png"})
 	if err != nil {
 		t.Fatalf("UpdateEdit: %v", err)
 	}
@@ -193,6 +193,50 @@ func TestTrackerServiceUpdateEdit(t *testing.T) {
 	}
 	if !slices.Equal(item.Images, []string{"img1.png"}) {
 		t.Errorf("images: got %v", item.Images)
+	}
+}
+
+func TestTrackerServiceUpdateEditTitle(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] Old title\n  Some notes\n")
+
+	err := svc.UpdateEdit("old-title", "New title", "Some notes", nil, nil)
+	if err != nil {
+		t.Fatalf("UpdateEdit: %v", err)
+	}
+
+	// Old slug should be gone.
+	_, err = svc.Get("old-title")
+	if err == nil {
+		t.Error("old slug should no longer resolve")
+	}
+
+	// New slug should exist with updated title.
+	item, err := svc.Get("new-title")
+	if err != nil {
+		t.Fatalf("Get by new slug: %v", err)
+	}
+	if item.Title != "New title" {
+		t.Errorf("title: got %q, want %q", item.Title, "New title")
+	}
+	if item.Body != "Some notes" {
+		t.Errorf("body: got %q", item.Body)
+	}
+}
+
+func TestTrackerServiceUpdateEditEmptyTitleKeepsOriginal(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] Keep me\n")
+
+	err := svc.UpdateEdit("keep-me", "", "New body", nil, nil)
+	if err != nil {
+		t.Fatalf("UpdateEdit: %v", err)
+	}
+
+	item, err := svc.Get("keep-me")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if item.Title != "Keep me" {
+		t.Errorf("title should remain %q, got %q", "Keep me", item.Title)
 	}
 }
 

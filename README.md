@@ -99,7 +99,7 @@ The compose file mounts `./data` for the database and family tasks, and `./users
 ### Tasks
 - Separate personal and family task lists
 - Quick add with optional tags and priority (high/medium/low)
-- Inline notes, tag, and priority editing
+- Inline title, notes, tag, and priority editing
 - Filter by tag or priority
 - Expand/collapse all
 - Complete/uncomplete/delete
@@ -110,12 +110,15 @@ The compose file mounts `./data` for the database and family tasks, and `./users
 - Progress tracking with current/target and unit (e.g. 12/40 books)
 - Progress bar visualisation
 - Increment (+1/-1) or set absolute value
+- Inline title editing
 - Same priority and tag system as tasks
 
 ### Ideas
 - Single flat file (`ideas.md`) with checkbox items and inline metadata
 - Triage workflow: untriaged -> parked / dropped
 - Convert idea to personal task (tags carry over)
+- Filter by tag
+- Inline title and body editing
 - Research notes stored inline in idea body
 - Quick add with `#tag` syntax
 - Optional project field for grouping

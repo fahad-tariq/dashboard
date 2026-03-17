@@ -168,8 +168,12 @@ func (s *Service) UpdateTags(slug string, tags []string) error {
 	})
 }
 
-func (s *Service) UpdateEdit(slug, body string, tags, images []string) error {
+func (s *Service) UpdateEdit(slug, title, body string, tags, images []string) error {
 	return s.mutate(slug, func(it *Item) error {
+		if title != "" {
+			it.Title = title
+			it.Slug = Slugify(title)
+		}
 		it.Body = body
 		it.Tags = tags
 		it.Images = images

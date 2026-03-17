@@ -1,16 +1,13 @@
 # Backlog
 
-## Testing Gaps
-
-- [ ] Add HTTP handler tests for tracker and ideas -- zero HTTP-level tests for handler responses
-- [ ] Test homepage and account handlers
-
 ## Ideas
 
 - **Ironclaw PA commentary on dashboard items** -- Integrate commentary from ironclaw (Claude instance, currently AWS-hosted, may move to local nanoclaw) into the dashboard. Ironclaw would write its thoughts, suggestions, and actionable guidance for each task, exploration item, and idea to a separate data location. The dashboard reads and displays this commentary when a user clicks into an item. Ironclaw's prompt and behaviour are managed separately (via Slack); the dashboard only needs to consume and render the linked commentary data.
 
 ## Done
 
+- HTTP handler tests: tracker (18 tests), ideas (13 tests), homepage (4 tests), account (7 tests)
+- Editable titles for tasks, goals, and ideas (service, handler, and template changes)
 - Security hardening: bluemonday HTML sanitisation, linkify URL validation, URL-encoded auth redirects, MaxBytesReader on API, generic error messages, SecureCookies default true, current password required for change, API token warning
 - Architecture: extract main.go (account/, home/, migrate.go, mountAppRoutes), mutate() helpers, auth.TemplateData, httputil.WriteJSON, dedup parseTags/priorityWeight/route registration/auth context injection, narrow registry mutex, safer MoveToList, transactional migrations, session cleanup shutdown, go mod tidy
 - Performance: in-memory cache for tracker/ideas, upsert-by-slug, DB index, Cache-Control headers, defer scripts, scoped SSE, single-pass homepage

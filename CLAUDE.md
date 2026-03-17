@@ -5,7 +5,7 @@ Go + chi + htmx server-rendered dashboard. Markdown files are the source of trut
 - Tracker (`internal/tracker/`): tasks and goals in `personal.md`/`family.md`. Drops blank lines in bodies. DB-backed via `Store` for summary counts. In-memory cache serves reads; invalidated by mutations and file watcher.
 - Ideas (`internal/ideas/`): ideas in `ideas.md`. Preserves blank lines in bodies (rich markdown with paragraphs). In-memory cache serves reads; no DB cache.
 
-Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file, find by slug, apply callback, write back, update cache, release lock.
+Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file, find by slug, apply callback, write back, update cache, release lock. Title edits re-slugify the item; the old slug becomes invalid after mutation.
 
 **Service registry** (`internal/services/`): Caches per-user service instances. `sync.RWMutex` with RLock fast path for cache hits; filesystem I/O (`EnsureUserDirs`) runs outside the lock. `EnsureUserDirs` is deliberately separate from `ForUser` -- directory creation is an explicit side effect, not hidden in a getter.
 
