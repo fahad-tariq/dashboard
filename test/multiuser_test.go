@@ -149,7 +149,7 @@ func TestToTaskFromIdeasCreatesInUserPersonal(t *testing.T) {
 	}
 
 	// Simulate the ToTaskFunc closure.
-	toTask := func(ctx context.Context, title, body string, tags []string) error {
+	toTask := func(_ context.Context, title, body string, tags []string) error {
 		item := tracker.Item{
 			Title: title,
 			Type:  tracker.TaskType,
