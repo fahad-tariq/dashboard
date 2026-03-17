@@ -122,3 +122,73 @@ func TestSearchHandler(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchQueryTooLong(t *testing.T) {
+	dir := t.TempDir()
+	personalPath := filepath.Join(dir, "personal.md")
+	os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Buy groceries\n"), 0o644)
+	personalDB, _ := db.Open(filepath.Join(dir, "p.db"))
+	t.Cleanup(func() { personalDB.Close() })
+	personalSvc := tracker.NewService(personalPath, "Personal", tracker.NewStore(personalDB, "personal"))
+
+	familyPath := filepath.Join(dir, "family.md")
+	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	familyDB, _ := db.Open(filepath.Join(dir, "f.db"))
+	t.Cleanup(func() { familyDB.Close() })
+	familySvc := tracker.NewService(familyPath, "Family", tracker.NewStore(familyDB, "family"))
+
+	ideasPath := filepath.Join(dir, "ideas.md")
+	os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644)
+	ideaSvc := ideas.NewService(ideasPath)
+
+	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
+		return personalSvc, familySvc, ideaSvc
+	})
+
+	longQuery := strings.Repeat("a", 201)
+	req := httptest.NewRequest("GET", "/search?q="+longQuery, nil)
+	rec := httptest.NewRecorder()
+	handler.SearchAPI(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+	if rec.Body.Len() > 0 {
+		t.Errorf("expected empty body for overlong query, got %d bytes", rec.Body.Len())
+	}
+}
+
+func TestSearchSnippetInResults(t *testing.T) {
+	dir := t.TempDir()
+	personalPath := filepath.Join(dir, "personal.md")
+	os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Research project\n  The quick brown fox jumps over the lazy dog near the riverbank\n"), 0o644)
+	personalDB, _ := db.Open(filepath.Join(dir, "p.db"))
+	t.Cleanup(func() { personalDB.Close() })
+	personalSvc := tracker.NewService(personalPath, "Personal", tracker.NewStore(personalDB, "personal"))
+
+	familyPath := filepath.Join(dir, "family.md")
+	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	familyDB, _ := db.Open(filepath.Join(dir, "f.db"))
+	t.Cleanup(func() { familyDB.Close() })
+	familySvc := tracker.NewService(familyPath, "Family", tracker.NewStore(familyDB, "family"))
+
+	ideasPath := filepath.Join(dir, "ideas.md")
+	os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644)
+	ideaSvc := ideas.NewService(ideasPath)
+
+	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
+		return personalSvc, familySvc, ideaSvc
+	})
+
+	req := httptest.NewRequest("GET", "/search?q=fox", nil)
+	rec := httptest.NewRecorder()
+	handler.SearchAPI(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "fox") {
+		t.Errorf("expected snippet to contain 'fox', got: %s", body)
+	}
+	if !strings.Contains(body, "Research project") {
+		t.Errorf("expected result to contain title 'Research project', got: %s", body)
+	}
+}

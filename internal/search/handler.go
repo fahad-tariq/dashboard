@@ -41,7 +41,7 @@ func NewHandler(resolver ServiceResolver) *Handler {
 // SearchAPI handles GET /search?q=... and returns an HTML fragment.
 func (h *Handler) SearchAPI(w http.ResponseWriter, r *http.Request) {
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	if query == "" {
+	if query == "" || len(query) > 200 {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		return
 	}
