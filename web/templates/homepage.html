@@ -11,20 +11,19 @@
 {{if or .PersonalTasks (gt .PersonalTaskCount 0)}}
 <section class="homepage-card homepage-col-left">
     <div class="homepage-card-header">
-        <a href="/personal" class="homepage-card-title">Personal Tasks</a>
+        <a href="/todos" class="homepage-card-title">Todos</a>
         <span><span class="stat-value">{{.PersonalTaskCount}}</span> <span class="meta-dim">open</span></span>
     </div>
     <div class="homepage-card-body">
         {{range .PersonalTasks}}
         <div class="homepage-task" data-priority="{{.Priority}}">
-            <a href="/personal#{{.Slug}}">{{.Title}}</a>
+            <a href="/todos#{{.Slug}}">{{.Title}}</a>
         </div>
         {{end}}
         {{if gt .PersonalTaskCount (len .PersonalTasks)}}
-        <a href="/personal" class="homepage-card-link">+{{subtract .PersonalTaskCount (len .PersonalTasks)}} more</a>
+        <a href="/todos" class="homepage-card-link">+{{subtract .PersonalTaskCount (len .PersonalTasks)}} more</a>
         {{end}}
     </div>
-    <a href="/personal" class="homepage-card-link">view all</a>
 </section>
 {{end}}
 
@@ -44,7 +43,6 @@
         <a href="/family" class="homepage-card-link">+{{subtract .FamilyTaskCount (len .FamilyTasks)}} more</a>
         {{end}}
     </div>
-    <a href="/family" class="homepage-card-link">view all</a>
 </section>
 {{end}}
 
@@ -69,7 +67,6 @@
         </div>
         {{end}}
     </div>
-    <a href="/goals" class="homepage-card-link">view all</a>
 </section>
 {{end}}
 
@@ -86,7 +83,6 @@
         </div>
         {{end}}
     </div>
-    <a href="/ideas" class="homepage-card-link">view all</a>
 </section>
 {{end}}
 
@@ -104,7 +100,6 @@
         </div>
         {{end}}
     </div>
-    <a href="/exploration" class="homepage-card-link">view all</a>
 </section>
 {{end}}
 

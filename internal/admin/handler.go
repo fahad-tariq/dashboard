@@ -129,25 +129,26 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	email := strings.TrimSpace(r.FormValue("email"))
+	firstName := strings.TrimSpace(r.FormValue("first_name"))
 	password := r.FormValue("password")
 	role := r.FormValue("role")
 
 	if email == "" || password == "" {
-		h.renderUserForm(w, r, "create", 0, email, role, "Email and password are required.")
+		h.renderUserForm(w, r, "create", 0, email, firstName, role, "Email and password are required.")
 		return
 	}
 	if err := auth.ValidatePassword(password); err != nil {
-		h.renderUserForm(w, r, "create", 0, email, role, err.Error())
+		h.renderUserForm(w, r, "create", 0, email, firstName, role, err.Error())
 		return
 	}
 	if role != "admin" && role != "user" {
 		role = "user"
 	}
 
-	id, err := auth.CreateUser(h.db, email, password)
+	id, err := auth.CreateUser(h.db, email, firstName, password)
 	if err != nil {
 		slog.Error("creating user", "error", err)
-		h.renderUserForm(w, r, "create", 0, email, role, "Failed to create user. Email may already exist.")
+		h.renderUserForm(w, r, "create", 0, email, firstName, role, "Failed to create user. Email may already exist.")
 		return
 	}
 
@@ -210,11 +211,21 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newEmail := strings.TrimSpace(r.FormValue("email"))
+	newFirstName := strings.TrimSpace(r.FormValue("first_name"))
 	newRole := r.FormValue("role")
 
 	if newEmail == "" {
 		h.renderEditForm(w, r, user, "Email is required.")
 		return
+	}
+
+	// Update first name if changed.
+	if newFirstName != user.FirstName {
+		if err := auth.UpdateUserFirstName(h.db, id, newFirstName); err != nil {
+			slog.Error("updating first name", "error", err)
+			h.renderEditForm(w, r, user, "Failed to update first name.")
+			return
+		}
 	}
 
 	// Update email if changed.
@@ -393,15 +404,16 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 // --- helper renderers ---
 
-func (h *Handler) renderUserForm(w http.ResponseWriter, r *http.Request, mode string, id int64, email, role, errMsg string) {
+func (h *Handler) renderUserForm(w http.ResponseWriter, r *http.Request, mode string, id int64, email, firstName, role, errMsg string) {
 	data := map[string]any{
-		"Title":    "Admin / " + strings.ToUpper(mode[:1]) + mode[1:] + " User",
-		"FormMode": mode,
-		"FormEmail": email,
-		"FormRole":  role,
-		"Error":    errMsg,
-		"UserName": auth.UserName(r.Context()),
-		"IsAdmin":  auth.IsAdmin(r.Context()),
+		"Title":         "Admin / " + strings.ToUpper(mode[:1]) + mode[1:] + " User",
+		"FormMode":      mode,
+		"FormEmail":     email,
+		"FormFirstName": firstName,
+		"FormRole":      role,
+		"Error":         errMsg,
+		"UserName":      auth.UserName(r.Context()),
+		"IsAdmin":       auth.IsAdmin(r.Context()),
 	}
 	if id != 0 {
 		data["EditUserID"] = id

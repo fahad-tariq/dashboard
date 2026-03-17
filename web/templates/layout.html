@@ -19,14 +19,14 @@
         <a href="/" class="nav-brand">dash&gt;_</a>
         <div class="nav-links">
             <a href="/">home</a>
-            <a href="/personal">personal</a>
+            <a href="/todos">todos</a>
             <a href="/family">family</a>
             <a href="/goals">goals</a>
             <a href="/ideas">ideas</a>
             <a href="/exploration">exploration</a>
         </div>
         <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme"></button>
-        {{if authEnabled}}{{if .UserName}}{{if .IsAdmin}}<a href="/admin/users" class="nav-user nav-user-link" title="Admin">{{.UserName}}</a>{{else}}<a href="/account/password" class="nav-user nav-user-link" title="Change password">{{.UserName}}</a>{{end}}{{end}}<form method="POST" action="/logout" style="margin:0;display:inline"><button type="submit" class="theme-toggle" title="Logout">logout</button></form>{{end}}
+        {{if authEnabled}}{{if .UserName}}{{if .IsAdmin}}<a href="/admin/users" class="nav-user nav-user-link" title="Admin">{{.UserName}}</a>{{else}}<a href="/account" class="nav-user nav-user-link" title="Account settings">{{.UserName}}</a>{{end}}{{end}}<form method="POST" action="/logout" style="margin:0;display:inline"><button type="submit" class="theme-toggle" title="Logout">logout</button></form>{{end}}
     </nav>
     <main class="container">
         {{if .FlashMsg}}<div class="flash-msg">{{.FlashMsg}}</div>{{end}}
@@ -64,7 +64,11 @@
             window.addEventListener('beforeunload', function() { navigating = true; });
             document.body.addEventListener('htmx:sseError', function() {
                 if (navigating) return;
-                window.location.href = '/login?next=' + window.location.pathname;
+                fetch('/events', { method: 'HEAD', credentials: 'same-origin' }).then(function(resp) {
+                    if (resp.status === 401) {
+                        window.location.href = '/login?next=' + window.location.pathname;
+                    }
+                }).catch(function() {});
             });
         })();
     </script>{{end}}

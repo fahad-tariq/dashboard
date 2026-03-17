@@ -91,7 +91,7 @@ func newTestSessionManager(t *testing.T) (*scs.SessionManager, *sql.DB) {
 
 func createTestUser(t *testing.T, database *sql.DB, email, password string) int64 {
 	t.Helper()
-	id, err := auth.CreateUser(database, email, password)
+	id, err := auth.CreateUser(database, email, "", password)
 	if err != nil {
 		t.Fatalf("creating test user: %v", err)
 	}
@@ -449,7 +449,7 @@ func TestUserNameExtractsLocalPart(t *testing.T) {
 
 func TestCreateUser(t *testing.T) {
 	database := newTestDB(t)
-	id, err := auth.CreateUser(database, "test@example.com", "password123")
+	id, err := auth.CreateUser(database, "test@example.com", "", "password123")
 	if err != nil {
 		t.Fatalf("creating user: %v", err)
 	}
@@ -460,11 +460,11 @@ func TestCreateUser(t *testing.T) {
 
 func TestCreateUserDuplicateEmail(t *testing.T) {
 	database := newTestDB(t)
-	_, err := auth.CreateUser(database, "test@example.com", "password1")
+	_, err := auth.CreateUser(database, "test@example.com", "", "password1")
 	if err != nil {
 		t.Fatalf("first create: %v", err)
 	}
-	_, err = auth.CreateUser(database, "test@example.com", "password2")
+	_, err = auth.CreateUser(database, "test@example.com", "", "password2")
 	if err == nil {
 		t.Error("expected error for duplicate email")
 	}
@@ -472,7 +472,7 @@ func TestCreateUserDuplicateEmail(t *testing.T) {
 
 func TestFindByEmail(t *testing.T) {
 	database := newTestDB(t)
-	auth.CreateUser(database, "alice@test.com", "secretpw")
+	auth.CreateUser(database, "alice@test.com", "", "secretpw")
 
 	user, err := auth.FindByEmail(database, "alice@test.com")
 	if err != nil {
@@ -511,8 +511,8 @@ func TestUserCount(t *testing.T) {
 		t.Errorf("expected 0, got %d", count)
 	}
 
-	auth.CreateUser(database, "a@test.com", "password")
-	auth.CreateUser(database, "b@test.com", "password")
+	auth.CreateUser(database, "a@test.com", "", "password")
+	auth.CreateUser(database, "b@test.com", "", "password")
 
 	count, err = auth.UserCount(database)
 	if err != nil {
@@ -533,7 +533,7 @@ func TestLegacyHashAutoCreatesUser(t *testing.T) {
 	}
 
 	// Simulate the legacy migration logic from main.go.
-	_, err := auth.CreateUserWithHash(database, "admin@localhost", hash)
+	_, err := auth.CreateUserWithHash(database, "admin@localhost", "", hash)
 	if err != nil {
 		t.Fatalf("creating legacy user: %v", err)
 	}

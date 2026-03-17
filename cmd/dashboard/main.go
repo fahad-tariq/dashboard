@@ -103,7 +103,7 @@ func main() {
 		os.Exit(1)
 	}
 	if count == 0 && cfg.PasswordHash != "" {
-		if _, err := auth.CreateUserWithHash(database, "admin@localhost", cfg.PasswordHash); err != nil {
+		if _, err := auth.CreateUserWithHash(database, "admin@localhost", "", cfg.PasswordHash); err != nil {
 			slog.Error("creating legacy admin user", "error", err)
 			os.Exit(1)
 		}
@@ -193,7 +193,7 @@ func main() {
 		personalHandler := tracker.NewHandlerWithResolver(func(r *http.Request) (*tracker.Service, *tracker.Service) {
 			uid := auth.UserID(r.Context())
 			return registry.ForUser(uid).Personal, registry.Family()
-		}, templates, "personal")
+		}, templates, "todos")
 
 		familyHandler := tracker.NewHandlerWithResolver(func(r *http.Request) (*tracker.Service, *tracker.Service) {
 			uid := auth.UserID(r.Context())
@@ -279,7 +279,8 @@ func main() {
 			r.Handle("/uploads/*", http.StripPrefix("/uploads/", noDirectoryListing(http.Dir(cfg.UploadsDir))))
 
 			r.Get("/", homePageWithRegistry(registry, templates))
-			r.Get("/personal", personalHandler.TrackerPage)
+			r.Get("/todos", personalHandler.TrackerPage)
+			r.Get("/personal", http.RedirectHandler("/todos", http.StatusMovedPermanently).ServeHTTP)
 			r.Get("/family", familyHandler.TrackerPage)
 			r.Get("/goals", personalHandler.GoalsPage)
 
@@ -299,8 +300,10 @@ func main() {
 			r.Post("/exploration/{slug}/edit", explorationHandler.Edit)
 			r.Post("/exploration/{slug}/delete", explorationHandler.Delete)
 
-			// Self-service password change for regular users.
-			r.Get("/account/password", accountPasswordForm(database, templates))
+			// Self-service account settings.
+			r.Get("/account", accountPage(database, templates))
+			r.Post("/account/name", accountNameSubmit(database, sm, templates))
+			r.Get("/account/password", http.RedirectHandler("/account", http.StatusMovedPermanently).ServeHTTP)
 			r.Post("/account/password", accountPasswordSubmit(database, templates))
 		})
 	} else {
@@ -351,7 +354,7 @@ func main() {
 			}
 			return personalSvc.AddItem(item)
 		}, templates)
-		personalHandler := tracker.NewHandler(personalSvc, familySvc, templates, "personal")
+		personalHandler := tracker.NewHandler(personalSvc, familySvc, templates, "todos")
 		familyHandler := tracker.NewHandler(familySvc, personalSvc, templates, "family")
 		explorationHandler := exploration.NewHandler(explorationSvc, templates)
 
@@ -360,7 +363,8 @@ func main() {
 		r.Get("/events", broker.ServeHTTP)
 
 		r.Get("/", homePage(personalSvc, familySvc, ideaSvc, explorationSvc, templates))
-		r.Get("/personal", personalHandler.TrackerPage)
+		r.Get("/todos", personalHandler.TrackerPage)
+		r.Get("/personal", http.RedirectHandler("/todos", http.StatusMovedPermanently).ServeHTTP)
 		r.Get("/family", familyHandler.TrackerPage)
 		r.Get("/goals", personalHandler.GoalsPage)
 
@@ -422,10 +426,11 @@ func runUserAdd() {
 	fs := flag.NewFlagSet("useradd", flag.ExitOnError)
 	email := fs.String("email", "", "user email address")
 	password := fs.String("password", "", "user password")
+	firstName := fs.String("first-name", "", "user first name (optional)")
 	fs.Parse(os.Args[2:])
 
 	if *email == "" || *password == "" {
-		fmt.Fprintln(os.Stderr, "usage: dashboard useradd --email <email> --password <password>")
+		fmt.Fprintln(os.Stderr, "usage: dashboard useradd --email <email> --password <password> [--first-name <name>]")
 		os.Exit(1)
 	}
 
@@ -441,7 +446,7 @@ func runUserAdd() {
 	}
 	defer database.Close()
 
-	id, err := auth.CreateUser(database, *email, *password)
+	id, err := auth.CreateUser(database, *email, *firstName, *password)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "creating user: %v\n", err)
 		os.Exit(1)
@@ -604,36 +609,6 @@ func homePage(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, e
 	}
 }
 
-// accountPasswordForm renders the self-service password change form (GET /account/password).
-func accountPasswordForm(database *sql.DB, templates map[string]*template.Template) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		uid := auth.UserID(r.Context())
-		user, err := auth.FindByID(database, uid)
-		if err != nil || user == nil {
-			http.Error(w, "User not found", http.StatusNotFound)
-			return
-		}
-
-		flashMsg := ""
-		if key := r.URL.Query().Get("msg"); key == "password-updated" {
-			flashMsg = "Password updated."
-		}
-
-		data := map[string]any{
-			"Title":      "Change Password",
-			"EditUser":   user,
-			"EditUserID": user.ID,
-			"SelfService": true,
-			"FlashMsg":   flashMsg,
-			"UserName":   auth.UserName(r.Context()),
-			"IsAdmin":    auth.IsAdmin(r.Context()),
-		}
-		if err := templates["admin-password.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
-			slog.Error("rendering account password form", "error", err)
-		}
-	}
-}
-
 // accountPasswordSubmit handles the self-service password change (POST /account/password).
 func accountPasswordSubmit(database *sql.DB, templates map[string]*template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -654,16 +629,14 @@ func accountPasswordSubmit(database *sql.DB, templates map[string]*template.Temp
 
 		renderErr := func(errMsg string) {
 			data := map[string]any{
-				"Title":       "Change Password",
-				"EditUser":    user,
-				"EditUserID":  user.ID,
-				"SelfService": true,
-				"Error":       errMsg,
-				"UserName":    auth.UserName(r.Context()),
-				"IsAdmin":     auth.IsAdmin(r.Context()),
+				"Title":         "Account Settings",
+				"FirstName":     user.FirstName,
+				"PasswordError": errMsg,
+				"UserName":      auth.UserName(r.Context()),
+				"IsAdmin":       auth.IsAdmin(r.Context()),
 			}
-			if err := templates["admin-password.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
-				slog.Error("rendering account password form", "error", err)
+			if err := templates["account.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
+				slog.Error("rendering account page", "error", err)
 			}
 		}
 
@@ -687,7 +660,78 @@ func accountPasswordSubmit(database *sql.DB, templates map[string]*template.Temp
 		}
 
 		slog.Info("user changed own password", "user_id", uid)
-		http.Redirect(w, r, "/account/password?msg=password-updated", http.StatusSeeOther)
+		http.Redirect(w, r, "/account?msg=password-updated", http.StatusSeeOther)
+	}
+}
+
+// accountPage renders the combined account settings page (GET /account).
+func accountPage(database *sql.DB, templates map[string]*template.Template) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uid := auth.UserID(r.Context())
+		user, err := auth.FindByID(database, uid)
+		if err != nil || user == nil {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+
+		var flashMsg string
+		switch r.URL.Query().Get("msg") {
+		case "name-updated":
+			flashMsg = "Name updated."
+		case "password-updated":
+			flashMsg = "Password updated."
+		}
+
+		data := map[string]any{
+			"Title":     "Account Settings",
+			"FirstName": user.FirstName,
+			"FlashMsg":  flashMsg,
+			"UserName":  auth.UserName(r.Context()),
+			"IsAdmin":   auth.IsAdmin(r.Context()),
+		}
+		if err := templates["account.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
+			slog.Error("rendering account page", "error", err)
+		}
+	}
+}
+
+// accountNameSubmit handles the first name update (POST /account/name).
+func accountNameSubmit(database *sql.DB, sm *scs.SessionManager, templates map[string]*template.Template) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uid := auth.UserID(r.Context())
+		user, err := auth.FindByID(database, uid)
+		if err != nil || user == nil {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+
+		firstName := strings.TrimSpace(r.FormValue("first_name"))
+
+		if err := auth.UpdateUserFirstName(database, uid, firstName); err != nil {
+			slog.Error("updating first name", "user_id", uid, "error", err)
+			data := map[string]any{
+				"Title":     "Account Settings",
+				"FirstName": firstName,
+				"NameError": "Failed to update name.",
+				"UserName":  auth.UserName(r.Context()),
+				"IsAdmin":   auth.IsAdmin(r.Context()),
+			}
+			if err := templates["account.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
+				slog.Error("rendering account page", "error", err)
+			}
+			return
+		}
+
+		// Update the session so the nav reflects the change immediately.
+		sm.Put(r.Context(), "first_name", firstName)
+
+		slog.Info("user updated first name", "user_id", uid, "first_name", firstName)
+		http.Redirect(w, r, "/account?msg=name-updated", http.StatusSeeOther)
 	}
 }
 
@@ -755,8 +799,8 @@ func recentExplorations(explorations []exploration.Exploration, n int) []explora
 
 func mountTrackerRoutes(r chi.Router, personalHandler, familyHandler *tracker.Handler) {
 	for prefix, h := range map[string]*tracker.Handler{
-		"/personal": personalHandler,
-		"/family":   familyHandler,
+		"/todos":  personalHandler,
+		"/family": familyHandler,
 	} {
 		r.Post(prefix+"/add", h.QuickAdd)
 		r.Post(prefix+"/{slug}/complete", h.Complete)
@@ -769,7 +813,7 @@ func mountTrackerRoutes(r chi.Router, personalHandler, familyHandler *tracker.Ha
 		r.Post(prefix+"/{slug}/edit", h.UpdateEdit)
 		r.Post(prefix+"/{slug}/move", h.MoveToList)
 	}
-	r.Post("/personal/add-goal", personalHandler.AddGoal)
+	r.Post("/todos/add-goal", personalHandler.AddGoal)
 }
 
 func noDirectoryListing(root http.FileSystem) http.Handler {
@@ -805,7 +849,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		return nil, fmt.Errorf("parsing layout: %w", err)
 	}
 
-	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "exploration.html", "exploration-detail.html", "homepage.html", "admin-users.html", "admin-user-form.html", "admin-password.html"}
+	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "exploration.html", "exploration-detail.html", "homepage.html", "admin-users.html", "admin-user-form.html", "admin-password.html", "account.html"}
 	templates := make(map[string]*template.Template, len(pages))
 
 	for _, page := range pages {

@@ -14,6 +14,7 @@ const (
 	ctxUserID    contextKey = "user_id"
 	ctxUserEmail contextKey = "user_email"
 	ctxIsAdmin   contextKey = "is_admin"
+	ctxFirstName contextKey = "first_name"
 )
 
 // UserID extracts the authenticated user's ID from the request context.
@@ -28,8 +29,23 @@ func UserEmail(ctx context.Context) string {
 	return email
 }
 
-// UserName returns the local part of the user's email (before the @).
+// FirstName extracts the authenticated user's first name from the request context.
+func FirstName(ctx context.Context) string {
+	fn, _ := ctx.Value(ctxFirstName).(string)
+	return fn
+}
+
+// UserName returns the user's display name. If a first name is set it takes
+// priority; otherwise the local part of the email address is used.
 func UserName(ctx context.Context) string {
+	if fn := FirstName(ctx); fn != "" {
+		return fn
+	}
+	return emailLocalPart(ctx)
+}
+
+// emailLocalPart returns the portion of the user's email before the @.
+func emailLocalPart(ctx context.Context) string {
 	email := UserEmail(ctx)
 	if email == "" {
 		return ""
@@ -62,9 +78,11 @@ func RequireAuth(sm *scs.SessionManager) func(http.Handler) http.Handler {
 
 			email := sm.GetString(r.Context(), "user_email")
 			isAdmin := sm.GetBool(r.Context(), "is_admin")
+			firstName := sm.GetString(r.Context(), "first_name")
 			ctx := context.WithValue(r.Context(), ctxUserID, userID)
 			ctx = context.WithValue(ctx, ctxUserEmail, email)
 			ctx = context.WithValue(ctx, ctxIsAdmin, isAdmin)
+			ctx = context.WithValue(ctx, ctxFirstName, firstName)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -85,9 +103,11 @@ func RequireAuthAPI(sm *scs.SessionManager) func(http.Handler) http.Handler {
 
 			email := sm.GetString(r.Context(), "user_email")
 			isAdmin := sm.GetBool(r.Context(), "is_admin")
+			firstName := sm.GetString(r.Context(), "first_name")
 			ctx := context.WithValue(r.Context(), ctxUserID, userID)
 			ctx = context.WithValue(ctx, ctxUserEmail, email)
 			ctx = context.WithValue(ctx, ctxIsAdmin, isAdmin)
+			ctx = context.WithValue(ctx, ctxFirstName, firstName)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

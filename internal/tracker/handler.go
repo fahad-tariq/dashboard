@@ -72,10 +72,10 @@ func NewHandlerWithResolver(resolver ServiceResolver, templates map[string]*temp
 }
 
 func (h *Handler) otherListName() string {
-	if h.listName == "personal" {
+	if h.listName == "todos" {
 		return "family"
 	}
-	return "personal"
+	return "todos"
 }
 
 func sortItems(s []Item) {
@@ -147,7 +147,12 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 
 	allTags, priorities := collectFilters(tasks)
 
-	title := strings.ToUpper(h.listName[:1]) + h.listName[1:] + " Tasks"
+	var title string
+	if h.listName == "todos" {
+		title = "Todos"
+	} else {
+		title = strings.ToUpper(h.listName[:1]) + h.listName[1:] + " Tasks"
+	}
 	userName := auth.UserName(r.Context())
 	data := map[string]any{
 		"Title":         title,
@@ -160,8 +165,8 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 		"UserName":      userName,
 		"IsAdmin":       auth.IsAdmin(r.Context()),
 	}
-	// Show subtitle for personal pages only, not family.
-	if h.listName == "personal" && userName != "" {
+	// Show subtitle for todos pages only, not family.
+	if h.listName == "todos" && userName != "" {
 		data["Subtitle"] = userName + "'s list"
 	}
 

@@ -12,6 +12,7 @@ import (
 type User struct {
 	ID           int64
 	Email        string
+	FirstName    string
 	PasswordHash string
 	Role         string
 	CreatedAt    string
@@ -27,7 +28,7 @@ func ValidatePassword(password string) error {
 
 // CreateUser hashes the password with bcrypt and inserts a new user row.
 // The first user created is automatically assigned the admin role.
-func CreateUser(db *sql.DB, email, password string) (int64, error) {
+func CreateUser(db *sql.DB, email, firstName, password string) (int64, error) {
 	if err := ValidatePassword(password); err != nil {
 		return 0, err
 	}
@@ -35,12 +36,12 @@ func CreateUser(db *sql.DB, email, password string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("hashing password: %w", err)
 	}
-	return CreateUserWithHash(db, email, string(hash))
+	return CreateUserWithHash(db, email, firstName, string(hash))
 }
 
 // CreateUserWithHash inserts a new user row with a pre-computed password hash.
 // The first user created is automatically assigned the admin role.
-func CreateUserWithHash(db *sql.DB, email, hash string) (int64, error) {
+func CreateUserWithHash(db *sql.DB, email, firstName, hash string) (int64, error) {
 	role := "user"
 	count, err := UserCount(db)
 	if err != nil {
@@ -51,8 +52,8 @@ func CreateUserWithHash(db *sql.DB, email, hash string) (int64, error) {
 	}
 
 	result, err := db.Exec(
-		"INSERT INTO users (email, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
-		email, hash, role, time.Now().UTC().Format(time.RFC3339),
+		"INSERT INTO users (email, first_name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)",
+		email, firstName, hash, role, time.Now().UTC().Format(time.RFC3339),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("inserting user: %w", err)
@@ -64,9 +65,9 @@ func CreateUserWithHash(db *sql.DB, email, hash string) (int64, error) {
 func FindByEmail(db *sql.DB, email string) (*User, error) {
 	u := &User{}
 	err := db.QueryRow(
-		"SELECT id, email, password_hash, role, created_at FROM users WHERE email = ?",
+		"SELECT id, email, first_name, password_hash, role, created_at FROM users WHERE email = ?",
 		email,
-	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.CreatedAt)
+	).Scan(&u.ID, &u.Email, &u.FirstName, &u.PasswordHash, &u.Role, &u.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -80,9 +81,9 @@ func FindByEmail(db *sql.DB, email string) (*User, error) {
 func FindByID(db *sql.DB, id int64) (*User, error) {
 	u := &User{}
 	err := db.QueryRow(
-		"SELECT id, email, password_hash, role, created_at FROM users WHERE id = ?",
+		"SELECT id, email, first_name, password_hash, role, created_at FROM users WHERE id = ?",
 		id,
-	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.CreatedAt)
+	).Scan(&u.ID, &u.Email, &u.FirstName, &u.PasswordHash, &u.Role, &u.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -110,7 +111,7 @@ func AdminCount(db *sql.DB) (int, error) {
 // The returned User structs have PasswordHash left empty because callers
 // (admin list, startup provisioning) never need it.
 func AllUsers(db *sql.DB) ([]User, error) {
-	rows, err := db.Query("SELECT id, email, role, created_at FROM users ORDER BY id")
+	rows, err := db.Query("SELECT id, email, first_name, role, created_at FROM users ORDER BY id")
 	if err != nil {
 		return nil, fmt.Errorf("querying users: %w", err)
 	}
@@ -119,7 +120,7 @@ func AllUsers(db *sql.DB) ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Email, &u.Role, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.FirstName, &u.Role, &u.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scanning user: %w", err)
 		}
 		users = append(users, u)
@@ -184,6 +185,15 @@ func DeleteUser(db *sql.DB, id int64) error {
 	}
 
 	return tx.Commit()
+}
+
+// UpdateUserFirstName changes a user's first name.
+func UpdateUserFirstName(db *sql.DB, id int64, firstName string) error {
+	_, err := db.Exec("UPDATE users SET first_name = ? WHERE id = ?", firstName, id)
+	if err != nil {
+		return fmt.Errorf("updating first name: %w", err)
+	}
+	return nil
 }
 
 // InvalidateSessions removes all sessions for a specific user.

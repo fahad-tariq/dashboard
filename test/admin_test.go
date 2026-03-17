@@ -23,7 +23,7 @@ import (
 
 func TestFirstUserGetsAdminRole(t *testing.T) {
 	database := newTestDB(t)
-	id, err := auth.CreateUser(database, "first@test.com", "password")
+	id, err := auth.CreateUser(database, "first@test.com", "", "password")
 	if err != nil {
 		t.Fatalf("creating first user: %v", err)
 	}
@@ -39,9 +39,9 @@ func TestFirstUserGetsAdminRole(t *testing.T) {
 
 func TestSecondUserGetsUserRole(t *testing.T) {
 	database := newTestDB(t)
-	auth.CreateUser(database, "first@test.com", "password")
+	auth.CreateUser(database, "first@test.com", "", "password")
 
-	id, err := auth.CreateUser(database, "second@test.com", "password")
+	id, err := auth.CreateUser(database, "second@test.com", "", "password")
 	if err != nil {
 		t.Fatalf("creating second user: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestFirstUserWithHashGetsAdminRole(t *testing.T) {
 	database := newTestDB(t)
 	hash := hashPassword(t, "pass")
 
-	id, err := auth.CreateUserWithHash(database, "admin@localhost", hash)
+	id, err := auth.CreateUserWithHash(database, "admin@localhost", "", hash)
 	if err != nil {
 		t.Fatalf("creating user with hash: %v", err)
 	}
@@ -177,14 +177,14 @@ func TestAdminCount(t *testing.T) {
 	}
 
 	// First user becomes admin.
-	auth.CreateUser(database, "admin@test.com", "password")
+	auth.CreateUser(database, "admin@test.com", "", "password")
 	count, _ = auth.AdminCount(database)
 	if count != 1 {
 		t.Errorf("expected 1, got %d", count)
 	}
 
 	// Second user is regular user.
-	auth.CreateUser(database, "user@test.com", "password")
+	auth.CreateUser(database, "user@test.com", "", "password")
 	count, _ = auth.AdminCount(database)
 	if count != 1 {
 		t.Errorf("expected still 1, got %d", count)
@@ -397,8 +397,8 @@ func TestEvictUserRemovesFromCache(t *testing.T) {
 
 func TestAllUsersIncludesRole(t *testing.T) {
 	database := newTestDB(t)
-	auth.CreateUser(database, "admin@test.com", "password")
-	auth.CreateUser(database, "user@test.com", "password")
+	auth.CreateUser(database, "admin@test.com", "", "password")
+	auth.CreateUser(database, "user@test.com", "", "password")
 
 	users, err := auth.AllUsers(database)
 	if err != nil {
@@ -419,7 +419,7 @@ func TestAllUsersIncludesRole(t *testing.T) {
 
 func TestFindByEmailIncludesRole(t *testing.T) {
 	database := newTestDB(t)
-	auth.CreateUser(database, "admin@test.com", "password")
+	auth.CreateUser(database, "admin@test.com", "", "password")
 
 	user, err := auth.FindByEmail(database, "admin@test.com")
 	if err != nil {

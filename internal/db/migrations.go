@@ -43,6 +43,7 @@ var migrations = []string{
 	`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`,
 	`UPDATE users SET role = 'admin' WHERE id = (SELECT MIN(id) FROM users)`,
 	`ALTER TABLE sessions ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0`,
+	`ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT ''`,
 }
 
 func Migrate(db *sql.DB) error {

@@ -9,8 +9,13 @@
 {{range .Users}}
 <div class="admin-user-card">
     <div class="admin-user-info">
+        {{if .FirstName}}
+        <span class="admin-user-email">{{.FirstName}}</span>
+        <span class="admin-user-meta">{{.Email}} &middot; ID {{.ID}} &middot; created {{.CreatedAt}}</span>
+        {{else}}
         <span class="admin-user-email">{{.Email}}</span>
         <span class="admin-user-meta">ID {{.ID}} &middot; created {{.CreatedAt}}</span>
+        {{end}}
         {{with index $.UserStats .ID}}
         <span class="admin-user-meta">{{.PersonalTasks}} tasks &middot; {{.Ideas}} ideas &middot; {{.Explorations}} explorations</span>
         {{end}}

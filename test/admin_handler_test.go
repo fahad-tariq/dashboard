@@ -197,7 +197,7 @@ func TestAdminCanDeleteOtherUser(t *testing.T) {
 	env := setupAdminEnv(t)
 
 	// Create another user to delete.
-	auth.CreateUser(env.database, "victim@test.com", "password")
+	auth.CreateUser(env.database, "victim@test.com", "", "password")
 
 	// Create user data dir for user 2.
 	userDir := filepath.Join(env.tmpDir, "users", "2")
@@ -310,7 +310,7 @@ func TestAdminRoleChangeInvalidatesSessions(t *testing.T) {
 	env := setupAdminEnv(t)
 
 	// Create a second user (regular).
-	auth.CreateUser(env.database, "bob@test.com", "password")
+	auth.CreateUser(env.database, "bob@test.com", "", "password")
 
 	// Insert a session for bob (user_id=2).
 	_, err := env.database.Exec(

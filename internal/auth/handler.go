@@ -77,6 +77,7 @@ func (h *Handler) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 	h.sm.Put(r.Context(), "user_id", user.ID)
 	h.sm.Put(r.Context(), "user_email", user.Email)
 	h.sm.Put(r.Context(), "is_admin", user.Role == "admin")
+	h.sm.Put(r.Context(), "first_name", user.FirstName)
 
 	slog.Info("login successful", "ip", ip, "email", email)
 

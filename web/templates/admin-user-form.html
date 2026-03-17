@@ -8,6 +8,10 @@
     {{if eq .FormMode "edit"}}
     <form class="admin-form" method="POST" action="/admin/users/{{.EditUserID}}/edit">
         <div class="form-group">
+            <label for="first_name">First Name</label>
+            <input type="text" name="first_name" id="first_name" class="form-input" value="{{if .EditUser}}{{.EditUser.FirstName}}{{else}}{{.FormFirstName}}{{end}}" placeholder="Optional">
+        </div>
+        <div class="form-group">
             <label for="email">Email</label>
             <input type="email" name="email" id="email" class="form-input" value="{{if .EditUser}}{{.EditUser.Email}}{{else}}{{.FormEmail}}{{end}}" required>
         </div>
@@ -22,6 +26,10 @@
     </form>
     {{else}}
     <form class="admin-form" method="POST" action="/admin/users/new">
+        <div class="form-group">
+            <label for="first_name">First Name</label>
+            <input type="text" name="first_name" id="first_name" class="form-input" value="{{.FormFirstName}}" placeholder="Optional">
+        </div>
         <div class="form-group">
             <label for="email">Email</label>
             <input type="email" name="email" id="email" class="form-input" value="{{.FormEmail}}" required autofocus>
