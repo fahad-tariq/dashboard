@@ -151,3 +151,31 @@ func TestAPIAddResearch_Valid(t *testing.T) {
 		t.Errorf("body should preserve initial content, got %q", idea.Body)
 	}
 }
+
+func TestAPIListIdeas_ExcludesDeleted(t *testing.T) {
+	h, svc := newTestHandler(t)
+	svc.Add(&ideas.Idea{Slug: "active-idea", Title: "Active Idea", Body: "Visible."})
+	svc.Add(&ideas.Idea{Slug: "trashed-idea", Title: "Trashed Idea", Body: "Hidden."})
+	if err := svc.Delete("trashed-idea"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/ideas", nil)
+	rec := httptest.NewRecorder()
+	h.APIListIdeas(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	var result []ideas.Idea
+	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 idea, got %d", len(result))
+	}
+	if result[0].Title != "Active Idea" {
+		t.Errorf("expected Active Idea, got %q", result[0].Title)
+	}
+}

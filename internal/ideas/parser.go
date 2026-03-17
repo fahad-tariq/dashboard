@@ -20,6 +20,7 @@ type Idea struct {
 	Added       string   `json:"added,omitempty"`
 	ConvertedTo string   `json:"converted_to,omitempty"` // slug of the task this idea was converted to
 	Body        string   `json:"body"`
+	DeletedAt   string   `json:"deleted_at,omitempty"` // soft-delete date, YYYY-MM-DD
 }
 
 var (
@@ -29,6 +30,7 @@ var (
 	addedRe       = regexp.MustCompile(`\[added:\s*(\d{4}-\d{2}-\d{2})\]`)
 	imagesRe      = regexp.MustCompile(`\[images:\s*(.*?)\]`)
 	convertedToRe = regexp.MustCompile(`\[converted-to:\s*([\w-]+)\]`)
+	deletedRe     = regexp.MustCompile(`\[deleted:\s*(\d{4}-\d{2}-\d{2})\]`)
 )
 
 // ParseIdeas reads an ideas.md file and returns all ideas.
@@ -138,6 +140,10 @@ func parseIdeaLine(raw string) *Idea {
 		idea.ConvertedTo = strings.TrimSpace(m[1])
 		raw = strings.Replace(raw, m[0], "", 1)
 	}
+	if m := deletedRe.FindStringSubmatch(raw); m != nil {
+		idea.DeletedAt = m[1]
+		raw = strings.Replace(raw, m[0], "", 1)
+	}
 
 	idea.Title = strings.TrimSpace(raw)
 	idea.Slug = slug.Slugify(idea.Title)
@@ -175,6 +181,9 @@ func WriteIdeas(path string, heading string, ideas []Idea) error {
 		}
 		if len(idea.Images) > 0 {
 			fmt.Fprintf(&b, " [images: %s]", strings.Join(idea.Images, ", "))
+		}
+		if idea.DeletedAt != "" {
+			fmt.Fprintf(&b, " [deleted: %s]", idea.DeletedAt)
 		}
 		b.WriteString("\n")
 

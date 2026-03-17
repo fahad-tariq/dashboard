@@ -3,6 +3,21 @@
     <a href="/ideas">ideas</a> / {{.Idea.Slug}}
 </nav>
 <h1>{{.Idea.Title}}</h1>
+
+{{if .IsDeleted}}
+<div class="trash-banner">
+    <p>This idea was deleted on {{.Idea.DeletedAt}}. It will be automatically purged after 7 days.</p>
+    <div class="trash-banner-actions">
+        <form method="POST" action="/ideas/{{.Idea.Slug}}/restore">
+            <button type="submit" class="action-btn action-assign">restore</button>
+        </form>
+        <form method="POST" action="/ideas/{{.Idea.Slug}}/purge" onsubmit="return confirmAction(this, 'Permanently delete this idea? This cannot be undone.')">
+            <button type="submit" class="action-btn action-drop">permanently delete</button>
+        </form>
+    </div>
+</div>
+{{end}}
+
 <div class="idea-meta-detail">
     {{range .Idea.Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
     {{if .Idea.Added}}<span class="meta-dim">{{.Idea.Added}}</span>{{end}}
@@ -20,6 +35,7 @@
     <div class="markdown-body">{{.BodyHTML}}</div>
 </section>
 
+{{if not .IsDeleted}}
 <details class="tracker-notes-edit">
     <summary>edit</summary>
     <form method="POST" action="/ideas/{{.Idea.Slug}}/edit" class="tracker-notes-form">
@@ -31,7 +47,8 @@
     </form>
 </details>
 
-<form method="POST" action="/ideas/{{.Idea.Slug}}/delete" style="margin-top: 1rem;" onsubmit="return confirmAction(this, 'Permanently delete this idea?')">
-    <button type="submit" class="action-btn action-drop">delete</button>
+<form method="POST" action="/ideas/{{.Idea.Slug}}/delete" style="margin-top: 1rem;" onsubmit="return confirmAction(this, 'Move this idea to trash?')">
+    <button type="submit" class="action-btn action-drop">move to trash</button>
 </form>
+{{end}}
 {{end}}

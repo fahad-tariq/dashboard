@@ -158,6 +158,62 @@ func TestSearchQueryTooLong(t *testing.T) {
 	}
 }
 
+func TestSearchExcludesDeletedItems(t *testing.T) {
+	dir := t.TempDir()
+
+	// Personal tracker with a soft-deleted item.
+	personalPath := filepath.Join(dir, "personal.md")
+	os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Active task\n- [ ] Trashed task [deleted: 2026-03-01]\n"), 0o644)
+	personalDB, _ := db.Open(filepath.Join(dir, "personal.db"))
+	t.Cleanup(func() { personalDB.Close() })
+	personalSvc := tracker.NewService(personalPath, "Personal", tracker.NewStore(personalDB, "personal"))
+
+	// Family tracker empty.
+	familyPath := filepath.Join(dir, "family.md")
+	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	familyDB, _ := db.Open(filepath.Join(dir, "family.db"))
+	t.Cleanup(func() { familyDB.Close() })
+	familySvc := tracker.NewService(familyPath, "Family", tracker.NewStore(familyDB, "family"))
+
+	// Ideas with a soft-deleted idea.
+	ideasPath := filepath.Join(dir, "ideas.md")
+	os.WriteFile(ideasPath, []byte("# Ideas\n\n- [ ] Active idea [status: untriaged]\n- [ ] Trashed idea [status: untriaged] [deleted: 2026-03-01]\n"), 0o644)
+	ideaSvc := ideas.NewService(ideasPath)
+
+	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
+		return personalSvc, familySvc, ideaSvc
+	})
+
+	// Search for "trashed" should return no results (both are soft-deleted).
+	req := httptest.NewRequest("GET", "/search?q=trashed", nil)
+	rec := httptest.NewRecorder()
+	handler.SearchAPI(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "Trashed task") {
+		t.Error("soft-deleted tracker item should not appear in search results")
+	}
+	if strings.Contains(body, "Trashed idea") {
+		t.Error("soft-deleted idea should not appear in search results")
+	}
+
+	// Search for "active" should find both active items.
+	req = httptest.NewRequest("GET", "/search?q=active", nil)
+	rec = httptest.NewRecorder()
+	handler.SearchAPI(rec, req)
+
+	body = rec.Body.String()
+	if !strings.Contains(body, "Active task") {
+		t.Error("active task should appear in search results")
+	}
+	if !strings.Contains(body, "Active idea") {
+		t.Error("active idea should appear in search results")
+	}
+}
+
 func TestSearchSnippetInResults(t *testing.T) {
 	dir := t.TempDir()
 	personalPath := filepath.Join(dir, "personal.md")

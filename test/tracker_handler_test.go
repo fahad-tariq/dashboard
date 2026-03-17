@@ -81,6 +81,8 @@ func setupTrackerEnv(t *testing.T) *trackerTestEnv {
 	r.Post("/todos/{slug}/tags", personalHandler.UpdateTags)
 	r.Post("/todos/{slug}/move", personalHandler.MoveToList)
 	r.Post("/todos/{slug}/progress", personalHandler.UpdateProgress)
+	r.Post("/todos/{slug}/restore", personalHandler.Restore)
+	r.Post("/todos/{slug}/purge", personalHandler.Purge)
 
 	r.Get("/family", familyHandler.TrackerPage)
 	r.Post("/family/add", familyHandler.QuickAdd)
@@ -88,6 +90,8 @@ func setupTrackerEnv(t *testing.T) *trackerTestEnv {
 	r.Post("/family/{slug}/uncomplete", familyHandler.Uncomplete)
 	r.Post("/family/{slug}/delete", familyHandler.Delete)
 	r.Post("/family/{slug}/move", familyHandler.MoveToList)
+	r.Post("/family/{slug}/restore", familyHandler.Restore)
+	r.Post("/family/{slug}/purge", familyHandler.Purge)
 
 	return &trackerTestEnv{
 		personalHandler: personalHandler,
@@ -359,9 +363,20 @@ func TestDeleteTask(t *testing.T) {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	_, err := env.personalSvc.Get("existing-task")
-	if err == nil {
-		t.Error("expected item to be deleted")
+	// Delete is now soft-delete: item still exists via Get but is excluded from List.
+	item, err := env.personalSvc.Get("existing-task")
+	if err != nil {
+		t.Fatalf("expected soft-deleted item to still be accessible via Get: %v", err)
+	}
+	if item.DeletedAt == "" {
+		t.Error("expected DeletedAt to be set after soft delete")
+	}
+
+	items, _ := env.personalSvc.List()
+	for _, it := range items {
+		if it.Slug == "existing-task" {
+			t.Error("soft-deleted item should not appear in List()")
+		}
 	}
 }
 
@@ -516,5 +531,49 @@ func TestFamilyPageRenders(t *testing.T) {
 	}
 	if !strings.Contains(body, "Title=Family Tasks") {
 		t.Errorf("expected Title=Family Tasks in body, got: %s", body)
+	}
+}
+
+func TestRestoreTask(t *testing.T) {
+	env := setupTrackerEnv(t)
+
+	// Soft delete first.
+	postForm(env.router, "/todos/existing-task/delete", nil)
+
+	// Then restore.
+	rr := postForm(env.router, "/todos/existing-task/restore", nil)
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
+	}
+
+	item, err := env.personalSvc.Get("existing-task")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if item.DeletedAt != "" {
+		t.Error("expected DeletedAt to be cleared after restore")
+	}
+
+	items, _ := env.personalSvc.List()
+	if len(items) != 1 {
+		t.Errorf("expected 1 item in List after restore, got %d", len(items))
+	}
+}
+
+func TestPurgeTask(t *testing.T) {
+	env := setupTrackerEnv(t)
+
+	// Soft delete first.
+	postForm(env.router, "/todos/existing-task/delete", nil)
+
+	// Then permanently delete.
+	rr := postForm(env.router, "/todos/existing-task/purge", nil)
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
+	}
+
+	_, err := env.personalSvc.Get("existing-task")
+	if err == nil {
+		t.Error("expected item to be permanently deleted")
 	}
 }

@@ -486,6 +486,41 @@ func TestDeadlineRoundTrip(t *testing.T) {
 	}
 }
 
+func TestDeletedAtRoundTrip(t *testing.T) {
+	input := []tracker.Item{
+		{Slug: "deleted-task", Title: "Deleted task", Type: tracker.TaskType, Added: "2026-03-01", DeletedAt: "2026-03-10"},
+		{Slug: "active-task", Title: "Active task", Type: tracker.TaskType, Added: "2026-03-01"},
+	}
+
+	path := filepath.Join(t.TempDir(), "tracker.md")
+	if err := tracker.WriteTracker(path, "Test", input); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	output, err := tracker.ParseTracker(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(output) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(output))
+	}
+
+	bySlug := map[string]tracker.Item{}
+	for _, it := range output {
+		bySlug[it.Slug] = it
+	}
+
+	deleted := bySlug["deleted-task"]
+	if deleted.DeletedAt != "2026-03-10" {
+		t.Errorf("deleted-at: got %q, want %q", deleted.DeletedAt, "2026-03-10")
+	}
+
+	active := bySlug["active-task"]
+	if active.DeletedAt != "" {
+		t.Errorf("expected empty deleted-at, got %q", active.DeletedAt)
+	}
+}
+
 func TestFromIdeaRoundTrip(t *testing.T) {
 	input := []tracker.Item{
 		{Slug: "converted-task", Title: "Converted task", Type: tracker.TaskType, FromIdea: "original-idea", Added: "2026-03-01"},

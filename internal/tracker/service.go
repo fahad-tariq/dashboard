@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -56,15 +57,43 @@ func (s *Service) mutate(slug string, fn func(*Item) error) error {
 		return err
 	}
 	s.cache = items
-	return s.store.ReplaceAll(items)
+	return s.store.ReplaceAll(activeItems(items))
+}
+
+// activeItems returns only non-deleted items for DB cache sync.
+func activeItems(items []Item) []Item {
+	var out []Item
+	for _, it := range items {
+		if it.DeletedAt == "" {
+			out = append(out, it)
+		}
+	}
+	return out
 }
 
 func (s *Service) List() ([]Item, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	out := make([]Item, len(s.cache))
-	copy(out, s.cache)
+	var out []Item
+	for _, it := range s.cache {
+		if it.DeletedAt == "" {
+			out = append(out, it)
+		}
+	}
 	return out, nil
+}
+
+// ListDeleted returns only soft-deleted items from the cache.
+func (s *Service) ListDeleted() []Item {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []Item
+	for _, it := range s.cache {
+		if it.DeletedAt != "" {
+			out = append(out, it)
+		}
+	}
+	return out
 }
 
 func (s *Service) Get(slug string) (*Item, error) {
@@ -101,7 +130,7 @@ func (s *Service) AddItem(item Item) error {
 		return err
 	}
 	s.cache = items
-	return s.store.ReplaceAll(items)
+	return s.store.ReplaceAll(activeItems(items))
 }
 
 func (s *Service) UpdateNotes(slug, body string) error {
@@ -127,7 +156,24 @@ func (s *Service) Uncomplete(slug string) error {
 	})
 }
 
+// Delete soft-deletes an item by setting its DeletedAt timestamp.
 func (s *Service) Delete(slug string) error {
+	return s.mutate(slug, func(it *Item) error {
+		it.DeletedAt = time.Now().Format("2006-01-02")
+		return nil
+	})
+}
+
+// Restore clears the DeletedAt field, returning an item from trash.
+func (s *Service) Restore(slug string) error {
+	return s.mutate(slug, func(it *Item) error {
+		it.DeletedAt = ""
+		return nil
+	})
+}
+
+// PermanentDelete removes an item from the file entirely.
+func (s *Service) PermanentDelete(slug string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -152,7 +198,46 @@ func (s *Service) Delete(slug string) error {
 		return err
 	}
 	s.cache = items
-	return s.store.ReplaceAll(items)
+	return s.store.ReplaceAll(activeItems(items))
+}
+
+// PurgeExpired permanently removes items deleted more than `days` ago.
+func (s *Service) PurgeExpired(days int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	items, err := ParseTracker(s.trackerPath)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	cutoff := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -days)
+	var kept []Item
+	for _, it := range items {
+		if it.DeletedAt != "" {
+			deletedTime, err := time.Parse("2006-01-02", it.DeletedAt)
+			if err != nil {
+				slog.Warn("malformed deleted date, skipping purge for item", "slug", it.Slug, "deleted_at", it.DeletedAt)
+				kept = append(kept, it)
+				continue
+			}
+			if !deletedTime.After(cutoff) {
+				continue // purge this item (deleted on or before cutoff date)
+			}
+		}
+		kept = append(kept, it)
+	}
+
+	if len(kept) == len(items) {
+		return nil // nothing to purge
+	}
+
+	if err := WriteTracker(s.trackerPath, s.heading, kept); err != nil {
+		return err
+	}
+	s.cache = kept
+	return s.store.ReplaceAll(activeItems(kept))
 }
 
 func (s *Service) UpdatePriority(slug, priority string) error {
@@ -216,16 +301,20 @@ func (s *Service) Resync() error {
 		return err
 	}
 	s.cache = items
-	return s.store.ReplaceAll(items)
+	return s.store.ReplaceAll(activeItems(items))
 }
 
 // Search returns items whose title or body contains the query (case-insensitive).
+// Soft-deleted items are excluded from search results.
 func (s *Service) Search(query string) []Item {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	q := strings.ToLower(query)
 	var results []Item
 	for _, it := range s.cache {
+		if it.DeletedAt != "" {
+			continue
+		}
 		if strings.Contains(strings.ToLower(it.Title), q) || strings.Contains(strings.ToLower(it.Body), q) {
 			results = append(results, it)
 		}

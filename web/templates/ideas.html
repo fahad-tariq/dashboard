@@ -36,8 +36,8 @@
                 <form method="POST" action="/ideas/{{.Slug}}/to-task" class="inline-triage">
                     <button type="submit" class="action-btn action-assign">to todos</button>
                 </form>
-                <form method="POST" action="/ideas/{{.Slug}}/delete" class="inline-triage" onsubmit="return confirmAction(this, 'Delete this idea?')">
-                    <button type="submit" class="action-btn action-drop">delete</button>
+                <form method="POST" action="/ideas/{{.Slug}}/delete" class="inline-triage" onsubmit="return confirmAction(this, 'Move this idea to trash?')">
+                    <button type="submit" class="action-btn action-drop">trash</button>
                 </form>
             </div>
             {{if .Images}}
@@ -145,6 +145,36 @@
                 <span class="badge badge-converted">converted</span>
                 {{if .ConvertedTo}}<span class="converted-link">&#x2192; <a href="/todos#item-{{.ConvertedTo}}">task</a></span>{{end}}
                 {{if .Added}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
+            </div>
+        </div>
+        <div class="tracker-item-detail">
+            <div>
+                {{if .Body}}
+                <div class="tracker-item-body">{{.Body}}</div>
+                {{end}}
+            </div>
+        </div>
+    </div>
+    {{end}}
+</details>
+{{end}}
+
+{{if .DeletedIdeas}}
+<details class="tracker-done-section">
+    <summary class="tracker-done-summary">Recently Deleted ({{len .DeletedIdeas}})</summary>
+    {{range .DeletedIdeas}}
+    <div class="tracker-item tracker-item-done minimised" id="idea-{{.Slug}}">
+        <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
+            <button class="item-toggle" onclick="event.stopPropagation()" title="Expand/collapse">&#x25B8;</button>
+            <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
+            <div class="tracker-item-meta">
+                {{if .DeletedAt}}<span class="tracker-item-date">deleted {{.DeletedAt}}</span>{{end}}
+                <form method="POST" action="/ideas/{{.Slug}}/restore" class="item-complete-form" onclick="event.stopPropagation()">
+                    <button type="submit" class="item-undo-btn" title="Restore">&#x21A9;</button>
+                </form>
+                <form method="POST" action="/ideas/{{.Slug}}/purge" class="item-complete-form" onclick="event.stopPropagation()" onsubmit="return confirmAction(this, 'Permanently delete this idea? This cannot be undone.')">
+                    <button type="submit" class="item-undo-btn" title="Permanently delete">&#x2715;</button>
+                </form>
             </div>
         </div>
         <div class="tracker-item-detail">

@@ -246,13 +246,39 @@ func TestServiceCRUD(t *testing.T) {
 		t.Errorf("updated body: got %q", updated.Body)
 	}
 
-	// Delete.
+	// Delete (soft-delete).
 	if err := svc.Delete("my-idea"); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	list, _ = svc.List()
 	if len(list) != 0 {
-		t.Errorf("expected 0 after delete, got %d", len(list))
+		t.Errorf("expected 0 in List after soft delete, got %d", len(list))
+	}
+
+	// Soft-deleted item still accessible via Get.
+	deleted, err := svc.Get("my-idea")
+	if err != nil {
+		t.Fatalf("get soft-deleted: %v", err)
+	}
+	if deleted.DeletedAt == "" {
+		t.Error("expected DeletedAt to be set after soft delete")
+	}
+
+	// Permanent delete removes completely.
+	if err := svc.Restore("my-idea"); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	list, _ = svc.List()
+	if len(list) != 1 {
+		t.Errorf("expected 1 after restore, got %d", len(list))
+	}
+
+	if err := svc.PermanentDelete("my-idea"); err != nil {
+		t.Fatalf("permanent delete: %v", err)
+	}
+	list, _ = svc.List()
+	if len(list) != 0 {
+		t.Errorf("expected 0 after permanent delete, got %d", len(list))
 	}
 }
 

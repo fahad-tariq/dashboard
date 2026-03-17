@@ -36,6 +36,7 @@ type Item struct {
 	FromIdea  string   // slug of the idea this task was converted from
 	Tags      []string // tags for categorisation and filtering
 	Images    []string // uploaded image filenames
+	DeletedAt string   // soft-delete date, YYYY-MM-DD (empty means not deleted)
 }
 
 // HasTag returns true if the item has the given tag (case-insensitive).
@@ -62,6 +63,7 @@ var deadlineRe = regexp.MustCompile(`\[deadline:\s*(\d{4}-\d{2}-\d{2})\]`)
 var fromIdeaRe = regexp.MustCompile(`\[from-idea:\s*([\w-]+)\]`)
 var tagsRe = regexp.MustCompile(`\[tags:\s*(.*?)\]`)
 var imagesRe = regexp.MustCompile(`\[images:\s*(.*?)\]`)
+var deletedRe = regexp.MustCompile(`\[deleted:\s*(\d{4}-\d{2}-\d{2})\]`)
 
 // ParseTracker reads a tracker.md file and returns structured items.
 func ParseTracker(path string) ([]Item, error) {
@@ -210,6 +212,12 @@ func parseItemLine(raw string, done bool) *Item {
 		title = strings.TrimSpace(imagesRe.ReplaceAllString(title, ""))
 	}
 
+	// Extract deleted date: [deleted: YYYY-MM-DD]
+	if m := deletedRe.FindStringSubmatch(title); m != nil {
+		item.DeletedAt = m[1]
+		title = strings.TrimSpace(deletedRe.ReplaceAllString(title, ""))
+	}
+
 	// Extract graduated marker.
 	if strings.Contains(title, "[graduated]") {
 		item.Graduated = true
@@ -273,6 +281,9 @@ func writeItem(sb *strings.Builder, it Item) {
 	}
 	if it.Graduated {
 		sb.WriteString(" [graduated]")
+	}
+	if it.DeletedAt != "" {
+		sb.WriteString(" [deleted: " + it.DeletedAt + "]")
 	}
 	sb.WriteString("\n")
 

@@ -30,12 +30,15 @@ var flashMessages = map[string]string{
 	"priority-updated":  "Priority updated.",
 	"tags-updated":      "Tags updated.",
 	"item-updated":      "Changes saved.",
-	"item-deleted":      "Item removed.",
+	"item-deleted":      "Item moved to trash.",
 	"item-moved":        "Moved to the other list.",
+	"item-restored":     "Item restored from trash.",
+	"item-purged":       "Item permanently deleted.",
 }
 
 var flashErrorKeys = map[string]bool{
 	"title-required": true,
+	"item-purged":    true,
 }
 
 func sanitisePriority(p string) string {
@@ -156,6 +159,14 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 	}
 	sortItems(tasks)
 
+	// Collect deleted tasks for the "Recently Deleted" section.
+	var deletedTasks []Item
+	for _, it := range svc.ListDeleted() {
+		if it.Type == TaskType {
+			deletedTasks = append(deletedTasks, it)
+		}
+	}
+
 	allTags, priorities := collectFilters(tasks)
 
 	var title string
@@ -170,6 +181,7 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 	data["OtherListName"] = h.otherListName()
 	data["Tasks"] = tasks
 	data["DoneTasks"] = doneTasks
+	data["DeletedTasks"] = deletedTasks
 	data["Categories"] = allTags
 	data["Priorities"] = priorities
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
@@ -203,11 +215,20 @@ func (h *Handler) GoalsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	sortItems(goals)
 
+	// Collect deleted goals for the "Recently Deleted" section.
+	var deletedGoals []Item
+	for _, it := range svc.ListDeleted() {
+		if it.Type == GoalType {
+			deletedGoals = append(deletedGoals, it)
+		}
+	}
+
 	allTags, priorities := collectFilters(goals)
 
 	data := auth.TemplateData(r)
 	data["Title"] = "Goals"
 	data["Goals"] = goals
+	data["DeletedGoals"] = deletedGoals
 	data["Categories"] = allTags
 	data["Priorities"] = priorities
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
@@ -390,6 +411,26 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	h.redirectBack(w, r, "", "item-deleted")
 }
 
+func (h *Handler) Restore(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	svc, _ := h.resolve(r)
+	if err := svc.Restore(slug); err != nil {
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
+		return
+	}
+	h.redirectBack(w, r, "", "item-restored")
+}
+
+func (h *Handler) Purge(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	svc, _ := h.resolve(r)
+	if err := svc.PermanentDelete(slug); err != nil {
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
+		return
+	}
+	h.redirectBack(w, r, "", "item-purged")
+}
+
 func (h *Handler) UpdatePriority(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
@@ -453,7 +494,7 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 
 	movedItem := *item
 
-	if err := svc.Delete(slug); err != nil {
+	if err := svc.PermanentDelete(slug); err != nil {
 		httputil.ServerError(w, "deleting item from source list", err, "slug", slug)
 		return
 	}
