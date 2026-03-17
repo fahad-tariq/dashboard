@@ -170,6 +170,20 @@ func (s *Service) AddResearch(slug string, content string) error {
 	})
 }
 
+// Search returns ideas whose title or body contains the query (case-insensitive).
+func (s *Service) Search(query string) []Idea {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	q := strings.ToLower(query)
+	var results []Idea
+	for _, idea := range s.cache {
+		if strings.Contains(strings.ToLower(idea.Title), q) || strings.Contains(strings.ToLower(idea.Body), q) {
+			results = append(results, idea)
+		}
+	}
+	return results
+}
+
 // Resync refreshes the in-memory cache from disk.
 func (s *Service) Resync() error {
 	s.mu.Lock()

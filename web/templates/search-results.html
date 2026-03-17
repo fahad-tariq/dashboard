@@ -1,0 +1,13 @@
+{{if .Results}}
+{{range .Results}}
+<a href="{{.URL}}" class="search-result" onclick="closeSearch()">
+    <span class="search-result-title">{{.Title}}</span>
+    <span class="search-result-meta">
+        <span class="badge badge-tag">{{.Category}}</span>
+    </span>
+    {{if .Snippet}}<span class="search-result-snippet">{{.Snippet}}</span>{{end}}
+</a>
+{{end}}
+{{else}}
+{{if .Query}}<div class="search-empty">No results for "{{.Query}}"</div>{{end}}
+{{end}}

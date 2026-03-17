@@ -29,6 +29,7 @@ import (
 	"github.com/fahad/dashboard/internal/db"
 	"github.com/fahad/dashboard/internal/home"
 	"github.com/fahad/dashboard/internal/ideas"
+	"github.com/fahad/dashboard/internal/search"
 	"github.com/fahad/dashboard/internal/services"
 	"github.com/fahad/dashboard/internal/sse"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -159,6 +160,7 @@ func main() {
 
 	var personalHandler, familyHandler *tracker.Handler
 	var homePage http.HandlerFunc
+	var searchHandler *search.Handler
 
 	if cfg.AuthEnabled() {
 		// Per-user service registry: each user gets isolated personal and ideas
@@ -241,6 +243,12 @@ func main() {
 			return registry.ForUser(auth.UserID(ctx)).Personal.AddItem(item)
 		}, templates)
 
+		searchHandler = search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
+			uid := auth.UserID(r.Context())
+			svc := registry.ForUser(uid)
+			return svc.Personal, registry.Family(), svc.Ideas
+		})
+
 		homeHandler := home.NewHandler(registry, templates)
 		homePage = homeHandler.HomePage
 
@@ -318,7 +326,7 @@ func main() {
 			r.Get("/account/password", http.RedirectHandler("/account", http.StatusMovedPermanently).ServeHTTP)
 			r.Post("/account/password", acctHandler.PasswordSubmit)
 
-			mountAppRoutes(r, homePage, personalHandler, familyHandler, ideaHandler, uploadHandler, cfg.UploadsDir)
+			mountAppRoutes(r, homePage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir)
 		})
 	} else {
 		// Auth disabled: singleton services are fine for single-user mode.
@@ -371,10 +379,13 @@ func main() {
 		}, templates)
 		personalHandler = tracker.NewHandler(personalSvc, familySvc, templates, "todos")
 		familyHandler = tracker.NewHandler(familySvc, personalSvc, templates, "family")
+		searchHandler = search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
+			return personalSvc, familySvc, ideaSvc
+		})
 		homePage = home.HomePageSingle(personalSvc, familySvc, ideaSvc, templates)
 
 		r.Get("/events", broker.ServeHTTP)
-		mountAppRoutes(r, homePage, personalHandler, familyHandler, ideaHandler, uploadHandler, cfg.UploadsDir)
+		mountAppRoutes(r, homePage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir)
 	}
 
 	// API routes: always use bearer token auth (separate from session auth).
@@ -450,10 +461,11 @@ func runUserAdd() {
 	fmt.Printf("created user %q with id %d\n", *email, id)
 }
 
-func mountAppRoutes(r chi.Router, homePage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, ideaHandler *ideas.Handler, uploadHandler *upload.Handler, uploadsDir string) {
+func mountAppRoutes(r chi.Router, homePage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string) {
 	r.Post("/upload", uploadHandler.Upload)
 	r.Handle("/uploads/*", cacheImmutable(http.StripPrefix("/uploads/", noDirectoryListing(http.Dir(uploadsDir)))))
 
+	r.Get("/search", searchHandler.SearchAPI)
 	r.Get("/", homePage)
 	r.Get("/todos", personalHandler.TrackerPage)
 	r.Get("/personal", http.RedirectHandler("/todos", http.StatusMovedPermanently).ServeHTTP)
