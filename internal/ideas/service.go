@@ -162,6 +162,15 @@ func (s *Service) Delete(slug string) error {
 	return fmt.Errorf("idea %q not found", slug)
 }
 
+// MarkConverted sets an idea's status to "converted" and records the task slug.
+func (s *Service) MarkConverted(slug, taskSlug string) error {
+	return s.mutate(slug, func(idea *Idea) error {
+		idea.Status = "converted"
+		idea.ConvertedTo = taskSlug
+		return nil
+	})
+}
+
 func (s *Service) AddResearch(slug string, content string) error {
 	return s.mutate(slug, func(idea *Idea) error {
 		if !strings.Contains(idea.Body, "## Research") {

@@ -6,7 +6,7 @@
         <div class="tracker-item-meta">
             {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
             <span class="badge badge-{{.Status}}">{{.Status}}</span>
-            {{if .Added}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
+            {{if .Added}}{{$age := ageBadge .Added}}{{if index $age 0}}<span class="badge badge-age badge-age-{{index $age 1}}">{{index $age 0}}</span>{{end}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
         </div>
     </div>
     <div class="tracker-item-detail">
@@ -133,7 +133,33 @@
 </section>
 {{end}}
 
-{{if and (not .Untriaged) (not .Parked) (not .Dropped)}}
+{{if .Converted}}
+<details class="tracker-done-section">
+    <summary class="tracker-done-summary">Converted ({{len .Converted}})</summary>
+    {{range .Converted}}
+    <div class="tracker-item tracker-item-done minimised" id="idea-{{.Slug}}">
+        <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
+            <button class="item-toggle" onclick="event.stopPropagation()" title="Expand/collapse">&#x25B8;</button>
+            <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
+            <div class="tracker-item-meta">
+                <span class="badge badge-converted">converted</span>
+                {{if .ConvertedTo}}<span class="converted-link">&#x2192; <a href="/todos#item-{{.ConvertedTo}}">task</a></span>{{end}}
+                {{if .Added}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
+            </div>
+        </div>
+        <div class="tracker-item-detail">
+            <div>
+                {{if .Body}}
+                <div class="tracker-item-body">{{.Body}}</div>
+                {{end}}
+            </div>
+        </div>
+    </div>
+    {{end}}
+</details>
+{{end}}
+
+{{if and (not .Untriaged) (not .Parked) (not .Dropped) (not .Converted)}}
 <p class="empty">No ideas yet. Ideas are for things you might want to explore someday -- projects, topics, half-formed thoughts worth capturing.</p>
 {{end}}
 <p class="empty filter-empty" style="display:none">No ideas match the current filter.</p>

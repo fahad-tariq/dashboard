@@ -44,13 +44,16 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 	personalStore := tracker.NewStore(database, "personal")
 	personalSvc := tracker.NewService(personalPath, "Personal", personalStore)
 
-	toTask := func(_ context.Context, title, body string, tags []string) error {
-		return personalSvc.AddItem(tracker.Item{
-			Title: title,
-			Type:  tracker.TaskType,
-			Body:  body,
-			Tags:  tags,
-		})
+	toTask := func(_ context.Context, title, body string, tags []string, fromIdeaSlug string) (string, error) {
+		item := tracker.Item{
+			Title:    title,
+			Type:     tracker.TaskType,
+			Body:     body,
+			Tags:     tags,
+			FromIdea: fromIdeaSlug,
+		}
+		err := personalSvc.AddItem(item)
+		return tracker.Slugify(title), err
 	}
 
 	funcMap := template.FuncMap{
@@ -262,10 +265,13 @@ func TestIdeasToTask(t *testing.T) {
 		t.Errorf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	// Verify idea was deleted.
-	_, err := env.ideasSvc.Get(slug)
-	if err == nil {
-		t.Error("expected idea to be deleted after to-task conversion")
+	// Verify idea was marked as converted (not deleted).
+	idea, err := env.ideasSvc.Get(slug)
+	if err != nil {
+		t.Fatalf("expected idea to still exist after conversion, got error: %v", err)
+	}
+	if idea.Status != "converted" {
+		t.Errorf("expected idea status 'converted', got %q", idea.Status)
 	}
 
 	// Verify task was created in personal tracker.

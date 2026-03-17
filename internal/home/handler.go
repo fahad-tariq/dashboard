@@ -9,6 +9,7 @@ import (
 
 	"github.com/fahad/dashboard/internal/auth"
 	"github.com/fahad/dashboard/internal/ideas"
+	"github.com/fahad/dashboard/internal/insights"
 	"github.com/fahad/dashboard/internal/services"
 	"github.com/fahad/dashboard/internal/tracker"
 )
@@ -68,6 +69,31 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 
 	untriaged, untriagedCount := filterAndCountUntriaged(allIdeas, 3)
 
+	now := time.Now()
+
+	// Build completed items from both personal and family lists.
+	completedItems := toCompletedItems(personalItems)
+	completedItems = append(completedItems, toCompletedItems(familyItems)...)
+
+	velocity := insights.WeeklyVelocity(completedItems, now)
+	streakDays, totalCompleted := insights.Streak(completedItems, now)
+	milestone := insights.MilestoneBadge(totalCompleted)
+
+	// Build tag info from all sources for cross-section aggregation.
+	var tagInfos []insights.TagInfo
+	for _, it := range personalItems {
+		tagInfos = append(tagInfos, insights.TagInfo{Tags: it.Tags, Type: string(it.Type), Done: it.Done})
+	}
+	for _, it := range familyItems {
+		tagInfos = append(tagInfos, insights.TagInfo{Tags: it.Tags, Type: string(it.Type), Done: it.Done})
+	}
+	for _, idea := range allIdeas {
+		if idea.Status != "converted" {
+			tagInfos = append(tagInfos, insights.TagInfo{Tags: idea.Tags, Type: "idea", Done: false})
+		}
+	}
+	tagSummaries := insights.TopN(insights.TagAggregation(tagInfos), 5)
+
 	data := auth.TemplateData(r)
 	data["Title"] = "Home"
 	data["Greeting"] = Greeting(time.Now())
@@ -79,10 +105,23 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 	data["UntriagedIdeas"] = untriaged
 	data["UntriagedCount"] = untriagedCount
 	data["TotalIdeaCount"] = len(allIdeas)
+	data["InsightLine"] = velocity
+	data["StreakDays"] = streakDays
+	data["TotalCompleted"] = totalCompleted
+	data["MilestoneBadge"] = milestone
+	data["TagSummaries"] = tagSummaries
 
 	if err := templates["homepage.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
 		slog.Error("rendering homepage", "error", err)
 	}
+}
+
+func toCompletedItems(items []tracker.Item) []insights.CompletedItem {
+	result := make([]insights.CompletedItem, len(items))
+	for i, it := range items {
+		result[i] = insights.CompletedItem{Completed: it.Completed, Done: it.Done}
+	}
+	return result
 }
 
 func countOpenTasks(items []tracker.Item) int {

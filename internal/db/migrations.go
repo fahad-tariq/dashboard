@@ -46,6 +46,8 @@ var migrations = []string{
 	`ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT ''`,
 	`CREATE INDEX IF NOT EXISTS idx_tracker_items_list_user ON tracker_items(list, user_id)`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS idx_tracker_items_unique ON tracker_items(list, slug, user_id)`,
+	`ALTER TABLE tracker_items ADD COLUMN deadline TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE tracker_items ADD COLUMN from_idea TEXT NOT NULL DEFAULT ''`,
 }
 
 func Migrate(db *sql.DB) error {

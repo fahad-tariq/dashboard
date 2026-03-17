@@ -277,6 +277,7 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 		Current:  current,
 		Target:   target,
 		Unit:     strings.TrimSpace(r.FormValue("unit")),
+		Deadline: strings.TrimSpace(r.FormValue("deadline")),
 		Body:     strings.TrimSpace(r.FormValue("body")),
 		Tags:     ideas.ParseCSV(r.FormValue("tags")),
 		Images:   ideas.ParseCSV(r.FormValue("images")),

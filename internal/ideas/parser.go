@@ -11,22 +11,24 @@ import (
 
 // Idea represents a single idea in the flat-file ideas.md format.
 type Idea struct {
-	Slug    string   `json:"slug"`
-	Title   string   `json:"title"`
-	Status  string   `json:"status"` // untriaged, parked, dropped
-	Tags    []string `json:"tags,omitempty"`
-	Images  []string `json:"images,omitempty"`
-	Project string   `json:"project,omitempty"`
-	Added   string   `json:"added,omitempty"`
-	Body    string   `json:"body"`
+	Slug        string   `json:"slug"`
+	Title       string   `json:"title"`
+	Status      string   `json:"status"` // untriaged, parked, dropped, converted
+	Tags        []string `json:"tags,omitempty"`
+	Images      []string `json:"images,omitempty"`
+	Project     string   `json:"project,omitempty"`
+	Added       string   `json:"added,omitempty"`
+	ConvertedTo string   `json:"converted_to,omitempty"` // slug of the task this idea was converted to
+	Body        string   `json:"body"`
 }
 
 var (
-	statusRe  = regexp.MustCompile(`\[status:\s*(.*?)\]`)
-	tagsRe    = regexp.MustCompile(`\[tags:\s*(.*?)\]`)
-	projectRe = regexp.MustCompile(`\[project:\s*(.*?)\]`)
-	addedRe   = regexp.MustCompile(`\[added:\s*(\d{4}-\d{2}-\d{2})\]`)
-	imagesRe  = regexp.MustCompile(`\[images:\s*(.*?)\]`)
+	statusRe      = regexp.MustCompile(`\[status:\s*(.*?)\]`)
+	tagsRe        = regexp.MustCompile(`\[tags:\s*(.*?)\]`)
+	projectRe     = regexp.MustCompile(`\[project:\s*(.*?)\]`)
+	addedRe       = regexp.MustCompile(`\[added:\s*(\d{4}-\d{2}-\d{2})\]`)
+	imagesRe      = regexp.MustCompile(`\[images:\s*(.*?)\]`)
+	convertedToRe = regexp.MustCompile(`\[converted-to:\s*([\w-]+)\]`)
 )
 
 // ParseIdeas reads an ideas.md file and returns all ideas.
@@ -132,6 +134,10 @@ func parseIdeaLine(raw string) *Idea {
 		}
 		raw = strings.Replace(raw, m[0], "", 1)
 	}
+	if m := convertedToRe.FindStringSubmatch(raw); m != nil {
+		idea.ConvertedTo = strings.TrimSpace(m[1])
+		raw = strings.Replace(raw, m[0], "", 1)
+	}
 
 	idea.Title = strings.TrimSpace(raw)
 	idea.Slug = slug.Slugify(idea.Title)
@@ -163,6 +169,9 @@ func WriteIdeas(path string, heading string, ideas []Idea) error {
 		}
 		if idea.Added != "" {
 			fmt.Fprintf(&b, " [added: %s]", idea.Added)
+		}
+		if idea.ConvertedTo != "" {
+			fmt.Fprintf(&b, " [converted-to: %s]", idea.ConvertedTo)
 		}
 		if len(idea.Images) > 0 {
 			fmt.Fprintf(&b, " [images: %s]", strings.Join(idea.Images, ", "))

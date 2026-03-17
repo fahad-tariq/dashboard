@@ -447,3 +447,76 @@ func TestParseTrackerGoalOver100Percent(t *testing.T) {
 		t.Errorf("current: got %v, want 120", items[0].Current)
 	}
 }
+
+func TestDeadlineRoundTrip(t *testing.T) {
+	input := []tracker.Item{
+		{Slug: "run-marathon", Title: "Run marathon", Type: tracker.GoalType, Current: 10, Target: 42, Unit: "km", Deadline: "2026-06-01", Added: "2026-03-01"},
+		{Slug: "no-deadline", Title: "No deadline", Type: tracker.TaskType, Added: "2026-03-01"},
+	}
+
+	path := filepath.Join(t.TempDir(), "tracker.md")
+	if err := tracker.WriteTracker(path, "Test", input); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	output, err := tracker.ParseTracker(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(output) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(output))
+	}
+
+	bySlug := map[string]tracker.Item{}
+	for _, it := range output {
+		bySlug[it.Slug] = it
+	}
+
+	marathon := bySlug["run-marathon"]
+	if marathon.Deadline != "2026-06-01" {
+		t.Errorf("deadline: got %q, want %q", marathon.Deadline, "2026-06-01")
+	}
+	if marathon.Added != "2026-03-01" {
+		t.Errorf("added: got %q, want %q", marathon.Added, "2026-03-01")
+	}
+
+	noDeadline := bySlug["no-deadline"]
+	if noDeadline.Deadline != "" {
+		t.Errorf("expected empty deadline, got %q", noDeadline.Deadline)
+	}
+}
+
+func TestFromIdeaRoundTrip(t *testing.T) {
+	input := []tracker.Item{
+		{Slug: "converted-task", Title: "Converted task", Type: tracker.TaskType, FromIdea: "original-idea", Added: "2026-03-01"},
+		{Slug: "normal-task", Title: "Normal task", Type: tracker.TaskType, Added: "2026-03-01"},
+	}
+
+	path := filepath.Join(t.TempDir(), "tracker.md")
+	if err := tracker.WriteTracker(path, "Test", input); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	output, err := tracker.ParseTracker(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(output) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(output))
+	}
+
+	bySlug := map[string]tracker.Item{}
+	for _, it := range output {
+		bySlug[it.Slug] = it
+	}
+
+	converted := bySlug["converted-task"]
+	if converted.FromIdea != "original-idea" {
+		t.Errorf("from-idea: got %q, want %q", converted.FromIdea, "original-idea")
+	}
+
+	normal := bySlug["normal-task"]
+	if normal.FromIdea != "" {
+		t.Errorf("expected empty from-idea, got %q", normal.FromIdea)
+	}
+}

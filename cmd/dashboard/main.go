@@ -29,6 +29,7 @@ import (
 	"github.com/fahad/dashboard/internal/db"
 	"github.com/fahad/dashboard/internal/home"
 	"github.com/fahad/dashboard/internal/ideas"
+	"github.com/fahad/dashboard/internal/insights"
 	"github.com/fahad/dashboard/internal/services"
 	"github.com/fahad/dashboard/internal/sse"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -60,6 +61,16 @@ var funcMap = template.FuncMap{
 	},
 	"subtract": func(a, b int) int {
 		return a - b
+	},
+	"ageBadge": func(added string) []string {
+		label, level := insights.AgeBadge(added, time.Now())
+		return []string{label, level}
+	},
+	"progressColour": func(current, target float64, added, deadline string) string {
+		return insights.ProgressColour(current, target, added, deadline, time.Now())
+	},
+	"goalPace": func(current, target float64, added, deadline string) string {
+		return insights.GoalPace(current, target, added, deadline, time.Now())
 	},
 	"linkify": func(text string) template.HTML {
 		var b strings.Builder
@@ -231,14 +242,16 @@ func main() {
 
 		ideaHandler = ideas.NewHandlerWithResolver(func(r *http.Request) *ideas.Service {
 			return registry.ForUser(auth.UserID(r.Context())).Ideas
-		}, func(ctx context.Context, title, body string, tags []string) error {
+		}, func(ctx context.Context, title, body string, tags []string, fromIdeaSlug string) (string, error) {
 			item := tracker.Item{
-				Title: title,
-				Type:  tracker.TaskType,
-				Body:  body,
-				Tags:  tags,
+				Title:    title,
+				Type:     tracker.TaskType,
+				Body:     body,
+				Tags:     tags,
+				FromIdea: fromIdeaSlug,
 			}
-			return registry.ForUser(auth.UserID(ctx)).Personal.AddItem(item)
+			taskSlug := tracker.Slugify(title)
+			return taskSlug, registry.ForUser(auth.UserID(ctx)).Personal.AddItem(item)
 		}, templates)
 
 		homeHandler := home.NewHandler(registry, templates)
@@ -360,14 +373,16 @@ func main() {
 			slog.Warn("file watcher failed to start", "error", err)
 		}
 
-		ideaHandler = ideas.NewHandler(ideaSvc, func(_ context.Context, title, body string, tags []string) error {
+		ideaHandler = ideas.NewHandler(ideaSvc, func(_ context.Context, title, body string, tags []string, fromIdeaSlug string) (string, error) {
 			item := tracker.Item{
-				Title: title,
-				Type:  tracker.TaskType,
-				Body:  body,
-				Tags:  tags,
+				Title:    title,
+				Type:     tracker.TaskType,
+				Body:     body,
+				Tags:     tags,
+				FromIdea: fromIdeaSlug,
 			}
-			return personalSvc.AddItem(item)
+			taskSlug := tracker.Slugify(title)
+			return taskSlug, personalSvc.AddItem(item)
 		}, templates)
 		personalHandler = tracker.NewHandler(personalSvc, familySvc, templates, "todos")
 		familyHandler = tracker.NewHandler(familySvc, personalSvc, templates, "family")
@@ -385,14 +400,16 @@ func main() {
 		userSvc := registry.ForUser(1)
 		apiIdeaHandler = ideas.NewHandler(
 			userSvc.Ideas,
-			func(_ context.Context, title, body string, tags []string) error {
+			func(_ context.Context, title, body string, tags []string, fromIdeaSlug string) (string, error) {
 				item := tracker.Item{
-					Title: title,
-					Type:  tracker.TaskType,
-					Body:  body,
-					Tags:  tags,
+					Title:    title,
+					Type:     tracker.TaskType,
+					Body:     body,
+					Tags:     tags,
+					FromIdea: fromIdeaSlug,
 				}
-				return userSvc.Personal.AddItem(item)
+				taskSlug := tracker.Slugify(title)
+				return taskSlug, userSvc.Personal.AddItem(item)
 			},
 			templates,
 		)

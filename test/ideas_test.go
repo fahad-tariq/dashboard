@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/fahad/dashboard/internal/ideas"
+	"github.com/fahad/dashboard/internal/tracker"
 )
 
 func TestParseIdeas_Basic(t *testing.T) {
@@ -293,6 +294,175 @@ func TestServiceTriage(t *testing.T) {
 	idea, _ = svc.Get("park-me")
 	if idea.Status != "untriaged" {
 		t.Errorf("status: got %q, want untriaged", idea.Status)
+	}
+}
+
+func TestConvertedToRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+
+	original := []ideas.Idea{
+		{
+			Slug:        "converted-idea",
+			Title:       "Converted Idea",
+			Status:      "converted",
+			Tags:        []string{"feature"},
+			Added:       "2026-03-16",
+			ConvertedTo: "converted-idea",
+			Body:        "This was converted to a task.",
+		},
+		{
+			Slug:   "normal-idea",
+			Title:  "Normal Idea",
+			Status: "untriaged",
+			Added:  "2026-03-17",
+			Body:   "Still an idea.",
+		},
+	}
+
+	if err := ideas.WriteIdeas(path, "Ideas", original); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	parsed, err := ideas.ParseIdeas(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(parsed) != 2 {
+		t.Fatalf("expected 2 ideas, got %d", len(parsed))
+	}
+
+	got := parsed[0]
+	if got.Status != "converted" {
+		t.Errorf("status: got %q, want %q", got.Status, "converted")
+	}
+	if got.ConvertedTo != "converted-idea" {
+		t.Errorf("converted-to: got %q, want %q", got.ConvertedTo, "converted-idea")
+	}
+
+	normal := parsed[1]
+	if normal.ConvertedTo != "" {
+		t.Errorf("expected empty converted-to, got %q", normal.ConvertedTo)
+	}
+}
+
+func TestConvertedToPreservesBlankLines(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+
+	original := []ideas.Idea{
+		{
+			Slug:        "rich-idea",
+			Title:       "Rich Idea",
+			Status:      "converted",
+			ConvertedTo: "rich-task",
+			Added:       "2026-03-16",
+			Body:        "Paragraph one.\n\nParagraph two.\n\nParagraph three.",
+		},
+	}
+
+	if err := ideas.WriteIdeas(path, "Ideas", original); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	parsed, err := ideas.ParseIdeas(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(parsed) != 1 {
+		t.Fatalf("expected 1 idea, got %d", len(parsed))
+	}
+	if parsed[0].Body != original[0].Body {
+		t.Errorf("body: got %q, want %q", parsed[0].Body, original[0].Body)
+	}
+}
+
+func TestServiceMarkConverted(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+
+	svc := ideas.NewService(path)
+	svc.Add(&ideas.Idea{
+		Slug:  "convert-me",
+		Title: "Convert Me",
+		Body:  "To be converted.",
+	})
+
+	if err := svc.MarkConverted("convert-me", "convert-me"); err != nil {
+		t.Fatalf("mark converted: %v", err)
+	}
+
+	idea, err := svc.Get("convert-me")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if idea.Status != "converted" {
+		t.Errorf("status: got %q, want converted", idea.Status)
+	}
+	if idea.ConvertedTo != "convert-me" {
+		t.Errorf("converted-to: got %q, want %q", idea.ConvertedTo, "convert-me")
+	}
+
+	// Verify the idea is not deleted.
+	list, _ := svc.List()
+	if len(list) != 1 {
+		t.Errorf("expected 1 idea after conversion, got %d (idea should NOT be deleted)", len(list))
+	}
+}
+
+func TestConversionFlowWithLinkage(t *testing.T) {
+	dir := t.TempDir()
+	ideasPath := filepath.Join(dir, "ideas.md")
+	trackerPath := filepath.Join(dir, "tracker.md")
+	os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644)
+	os.WriteFile(trackerPath, []byte("# Personal\n\n"), 0o644)
+
+	ideaSvc := ideas.NewService(ideasPath)
+	ideaSvc.Add(&ideas.Idea{
+		Slug:  "my-feature",
+		Title: "My Feature",
+		Tags:  []string{"tech"},
+		Body:  "Build a new feature.",
+	})
+
+	// Simulate the full conversion flow.
+	idea, _ := ideaSvc.Get("my-feature")
+
+	// Create tracker item with FromIdea set.
+	taskItem := tracker.Item{
+		Title:    idea.Title,
+		Type:     tracker.TaskType,
+		Body:     idea.Body,
+		Tags:     idea.Tags,
+		FromIdea: idea.Slug,
+	}
+	items := []tracker.Item{taskItem}
+	if err := tracker.WriteTracker(trackerPath, "Personal", items); err != nil {
+		t.Fatalf("write tracker: %v", err)
+	}
+
+	// Mark idea as converted.
+	taskSlug := tracker.Slugify(idea.Title)
+	if err := ideaSvc.MarkConverted("my-feature", taskSlug); err != nil {
+		t.Fatalf("mark converted: %v", err)
+	}
+
+	// Verify linkage on both sides.
+	converted, _ := ideaSvc.Get("my-feature")
+	if converted.Status != "converted" {
+		t.Errorf("idea status: got %q, want converted", converted.Status)
+	}
+	if converted.ConvertedTo != taskSlug {
+		t.Errorf("idea converted-to: got %q, want %q", converted.ConvertedTo, taskSlug)
+	}
+
+	parsedItems, _ := tracker.ParseTracker(trackerPath)
+	if len(parsedItems) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(parsedItems))
+	}
+	if parsedItems[0].FromIdea != "my-feature" {
+		t.Errorf("task from-idea: got %q, want %q", parsedItems[0].FromIdea, "my-feature")
 	}
 }
 

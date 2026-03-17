@@ -17,7 +17,9 @@ import (
 )
 
 // ToTaskFunc converts an idea to a task. Accepts context for user resolution.
-type ToTaskFunc func(ctx context.Context, title, body string, tags []string) error
+// fromIdeaSlug is recorded on the task for provenance tracking.
+// Returns the slug of the created task and any error.
+type ToTaskFunc func(ctx context.Context, title, body string, tags []string, fromIdeaSlug string) (string, error)
 
 // ServiceResolver returns the ideas service for the current request.
 type ServiceResolver func(r *http.Request) *Service
@@ -83,6 +85,7 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 		"untriaged": {},
 		"parked":    {},
 		"dropped":   {},
+		"converted": {},
 	}
 	tagSet := map[string]string{}
 	for _, idea := range ideas {
@@ -104,6 +107,7 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 	data["Untriaged"] = grouped["untriaged"]
 	data["Parked"] = grouped["parked"]
 	data["Dropped"] = grouped["dropped"]
+	data["Converted"] = grouped["converted"]
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
 		if flashMsg := flashMessages[msgKey]; flashMsg != "" {
 			data["FlashMsg"] = flashMsg
@@ -191,7 +195,7 @@ func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ideas?msg=idea-triaged", http.StatusSeeOther)
 }
 
-// ToTask converts an idea to a personal task and deletes it.
+// ToTask converts an idea to a personal task and marks it as converted.
 func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 
@@ -202,12 +206,13 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.toTask(r.Context(), idea.Title, idea.Body, idea.Tags); err != nil {
+	taskSlug, err := h.toTask(r.Context(), idea.Title, idea.Body, idea.Tags, slug)
+	if err != nil {
 		httputil.ServerError(w, "converting idea to task", err, "slug", slug)
 		return
 	}
 
-	_ = svc.Delete(slug)
+	_ = svc.MarkConverted(slug, taskSlug)
 
 	http.Redirect(w, r, "/ideas?msg=idea-converted", http.StatusSeeOther)
 }

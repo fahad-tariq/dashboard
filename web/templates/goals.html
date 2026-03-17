@@ -37,6 +37,10 @@
                 <option value="low">low</option>
             </select>
         </div>
+        <div class="goal-form-row">
+            <label for="goal-deadline" class="sr-only">Deadline</label>
+            <input type="date" name="deadline" id="goal-deadline" class="form-input form-input-sm" placeholder="Deadline (optional)">
+        </div>
         <label for="goal-body" class="sr-only">Notes</label>
         <textarea name="body" id="goal-body" placeholder="Notes, links, or context (optional)" rows="2" class="form-textarea"></textarea>
         <button type="submit" class="form-btn">add goal</button>
@@ -69,15 +73,18 @@
     {{if gt .Target 0.0}}
     <div class="tracker-progress-row">
         <div class="progress-bar">
-            <div class="progress-fill" style="width: {{percentage .Current .Target}}%"></div>
+            <div class="progress-fill {{progressColour .Current .Target .Added .Deadline}}" style="width: {{percentage .Current .Target}}%"></div>
         </div>
         <span class="progress-text">{{formatNum .Current}}/{{formatNum .Target}}{{if .Unit}} {{.Unit}}{{end}}</span>
     </div>
     {{end}}
+    {{if .Deadline}}
+    <div class="goal-pace">{{goalPace .Current .Target .Added .Deadline}}</div>
+    {{end}}
     {{if .Body}}
     <div class="tracker-item-body">{{linkify .Body}}</div>
     {{end}}
-    {{if .Added}}<div class="tracker-item-date" class="mt-xs">{{.Added}}</div>{{end}}
+    {{if .Added}}<div class="tracker-item-date" class="mt-xs">added {{.Added}}{{if .Deadline}} &middot; deadline {{.Deadline}}{{end}}</div>{{end}}
     <div class="tracker-item-actions">
         {{if gt .Target 0.0}}
         <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage">
