@@ -6,8 +6,10 @@ CMD := ./cmd/dashboard
 lint:
 	golangci-lint run ./...
 
+VERSION ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+
 build:
-	CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/$(BIN) $(CMD)
+	CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(VERSION)" -o bin/$(BIN) $(CMD)
 
 test:
 	go test -count=1 -race ./...

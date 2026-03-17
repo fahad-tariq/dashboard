@@ -37,10 +37,14 @@ import (
 	"github.com/fahad/dashboard/web"
 )
 
-var authEnabledFlag bool
+var (
+	version         = "dev"
+	authEnabledFlag bool
+)
 
 var funcMap = template.FuncMap{
 	"authEnabled": func() bool { return authEnabledFlag },
+	"buildVersion": func() string { return version },
 	"percentage": func(current, target float64) int {
 		if target == 0 {
 			return 0

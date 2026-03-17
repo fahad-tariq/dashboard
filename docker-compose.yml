@@ -1,6 +1,9 @@
 services:
   dashboard:
-    build: .
+    build:
+      context: .
+      args:
+        VERSION: ${VERSION:-dev}
     ports:
       - "8080:8080"
     volumes:
@@ -16,5 +19,5 @@ services:
       - DASHBOARD_API_TOKEN=${DASHBOARD_API_TOKEN}
       - DASHBOARD_PASSWORD_HASH=${DASHBOARD_PASSWORD_HASH}
       - SESSION_LIFETIME=${SESSION_LIFETIME:-720h}
-      - DASHBOARD_SECURE_COOKIES=${DASHBOARD_SECURE_COOKIES:-false}
+      - DASHBOARD_SECURE_COOKIES=${DASHBOARD_SECURE_COOKIES:-true}
       - USER_DATA_DIR=/data/users

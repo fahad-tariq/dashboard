@@ -1115,3 +1115,11 @@ section h2 {
 }
 .homepage-idea a { color: var(--fg); text-decoration: none; }
 .homepage-idea a:hover { color: var(--accent); }
+.build-info {
+    text-align: center;
+    padding: 1.5rem 0 0.75rem;
+    font-size: 0.7rem;
+    color: var(--fg-muted);
+    opacity: 0.6;
+    font-family: monospace;
+}
