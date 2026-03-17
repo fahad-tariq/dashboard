@@ -166,8 +166,6 @@ func classifyEventWithUser(path string, dirCategories, fileCategories map[string
 						return uid, "personal"
 					case strings.HasPrefix(subpath, "ideas"):
 						return uid, "ideas"
-					case strings.HasPrefix(subpath, "explorations"):
-						return uid, "exploration"
 					}
 				}
 			}

@@ -1,6 +1,6 @@
 # Dashboard
 
-A personal task, goal, idea, and exploration dashboard backed by markdown files. Tasks and goals are split into personal (`personal.md`) and family (`family.md`) lists. Ideas and explorations are file-per-item in their own directories. Web UI with htmx for live updates. Supports image upload and clipboard paste across all content types.
+A personal task, goal, and idea dashboard backed by markdown files. Tasks and goals are split into personal (`personal.md`) and family (`family.md`) lists. Ideas are stored in a single `ideas.md` flat file with inline metadata. Web UI with htmx for live updates. Supports image upload and clipboard paste across all content types.
 
 ## Setup
 
@@ -34,20 +34,20 @@ The app auto-creates `admin@localhost` from `DASHBOARD_PASSWORD_HASH` on first s
 
 ### Migrating legacy data
 
-If you have data from before multi-user support (files at `/data/personal.md`, `/data/ideas/`, `/data/explorations/`), move them to a user's directory:
+If you have data from before the flat-file migration (directory-based ideas at `/data/ideas/untriaged/` etc., or explorations at `/data/explorations/`), convert them to the new format:
 
 ```bash
 docker exec <container> /usr/local/bin/dashboard migrate-data --user-id 1
 ```
 
-This copies old files into `/data/users/1/`. Idempotent -- safe to run multiple times.
+This reads old-format idea and exploration files, merges research notes into idea bodies, and writes a single `ideas.md` per user. Explorations are migrated as parked ideas. Slug collisions are handled by suffixing `-exp`.
 
 ## Configuration
 
 | Variable | Default | Description |
 |---|---|---|
-| `IDEAS_DIR` | `/data/ideas` | Legacy ideas directory (pre-multi-user) |
-| `EXPLORATION_DIR` | `/data/explorations` | Legacy explorations directory (pre-multi-user) |
+| `IDEAS_PATH` | `/data/ideas.md` | Ideas flat file (single-user mode) |
+| `IDEAS_DIR` | (empty) | Legacy: if set, derives `IDEAS_PATH` from parent directory |
 | `UPLOADS_DIR` | `/data/uploads` | Directory for uploaded images (shared, auto-created) |
 | `PERSONAL_PATH` | `/data/personal.md` | Legacy personal tasks file (pre-multi-user) |
 | `FAMILY_PATH` | `/data/family.md` | Shared family tasks file |
@@ -66,7 +66,7 @@ This copies old files into `/data/users/1/`. Idempotent -- safe to run multiple 
 make run
 
 # Or directly
-IDEAS_DIR=./ideas PERSONAL_PATH=./data/personal.md FAMILY_PATH=./data/family.md go run ./cmd/dashboard
+IDEAS_PATH=./ideas.md PERSONAL_PATH=./data/personal.md FAMILY_PATH=./data/family.md go run ./cmd/dashboard
 
 # Build binary
 make build
@@ -80,7 +80,7 @@ make build
 ./dashboard useradd --email alice@example.com --password secret123
 
 # Migrate legacy data to a user's directory
-./dashboard migrate-data --user-id 1
+./dashboard migrate-data --user-id 1 [--ideas-dir /old/ideas] [--explorations-dir /old/explorations]
 ```
 
 ## Docker
@@ -89,7 +89,7 @@ make build
 docker compose up --build
 ```
 
-The compose file mounts `./ideas` for legacy idea files, `./data` for the database and family tasks, and `./users` for per-user data (personal tasks, ideas, explorations).
+The compose file mounts `./data` for the database and family tasks, and `./users` for per-user data (personal tasks, ideas).
 
 ## Features
 
@@ -110,21 +110,15 @@ The compose file mounts `./ideas` for legacy idea files, `./data` for the databa
 - Same priority and tag system as tasks
 
 ### Ideas
-- File-per-idea with frontmatter metadata
-- Tag-based categorisation (replaces fixed type dropdown)
+- Single flat file (`ideas.md`) with checkbox items and inline metadata
 - Triage workflow: untriaged -> parked / dropped
-- Convert idea to task (tags carry over)
-- Research notes per idea
+- Convert idea to personal task (tags carry over)
+- Research notes stored inline in idea body
 - Quick add with `#tag` syntax
-
-### Exploration
-- File-per-item for open-ended explorations and research
-- Tag-based categorisation with `#tag` syntax
-- Markdown body with rendered detail view
-- Inline editing of body, tags, and images
+- Optional project field for grouping
 
 ### Image upload
-- Attach images to any task, goal, idea, or exploration
+- Attach images to any task, goal, or idea
 - Upload via file picker or clipboard paste (Ctrl+V in any textarea)
 - MIME-based validation (PNG, JPEG, GIF, WebP only)
 - Canonical extension mapping (ignores original filename extension)
@@ -132,7 +126,7 @@ The compose file mounts `./ideas` for legacy idea files, `./data` for the databa
 
 ### Authentication and multi-user
 - Email + password login with bcrypt, server-side sessions (SQLite-backed)
-- Multi-user: each user gets isolated personal tasks, goals, ideas, and explorations
+- Multi-user: each user gets isolated personal tasks, goals, and ideas
 - Shared family task list visible to all users
 - Two roles: `admin` (can manage users) and `user`
 - Admin UI at `/admin/users` for creating, editing, and deleting users
@@ -161,56 +155,41 @@ Tasks and goals are stored in `personal.md` and `family.md` as flat checkbox lis
 
 ## Idea file format
 
-Each idea is a markdown file in `IDEAS_DIR/{status}/`:
+Ideas are stored in a single `ideas.md` file with checkbox items and inline metadata:
 
 ```markdown
----
-tags: feature, exploration
-date: 2026-03-14
-images: abc123.png
----
+# Ideas
 
-# Idea title
+- [ ] Try Caddy instead of nginx [status: parked] [tags: infra, homelab] [project: homelabs] [added: 2026-03-14]
+  Replace nginx reverse proxy with Caddy for automatic HTTPS.
 
-Description here.
+  ## Research
+  Caddy auto-provisions TLS certs via ACME. Simpler config than nginx.
+
+- [ ] Dashboard mobile PWA [status: untriaged] [tags: dashboard] [added: 2026-03-16] [images: pwa-sketch.png]
+  Add a manifest.json and service worker for offline support.
 ```
 
-Status directories: `untriaged/`, `parked/`, `dropped/`. Research notes are stored separately in `research/`. Legacy files with `type:` frontmatter are automatically migrated to `tags:` on read.
-
-## Exploration file format
-
-Each exploration is a markdown file in `EXPLORATION_DIR/`:
-
-```markdown
----
-tags: rust, systems
-date: 2026-03-16
----
-
-# Exploring Rust for CLI tools
-
-Notes and findings here.
-```
+Status values: `untriaged` (default), `parked`, `dropped`. The `[project: ...]` field is optional. Body lines are indented with 2 spaces; blank lines within bodies are preserved.
 
 ## Routes
 
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/` | Homepage (summary of all sections) |
-| `GET` | `/personal` | Personal tasks page |
+| `GET` | `/todos` | Personal tasks page |
 | `GET` | `/family` | Family tasks page |
 | `GET` | `/goals` | Goals page (personal only) |
-| `GET` | `/ideas` | Ideas inbox |
+| `GET` | `/ideas` | Ideas list (grouped by status) |
 | `GET` | `/ideas/{slug}` | Idea detail |
-| `GET` | `/exploration` | Exploration list |
-| `GET` | `/exploration/{slug}` | Exploration detail |
+| `GET` | `/exploration` | Redirects to `/ideas` (301) |
 | `POST` | `/upload` | Image upload (multipart, returns JSON) |
 | `GET` | `/uploads/{filename}` | Serve uploaded images |
 | `GET` | `/events` | SSE endpoint for live reload |
 | `GET` | `/login` | Login page |
 | `POST` | `/login` | Login submission |
 | `POST` | `/logout` | Logout |
-| `GET` | `/account/password` | Self-service password change |
+| `GET` | `/account` | Self-service account settings |
 | `GET` | `/admin/users` | Admin: user list (admin only) |
 | `GET` | `/admin/users/new` | Admin: create user form |
 | `GET` | `/admin/users/{id}/edit` | Admin: edit user form |
@@ -225,7 +204,7 @@ All API routes are under `/api/v1` and require a bearer token if `DASHBOARD_API_
 | `GET` | `/api/v1/ideas` | List all ideas |
 | `POST` | `/api/v1/ideas` | Create idea (JSON body) |
 | `PUT` | `/api/v1/ideas/{slug}/triage` | Triage idea (park/drop/untriage) |
-| `POST` | `/api/v1/ideas/{slug}/research` | Add research content |
+| `POST` | `/api/v1/ideas/{slug}/research` | Add research content to idea body |
 
 ## Data storage
 
@@ -233,9 +212,8 @@ With multi-user, personal data is stored per-user under `USER_DATA_DIR/{user_id}
 
 | Data | Location | Format |
 |---|---|---|
-| Personal tasks and goals | `USER_DATA_DIR/{id}/personal.md` | Markdown file |
-| Ideas and research | `USER_DATA_DIR/{id}/ideas/` | Directory of markdown files |
-| Explorations | `USER_DATA_DIR/{id}/explorations/` | Directory of markdown files |
+| Personal tasks and goals | `USER_DATA_DIR/{id}/personal.md` | Markdown flat file |
+| Ideas | `USER_DATA_DIR/{id}/ideas.md` | Markdown flat file |
 | Family tasks | `FAMILY_PATH` | Shared markdown file |
 | Uploaded images | `UPLOADS_DIR` | Shared image files |
 | Database | `DB_PATH` | SQLite (users, sessions, tracker cache) |
@@ -244,7 +222,7 @@ With multi-user, personal data is stored per-user under `USER_DATA_DIR/{user_id}
 
 All user data is plain markdown files. The SQLite database stores users, sessions, and a tracker cache. The tracker cache is rebuilt from markdown on startup, but the users table is authoritative.
 
-To back up the dashboard, copy the task files and ideas directory. A few options:
+To back up the dashboard, copy the markdown files and database. A few options:
 
 **Docker volume snapshot**
 

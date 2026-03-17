@@ -3,7 +3,7 @@
      hx-get="/" hx-select=".homepage-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
 
-{{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .UntriagedCount 0) (eq .ExplorationCount 0)}}
+{{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .TotalIdeaCount 0)}}
 <p class="empty">Nothing here yet{{if .UserName}}, {{.UserName}}{{end}}. Use the nav above to get started.</p>
 {{else}}
 <div class="homepage-grid">
@@ -70,33 +70,16 @@
 </section>
 {{end}}
 
-{{if or .UntriagedIdeas (gt .UntriagedCount 0)}}
+{{if gt .TotalIdeaCount 0}}
 <section class="homepage-card homepage-col-right">
     <div class="homepage-card-header">
         <a href="/ideas" class="homepage-card-title">Ideas</a>
-        <span><span class="stat-value">{{.UntriagedCount}}</span> <span class="meta-dim">untriaged</span></span>
+        <span>{{if gt .UntriagedCount 0}}<span class="stat-value">{{.UntriagedCount}}</span> <span class="meta-dim">untriaged</span> / {{end}}<span class="stat-value">{{.TotalIdeaCount}}</span> <span class="meta-dim">total</span></span>
     </div>
     <div class="homepage-card-body">
         {{range .UntriagedIdeas}}
         <div class="homepage-idea">
             <a href="/ideas/{{.Slug}}">{{.Title}}</a>
-        </div>
-        {{end}}
-    </div>
-</section>
-{{end}}
-
-{{if gt .ExplorationCount 0}}
-<section class="homepage-card homepage-col-right">
-    <div class="homepage-card-header">
-        <a href="/exploration" class="homepage-card-title">Exploration</a>
-        <span><span class="stat-value">{{.ExplorationCount}}</span> <span class="meta-dim">entries</span></span>
-    </div>
-    <div class="homepage-card-body">
-        {{range .RecentExplorations}}
-        <div class="homepage-exploration">
-            <a href="/exploration/{{.Slug}}">{{.Title}}</a>
-            {{if .Date}}<span class="meta-dim">{{.Date}}</span>{{end}}
         </div>
         {{end}}
     </div>

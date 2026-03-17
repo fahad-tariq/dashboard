@@ -9,8 +9,7 @@ import (
 )
 
 type Config struct {
-	IdeasDir        string
-	ExplorationDir  string
+	IdeasPath       string
 	UploadsDir      string
 	PersonalPath    string
 	FamilyPath      string
@@ -32,9 +31,20 @@ func Load() (*Config, error) {
 
 	secureCookies, _ := strconv.ParseBool(os.Getenv("DASHBOARD_SECURE_COOKIES"))
 
+	// IDEAS_PATH takes precedence. Fall back to IDEAS_DIR for backwards
+	// compatibility: if IDEAS_DIR is set, derive the file path from it.
+	ideasPath := os.Getenv("IDEAS_PATH")
+	if ideasPath == "" {
+		ideasDir := os.Getenv("IDEAS_DIR")
+		if ideasDir != "" {
+			ideasPath = filepath.Join(filepath.Dir(ideasDir), "ideas.md")
+		} else {
+			ideasPath = "/data/ideas.md"
+		}
+	}
+
 	c := &Config{
-		IdeasDir:        envOr("IDEAS_DIR", "/data/ideas"),
-		ExplorationDir:  envOr("EXPLORATION_DIR", "/data/explorations"),
+		IdeasPath:       ideasPath,
 		UploadsDir:      envOr("UPLOADS_DIR", "/data/uploads"),
 		PersonalPath:    envOr("PERSONAL_PATH", "/data/personal.md"),
 		FamilyPath:      envOr("FAMILY_PATH", "/data/family.md"),
@@ -54,27 +64,18 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) validate() error {
-	for _, sub := range []string{"untriaged", "parked", "dropped", "research"} {
-		dir := filepath.Join(c.IdeasDir, sub)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("creating ideas dir %q: %w", dir, err)
-		}
-	}
-
-	if err := os.MkdirAll(c.ExplorationDir, 0o755); err != nil {
-		return fmt.Errorf("creating exploration dir %q: %w", c.ExplorationDir, err)
-	}
-
 	if err := os.MkdirAll(c.UploadsDir, 0o755); err != nil {
 		return fmt.Errorf("creating uploads dir %q: %w", c.UploadsDir, err)
 	}
 
+	// Create skeleton files for tracker markdown files and ideas.
 	for _, entry := range []struct {
 		path    string
 		heading string
 	}{
 		{c.PersonalPath, "Personal"},
 		{c.FamilyPath, "Family"},
+		{c.IdeasPath, "Ideas"},
 	} {
 		if err := os.MkdirAll(filepath.Dir(entry.path), 0o755); err != nil {
 			return fmt.Errorf("creating directory for %s: %w", entry.path, err)

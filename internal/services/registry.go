@@ -8,16 +8,14 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/fahad/dashboard/internal/exploration"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/tracker"
 )
 
 // UserServices holds the per-user service instances.
 type UserServices struct {
-	Personal     *tracker.Service
-	Ideas        *ideas.Service
-	Explorations *exploration.Service
+	Personal *tracker.Service
+	Ideas    *ideas.Service
 }
 
 // Registry manages per-user service instances and the shared family service.
@@ -55,18 +53,8 @@ func (r *Registry) Family() *tracker.Service {
 func (r *Registry) EnsureUserDirs(userID int64) error {
 	base := filepath.Join(r.userDataDir, fmt.Sprintf("%d", userID))
 
-	dirs := []string{
-		base,
-		filepath.Join(base, "ideas", "untriaged"),
-		filepath.Join(base, "ideas", "parked"),
-		filepath.Join(base, "ideas", "dropped"),
-		filepath.Join(base, "ideas", "research"),
-		filepath.Join(base, "explorations"),
-	}
-	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("creating directory %s: %w", dir, err)
-		}
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		return fmt.Errorf("creating directory %s: %w", base, err)
 	}
 
 	// Create skeleton personal.md if it does not exist.
@@ -75,6 +63,15 @@ func (r *Registry) EnsureUserDirs(userID int64) error {
 		skeleton := "# Personal\n\n"
 		if err := os.WriteFile(personalPath, []byte(skeleton), 0o644); err != nil {
 			return fmt.Errorf("creating personal.md: %w", err)
+		}
+	}
+
+	// Create skeleton ideas.md if it does not exist.
+	ideasPath := filepath.Join(base, "ideas.md")
+	if _, err := os.Stat(ideasPath); os.IsNotExist(err) {
+		skeleton := "# Ideas\n\n"
+		if err := os.WriteFile(ideasPath, []byte(skeleton), 0o644); err != nil {
+			return fmt.Errorf("creating ideas.md: %w", err)
 		}
 	}
 
@@ -92,8 +89,6 @@ func (r *Registry) ForUser(userID int64) *UserServices {
 	}
 
 	// Lazily provision user directories on first access.
-	// EnsureUserDirs is idempotent and safe to call outside the mutex scope
-	// (it only touches the filesystem), but we call it here for simplicity.
 	if err := r.EnsureUserDirs(userID); err != nil {
 		slog.Error("provisioning user dirs", "user_id", userID, "error", err)
 	}
@@ -104,16 +99,12 @@ func (r *Registry) ForUser(userID int64) *UserServices {
 	personalStore := tracker.NewUserStore(r.db, "personal", userID)
 	personalSvc := tracker.NewService(personalPath, "Personal", personalStore)
 
-	ideasDir := filepath.Join(base, "ideas")
-	ideaSvc := ideas.NewService(ideasDir)
-
-	explorationsDir := filepath.Join(base, "explorations")
-	explorationSvc := exploration.NewService(explorationsDir)
+	ideasPath := filepath.Join(base, "ideas.md")
+	ideaSvc := ideas.NewService(ideasPath)
 
 	svc := &UserServices{
-		Personal:     personalSvc,
-		Ideas:        ideaSvc,
-		Explorations: explorationSvc,
+		Personal: personalSvc,
+		Ideas:    ideaSvc,
 	}
 	r.cache[userID] = svc
 	return svc

@@ -25,7 +25,6 @@ import (
 	"github.com/fahad/dashboard/internal/auth"
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/db"
-	"github.com/fahad/dashboard/internal/exploration"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/services"
 	"github.com/fahad/dashboard/internal/sse"
@@ -138,8 +137,8 @@ func main() {
 	var registry *services.Registry
 
 	if cfg.AuthEnabled() {
-		// Per-user service registry: each user gets isolated personal, ideas,
-		// and exploration services. Family is shared across all users.
+		// Per-user service registry: each user gets isolated personal and ideas
+		// services. Family is shared across all users.
 		registry = services.NewRegistry(database, cfg.UserDataDir, cfg.FamilyPath)
 
 		// Provision directories for every existing user on startup.
@@ -210,10 +209,6 @@ func main() {
 				Tags:  tags,
 			}
 			return registry.ForUser(auth.UserID(ctx)).Personal.AddItem(item)
-		}, templates)
-
-		explorationHandler := exploration.NewHandlerWithResolver(func(r *http.Request) *exploration.Service {
-			return registry.ForUser(auth.UserID(r.Context())).Explorations
 		}, templates)
 
 		sessionStore := auth.NewSQLiteStore(database)
@@ -294,11 +289,10 @@ func main() {
 			r.Post("/ideas/{slug}/edit", ideaHandler.Edit)
 			r.Post("/ideas/{slug}/delete", ideaHandler.DeleteIdea)
 
-			r.Get("/exploration", explorationHandler.ExplorationsPage)
-			r.Get("/exploration/{slug}", explorationHandler.ExplorationDetail)
-			r.Post("/exploration/add", explorationHandler.QuickAdd)
-			r.Post("/exploration/{slug}/edit", explorationHandler.Edit)
-			r.Post("/exploration/{slug}/delete", explorationHandler.Delete)
+			r.Get("/exploration", http.RedirectHandler("/ideas", http.StatusMovedPermanently).ServeHTTP)
+			r.Get("/exploration/{slug}", func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, "/ideas/"+chi.URLParam(r, "slug"), http.StatusMovedPermanently)
+			})
 
 			// Self-service account settings.
 			r.Get("/account", accountPage(database, templates))
@@ -308,8 +302,7 @@ func main() {
 		})
 	} else {
 		// Auth disabled: singleton services are fine for single-user mode.
-		ideaSvc := ideas.NewService(cfg.IdeasDir)
-		explorationSvc := exploration.NewService(cfg.ExplorationDir)
+		ideaSvc := ideas.NewService(cfg.IdeasPath)
 		personalStore := tracker.NewStore(database, "personal")
 		familyStore := tracker.NewStore(database, "family")
 		personalSvc := tracker.NewService(cfg.PersonalPath, "Personal", personalStore)
@@ -321,13 +314,10 @@ func main() {
 			slog.Warn("initial family sync", "error", err)
 		}
 
-		dirCategories := map[string]string{
-			cfg.IdeasDir:       "ideas",
-			cfg.ExplorationDir: "exploration",
-		}
 		fileCategories := map[string]string{
 			cfg.PersonalPath: "personal",
 			cfg.FamilyPath:   "family",
+			cfg.IdeasPath:    "ideas",
 		}
 		callbacks := map[string]func(){
 			"personal": func() {
@@ -341,7 +331,7 @@ func main() {
 				}
 			},
 		}
-		if err := watcher.Watch(dirCategories, fileCategories, broker, callbacks); err != nil {
+		if err := watcher.Watch(nil, fileCategories, broker, callbacks); err != nil {
 			slog.Warn("file watcher failed to start", "error", err)
 		}
 
@@ -356,13 +346,12 @@ func main() {
 		}, templates)
 		personalHandler := tracker.NewHandler(personalSvc, familySvc, templates, "todos")
 		familyHandler := tracker.NewHandler(familySvc, personalSvc, templates, "family")
-		explorationHandler := exploration.NewHandler(explorationSvc, templates)
 
 		r.Post("/upload", uploadHandler.Upload)
 		r.Handle("/uploads/*", http.StripPrefix("/uploads/", noDirectoryListing(http.Dir(cfg.UploadsDir))))
 		r.Get("/events", broker.ServeHTTP)
 
-		r.Get("/", homePage(personalSvc, familySvc, ideaSvc, explorationSvc, templates))
+		r.Get("/", homePage(personalSvc, familySvc, ideaSvc, templates))
 		r.Get("/todos", personalHandler.TrackerPage)
 		r.Get("/personal", http.RedirectHandler("/todos", http.StatusMovedPermanently).ServeHTTP)
 		r.Get("/family", familyHandler.TrackerPage)
@@ -378,11 +367,10 @@ func main() {
 		r.Post("/ideas/{slug}/edit", ideaHandler.Edit)
 		r.Post("/ideas/{slug}/delete", ideaHandler.DeleteIdea)
 
-		r.Get("/exploration", explorationHandler.ExplorationsPage)
-		r.Get("/exploration/{slug}", explorationHandler.ExplorationDetail)
-		r.Post("/exploration/add", explorationHandler.QuickAdd)
-		r.Post("/exploration/{slug}/edit", explorationHandler.Edit)
-		r.Post("/exploration/{slug}/delete", explorationHandler.Delete)
+		r.Get("/exploration", http.RedirectHandler("/ideas", http.StatusMovedPermanently).ServeHTTP)
+		r.Get("/exploration/{slug}", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/ideas/"+chi.URLParam(r, "slug"), http.StatusMovedPermanently)
+		})
 	}
 
 	// API routes: always use bearer token auth (separate from session auth).
@@ -391,7 +379,7 @@ func main() {
 	apiIdeaHandler := ideaHandler
 	if cfg.AuthEnabled() && apiIdeaHandler != nil {
 		apiIdeaHandler = ideas.NewHandler(
-			ideas.NewService(cfg.UserDataDir+"/1/ideas"),
+			ideas.NewService(cfg.UserDataDir+"/1/ideas.md"),
 			func(_ context.Context, title, body string, tags []string) error {
 				item := tracker.Item{
 					Title: title,
@@ -456,13 +444,16 @@ func runUserAdd() {
 }
 
 // runMigrateData handles the "migrate-data" CLI subcommand.
+// Converts old directory-based ideas and explorations into a single ideas.md flat file.
 func runMigrateData() {
 	fs := flag.NewFlagSet("migrate-data", flag.ExitOnError)
 	userID := fs.Int("user-id", 0, "target user ID")
+	oldIdeasDir := fs.String("ideas-dir", "", "old ideas directory (with untriaged/parked/dropped subdirs)")
+	oldExpDir := fs.String("explorations-dir", "", "old explorations directory")
 	fs.Parse(os.Args[2:])
 
 	if *userID <= 0 {
-		fmt.Fprintln(os.Stderr, "usage: dashboard migrate-data --user-id <N>")
+		fmt.Fprintln(os.Stderr, "usage: dashboard migrate-data --user-id <N> [--ideas-dir <path>] [--explorations-dir <path>]")
 		os.Exit(1)
 	}
 
@@ -473,25 +464,190 @@ func runMigrateData() {
 	}
 
 	userDir := fmt.Sprintf("%s/%d", cfg.UserDataDir, *userID)
-
-	// Ensure user directories exist.
-	for _, sub := range []string{"ideas/untriaged", "ideas/parked", "ideas/dropped", "ideas/research", "explorations"} {
-		if err := os.MkdirAll(fmt.Sprintf("%s/%s", userDir, sub), 0o755); err != nil {
-			fmt.Fprintf(os.Stderr, "creating directory: %v\n", err)
-			os.Exit(1)
-		}
+	if err := os.MkdirAll(userDir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "creating user directory: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Move personal.md.
 	migrateFile(cfg.PersonalPath, fmt.Sprintf("%s/personal.md", userDir))
 
-	// Move ideas.
-	migrateDir(cfg.IdeasDir, fmt.Sprintf("%s/ideas", userDir))
+	// Collect ideas from old directory structure into flat-file format.
+	var allIdeas []ideas.Idea
+	slugSet := map[string]bool{}
 
-	// Move explorations.
-	migrateDir(cfg.ExplorationDir, fmt.Sprintf("%s/explorations", userDir))
+	ideasBase := *oldIdeasDir
+	if ideasBase == "" {
+		ideasBase = fmt.Sprintf("%s/ideas", userDir)
+	}
 
-	fmt.Println("data migration complete")
+	// Read ideas from status directories.
+	for _, status := range []string{"untriaged", "parked", "dropped"} {
+		dir := ideasBase + "/" + status
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+				continue
+			}
+			idea := migrateOldIdea(dir+"/"+e.Name(), status)
+			if idea != nil {
+				slugSet[idea.Slug] = true
+				allIdeas = append(allIdeas, *idea)
+			}
+		}
+	}
+
+	// Merge research files into matching idea bodies.
+	researchDir := ideasBase + "/research"
+	if entries, err := os.ReadDir(researchDir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+				continue
+			}
+			slug := strings.TrimSuffix(e.Name(), ".md")
+			data, err := os.ReadFile(researchDir + "/" + e.Name())
+			if err != nil {
+				continue
+			}
+			content := strings.TrimSpace(string(data))
+			if content == "" {
+				continue
+			}
+
+			found := false
+			for i := range allIdeas {
+				if allIdeas[i].Slug == slug {
+					allIdeas[i].Body += "\n\n## Research\n\n" + content
+					found = true
+					break
+				}
+			}
+			if !found {
+				fmt.Printf("  orphaned research file %s -- creating standalone idea\n", e.Name())
+				allIdeas = append(allIdeas, ideas.Idea{
+					Slug:   slug,
+					Title:  slug,
+					Status: "untriaged",
+					Body:   "## Research\n\n" + content,
+				})
+				slugSet[slug] = true
+			}
+		}
+	}
+
+	// Read explorations and add as parked ideas.
+	expBase := *oldExpDir
+	if expBase == "" {
+		expBase = fmt.Sprintf("%s/explorations", userDir)
+	}
+	if entries, err := os.ReadDir(expBase); err == nil {
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+				continue
+			}
+			idea := migrateOldIdea(expBase+"/"+e.Name(), "parked")
+			if idea != nil {
+				if slugSet[idea.Slug] {
+					idea.Slug += "-exp"
+					idea.Title += " (exp)"
+					fmt.Printf("  slug collision: renamed to %s\n", idea.Slug)
+				}
+				slugSet[idea.Slug] = true
+				allIdeas = append(allIdeas, *idea)
+			}
+		}
+	}
+
+	// Write combined ideas.md.
+	ideasPath := fmt.Sprintf("%s/ideas.md", userDir)
+	if err := ideas.WriteIdeas(ideasPath, "Ideas", allIdeas); err != nil {
+		fmt.Fprintf(os.Stderr, "writing ideas.md: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("migrated %d ideas to %s\n", len(allIdeas), ideasPath)
+}
+
+// migrateOldIdea reads an old-format idea file (frontmatter + body with # Title heading)
+// and converts it to the new flat-file Idea struct.
+func migrateOldIdea(path, status string) *ideas.Idea {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Printf("  error reading %s: %v\n", path, err)
+		return nil
+	}
+
+	content := string(data)
+	frontmatter, body := splitOldFrontmatter(content)
+
+	idea := &ideas.Idea{
+		Status: status,
+	}
+
+	// Parse frontmatter fields.
+	for line := range strings.SplitSeq(frontmatter, "\n") {
+		line = strings.TrimSpace(line)
+		k, v, ok := strings.Cut(line, ": ")
+		if !ok {
+			continue
+		}
+		switch k {
+		case "tags":
+			idea.Tags = ideas.ParseCSV(v)
+		case "type":
+			// Legacy: single type becomes a tag.
+			v = strings.TrimSpace(v)
+			if v != "" {
+				idea.Tags = append(idea.Tags, v)
+			}
+		case "images":
+			idea.Images = ideas.ParseCSV(v)
+		case "suggested-project":
+			idea.Project = strings.TrimSpace(v)
+		case "date":
+			idea.Added = strings.TrimSpace(v)
+		}
+	}
+
+	// Extract title from first # heading and strip it from body.
+	body = strings.TrimSpace(body)
+	lines := strings.SplitN(body, "\n", 2)
+	if len(lines) > 0 {
+		if title, ok := strings.CutPrefix(strings.TrimSpace(lines[0]), "# "); ok {
+			idea.Title = title
+			if len(lines) > 1 {
+				body = strings.TrimSpace(lines[1])
+			} else {
+				body = ""
+			}
+		}
+	}
+
+	if idea.Title == "" {
+		// Fall back to slug from filename.
+		base := strings.TrimSuffix(path[strings.LastIndex(path, "/")+1:], ".md")
+		idea.Title = base
+	}
+
+	idea.Slug = ideas.Slugify(idea.Title)
+	idea.Body = body
+
+	return idea
+}
+
+func splitOldFrontmatter(content string) (frontmatter, body string) {
+	if !strings.HasPrefix(content, "---\n") {
+		return "", content
+	}
+	rest := content[4:]
+	fm, after, ok := strings.Cut(rest, "\n---")
+	if !ok {
+		return "", content
+	}
+	return fm, strings.TrimPrefix(after, "\n")
 }
 
 // migrateFile moves src to dst if src exists and dst does not.
@@ -503,7 +659,7 @@ func migrateFile(src, dst string) {
 		fmt.Printf("  skip %s (already exists at %s)\n", src, dst)
 		return
 	}
-	if err := os.MkdirAll(strings.TrimSuffix(dst, "/"+lastPathComponent(dst)), 0o755); err != nil {
+	if err := os.MkdirAll(dst[:strings.LastIndex(dst, "/")], 0o755); err != nil {
 		fmt.Printf("  error creating parent dir: %v\n", err)
 		return
 	}
@@ -520,28 +676,6 @@ func migrateFile(src, dst string) {
 	fmt.Printf("  moved %s -> %s\n", src, dst)
 }
 
-func lastPathComponent(path string) string {
-	parts := strings.Split(path, "/")
-	return parts[len(parts)-1]
-}
-
-// migrateDir copies files from src subdirectories to dst subdirectories.
-func migrateDir(src, dst string) {
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return
-	}
-	for _, entry := range entries {
-		srcPath := src + "/" + entry.Name()
-		dstPath := dst + "/" + entry.Name()
-		if entry.IsDir() {
-			migrateDir(srcPath, dstPath)
-		} else {
-			migrateFile(srcPath, dstPath)
-		}
-	}
-}
-
 // homePageWithRegistry serves the homepage using per-user services from the registry.
 func homePageWithRegistry(registry *services.Registry, templates map[string]*template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -555,22 +689,20 @@ func homePageWithRegistry(registry *services.Registry, templates map[string]*tem
 		personalItems, _ := userSvc.Personal.List()
 		familyItems, _ := familySvc.List()
 		allIdeas, _ := userSvc.Ideas.List()
-		explorations, _ := userSvc.Explorations.List()
 
 		userName := auth.UserName(r.Context())
 		data := map[string]any{
-			"Title":              "Home",
-			"UserName":           userName,
-			"PersonalTasks":      topTasks(personalItems, 5),
-			"PersonalTaskCount":  personalSummary.OpenTasks,
-			"FamilyTasks":        topTasks(familyItems, 5),
-			"FamilyTaskCount":    familySummary.OpenTasks,
-			"Goals":              activeGoals(personalItems),
-			"UntriagedIdeas":     filterUntriaged(allIdeas, 3),
-			"UntriagedCount":     countUntriaged(allIdeas),
-			"RecentExplorations": recentExplorations(explorations, 3),
-			"ExplorationCount":   len(explorations),
-			"IsAdmin":            auth.IsAdmin(r.Context()),
+			"Title":             "Home",
+			"UserName":          userName,
+			"PersonalTasks":     topTasks(personalItems, 5),
+			"PersonalTaskCount": personalSummary.OpenTasks,
+			"FamilyTasks":       topTasks(familyItems, 5),
+			"FamilyTaskCount":   familySummary.OpenTasks,
+			"Goals":             activeGoals(personalItems),
+			"UntriagedIdeas":    filterUntriaged(allIdeas, 3),
+			"UntriagedCount":    countUntriaged(allIdeas),
+			"TotalIdeaCount":    len(allIdeas),
+			"IsAdmin":           auth.IsAdmin(r.Context()),
 		}
 
 		if err := templates["homepage.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -580,7 +712,7 @@ func homePageWithRegistry(registry *services.Registry, templates map[string]*tem
 }
 
 // homePage serves the homepage using singleton services (auth-disabled mode).
-func homePage(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, explorationSvc *exploration.Service, templates map[string]*template.Template) http.HandlerFunc {
+func homePage(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		personalSummary, _ := personalSvc.Summary()
 		familySummary, _ := familySvc.Summary()
@@ -588,19 +720,17 @@ func homePage(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, e
 		personalItems, _ := personalSvc.List()
 		familyItems, _ := familySvc.List()
 		allIdeas, _ := ideaSvc.List()
-		explorations, _ := explorationSvc.List()
 
 		data := map[string]any{
-			"Title":              "Home",
-			"PersonalTasks":      topTasks(personalItems, 5),
-			"PersonalTaskCount":  personalSummary.OpenTasks,
-			"FamilyTasks":        topTasks(familyItems, 5),
-			"FamilyTaskCount":    familySummary.OpenTasks,
-			"Goals":              activeGoals(personalItems),
-			"UntriagedIdeas":     filterUntriaged(allIdeas, 3),
-			"UntriagedCount":     countUntriaged(allIdeas),
-			"RecentExplorations": recentExplorations(explorations, 3),
-			"ExplorationCount":   len(explorations),
+			"Title":             "Home",
+			"PersonalTasks":     topTasks(personalItems, 5),
+			"PersonalTaskCount": personalSummary.OpenTasks,
+			"FamilyTasks":       topTasks(familyItems, 5),
+			"FamilyTaskCount":   familySummary.OpenTasks,
+			"Goals":             activeGoals(personalItems),
+			"UntriagedIdeas":    filterUntriaged(allIdeas, 3),
+			"UntriagedCount":    countUntriaged(allIdeas),
+			"TotalIdeaCount":    len(allIdeas),
 		}
 
 		if err := templates["homepage.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -790,13 +920,6 @@ func countUntriaged(allIdeas []ideas.Idea) int {
 	return count
 }
 
-func recentExplorations(explorations []exploration.Exploration, n int) []exploration.Exploration {
-	if len(explorations) > n {
-		explorations = explorations[:n]
-	}
-	return explorations
-}
-
 func mountTrackerRoutes(r chi.Router, personalHandler, familyHandler *tracker.Handler) {
 	for prefix, h := range map[string]*tracker.Handler{
 		"/todos":  personalHandler,
@@ -849,7 +972,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		return nil, fmt.Errorf("parsing layout: %w", err)
 	}
 
-	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "exploration.html", "exploration-detail.html", "homepage.html", "admin-users.html", "admin-user-form.html", "admin-password.html", "account.html"}
+	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "homepage.html", "admin-users.html", "admin-user-form.html", "admin-password.html", "account.html"}
 	templates := make(map[string]*template.Template, len(pages))
 
 	for _, page := range pages {

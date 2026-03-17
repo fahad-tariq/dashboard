@@ -1064,11 +1064,6 @@ section h2 {
         gap: 0.75rem;
     }
 
-    /* Hide date metadata on mobile homepage cards */
-    .homepage-exploration .meta-dim {
-        display: none;
-    }
-
 }
 
 /* --- Homepage grid --- */
@@ -1151,12 +1146,12 @@ section h2 {
 }
 .homepage-progress .progress-bar { height: 8px; }
 
-.homepage-idea, .homepage-exploration {
+.homepage-idea {
     padding: 0.2rem 0;
     font-size: 0.85rem;
     display: flex;
     justify-content: space-between;
     gap: 0.5rem;
 }
-.homepage-idea a, .homepage-exploration a { color: var(--fg); text-decoration: none; }
-.homepage-idea a:hover, .homepage-exploration a:hover { color: var(--accent); }
+.homepage-idea a { color: var(--fg); text-decoration: none; }
+.homepage-idea a:hover { color: var(--accent); }

@@ -20,10 +20,9 @@
         <div class="nav-links">
             <a href="/">home</a>
             <a href="/todos">todos</a>
-            <a href="/family">family</a>
             <a href="/goals">goals</a>
             <a href="/ideas">ideas</a>
-            <a href="/exploration">exploration</a>
+            <a href="/family">family</a>
         </div>
         <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme"></button>
         {{if authEnabled}}{{if .UserName}}{{if .IsAdmin}}<a href="/admin/users" class="nav-user nav-user-link" title="Admin">{{.UserName}}</a>{{else}}<a href="/account" class="nav-user nav-user-link" title="Account settings">{{.UserName}}</a>{{end}}{{end}}<form method="POST" action="/logout" style="margin:0;display:inline"><button type="submit" class="theme-toggle" title="Logout">logout</button></form>{{end}}

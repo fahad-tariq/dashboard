@@ -3,125 +3,209 @@ package ideas
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+	"regexp"
 	"strings"
+
+	"github.com/fahad/dashboard/internal/slug"
 )
 
+// Idea represents a single idea in the flat-file ideas.md format.
 type Idea struct {
-	Slug             string   `json:"slug"`
-	Title            string   `json:"title"`
-	Tags             []string `json:"tags,omitempty"`
-	Images           []string `json:"images,omitempty"`
-	SuggestedProject string   `json:"suggested_project,omitempty"`
-	Date             string   `json:"date,omitempty"`
-	Research         string   `json:"research,omitempty"`
-	Body             string   `json:"body"`
-	Status           string   `json:"status"` // untriaged, parked, dropped
+	Slug    string   `json:"slug"`
+	Title   string   `json:"title"`
+	Status  string   `json:"status"` // untriaged, parked, dropped
+	Tags    []string `json:"tags,omitempty"`
+	Images  []string `json:"images,omitempty"`
+	Project string   `json:"project,omitempty"`
+	Added   string   `json:"added,omitempty"`
+	Body    string   `json:"body"`
 }
 
-// ParseIdea reads a single idea markdown file and returns a structured Idea.
-// The file format is frontmatter (---) followed by markdown body.
-func ParseIdea(path string) (*Idea, error) {
+var (
+	statusRe  = regexp.MustCompile(`\[status:\s*(.*?)\]`)
+	tagsRe    = regexp.MustCompile(`\[tags:\s*(.*?)\]`)
+	projectRe = regexp.MustCompile(`\[project:\s*(.*?)\]`)
+	addedRe   = regexp.MustCompile(`\[added:\s*(\d{4}-\d{2}-\d{2})\]`)
+	imagesRe  = regexp.MustCompile(`\[images:\s*(.*?)\]`)
+)
+
+// ParseIdeas reads an ideas.md file and returns all ideas.
+// The format is checkbox lines with inline metadata followed by indented body lines.
+// Blank lines within body blocks are preserved (unlike the tracker parser).
+func ParseIdeas(path string) ([]Idea, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
-	idea := &Idea{
-		Slug: slugFromPath(path),
-	}
+	var ideas []Idea
+	var current *Idea
 
-	content := string(data)
-	frontmatter, body := splitFrontmatter(content)
+	for line := range strings.SplitSeq(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
 
-	for line := range strings.SplitSeq(frontmatter, "\n") {
-		line = strings.TrimSpace(line)
-		if k, v, ok := strings.Cut(line, ": "); ok {
-			switch k {
-			case "tags":
-				for t := range strings.SplitSeq(v, ",") {
-					t = strings.TrimSpace(t)
-					if t != "" {
-						idea.Tags = append(idea.Tags, t)
-					}
-				}
-			case "type":
-				// Legacy: migrate single type to tags.
-				v = strings.TrimSpace(v)
-				if v != "" {
-					idea.Tags = append(idea.Tags, v)
-				}
-			case "images":
-				for img := range strings.SplitSeq(v, ",") {
-					img = strings.TrimSpace(img)
-					if img != "" {
-						idea.Images = append(idea.Images, img)
-					}
-				}
-			case "suggested-project":
-				idea.SuggestedProject = v
-			case "date":
-				idea.Date = v
-			case "research":
-				idea.Research = v
+		// Headings end the current idea and are skipped.
+		// Only non-indented lines are headings; indented # lines are body content.
+		if !strings.HasPrefix(line, " ") && strings.HasPrefix(trimmed, "#") {
+			if current != nil {
+				current.Body = strings.TrimSpace(current.Body)
+				ideas = append(ideas, *current)
+				current = nil
 			}
+			continue
+		}
+
+		// Checkbox line starts a new idea.
+		if title, ok := parseIdeaCheckbox(trimmed); ok {
+			if current != nil {
+				current.Body = strings.TrimSpace(current.Body)
+				ideas = append(ideas, *current)
+			}
+			current = parseIdeaLine(title)
+			continue
+		}
+
+		if current == nil {
+			continue
+		}
+
+		// Body lines: indented (2+ spaces) or blank lines between indented lines.
+		if strings.HasPrefix(line, "  ") {
+			current.Body += line[2:] + "\n"
+		} else if trimmed == "" {
+			current.Body += "\n"
 		}
 	}
 
-	// Extract title from first # heading in body.
-	for line := range strings.SplitSeq(body, "\n") {
-		if title, ok := strings.CutPrefix(strings.TrimSpace(line), "# "); ok {
-			idea.Title = title
-			break
-		}
+	if current != nil {
+		current.Body = strings.TrimSpace(current.Body)
+		ideas = append(ideas, *current)
 	}
 
-	idea.Body = strings.TrimSpace(body)
-
-	return idea, nil
+	return ideas, nil
 }
 
-// WriteIdea writes an idea to a markdown file in the given directory.
-func WriteIdea(dir string, idea *Idea) error {
-	var b strings.Builder
-	b.WriteString("---\n")
-	if len(idea.Tags) > 0 {
-		fmt.Fprintf(&b, "tags: %s\n", strings.Join(idea.Tags, ", "))
+// parseIdeaCheckbox checks if a line is a checkbox and returns the content after the checkbox prefix.
+func parseIdeaCheckbox(line string) (string, bool) {
+	for _, prefix := range []string{"- [ ] ", "- [x] ", "- [X] "} {
+		if strings.HasPrefix(line, prefix) {
+			return line[len(prefix):], true
+		}
 	}
-	if len(idea.Images) > 0 {
-		fmt.Fprintf(&b, "images: %s\n", strings.Join(idea.Images, ", "))
-	}
-	if idea.SuggestedProject != "" {
-		fmt.Fprintf(&b, "suggested-project: %s\n", idea.SuggestedProject)
-	}
-	if idea.Date != "" {
-		fmt.Fprintf(&b, "date: %s\n", idea.Date)
-	}
-	if idea.Research != "" {
-		fmt.Fprintf(&b, "research: %s\n", idea.Research)
-	}
-	b.WriteString("---\n\n")
-	b.WriteString(idea.Body)
-	b.WriteString("\n")
+	return "", false
+}
 
-	path := filepath.Join(dir, idea.Slug+".md")
+// parseIdeaLine extracts metadata from a checkbox line content and returns an Idea.
+func parseIdeaLine(raw string) *Idea {
+	idea := &Idea{}
+
+	if m := statusRe.FindStringSubmatch(raw); m != nil {
+		idea.Status = strings.TrimSpace(m[1])
+		raw = strings.Replace(raw, m[0], "", 1)
+	}
+	if m := tagsRe.FindStringSubmatch(raw); m != nil {
+		for t := range strings.SplitSeq(m[1], ",") {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				idea.Tags = append(idea.Tags, t)
+			}
+		}
+		raw = strings.Replace(raw, m[0], "", 1)
+	}
+	if m := projectRe.FindStringSubmatch(raw); m != nil {
+		idea.Project = strings.TrimSpace(m[1])
+		raw = strings.Replace(raw, m[0], "", 1)
+	}
+	if m := addedRe.FindStringSubmatch(raw); m != nil {
+		idea.Added = m[1]
+		raw = strings.Replace(raw, m[0], "", 1)
+	}
+	if m := imagesRe.FindStringSubmatch(raw); m != nil {
+		for img := range strings.SplitSeq(m[1], ",") {
+			img = strings.TrimSpace(img)
+			if img != "" {
+				idea.Images = append(idea.Images, img)
+			}
+		}
+		raw = strings.Replace(raw, m[0], "", 1)
+	}
+
+	idea.Title = strings.TrimSpace(raw)
+	idea.Slug = slug.Slugify(idea.Title)
+
+	if idea.Status == "" {
+		idea.Status = "untriaged"
+	}
+
+	return idea
+}
+
+// WriteIdeas writes all ideas to a flat-file ideas.md.
+func WriteIdeas(path string, heading string, ideas []Idea) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# %s\n\n", heading)
+
+	for i, idea := range ideas {
+		b.WriteString("- [ ] ")
+		b.WriteString(idea.Title)
+
+		if idea.Status != "" {
+			fmt.Fprintf(&b, " [status: %s]", idea.Status)
+		}
+		if len(idea.Tags) > 0 {
+			fmt.Fprintf(&b, " [tags: %s]", strings.Join(idea.Tags, ", "))
+		}
+		if idea.Project != "" {
+			fmt.Fprintf(&b, " [project: %s]", idea.Project)
+		}
+		if idea.Added != "" {
+			fmt.Fprintf(&b, " [added: %s]", idea.Added)
+		}
+		if len(idea.Images) > 0 {
+			fmt.Fprintf(&b, " [images: %s]", strings.Join(idea.Images, ", "))
+		}
+		b.WriteString("\n")
+
+		if idea.Body != "" {
+			for bodyLine := range strings.SplitSeq(idea.Body, "\n") {
+				if bodyLine == "" {
+					b.WriteString("\n")
+				} else {
+					b.WriteString("  ")
+					b.WriteString(bodyLine)
+					b.WriteString("\n")
+				}
+			}
+		}
+
+		if i < len(ideas)-1 {
+			b.WriteString("\n")
+		}
+	}
+
 	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
 
-func splitFrontmatter(content string) (frontmatter, body string) {
-	// Expect "---\n...frontmatter...\n---\n...body..."
-	if !strings.HasPrefix(content, "---\n") {
-		return "", content
-	}
-	rest := content[4:]
-	fm, after, ok := strings.Cut(rest, "\n---")
-	if !ok {
-		return "", content
-	}
-	return fm, strings.TrimPrefix(after, "\n")
+// Slugify exposes the shared slug generation for use by the handler.
+func Slugify(title string) string {
+	return slug.Slugify(title)
 }
 
-func slugFromPath(path string) string {
-	base := filepath.Base(path)
-	return strings.TrimSuffix(base, ".md")
+// ParseCSV splits a comma-separated string into trimmed non-empty parts.
+func ParseCSV(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var out []string
+	for v := range strings.SplitSeq(raw, ",") {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }

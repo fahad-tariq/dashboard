@@ -22,7 +22,6 @@ import (
 type UserStats struct {
 	PersonalTasks int
 	Ideas         int
-	Explorations  int
 }
 
 // Flash message keys mapped to display text.
@@ -80,9 +79,6 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 			}
 			if ideasList, err := svc.Ideas.List(); err == nil {
 				st.Ideas = len(ideasList)
-			}
-			if explorations, err := svc.Explorations.List(); err == nil {
-				st.Explorations = len(explorations)
 			}
 
 			statsMap[u.ID] = st

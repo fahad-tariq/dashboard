@@ -284,11 +284,11 @@ func TestInvalidateSessionsRemovesOnlyTargetUser(t *testing.T) {
 // --- Session store user_id ---
 
 // gobEncodeSession encodes session data in the same format SCS uses.
-func gobEncodeSession(t *testing.T, values map[string]interface{}) []byte {
+func gobEncodeSession(t *testing.T, values map[string]any) []byte {
 	t.Helper()
 	aux := &struct {
 		Deadline time.Time
-		Values   map[string]interface{}
+		Values   map[string]any
 	}{
 		Deadline: time.Now().Add(time.Hour),
 		Values:   values,
@@ -304,7 +304,7 @@ func TestStoreCommitWritesUserID(t *testing.T) {
 	database := newTestDB(t)
 	store := auth.NewSQLiteStore(database)
 
-	data := gobEncodeSession(t, map[string]interface{}{"user_id": int64(42)})
+	data := gobEncodeSession(t, map[string]any{"user_id": int64(42)})
 	if err := store.Commit("tok-test", data, time.Now().Add(time.Hour)); err != nil {
 		t.Fatalf("commit: %v", err)
 	}

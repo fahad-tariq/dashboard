@@ -2,12 +2,7 @@
 
 ## UI/UX Improvements
 
-1. **[L] Combine Experiments and Ideas** — Merge two separate packages (internal/ideas/, internal/exploration/), consolidate storage/handlers/routes/templates. Keep park/drop/to-personal actions, drop rigid category system
-2. **[S] Reorder top navigation** — Reorder links in layout.html. Blocked by #1. New order: Todos, Goals, Ideas, Family
-
-> **Legend:** S = small (< 1hr), M = medium (schema + multiple files), L = large (multi-package refactor)
->
-> **Sequencing:** 1 is the heavy lift and blocks 2.
+No pending items.
 
 ## Ideas
 
@@ -15,6 +10,8 @@
 
 ## Done
 
+- [Combine ideas and explorations with flat-file storage](plans/combine-ideas-explorations.md)
+- [Reorder top navigation](plans/combine-ideas-explorations.md) (completed as part of ideas merge)
 - [Display first name in nav + self-service account page](plans/first-name-display.md)
 - [Fix login redirect on SSE errors](plans/quick-wins.md)
 - [Remove "View All" buttons on home page](plans/quick-wins.md)

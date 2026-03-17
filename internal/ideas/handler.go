@@ -13,7 +13,6 @@ import (
 
 	"github.com/fahad/dashboard/internal/auth"
 	"github.com/fahad/dashboard/internal/markdown"
-	"github.com/fahad/dashboard/internal/slug"
 )
 
 // ToTaskFunc converts an idea to a task. Accepts context for user resolution.
@@ -22,12 +21,14 @@ type ToTaskFunc func(ctx context.Context, title, body string, tags []string) err
 // ServiceResolver returns the ideas service for the current request.
 type ServiceResolver func(r *http.Request) *Service
 
+// Handler handles HTTP requests for ideas.
 type Handler struct {
 	resolve   ServiceResolver
 	toTask    ToTaskFunc
 	templates map[string]*template.Template
 }
 
+// NewHandler creates a handler with a static service reference.
 func NewHandler(svc *Service, toTask ToTaskFunc, templates map[string]*template.Template) *Handler {
 	return &Handler{
 		resolve: func(r *http.Request) *Service {
@@ -47,6 +48,7 @@ func NewHandlerWithResolver(resolver ServiceResolver, toTask ToTaskFunc, templat
 	}
 }
 
+// IdeasPage renders the ideas list grouped by status.
 func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 	svc := h.resolve(r)
 	ideas, err := svc.List()
@@ -83,6 +85,7 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// IdeaDetail renders a single idea's detail page.
 func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	svc := h.resolve(r)
@@ -94,18 +97,12 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 
 	bodyHTML, _ := markdown.Render([]byte(idea.Body))
 
-	var researchHTML []byte
-	if researchData, err := svc.GetResearch(slug); err == nil {
-		researchHTML, _ = markdown.Render(researchData)
-	}
-
 	data := map[string]any{
-		"Title":        idea.Title,
-		"Idea":         idea,
-		"BodyHTML":     template.HTML(bodyHTML),
-		"ResearchHTML": template.HTML(researchHTML),
-		"UserName":     auth.UserName(r.Context()),
-		"IsAdmin":      auth.IsAdmin(r.Context()),
+		"Title":    idea.Title,
+		"Idea":     idea,
+		"BodyHTML":  template.HTML(bodyHTML),
+		"UserName": auth.UserName(r.Context()),
+		"IsAdmin":  auth.IsAdmin(r.Context()),
 	}
 
 	if err := h.templates["idea.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -113,27 +110,26 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// QuickAdd creates a new idea from the quick-add form.
 func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	raw := strings.TrimSpace(r.FormValue("title"))
-	if raw == "" {
+	title := strings.TrimSpace(r.FormValue("title"))
+	if title == "" {
 		http.Error(w, "Title required", http.StatusBadRequest)
 		return
 	}
 
-	title, tags := parseTagsFromInput(raw)
-	slug := slugify(title)
 	idea := &Idea{
-		Slug:   slug,
+		Slug:   Slugify(title),
 		Title:  title,
-		Tags:   tags,
-		Images: parseCSV(r.FormValue("images")),
-		Date:   time.Now().Format("2006-01-02"),
-		Body:   "# " + title + "\n\n" + strings.TrimSpace(r.FormValue("body")),
+		Tags:   ParseCSV(r.FormValue("tags")),
+		Images: ParseCSV(r.FormValue("images")),
+		Added:  time.Now().Format("2006-01-02"),
+		Body:   strings.TrimSpace(r.FormValue("body")),
 	}
 
 	svc := h.resolve(r)
@@ -146,6 +142,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
 }
 
+// TriageAction changes an idea's status (park/drop/untriage).
 func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
@@ -165,6 +162,7 @@ func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
 }
 
+// ToTask converts an idea to a personal task and deletes it.
 func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 
@@ -175,18 +173,7 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := idea.Body
-	if lines := strings.SplitN(body, "\n", 2); len(lines) > 0 {
-		if strings.HasPrefix(strings.TrimSpace(lines[0]), "# ") {
-			if len(lines) > 1 {
-				body = strings.TrimSpace(lines[1])
-			} else {
-				body = ""
-			}
-		}
-	}
-
-	if err := h.toTask(r.Context(), idea.Title, body, idea.Tags); err != nil {
+	if err := h.toTask(r.Context(), idea.Title, idea.Body, idea.Tags); err != nil {
 		slog.Error("converting idea to task", "slug", slug, "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -197,6 +184,7 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
 }
 
+// Edit updates an idea's body, tags, and images.
 func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
@@ -205,8 +193,8 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body := strings.TrimSpace(r.FormValue("body"))
-	tags := parseCSV(r.FormValue("tags"))
-	images := parseCSV(r.FormValue("images"))
+	tags := ParseCSV(r.FormValue("tags"))
+	images := ParseCSV(r.FormValue("images"))
 
 	svc := h.resolve(r)
 	if err := svc.Edit(slug, body, tags, images); err != nil {
@@ -215,9 +203,10 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/ideas/"+slug, http.StatusSeeOther)
+	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
 }
 
+// DeleteIdea removes an idea.
 func (h *Handler) DeleteIdea(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	svc := h.resolve(r)
@@ -232,6 +221,7 @@ func (h *Handler) DeleteIdea(w http.ResponseWriter, r *http.Request) {
 
 // --- API handlers ---
 
+// APIListIdeas returns all ideas as JSON.
 func (h *Handler) APIListIdeas(w http.ResponseWriter, r *http.Request) {
 	svc := h.resolve(r)
 	ideas, err := svc.List()
@@ -242,6 +232,7 @@ func (h *Handler) APIListIdeas(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, ideas)
 }
 
+// APIAddIdea creates a new idea from a JSON request.
 func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Title string   `json:"title"`
@@ -264,18 +255,12 @@ func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 		tags = []string{req.Type}
 	}
 
-	slug := slugify(req.Title)
-	body := req.Body
-	if body == "" {
-		body = "# " + req.Title
-	}
-
 	idea := &Idea{
-		Slug:  slug,
+		Slug:  Slugify(req.Title),
 		Title: req.Title,
 		Tags:  tags,
-		Date:  time.Now().Format("2006-01-02"),
-		Body:  body,
+		Added: time.Now().Format("2006-01-02"),
+		Body:  req.Body,
 	}
 
 	svc := h.resolve(r)
@@ -287,6 +272,7 @@ func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, idea)
 }
 
+// APITriageIdea changes an idea's status via JSON API.
 func (h *Handler) APITriageIdea(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	var req struct {
@@ -306,6 +292,7 @@ func (h *Handler) APITriageIdea(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// APIAddResearch appends research content to an idea's body.
 func (h *Handler) APIAddResearch(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	var req struct {
@@ -329,39 +316,4 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
-}
-
-// parseTagsFromInput extracts #tag tokens from input, returning the cleaned
-// title and collected tags.
-func parseTagsFromInput(input string) (title string, tags []string) {
-	parts := strings.Fields(input)
-	var titleParts []string
-	for _, p := range parts {
-		if strings.HasPrefix(p, "#") && len(p) > 1 {
-			tags = append(tags, p[1:])
-		} else {
-			titleParts = append(titleParts, p)
-		}
-	}
-	title = strings.Join(titleParts, " ")
-	return
-}
-
-func parseCSV(raw string) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil
-	}
-	var out []string
-	for v := range strings.SplitSeq(raw, ",") {
-		v = strings.TrimSpace(v)
-		if v != "" {
-			out = append(out, v)
-		}
-	}
-	return out
-}
-
-func slugify(title string) string {
-	return slug.Slugify(title)
 }

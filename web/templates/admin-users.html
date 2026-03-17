@@ -17,7 +17,7 @@
         <span class="admin-user-meta">ID {{.ID}} &middot; created {{.CreatedAt}}</span>
         {{end}}
         {{with index $.UserStats .ID}}
-        <span class="admin-user-meta">{{.PersonalTasks}} tasks &middot; {{.Ideas}} ideas &middot; {{.Explorations}} explorations</span>
+        <span class="admin-user-meta">{{.PersonalTasks}} tasks &middot; {{.Ideas}} ideas</span>
         {{end}}
     </div>
     <div class="admin-user-actions">

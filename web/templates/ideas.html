@@ -1,31 +1,59 @@
 {{define "idea-card"}}
-<div class="idea-card">
-    <div class="idea-header">
-        <a href="/ideas/{{.Slug}}" class="idea-title">{{.Title}}</a>
-        {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
+<div class="tracker-item minimised" id="idea-{{.Slug}}">
+    <div class="tracker-item-header" onclick="toggleItem(this.querySelector('.item-toggle'))">
+        <button class="item-toggle" onclick="event.stopPropagation()" title="Expand/collapse">&#x25B8;</button>
+        <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
+        <div class="tracker-item-meta">
+            {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
+            {{if .Added}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
+        </div>
     </div>
-    <div class="idea-actions">
-        {{if ne .Status "untriaged"}}
-        <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage">
-            <input type="hidden" name="action" value="untriage">
-            <button type="submit" class="action-btn">untriage</button>
-        </form>
-        {{end}}
-        {{if ne .Status "parked"}}
-        <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage">
-            <input type="hidden" name="action" value="park">
-            <button type="submit" class="action-btn">park</button>
-        </form>
-        {{end}}
-        {{if ne .Status "dropped"}}
-        <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage">
-            <input type="hidden" name="action" value="drop">
-            <button type="submit" class="action-btn action-drop">drop</button>
-        </form>
-        {{end}}
-        <form method="POST" action="/ideas/{{.Slug}}/to-task" class="inline-triage">
-            <button type="submit" class="action-btn action-assign">to todos</button>
-        </form>
+    <div class="tracker-item-detail">
+        <div>
+            {{if .Body}}
+            <div class="tracker-item-body">{{.Body}}</div>
+            {{end}}
+            <div class="tracker-item-actions">
+                {{if ne .Status "untriaged"}}
+                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage">
+                    <input type="hidden" name="action" value="untriage">
+                    <button type="submit" class="action-btn">untriage</button>
+                </form>
+                {{end}}
+                {{if ne .Status "parked"}}
+                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage">
+                    <input type="hidden" name="action" value="park">
+                    <button type="submit" class="action-btn">park</button>
+                </form>
+                {{end}}
+                {{if ne .Status "dropped"}}
+                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage">
+                    <input type="hidden" name="action" value="drop">
+                    <button type="submit" class="action-btn action-drop">drop</button>
+                </form>
+                {{end}}
+                <form method="POST" action="/ideas/{{.Slug}}/to-task" class="inline-triage">
+                    <button type="submit" class="action-btn action-assign">to todos</button>
+                </form>
+                <form method="POST" action="/ideas/{{.Slug}}/delete" class="inline-triage">
+                    <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this idea?')">delete</button>
+                </form>
+            </div>
+            {{if .Images}}
+            <div class="image-gallery">
+                {{range .Images}}<div class="image-thumb-wrap"><img src="/uploads/{{.}}" class="image-thumb" loading="lazy"></div>{{end}}
+            </div>
+            {{end}}
+            <details class="tracker-notes-edit">
+                <summary>edit</summary>
+                <form method="POST" action="/ideas/{{.Slug}}/edit" class="tracker-notes-form">
+                    <textarea name="body" rows="3" class="form-textarea" placeholder="Description, notes, research...">{{.Body}}</textarea>
+                    <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
+                    <input type="hidden" name="images" value="{{range $i, $img := .Images}}{{if $i}},{{end}}{{$img}}{{end}}">
+                    <button type="submit" class="form-btn form-btn-sm">save</button>
+                </form>
+            </details>
+        </div>
     </div>
 </div>
 {{end}}
@@ -43,10 +71,11 @@
     {{if .Dropped}}<span class="stat-item"><span class="stat-value">{{len .Dropped}}</span> dropped</span>{{end}}
 </div>
 
-<details class="quick-add" open>
+<details class="quick-add tracker-add-form" open>
     <summary>Quick add</summary>
-    <form method="POST" action="/ideas/add" class="idea-form">
-        <input type="text" name="title" placeholder="Idea title #tag1 #tag2" required class="form-input">
+    <form method="POST" action="/ideas/add" class="tracker-goal-form">
+        <input type="text" name="title" placeholder="Idea title" required class="form-input">
+        <input type="text" name="tags" placeholder="Tags (comma-separated)" class="form-input">
         <textarea name="body" placeholder="Description (optional)" rows="2" class="form-textarea"></textarea>
         <button type="submit" class="form-btn">add</button>
     </form>

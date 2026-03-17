@@ -42,20 +42,20 @@ func TestClassifyEventPerUserIdeas(t *testing.T) {
 	}
 }
 
-func TestClassifyEventPerUserExploration(t *testing.T) {
+func TestClassifyEventPerUserIdeasFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	userDataDir := filepath.Join(tmpDir, "users")
-	os.MkdirAll(filepath.Join(userDataDir, "5", "explorations"), 0o755)
+	os.MkdirAll(filepath.Join(userDataDir, "5"), 0o755)
 
-	path := filepath.Join(userDataDir, "5", "explorations", "test.md")
-	os.WriteFile(path, []byte("# Test\n"), 0o644)
+	path := filepath.Join(userDataDir, "5", "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n"), 0o644)
 
 	uid, category := watcher.ClassifyEventWithUser(path, nil, nil, userDataDir)
 	if uid != 5 {
 		t.Errorf("expected userID=5, got %d", uid)
 	}
-	if category != "exploration" {
-		t.Errorf("expected category=exploration, got %q", category)
+	if category != "ideas" {
+		t.Errorf("expected category=ideas, got %q", category)
 	}
 }
 

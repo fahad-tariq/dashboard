@@ -32,11 +32,7 @@ func TestEnsureUserDirsCreatesStructure(t *testing.T) {
 	expected := []string{
 		"1",
 		"1/personal.md",
-		"1/ideas/untriaged",
-		"1/ideas/parked",
-		"1/ideas/dropped",
-		"1/ideas/research",
-		"1/explorations",
+		"1/ideas.md",
 	}
 	for _, rel := range expected {
 		path := filepath.Join(userDataDir, rel)

@@ -10,116 +10,261 @@ import (
 	"github.com/fahad/dashboard/internal/ideas"
 )
 
-func TestParseIdea(t *testing.T) {
+func TestParseIdeas_Basic(t *testing.T) {
 	dir := t.TempDir()
-	content := `---
-type: technical-exploration
-suggested-project: homelabs
-date: 2026-03-14
-research: research/caddy-vs-nginx.md
----
+	path := filepath.Join(dir, "ideas.md")
+	content := `# Ideas
 
-# Try Caddy instead of nginx
+- [ ] Try Caddy instead of nginx [status: parked] [tags: infra, homelab] [project: homelabs] [added: 2026-03-14]
+  Replace nginx reverse proxy with Caddy for automatic HTTPS.
 
-Replace nginx reverse proxy with Caddy for automatic HTTPS and simpler config.
+- [ ] Dashboard mobile PWA [status: untriaged] [tags: dashboard] [added: 2026-03-16] [images: pwa-sketch.png]
+  Add a manifest.json and service worker.
 `
-	path := filepath.Join(dir, "try-caddy-instead-of-nginx.md")
 	os.WriteFile(path, []byte(content), 0o644)
 
-	idea, err := ideas.ParseIdea(path)
+	parsed, err := ideas.ParseIdeas(path)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-
-	if idea.Slug != "try-caddy-instead-of-nginx" {
-		t.Errorf("slug: got %q", idea.Slug)
+	if len(parsed) != 2 {
+		t.Fatalf("expected 2 ideas, got %d", len(parsed))
 	}
+
+	idea := parsed[0]
 	if idea.Title != "Try Caddy instead of nginx" {
 		t.Errorf("title: got %q", idea.Title)
 	}
-	if !slices.Equal(idea.Tags, []string{"technical-exploration"}) {
-		t.Errorf("tags: got %v, want [technical-exploration]", idea.Tags)
+	if idea.Status != "parked" {
+		t.Errorf("status: got %q", idea.Status)
 	}
-	if idea.SuggestedProject != "homelabs" {
-		t.Errorf("suggested-project: got %q", idea.SuggestedProject)
+	if !slices.Equal(idea.Tags, []string{"infra", "homelab"}) {
+		t.Errorf("tags: got %v", idea.Tags)
 	}
-	if idea.Research != "research/caddy-vs-nginx.md" {
-		t.Errorf("research: got %q", idea.Research)
+	if idea.Project != "homelabs" {
+		t.Errorf("project: got %q", idea.Project)
+	}
+	if idea.Added != "2026-03-14" {
+		t.Errorf("added: got %q", idea.Added)
+	}
+	if idea.Body != "Replace nginx reverse proxy with Caddy for automatic HTTPS." {
+		t.Errorf("body: got %q", idea.Body)
+	}
+
+	idea2 := parsed[1]
+	if idea2.Status != "untriaged" {
+		t.Errorf("idea2 status: got %q", idea2.Status)
+	}
+	if !slices.Equal(idea2.Images, []string{"pwa-sketch.png"}) {
+		t.Errorf("idea2 images: got %v", idea2.Images)
 	}
 }
 
-func TestWriteAndParseRoundTrip(t *testing.T) {
+func TestParseIdeas_EmptyFile(t *testing.T) {
 	dir := t.TempDir()
-	original := &ideas.Idea{
-		Slug:             "test-idea",
-		Title:            "Test Idea",
-		Tags:             []string{"feature"},
-		SuggestedProject: "dashboard",
-		Date:             "2026-03-14",
-		Body:             "# Test Idea\n\nSome description here.",
-	}
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
 
-	if err := ideas.WriteIdea(dir, original); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-
-	parsed, err := ideas.ParseIdea(filepath.Join(dir, "test-idea.md"))
+	parsed, err := ideas.ParseIdeas(path)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-
-	if !slices.Equal(parsed.Tags, original.Tags) {
-		t.Errorf("tags: got %v, want %v", parsed.Tags, original.Tags)
-	}
-	if parsed.Title != original.Title {
-		t.Errorf("title: got %q, want %q", parsed.Title, original.Title)
-	}
-	if parsed.SuggestedProject != original.SuggestedProject {
-		t.Errorf("suggested-project: got %q, want %q", parsed.SuggestedProject, original.SuggestedProject)
+	if len(parsed) != 0 {
+		t.Fatalf("expected 0 ideas, got %d", len(parsed))
 	}
 }
 
-func TestServiceAddAndList(t *testing.T) {
+func TestParseIdeas_NonExistent(t *testing.T) {
+	parsed, err := ideas.ParseIdeas("/nonexistent/ideas.md")
+	if err != nil {
+		t.Fatalf("should not error on missing file: %v", err)
+	}
+	if parsed != nil {
+		t.Fatalf("expected nil, got %v", parsed)
+	}
+}
+
+func TestParseIdeas_DefaultStatus(t *testing.T) {
 	dir := t.TempDir()
-	for _, sub := range []string{"untriaged", "parked", "dropped", "research"} {
-		os.MkdirAll(filepath.Join(dir, sub), 0o755)
+	path := filepath.Join(dir, "ideas.md")
+	content := "# Ideas\n\n- [ ] No status idea [added: 2026-03-16]\n"
+	os.WriteFile(path, []byte(content), 0o644)
+
+	parsed, err := ideas.ParseIdeas(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(parsed) != 1 {
+		t.Fatalf("expected 1 idea, got %d", len(parsed))
+	}
+	if parsed[0].Status != "untriaged" {
+		t.Errorf("default status should be untriaged, got %q", parsed[0].Status)
+	}
+}
+
+func TestRoundTrip_PreservesBlankLines(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+
+	original := []ideas.Idea{
+		{
+			Slug:    "test-idea",
+			Title:   "Test Idea",
+			Status:  "untriaged",
+			Tags:    []string{"go", "testing"},
+			Project: "dashboard",
+			Added:   "2026-03-16",
+			Images:  []string{"img1.png"},
+			Body:    "Paragraph one.\n\nParagraph two.\n\nParagraph three.",
+		},
 	}
 
-	svc := ideas.NewService(dir)
+	if err := ideas.WriteIdeas(path, "Ideas", original); err != nil {
+		t.Fatalf("write: %v", err)
+	}
 
+	parsed, err := ideas.ParseIdeas(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(parsed) != 1 {
+		t.Fatalf("expected 1 idea, got %d", len(parsed))
+	}
+
+	got := parsed[0]
+	if got.Title != original[0].Title {
+		t.Errorf("title: got %q, want %q", got.Title, original[0].Title)
+	}
+	if got.Status != original[0].Status {
+		t.Errorf("status: got %q, want %q", got.Status, original[0].Status)
+	}
+	if !slices.Equal(got.Tags, original[0].Tags) {
+		t.Errorf("tags: got %v, want %v", got.Tags, original[0].Tags)
+	}
+	if got.Project != original[0].Project {
+		t.Errorf("project: got %q, want %q", got.Project, original[0].Project)
+	}
+	if got.Added != original[0].Added {
+		t.Errorf("added: got %q, want %q", got.Added, original[0].Added)
+	}
+	if !slices.Equal(got.Images, original[0].Images) {
+		t.Errorf("images: got %v, want %v", got.Images, original[0].Images)
+	}
+	if got.Body != original[0].Body {
+		t.Errorf("body: got %q, want %q", got.Body, original[0].Body)
+	}
+}
+
+func TestRoundTrip_MultipleIdeas(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+
+	original := []ideas.Idea{
+		{Slug: "first", Title: "First", Status: "untriaged", Added: "2026-03-14", Body: "Body one."},
+		{Slug: "second", Title: "Second", Status: "parked", Added: "2026-03-15", Body: "Body two."},
+		{Slug: "third", Title: "Third", Status: "dropped", Added: "2026-03-16"},
+	}
+
+	if err := ideas.WriteIdeas(path, "Ideas", original); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	parsed, err := ideas.ParseIdeas(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(parsed) != 3 {
+		t.Fatalf("expected 3 ideas, got %d", len(parsed))
+	}
+
+	for i, want := range original {
+		got := parsed[i]
+		if got.Title != want.Title {
+			t.Errorf("idea %d title: got %q, want %q", i, got.Title, want.Title)
+		}
+		if got.Status != want.Status {
+			t.Errorf("idea %d status: got %q, want %q", i, got.Status, want.Status)
+		}
+		if got.Body != want.Body {
+			t.Errorf("idea %d body: got %q, want %q", i, got.Body, want.Body)
+		}
+	}
+}
+
+func TestServiceCRUD(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+
+	svc := ideas.NewService(path)
+
+	// Add.
 	idea := &ideas.Idea{
-		Slug:  "my-idea",
-		Title: "My Idea",
-		Tags:  []string{"wild-idea"},
-		Body:  "# My Idea\n\nThis is wild.",
+		Slug:   "my-idea",
+		Title:  "My Idea",
+		Tags:   []string{"test"},
+		Body:   "Some content.",
 	}
 	if err := svc.Add(idea); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
+	// List.
 	list, err := svc.List()
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	if len(list) != 1 {
-		t.Fatalf("expected 1 idea, got %d", len(list))
+		t.Fatalf("expected 1, got %d", len(list))
+	}
+	if list[0].Title != "My Idea" {
+		t.Errorf("title: got %q", list[0].Title)
 	}
 	if list[0].Status != "untriaged" {
-		t.Errorf("status: got %q, want 'untriaged'", list[0].Status)
+		t.Errorf("status should default to untriaged, got %q", list[0].Status)
+	}
+
+	// Get.
+	got, err := svc.Get("my-idea")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.Title != "My Idea" {
+		t.Errorf("get title: got %q", got.Title)
+	}
+
+	// Edit.
+	if err := svc.Edit("my-idea", "Updated content.", []string{"test", "updated"}, nil); err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+	updated, _ := svc.Get("my-idea")
+	if !slices.Equal(updated.Tags, []string{"test", "updated"}) {
+		t.Errorf("updated tags: got %v", updated.Tags)
+	}
+	if updated.Body != "Updated content." {
+		t.Errorf("updated body: got %q", updated.Body)
+	}
+
+	// Delete.
+	if err := svc.Delete("my-idea"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	list, _ = svc.List()
+	if len(list) != 0 {
+		t.Errorf("expected 0 after delete, got %d", len(list))
 	}
 }
 
-func TestTriagePark(t *testing.T) {
+func TestServiceTriage(t *testing.T) {
 	dir := t.TempDir()
-	for _, sub := range []string{"untriaged", "parked", "dropped", "research"} {
-		os.MkdirAll(filepath.Join(dir, sub), 0o755)
-	}
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
 
-	svc := ideas.NewService(dir)
+	svc := ideas.NewService(path)
 	svc.Add(&ideas.Idea{
 		Slug:  "park-me",
 		Title: "Park Me",
-		Body:  "# Park Me",
+		Body:  "To be parked.",
 	})
 
 	if err := svc.Triage("park-me", "park"); err != nil {
@@ -131,99 +276,51 @@ func TestTriagePark(t *testing.T) {
 		t.Fatalf("get: %v", err)
 	}
 	if idea.Status != "parked" {
-		t.Errorf("status: got %q, want 'parked'", idea.Status)
+		t.Errorf("status: got %q, want parked", idea.Status)
+	}
+
+	if err := svc.Triage("park-me", "drop"); err != nil {
+		t.Fatalf("triage drop: %v", err)
+	}
+	idea, _ = svc.Get("park-me")
+	if idea.Status != "dropped" {
+		t.Errorf("status: got %q, want dropped", idea.Status)
+	}
+
+	if err := svc.Triage("park-me", "untriage"); err != nil {
+		t.Fatalf("triage untriage: %v", err)
+	}
+	idea, _ = svc.Get("park-me")
+	if idea.Status != "untriaged" {
+		t.Errorf("status: got %q, want untriaged", idea.Status)
 	}
 }
 
-func TestParseIdea_TagsMigration(t *testing.T) {
+func TestServiceAddResearch(t *testing.T) {
 	dir := t.TempDir()
-	content := `---
-type: feature
-date: 2026-03-14
----
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
 
-# Legacy idea
-`
-	path := filepath.Join(dir, "legacy.md")
-	os.WriteFile(path, []byte(content), 0o644)
+	svc := ideas.NewService(path)
+	svc.Add(&ideas.Idea{
+		Slug:  "research-me",
+		Title: "Research Me",
+		Body:  "Initial content.",
+	})
 
-	idea, err := ideas.ParseIdea(path)
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if !slices.Equal(idea.Tags, []string{"feature"}) {
-		t.Errorf("tags: got %v, want [feature]", idea.Tags)
-	}
-}
-
-func TestParseIdea_Tags(t *testing.T) {
-	dir := t.TempDir()
-	content := `---
-tags: foo, bar
-date: 2026-03-14
----
-
-# Multi-tag idea
-`
-	path := filepath.Join(dir, "multi-tag.md")
-	os.WriteFile(path, []byte(content), 0o644)
-
-	idea, err := ideas.ParseIdea(path)
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if !slices.Equal(idea.Tags, []string{"foo", "bar"}) {
-		t.Errorf("tags: got %v, want [foo bar]", idea.Tags)
-	}
-}
-
-func TestWriteIdea_Tags(t *testing.T) {
-	dir := t.TempDir()
-	idea := &ideas.Idea{
-		Slug:             "tagged",
-		Title:            "Tagged Idea",
-		Tags:             []string{"feature", "exploration"},
-		SuggestedProject: "dashboard",
-		Date:             "2026-03-14",
-		Research:         "research/tagged.md",
-		Body:             "# Tagged Idea\n\nBody here.",
+	if err := svc.AddResearch("research-me", "Some research findings."); err != nil {
+		t.Fatalf("add research: %v", err)
 	}
 
-	if err := ideas.WriteIdea(dir, idea); err != nil {
-		t.Fatalf("write: %v", err)
+	idea, _ := svc.Get("research-me")
+	if !strings.Contains(idea.Body, "## Research") {
+		t.Errorf("body should contain ## Research heading, got %q", idea.Body)
 	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "tagged.md"))
-	if err != nil {
-		t.Fatalf("read: %v", err)
+	if !strings.Contains(idea.Body, "Some research findings.") {
+		t.Errorf("body should contain research content, got %q", idea.Body)
 	}
-	content := string(data)
-
-	if !strings.Contains(content, "tags: feature, exploration") {
-		t.Errorf("expected tags line, got:\n%s", content)
-	}
-	if strings.Contains(content, "type:") {
-		t.Errorf("should not contain type: line, got:\n%s", content)
-	}
-	if !strings.Contains(content, "suggested-project: dashboard") {
-		t.Errorf("should preserve suggested-project, got:\n%s", content)
-	}
-	if !strings.Contains(content, "research: research/tagged.md") {
-		t.Errorf("should preserve research, got:\n%s", content)
-	}
-
-	parsed, err := ideas.ParseIdea(filepath.Join(dir, "tagged.md"))
-	if err != nil {
-		t.Fatalf("roundtrip parse: %v", err)
-	}
-	if !slices.Equal(parsed.Tags, idea.Tags) {
-		t.Errorf("roundtrip tags: got %v, want %v", parsed.Tags, idea.Tags)
-	}
-	if parsed.SuggestedProject != idea.SuggestedProject {
-		t.Errorf("roundtrip suggested-project: got %q", parsed.SuggestedProject)
-	}
-	if parsed.Research != idea.Research {
-		t.Errorf("roundtrip research: got %q", parsed.Research)
+	if !strings.Contains(idea.Body, "Initial content.") {
+		t.Errorf("body should still contain initial content, got %q", idea.Body)
 	}
 }
 

@@ -25,7 +25,7 @@ func NewSQLiteStore(db *sql.DB) *SQLiteStore {
 func extractUserID(data []byte) int64 {
 	aux := &struct {
 		Deadline time.Time
-		Values   map[string]interface{}
+		Values   map[string]any
 	}{}
 	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(aux); err != nil {
 		return 0
