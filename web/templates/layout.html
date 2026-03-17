@@ -74,5 +74,18 @@
     <footer class="build-info">build {{buildVersion}}</footer>
     <script src="/static/tracker.js"></script>
     <script src="/static/upload.js"></script>
+    <script>
+        (function() {
+            function collapseActionsOnMobile() {
+                if (window.innerWidth <= 768) {
+                    document.querySelectorAll('.item-actions-menu').forEach(function(el) {
+                        el.removeAttribute('open');
+                    });
+                }
+            }
+            collapseActionsOnMobile();
+            document.body.addEventListener('htmx:afterSwap', collapseActionsOnMobile);
+        })();
+    </script>
 </body>
 </html>
