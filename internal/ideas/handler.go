@@ -30,11 +30,14 @@ var flashMessages = map[string]string{
 	"idea-triaged":   "Status updated.",
 	"idea-edited":    "Changes saved.",
 	"idea-converted": "Idea converted to a task -- check your todos.",
-	"idea-deleted":   "Idea removed.",
+	"idea-deleted":   "Idea moved to trash.",
+	"idea-restored":  "Idea restored from trash.",
+	"idea-purged":    "Idea permanently deleted.",
 }
 
 var flashErrorKeys = map[string]bool{
 	"title-required": true,
+	"idea-purged":    true,
 }
 
 // Handler handles HTTP requests for ideas.
@@ -102,12 +105,15 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 		return strings.Compare(strings.ToLower(a), strings.ToLower(b))
 	})
 
+	deletedIdeas := svc.ListDeleted()
+
 	data := auth.TemplateData(r)
 	data["Title"] = "Ideas"
 	data["Untriaged"] = grouped["untriaged"]
 	data["Parked"] = grouped["parked"]
 	data["Dropped"] = grouped["dropped"]
 	data["Converted"] = grouped["converted"]
+	data["DeletedIdeas"] = deletedIdeas
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
 		if flashMsg := flashMessages[msgKey]; flashMsg != "" {
 			data["FlashMsg"] = flashMsg
@@ -139,6 +145,7 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 	data["Title"] = idea.Title
 	data["Idea"] = idea
 	data["BodyHTML"] = template.HTML(bodyHTML)
+	data["IsDeleted"] = idea.DeletedAt != ""
 
 	if err := h.templates["idea.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
 		httputil.ServerError(w, "rendering idea detail", err)
@@ -249,6 +256,28 @@ func (h *Handler) DeleteIdea(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/ideas?msg=idea-deleted", http.StatusSeeOther)
+}
+
+// RestoreIdea restores a soft-deleted idea.
+func (h *Handler) RestoreIdea(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	svc := h.resolve(r)
+	if err := svc.Restore(slug); err != nil {
+		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/ideas?msg=idea-restored", http.StatusSeeOther)
+}
+
+// PermanentDeleteIdea permanently removes an idea from the file.
+func (h *Handler) PermanentDeleteIdea(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	svc := h.resolve(r)
+	if err := svc.PermanentDelete(slug); err != nil {
+		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/ideas?msg=idea-purged", http.StatusSeeOther)
 }
 
 // --- API handlers ---

@@ -164,6 +164,10 @@ func main() {
 
 	authEnabledFlag = cfg.AuthEnabled()
 
+	// Shutdown context used by background goroutines (session cleanup, auto-purge).
+	shutdownCtx, shutdownCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer shutdownCancel()
+
 	// ideaHandler is declared here so the API routes (below both branches)
 	// can reference it regardless of which branch executes.
 	var ideaHandler *ideas.Handler
@@ -172,6 +176,7 @@ func main() {
 	var personalHandler, familyHandler *tracker.Handler
 	var homePage http.HandlerFunc
 	var searchHandler *search.Handler
+	var purgeFunc func() // called hourly to purge expired trash items
 
 	if cfg.AuthEnabled() {
 		// Per-user service registry: each user gets isolated personal and ideas
@@ -277,8 +282,6 @@ func main() {
 		sm.Cookie.Name = "session"
 
 		// Periodic cleanup of expired sessions.
-		shutdownCtx, shutdownCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer shutdownCancel()
 		go func() {
 			ticker := time.NewTicker(time.Hour)
 			defer ticker.Stop()
@@ -342,6 +345,28 @@ func main() {
 
 			mountAppRoutes(r, homePage, digestPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir)
 		})
+
+		purgeFunc = func() {
+			// Purge family (shared) service.
+			if err := registry.Family().PurgeExpired(7); err != nil {
+				slog.Error("family purge failed", "error", err)
+			}
+			// Purge each user's personal and ideas services.
+			allUsers, err := auth.AllUsers(database)
+			if err != nil {
+				slog.Error("listing users for purge", "error", err)
+				return
+			}
+			for _, u := range allUsers {
+				svc := registry.ForUser(u.ID)
+				if err := svc.Personal.PurgeExpired(7); err != nil {
+					slog.Error("personal purge failed", "user_id", u.ID, "error", err)
+				}
+				if err := svc.Ideas.PurgeExpired(7); err != nil {
+					slog.Error("ideas purge failed", "user_id", u.ID, "error", err)
+				}
+			}
+		}
 	} else {
 		// Auth disabled: singleton services are fine for single-user mode.
 		ideaSvc := ideas.NewService(cfg.IdeasPath)
@@ -403,7 +428,33 @@ func main() {
 
 		r.Get("/events", broker.ServeHTTP)
 		mountAppRoutes(r, homePage, digestPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir)
+
+		purgeFunc = func() {
+			if err := personalSvc.PurgeExpired(7); err != nil {
+				slog.Error("personal purge failed", "error", err)
+			}
+			if err := familySvc.PurgeExpired(7); err != nil {
+				slog.Error("family purge failed", "error", err)
+			}
+			if err := ideaSvc.PurgeExpired(7); err != nil {
+				slog.Error("ideas purge failed", "error", err)
+			}
+		}
 	}
+
+	// Auto-purge: remove items from trash that are older than 7 days.
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				purgeFunc()
+			case <-shutdownCtx.Done():
+				return
+			}
+		}
+	}()
 
 	// API routes: always use bearer token auth (separate from session auth).
 	// In auth-enabled mode, API routes need a dedicated handler that doesn't
@@ -501,6 +552,8 @@ func mountAppRoutes(r chi.Router, homePage http.HandlerFunc, digestPage http.Han
 	r.Post("/ideas/{slug}/to-task", ideaHandler.ToTask)
 	r.Post("/ideas/{slug}/edit", ideaHandler.Edit)
 	r.Post("/ideas/{slug}/delete", ideaHandler.DeleteIdea)
+	r.Post("/ideas/{slug}/restore", ideaHandler.RestoreIdea)
+	r.Post("/ideas/{slug}/purge", ideaHandler.PermanentDeleteIdea)
 
 	r.Get("/exploration", http.RedirectHandler("/ideas", http.StatusMovedPermanently).ServeHTTP)
 	r.Get("/exploration/{slug}", func(w http.ResponseWriter, r *http.Request) {
@@ -523,6 +576,8 @@ func mountTrackerRoutes(r chi.Router, personalHandler, familyHandler *tracker.Ha
 		r.Post(prefix+"/{slug}/tags", h.UpdateTags)
 		r.Post(prefix+"/{slug}/edit", h.UpdateEdit)
 		r.Post(prefix+"/{slug}/move", h.MoveToList)
+		r.Post(prefix+"/{slug}/restore", h.Restore)
+		r.Post(prefix+"/{slug}/purge", h.Purge)
 	}
 	r.Post("/todos/add-goal", personalHandler.AddGoal)
 }

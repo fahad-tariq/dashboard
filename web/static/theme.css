@@ -1619,3 +1619,21 @@ section h2 {
     opacity: 0.6;
     font-family: monospace;
 }
+
+.trash-banner {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--danger);
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+}
+.trash-banner p {
+    margin: 0 0 0.5rem;
+    color: var(--fg-muted);
+    font-size: 0.875rem;
+}
+.trash-banner-actions {
+    display: flex;
+    gap: 0.5rem;
+}

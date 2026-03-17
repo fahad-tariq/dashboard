@@ -81,8 +81,8 @@
                         </select>
                         <button type="submit" class="action-btn">apply</button>
                     </form>
-                    <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="inline-triage" onsubmit="return confirmAction(this, 'Delete this item?')">
-                        <button type="submit" class="action-btn action-drop">delete</button>
+                    <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="inline-triage" onsubmit="return confirmAction(this, 'Move this item to trash?')">
+                        <button type="submit" class="action-btn action-drop">trash</button>
                     </form>
                     <form method="POST" action="/{{$.ListName}}/{{.Slug}}/move" class="inline-triage" onsubmit="return confirmAction(this, 'Move to {{$.OtherListName}}?')">
                         <button type="submit" class="action-btn">move to {{$.OtherListName}}</button>
@@ -134,6 +134,36 @@
                 <div class="tracker-item-body">{{linkify .Body}}</div>
                 {{end}}
                 {{if .Added}}<div class="tracker-item-date" class="mt-xs">added {{.Added}}</div>{{end}}
+            </div>
+        </div>
+    </div>
+    {{end}}
+</details>
+{{end}}
+
+{{if .DeletedTasks}}
+<details class="tracker-done-section">
+    <summary class="tracker-done-summary">Recently Deleted ({{len .DeletedTasks}})</summary>
+    {{range .DeletedTasks}}
+    <div class="tracker-item tracker-item-done minimised" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+        <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
+            <button class="item-toggle" onclick="event.stopPropagation()" title="Minimise/expand">&#x25B8;</button>
+            <span class="tracker-item-title">{{linkify .Title}}</span>
+            <div class="tracker-item-meta">
+                {{if .DeletedAt}}<span class="tracker-item-date">deleted {{.DeletedAt}}</span>{{end}}
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/restore" class="item-complete-form" onclick="event.stopPropagation()">
+                    <button type="submit" class="item-undo-btn" title="Restore">&#x21A9;</button>
+                </form>
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/purge" class="item-complete-form" onclick="event.stopPropagation()" onsubmit="return confirmAction(this, 'Permanently delete this item? This cannot be undone.')">
+                    <button type="submit" class="item-undo-btn" title="Permanently delete">&#x2715;</button>
+                </form>
+            </div>
+        </div>
+        <div class="tracker-item-detail">
+            <div>
+                {{if .Body}}
+                <div class="tracker-item-body">{{linkify .Body}}</div>
+                {{end}}
             </div>
         </div>
     </div>

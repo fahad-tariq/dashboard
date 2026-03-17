@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/fahad/dashboard/internal/db"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -102,15 +103,25 @@ func TestTrackerServiceDelete(t *testing.T) {
 		t.Fatalf("Delete: %v", err)
 	}
 
+	// Delete is now soft-delete: item excluded from List but accessible via Get.
 	items, err := svc.List()
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
 	if len(items) != 1 {
-		t.Fatalf("expected 1 item after delete, got %d", len(items))
+		t.Fatalf("expected 1 item in List after soft delete, got %d", len(items))
 	}
 	if items[0].Title != "Second task" {
 		t.Errorf("remaining item: got %q, want %q", items[0].Title, "Second task")
+	}
+
+	// Soft-deleted item should still be accessible via Get.
+	deleted, err := svc.Get("first-task")
+	if err != nil {
+		t.Fatalf("Get soft-deleted item: %v", err)
+	}
+	if deleted.DeletedAt == "" {
+		t.Error("expected DeletedAt to be set")
 	}
 }
 
@@ -367,5 +378,126 @@ func TestTrackerServiceErrorCases(t *testing.T) {
 				t.Error("expected error for non-existent slug")
 			}
 		})
+	}
+}
+
+func TestTrackerServiceSoftDeleteAndRestore(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] Alpha\n- [ ] Beta\n")
+
+	// Soft delete Alpha.
+	if err := svc.Delete("alpha"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	// Alpha excluded from List.
+	items, _ := svc.List()
+	if len(items) != 1 {
+		t.Fatalf("expected 1 in List, got %d", len(items))
+	}
+
+	// Alpha in ListDeleted.
+	deleted := svc.ListDeleted()
+	if len(deleted) != 1 || deleted[0].Slug != "alpha" {
+		t.Fatalf("expected alpha in ListDeleted, got %v", deleted)
+	}
+
+	// Alpha excluded from Search.
+	results := svc.Search("alpha")
+	if len(results) != 0 {
+		t.Errorf("soft-deleted item should not appear in Search, got %d results", len(results))
+	}
+
+	// Restore Alpha.
+	if err := svc.Restore("alpha"); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+
+	items, _ = svc.List()
+	if len(items) != 2 {
+		t.Fatalf("expected 2 in List after restore, got %d", len(items))
+	}
+
+	restored, _ := svc.Get("alpha")
+	if restored.DeletedAt != "" {
+		t.Error("expected DeletedAt to be cleared after restore")
+	}
+}
+
+func TestTrackerServicePermanentDelete(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] Alpha\n- [ ] Beta\n")
+
+	if err := svc.PermanentDelete("alpha"); err != nil {
+		t.Fatalf("PermanentDelete: %v", err)
+	}
+
+	// Alpha is completely gone.
+	_, err := svc.Get("alpha")
+	if err == nil {
+		t.Error("expected error after permanent delete")
+	}
+
+	items, _ := svc.List()
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+}
+
+func TestTrackerServicePurgeExpired(t *testing.T) {
+	// Create file with a recently deleted item and an old deleted item.
+	content := "# Tracker\n\n- [ ] Active task\n- [ ] Old trash [deleted: 2020-01-01]\n- [ ] Recent trash [deleted: 2099-12-31]\n"
+	svc := newTestService(t, content)
+
+	if err := svc.PurgeExpired(7); err != nil {
+		t.Fatalf("PurgeExpired: %v", err)
+	}
+
+	// Active task and recent trash should remain.
+	items, _ := svc.List()
+	if len(items) != 1 {
+		t.Fatalf("expected 1 active item, got %d", len(items))
+	}
+	if items[0].Title != "Active task" {
+		t.Errorf("expected Active task, got %q", items[0].Title)
+	}
+
+	deleted := svc.ListDeleted()
+	if len(deleted) != 1 || deleted[0].Title != "Recent trash" {
+		t.Errorf("expected only Recent trash in deleted, got %v", deleted)
+	}
+}
+
+func TestTrackerServicePurgeExpiredBoundary(t *testing.T) {
+	// Item deleted exactly 7 days ago should be purged (cutoff is strictly before).
+	sevenDaysAgo := time.Now().AddDate(0, 0, -7).Format("2006-01-02")
+	sixDaysAgo := time.Now().AddDate(0, 0, -6).Format("2006-01-02")
+	content := "# Tracker\n\n- [ ] At boundary [deleted: " + sevenDaysAgo + "]\n- [ ] Within window [deleted: " + sixDaysAgo + "]\n"
+	svc := newTestService(t, content)
+
+	if err := svc.PurgeExpired(7); err != nil {
+		t.Fatalf("PurgeExpired: %v", err)
+	}
+
+	deleted := svc.ListDeleted()
+	if len(deleted) != 1 {
+		t.Fatalf("expected 1 remaining deleted item, got %d", len(deleted))
+	}
+	if deleted[0].Title != "Within window" {
+		t.Errorf("expected 'Within window' to remain, got %q", deleted[0].Title)
+	}
+}
+
+func TestTrackerServicePurgeExpiredMalformedDate(t *testing.T) {
+	// Use a date that matches the regex pattern but is invalid for time.Parse.
+	content := "# Tracker\n\n- [ ] Bad date [deleted: 2026-13-45]\n"
+	svc := newTestService(t, content)
+
+	// Should not panic; malformed date items are kept.
+	if err := svc.PurgeExpired(7); err != nil {
+		t.Fatalf("PurgeExpired: %v", err)
+	}
+
+	deleted := svc.ListDeleted()
+	if len(deleted) != 1 {
+		t.Errorf("expected malformed-date item to be kept, got %d", len(deleted))
 	}
 }

@@ -193,3 +193,169 @@ func TestIdeasServiceEdit_NonExistentSlug(t *testing.T) {
 		t.Fatal("expected error editing non-existent slug, got nil")
 	}
 }
+
+func TestIdeasServiceSoftDeleteAndRestore(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+
+	svc := ideas.NewService(path)
+	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."})
+	svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."})
+
+	// Soft delete Alpha.
+	if err := svc.Delete("alpha"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	// Alpha excluded from List.
+	list, _ := svc.List()
+	if len(list) != 1 {
+		t.Fatalf("expected 1 in List, got %d", len(list))
+	}
+
+	// Alpha in ListDeleted.
+	deleted := svc.ListDeleted()
+	if len(deleted) != 1 || deleted[0].Slug != "alpha" {
+		t.Fatalf("expected alpha in ListDeleted, got %v", deleted)
+	}
+
+	// Alpha excluded from Search.
+	results := svc.Search("alpha")
+	if len(results) != 0 {
+		t.Errorf("soft-deleted idea should not appear in Search, got %d results", len(results))
+	}
+
+	// Restore Alpha.
+	if err := svc.Restore("alpha"); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+
+	list, _ = svc.List()
+	if len(list) != 2 {
+		t.Fatalf("expected 2 in List after restore, got %d", len(list))
+	}
+
+	restored, _ := svc.Get("alpha")
+	if restored.DeletedAt != "" {
+		t.Error("expected DeletedAt to be cleared after restore")
+	}
+}
+
+func TestIdeasServicePermanentDelete(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+
+	svc := ideas.NewService(path)
+	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."})
+
+	if err := svc.PermanentDelete("alpha"); err != nil {
+		t.Fatalf("PermanentDelete: %v", err)
+	}
+
+	_, err := svc.Get("alpha")
+	if err == nil {
+		t.Error("expected error after permanent delete")
+	}
+}
+
+func TestIdeasServicePurgeExpired(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+
+	// Write ideas with deleted dates directly.
+	content := `# Ideas
+
+- [ ] Active idea [status: untriaged] [added: 2026-03-01]
+  Active body.
+
+- [ ] Old trash [status: untriaged] [added: 2026-03-01] [deleted: 2020-01-01]
+  Old body.
+
+- [ ] Recent trash [status: untriaged] [added: 2026-03-01] [deleted: 2099-12-31]
+  Recent body.
+`
+	os.WriteFile(path, []byte(content), 0o644)
+	svc := ideas.NewService(path)
+
+	if err := svc.PurgeExpired(7); err != nil {
+		t.Fatalf("PurgeExpired: %v", err)
+	}
+
+	list, _ := svc.List()
+	if len(list) != 1 {
+		t.Fatalf("expected 1 active idea, got %d", len(list))
+	}
+	if list[0].Title != "Active idea" {
+		t.Errorf("expected Active idea, got %q", list[0].Title)
+	}
+
+	deleted := svc.ListDeleted()
+	if len(deleted) != 1 || deleted[0].Title != "Recent trash" {
+		t.Errorf("expected only Recent trash in deleted, got %v", deleted)
+	}
+}
+
+func TestIdeasServicePurgeExpiredMalformedDate(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+	// Use a date that matches the regex pattern but is invalid for time.Parse.
+	content := "# Ideas\n\n- [ ] Bad date [status: untriaged] [deleted: 2026-13-45]\n"
+	os.WriteFile(path, []byte(content), 0o644)
+	svc := ideas.NewService(path)
+
+	if err := svc.PurgeExpired(7); err != nil {
+		t.Fatalf("PurgeExpired: %v", err)
+	}
+
+	deleted := svc.ListDeleted()
+	if len(deleted) != 1 {
+		t.Errorf("expected malformed-date item to be kept, got %d", len(deleted))
+	}
+}
+
+func TestIdeasDeletedAtRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ideas.md")
+
+	original := []ideas.Idea{
+		{
+			Slug:      "deleted-idea",
+			Title:     "Deleted Idea",
+			Status:    "untriaged",
+			Added:     "2026-03-16",
+			DeletedAt: "2026-03-17",
+			Body:      "Paragraph one.\n\nParagraph two.",
+		},
+		{
+			Slug:   "normal-idea",
+			Title:  "Normal Idea",
+			Status: "untriaged",
+			Added:  "2026-03-16",
+		},
+	}
+
+	if err := ideas.WriteIdeas(path, "Ideas", original); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	parsed, err := ideas.ParseIdeas(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(parsed) != 2 {
+		t.Fatalf("expected 2 ideas, got %d", len(parsed))
+	}
+
+	if parsed[0].DeletedAt != "2026-03-17" {
+		t.Errorf("deleted-at: got %q, want %q", parsed[0].DeletedAt, "2026-03-17")
+	}
+	if parsed[0].Body != "Paragraph one.\n\nParagraph two." {
+		t.Errorf("body: got %q, want %q", parsed[0].Body, "Paragraph one.\n\nParagraph two.")
+	}
+
+	if parsed[1].DeletedAt != "" {
+		t.Errorf("expected empty deleted-at, got %q", parsed[1].DeletedAt)
+	}
+}

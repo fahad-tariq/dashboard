@@ -85,6 +85,8 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 	r.Post("/ideas/{slug}/to-task", handler.ToTask)
 	r.Post("/ideas/{slug}/edit", handler.Edit)
 	r.Post("/ideas/{slug}/delete", handler.DeleteIdea)
+	r.Post("/ideas/{slug}/restore", handler.RestoreIdea)
+	r.Post("/ideas/{slug}/purge", handler.PermanentDeleteIdea)
 
 	return &ideasTestEnv{
 		handler:     handler,
@@ -390,10 +392,20 @@ func TestIdeasDelete(t *testing.T) {
 		t.Errorf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	// Verify idea is gone.
-	_, err := env.ideasSvc.Get(slug)
-	if err == nil {
-		t.Error("expected idea to be deleted")
+	// Verify idea is soft-deleted (still accessible via Get, excluded from List).
+	idea, err := env.ideasSvc.Get(slug)
+	if err != nil {
+		t.Fatalf("expected soft-deleted idea to still be accessible via Get: %v", err)
+	}
+	if idea.DeletedAt == "" {
+		t.Error("expected DeletedAt to be set after soft delete")
+	}
+
+	list, _ := env.ideasSvc.List()
+	for _, i := range list {
+		if i.Slug == slug {
+			t.Error("soft-deleted idea should not appear in List()")
+		}
 	}
 }
 
@@ -406,5 +418,67 @@ func TestIdeasDeleteNonExistent(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestIdeasRestore(t *testing.T) {
+	env := setupIdeasEnv(t)
+	slug := addTestIdea(t, env.ideasSvc, "Restore me")
+
+	// Soft delete.
+	req := httptest.NewRequest("POST", "/ideas/"+slug+"/delete", nil)
+	rr := httptest.NewRecorder()
+	env.router.ServeHTTP(rr, req)
+
+	// Restore.
+	req = httptest.NewRequest("POST", "/ideas/"+slug+"/restore", nil)
+	rr = httptest.NewRecorder()
+	env.router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d", rr.Code)
+	}
+
+	idea, err := env.ideasSvc.Get(slug)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if idea.DeletedAt != "" {
+		t.Error("expected DeletedAt to be cleared after restore")
+	}
+
+	list, _ := env.ideasSvc.List()
+	found := false
+	for _, i := range list {
+		if i.Slug == slug {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("restored idea should appear in List()")
+	}
+}
+
+func TestIdeasPurge(t *testing.T) {
+	env := setupIdeasEnv(t)
+	slug := addTestIdea(t, env.ideasSvc, "Purge me")
+
+	// Soft delete.
+	req := httptest.NewRequest("POST", "/ideas/"+slug+"/delete", nil)
+	rr := httptest.NewRecorder()
+	env.router.ServeHTTP(rr, req)
+
+	// Permanently delete.
+	req = httptest.NewRequest("POST", "/ideas/"+slug+"/purge", nil)
+	rr = httptest.NewRecorder()
+	env.router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d", rr.Code)
+	}
+
+	_, err := env.ideasSvc.Get(slug)
+	if err == nil {
+		t.Error("expected idea to be permanently deleted")
 	}
 }
