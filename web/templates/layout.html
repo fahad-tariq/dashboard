@@ -88,6 +88,35 @@
             </div>
         </div>
     </div>
+    <!-- Search overlay -->
+    <div id="search-overlay" class="modal-overlay" onclick="if(event.target===this)closeSearch()">
+        <div class="modal-content">
+            <div class="search-input-wrap">
+                <input type="text" id="search-input" class="search-input" placeholder="Search todos, family, ideas..." autocomplete="off">
+            </div>
+            <div id="search-results" class="search-results"></div>
+            <div class="search-hint">
+                <span><kbd>Esc</kbd> close</span>
+                <span><kbd>&uarr;&darr;</kbd> navigate</span>
+                <span><kbd>Enter</kbd> open</span>
+            </div>
+        </div>
+    </div>
+    <!-- Shortcut help modal -->
+    <div id="shortcut-help" class="modal-overlay" onclick="if(event.target===this)closeShortcutHelp()">
+        <div class="modal-content">
+            <div class="shortcut-help-body">
+                <div class="shortcut-help-title">Keyboard shortcuts</div>
+                <div class="shortcut-row"><span>Open search</span> <kbd>/</kbd> or <kbd>Ctrl+K</kbd></div>
+                <div class="shortcut-row"><span>Show shortcuts</span> <kbd>?</kbd></div>
+                <div class="shortcut-row"><span>Go to home</span> <kbd>g h</kbd></div>
+                <div class="shortcut-row"><span>Go to todos</span> <kbd>g t</kbd></div>
+                <div class="shortcut-row"><span>Go to goals</span> <kbd>g o</kbd></div>
+                <div class="shortcut-row"><span>Go to ideas</span> <kbd>g i</kbd></div>
+                <div class="shortcut-row"><span>Go to family</span> <kbd>g f</kbd></div>
+            </div>
+        </div>
+    </div>
     <footer class="build-info">build {{buildVersion}}</footer>
     <script src="/static/dialog.js"></script>
     <script src="/static/tracker.js"></script>
@@ -105,5 +134,6 @@
             document.body.addEventListener('htmx:afterSwap', collapseActionsOnMobile);
         })();
     </script>
+    <script src="/static/shortcuts.js"></script>
 </body>
 </html>

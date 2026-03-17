@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -216,6 +217,20 @@ func (s *Service) Resync() error {
 	}
 	s.cache = items
 	return s.store.ReplaceAll(items)
+}
+
+// Search returns items whose title or body contains the query (case-insensitive).
+func (s *Service) Search(query string) []Item {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	q := strings.ToLower(query)
+	var results []Item
+	for _, it := range s.cache {
+		if strings.Contains(strings.ToLower(it.Title), q) || strings.Contains(strings.ToLower(it.Body), q) {
+			results = append(results, it)
+		}
+	}
+	return results
 }
 
 func (s *Service) Summary() (Summary, error) {
