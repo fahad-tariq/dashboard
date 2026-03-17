@@ -1,0 +1,74 @@
+{{define "content"}}
+<div class="digest-page">
+
+<h1>Digest</h1>
+
+<div class="digest-period-toggle">
+    <a href="/digest?period=this-week" class="filter-tag{{if eq .Period "this-week"}} active{{end}}">This week</a>
+    <a href="/digest?period=last-week" class="filter-tag{{if eq .Period "last-week"}} active{{end}}">Last week</a>
+    <a href="/digest?period=this-month" class="filter-tag{{if eq .Period "this-month"}} active{{end}}">This month</a>
+</div>
+
+{{if and (eq .Digest.CompletedTasks 0) (eq .Digest.AddedTasks 0) (eq .Digest.AddedIdeas 0)}}
+<p class="empty">No activity for this period.</p>
+{{else}}
+
+<div class="summary-stats">
+    <span class="stat-item"><span class="stat-value">{{.Digest.CompletedTasks}}</span> completed</span>
+    <span class="stat-item"><span class="stat-value">{{.Digest.AddedTasks}}</span> tasks added</span>
+    <span class="stat-item"><span class="stat-value">{{.Digest.AddedIdeas}}</span> ideas added</span>
+</div>
+
+{{if gt .Digest.MaxValue 0}}
+<section class="digest-chart">
+    <h2>Activity</h2>
+    <div class="digest-bar-row">
+        <span class="digest-bar-label">Completed</span>
+        <div class="digest-bar-track">
+            <div class="digest-bar-fill digest-bar-completed" style="width: {{.Digest.CompletedPct}}%"></div>
+        </div>
+        <span class="digest-bar-value">{{.Digest.CompletedTasks}}</span>
+    </div>
+    <div class="digest-bar-row">
+        <span class="digest-bar-label">Added</span>
+        <div class="digest-bar-track">
+            <div class="digest-bar-fill digest-bar-added" style="width: {{.Digest.AddedPct}}%"></div>
+        </div>
+        <span class="digest-bar-value">{{.Digest.AddedTasks}}</span>
+    </div>
+    <div class="digest-bar-row">
+        <span class="digest-bar-label">Ideas</span>
+        <div class="digest-bar-track">
+            <div class="digest-bar-fill digest-bar-ideas" style="width: {{.Digest.IdeasPct}}%"></div>
+        </div>
+        <span class="digest-bar-value">{{.Digest.AddedIdeas}}</span>
+    </div>
+</section>
+{{end}}
+
+{{if .Digest.TagCounts}}
+<section class="digest-tags">
+    <h2>Completions by tag</h2>
+    {{range .Digest.TagCounts}}
+    <div class="digest-tag-row">
+        <span class="badge badge-tag">{{.Tag}}</span>
+        <span class="stat-value">{{.Count}}</span>
+    </div>
+    {{end}}
+</section>
+{{end}}
+
+{{end}}
+
+{{if or .ConvertedIdeas .TriagedIdeas}}
+<section class="digest-ideas-summary">
+    <h2>Ideas (all time)</h2>
+    <div class="summary-stats">
+        <span class="stat-item"><span class="stat-value">{{.ConvertedIdeas}}</span> converted</span>
+        <span class="stat-item"><span class="stat-value">{{.TriagedIdeas}}</span> triaged</span>
+    </div>
+</section>
+{{end}}
+
+</div>
+{{end}}

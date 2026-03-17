@@ -86,15 +86,19 @@ func AgeBadge(added string, now time.Time) (label string, level string) {
 	}
 }
 
-// WeeklyVelocity counts completions in the current and previous calendar weeks.
-func WeeklyVelocity(items []CompletedItem, now time.Time) VelocityInsight {
-	// Find start of this week (Monday).
+// weekStart returns the Monday 00:00:00 of the ISO week containing the given time.
+func weekStart(now time.Time) time.Time {
 	weekday := now.Weekday()
 	if weekday == time.Sunday {
 		weekday = 7
 	}
-	thisWeekStart := now.AddDate(0, 0, -int(weekday-time.Monday))
-	thisWeekStart = time.Date(thisWeekStart.Year(), thisWeekStart.Month(), thisWeekStart.Day(), 0, 0, 0, 0, now.Location())
+	ws := now.AddDate(0, 0, -int(weekday-time.Monday))
+	return time.Date(ws.Year(), ws.Month(), ws.Day(), 0, 0, 0, 0, now.Location())
+}
+
+// WeeklyVelocity counts completions in the current and previous calendar weeks.
+func WeeklyVelocity(items []CompletedItem, now time.Time) VelocityInsight {
+	thisWeekStart := weekStart(now)
 	lastWeekStart := thisWeekStart.AddDate(0, 0, -7)
 
 	var v VelocityInsight
@@ -312,4 +316,151 @@ func TopN(summaries []TagSummary, n int) []TagSummary {
 		return slices.Clone(summaries)
 	}
 	return slices.Clone(summaries[:n])
+}
+
+// DigestPeriod represents a selectable time period for digest views.
+type DigestPeriod string
+
+const (
+	PeriodThisWeek  DigestPeriod = "this-week"
+	PeriodLastWeek  DigestPeriod = "last-week"
+	PeriodThisMonth DigestPeriod = "this-month"
+)
+
+// ParseDigestPeriod returns a valid DigestPeriod, falling back to PeriodThisWeek
+// for unrecognised values.
+func ParseDigestPeriod(s string) DigestPeriod {
+	switch DigestPeriod(s) {
+	case PeriodThisWeek, PeriodLastWeek, PeriodThisMonth:
+		return DigestPeriod(s)
+	default:
+		return PeriodThisWeek
+	}
+}
+
+// DigestItem holds the minimal fields needed for digest computation.
+// Both tracker items and ideas can be converted to this type.
+type DigestItem struct {
+	Added     string   // YYYY-MM-DD
+	Completed string   // YYYY-MM-DD (empty for ideas)
+	Done      bool
+	Tags      []string
+	Type      string // "task", "goal", or "idea"
+}
+
+// DigestTagCount holds a per-tag completion count within a period.
+type DigestTagCount struct {
+	Tag   string
+	Count int
+}
+
+// DigestResult holds computed digest data for a period.
+type DigestResult struct {
+	Period         DigestPeriod
+	PeriodLabel    string
+	CompletedTasks int
+	AddedTasks     int
+	AddedIdeas     int
+	TagCounts      []DigestTagCount
+	MaxValue       int // largest of the three counts, for bar width scaling
+	// Pre-computed bar widths as percentages (0-100) for templates.
+	CompletedPct int
+	AddedPct     int
+	IdeasPct     int
+}
+
+// periodBounds returns the inclusive start and exclusive end times for a period.
+func periodBounds(period DigestPeriod, now time.Time) (start, end time.Time) {
+	switch period {
+	case PeriodLastWeek:
+		ws := weekStart(now)
+		return ws.AddDate(0, 0, -7), ws
+	case PeriodThisMonth:
+		start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+		end = start.AddDate(0, 1, 0)
+		return start, end
+	default: // PeriodThisWeek
+		ws := weekStart(now)
+		return ws, ws.AddDate(0, 0, 7)
+	}
+}
+
+// periodLabel returns a human-readable label for the period.
+func periodLabel(period DigestPeriod) string {
+	switch period {
+	case PeriodLastWeek:
+		return "Last week"
+	case PeriodThisMonth:
+		return "This month"
+	default:
+		return "This week"
+	}
+}
+
+// Digest computes activity counts for the given period from tracker items and ideas.
+func Digest(items []DigestItem, period DigestPeriod, now time.Time) DigestResult {
+	start, end := periodBounds(period, now)
+
+	result := DigestResult{
+		Period:      period,
+		PeriodLabel: periodLabel(period),
+	}
+
+	tagCompleted := map[string]int{}
+
+	for _, it := range items {
+		// Count items added in the period.
+		if it.Added != "" {
+			if addedTime, err := time.Parse("2006-01-02", it.Added); err == nil {
+				if !addedTime.Before(start) && addedTime.Before(end) {
+					if it.Type == "idea" {
+						result.AddedIdeas++
+					} else {
+						result.AddedTasks++
+					}
+				}
+			}
+		}
+
+		// Count completed items in the period (tasks/goals only).
+		if it.Done && it.Completed != "" && it.Type != "idea" {
+			if completedTime, err := time.Parse("2006-01-02", it.Completed); err == nil {
+				if !completedTime.Before(start) && completedTime.Before(end) {
+					result.CompletedTasks++
+					for _, tag := range it.Tags {
+						tagCompleted[strings.ToLower(tag)]++
+					}
+				}
+			}
+		}
+	}
+
+	// Build sorted tag counts.
+	for tag, count := range tagCompleted {
+		result.TagCounts = append(result.TagCounts, DigestTagCount{Tag: tag, Count: count})
+	}
+	sort.Slice(result.TagCounts, func(i, j int) bool {
+		if result.TagCounts[i].Count != result.TagCounts[j].Count {
+			return result.TagCounts[i].Count > result.TagCounts[j].Count
+		}
+		return result.TagCounts[i].Tag < result.TagCounts[j].Tag
+	})
+
+	// Compute max value for bar width scaling.
+	result.MaxValue = result.CompletedTasks
+	if result.AddedTasks > result.MaxValue {
+		result.MaxValue = result.AddedTasks
+	}
+	if result.AddedIdeas > result.MaxValue {
+		result.MaxValue = result.AddedIdeas
+	}
+
+	// Pre-compute bar widths as percentages.
+	if result.MaxValue > 0 {
+		result.CompletedPct = result.CompletedTasks * 100 / result.MaxValue
+		result.AddedPct = result.AddedTasks * 100 / result.MaxValue
+		result.IdeasPct = result.AddedIdeas * 100 / result.MaxValue
+	}
+
+	return result
 }

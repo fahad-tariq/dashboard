@@ -23,6 +23,7 @@
             <a href="/goals">goals</a>
             <a href="/ideas">ideas</a>
             <a href="/family">family</a>
+            <a href="/digest">digest</a>
         </div>
         <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme" aria-label="Toggle theme"></button>
         {{if authEnabled}}{{if .UserName}}{{if .IsAdmin}}<a href="/admin/users" class="nav-user nav-user-link" title="Admin">{{.UserName}}</a>{{else}}<a href="/account" class="nav-user nav-user-link" title="Account settings">{{.UserName}}</a>{{end}}{{end}}<form method="POST" action="/logout" class="inline-form"><button type="submit" class="theme-toggle" title="Logout" aria-label="Log out">logout</button></form>{{end}}
@@ -114,6 +115,7 @@
                 <div class="shortcut-row"><span>Go to goals</span> <kbd>g o</kbd></div>
                 <div class="shortcut-row"><span>Go to ideas</span> <kbd>g i</kbd></div>
                 <div class="shortcut-row"><span>Go to family</span> <kbd>g f</kbd></div>
+                <div class="shortcut-row"><span>Go to digest</span> <kbd>g d</kbd></div>
             </div>
         </div>
     </div>
