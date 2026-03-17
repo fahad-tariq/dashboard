@@ -108,15 +108,17 @@ The compose file mounts `./data` for the database and family tasks, and `./users
 
 ### Goals
 - Progress tracking with current/target and unit (e.g. 12/40 books)
-- Progress bar visualisation
+- Progress bar visualisation with colour shift based on deadline proximity (green/yellow/orange/red)
+- Optional deadline with pace indicator ("On pace", "Behind pace", projected completion date)
 - Increment (+1/-1) or set absolute value
 - Inline title editing
 - Same priority and tag system as tasks
 
 ### Ideas
 - Single flat file (`ideas.md`) with checkbox items and inline metadata
-- Triage workflow: untriaged -> parked / dropped
-- Convert idea to personal task (tags carry over)
+- Triage workflow: untriaged -> parked / dropped / converted
+- Convert idea to personal task with bidirectional linkage (tags carry over, provenance preserved)
+- Status badges on list cards (untriaged/parked/dropped/converted)
 - Filter by tag
 - Inline title and body editing
 - Research notes stored inline in idea body
@@ -141,9 +143,29 @@ The compose file mounts `./data` for the database and family tasks, and `./users
 - Rate limiting on login (5 attempts/minute per IP)
 - First user auto-created from `DASHBOARD_PASSWORD_HASH` env var
 
+### Homepage insights
+- Time-of-day greeting (Good morning/afternoon/evening)
+- Weekly velocity ("5 completed this week, up from 3 last week")
+- Completion streaks and milestone badges (10/50/100/500)
+- Tag aggregation across tasks, goals, and ideas (top 5 tags with cross-section counts)
+- Age badges on open tasks and untriaged ideas (fresh/ageing/stale/old)
+
+### Search and keyboard shortcuts
+- `Ctrl+K` / `Cmd+K` / `/` opens search overlay
+- Full-text search across titles and body content (tasks, goals, ideas)
+- `?` shows keyboard shortcut help
+- `g h/t/o/i/f` for navigation (home, todos, goals, ideas, family)
+- Arrow keys + Enter for search result selection
+
 ### General
 - Live reload via SSE on file changes
-- Catppuccin dark/light theme
+- Catppuccin dark/light theme with WCAG AA contrast compliance
+- Themed confirmation modals (replacing browser confirm dialogs)
+- Task completion celebration animation
+- Idea triage transition animations
+- Success flash messages on all mutations
+- Contextual error messages with correlation IDs for 500 errors
+- Session expiry toast before login redirect
 - REST API with optional bearer token auth
 
 ## Task file format
@@ -154,8 +176,8 @@ Tasks and goals are stored in `personal.md` and `family.md` as flat checkbox lis
 # Personal
 
 - [ ] Run 5km !high [added: 2026-03-10] [tags: fitness, health]
-- [ ] Reach 90kg [goal: 85.5/90 kg] [added: 2026-03-01] [tags: health]
-- [ ] Document setup [tags: infra] [images: screenshot.png]
+- [ ] Reach 90kg [goal: 85.5/90 kg] [added: 2026-03-01] [deadline: 2026-06-30] [tags: health]
+- [ ] Document setup [tags: infra] [images: screenshot.png] [from-idea: document-setup-idea]
 - [x] Finish book club pick [completed: 2026-03-15] [tags: books]
 ```
 
@@ -176,7 +198,7 @@ Ideas are stored in a single `ideas.md` file with checkbox items and inline meta
   Add a manifest.json and service worker for offline support.
 ```
 
-Status values: `untriaged` (default), `parked`, `dropped`. The `[project: ...]` field is optional. Body lines are indented with 2 spaces; blank lines within bodies are preserved.
+Status values: `untriaged` (default), `parked`, `dropped`, `converted`. The `[project: ...]` field is optional. Converted ideas include `[converted-to: task-slug]` linking to the resulting task. Body lines are indented with 2 spaces; blank lines within bodies are preserved.
 
 ## Routes
 
@@ -191,6 +213,7 @@ Status values: `untriaged` (default), `parked`, `dropped`. The `[project: ...]` 
 | `GET` | `/exploration` | Redirects to `/ideas` (301) |
 | `POST` | `/upload` | Image upload (multipart, returns JSON) |
 | `GET` | `/uploads/{filename}` | Serve uploaded images |
+| `GET` | `/search` | Search across tasks, goals, ideas (HTML fragment) |
 | `GET` | `/events` | SSE endpoint for live reload |
 | `GET` | `/login` | Login page |
 | `POST` | `/login` | Login submission |
