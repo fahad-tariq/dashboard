@@ -59,6 +59,8 @@ This reads old-format idea and exploration files, merges research notes into ide
 | `DASHBOARD_SECURE_COOKIES` | `true` | Set `false` for local HTTP development |
 | `ADDR` | `:8080` | Server listen address |
 
+The build version (git SHA) is injected at compile time via `-ldflags` and displayed in the page footer. Set via `VERSION` build arg in Docker or `make build`.
+
 ## Running
 
 ```bash
@@ -86,7 +88,8 @@ make build
 ## Docker
 
 ```bash
-docker compose up --build
+# Pass the git SHA so the footer shows the build version
+VERSION=$(git rev-parse HEAD) docker compose up --build
 ```
 
 The compose file mounts `./data` for the database and family tasks, and `./users` for per-user data (personal tasks, ideas).
