@@ -32,6 +32,8 @@ type Item struct {
 	Body      string
 	Added     string   // date added, YYYY-MM-DD
 	Completed string   // date completed, YYYY-MM-DD
+	Deadline  string   // goals only, YYYY-MM-DD
+	FromIdea  string   // slug of the idea this task was converted from
 	Tags      []string // tags for categorisation and filtering
 	Images    []string // uploaded image filenames
 }
@@ -56,6 +58,8 @@ type Summary struct {
 var goalRe = regexp.MustCompile(`\[goal:\s*([\d.]+)\s*/\s*([\d.]+)\s*(.*?)\]`)
 var addedRe = regexp.MustCompile(`\[added:\s*(\d{4}-\d{2}-\d{2})\]`)
 var completedRe = regexp.MustCompile(`\[completed:\s*(\d{4}-\d{2}-\d{2})\]`)
+var deadlineRe = regexp.MustCompile(`\[deadline:\s*(\d{4}-\d{2}-\d{2})\]`)
+var fromIdeaRe = regexp.MustCompile(`\[from-idea:\s*([\w-]+)\]`)
 var tagsRe = regexp.MustCompile(`\[tags:\s*(.*?)\]`)
 var imagesRe = regexp.MustCompile(`\[images:\s*(.*?)\]`)
 
@@ -172,6 +176,18 @@ func parseItemLine(raw string, done bool) *Item {
 		title = strings.TrimSpace(completedRe.ReplaceAllString(title, ""))
 	}
 
+	// Extract deadline: [deadline: YYYY-MM-DD]
+	if m := deadlineRe.FindStringSubmatch(title); m != nil {
+		item.Deadline = m[1]
+		title = strings.TrimSpace(deadlineRe.ReplaceAllString(title, ""))
+	}
+
+	// Extract from-idea: [from-idea: slug]
+	if m := fromIdeaRe.FindStringSubmatch(title); m != nil {
+		item.FromIdea = m[1]
+		title = strings.TrimSpace(fromIdeaRe.ReplaceAllString(title, ""))
+	}
+
 	// Extract tags: [tags: tech, study]
 	if m := tagsRe.FindStringSubmatch(title); m != nil {
 		for t := range strings.SplitSeq(m[1], ",") {
@@ -242,6 +258,12 @@ func writeItem(sb *strings.Builder, it Item) {
 	}
 	if it.Completed != "" {
 		sb.WriteString(" [completed: " + it.Completed + "]")
+	}
+	if it.Deadline != "" {
+		sb.WriteString(" [deadline: " + it.Deadline + "]")
+	}
+	if it.FromIdea != "" {
+		sb.WriteString(" [from-idea: " + it.FromIdea + "]")
 	}
 	if len(it.Tags) > 0 {
 		sb.WriteString(" [tags: " + strings.Join(it.Tags, ", ") + "]")

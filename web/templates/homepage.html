@@ -8,6 +8,21 @@
 {{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .TotalIdeaCount 0)}}
 <p class="empty">Nothing here yet{{if .UserName}}, {{.UserName}}{{end}}. Use the nav above to get started.</p>
 {{else}}
+
+{{if or .InsightLine.ThisWeek .InsightLine.LastWeek .StreakDays .MilestoneBadge}}
+<div class="homepage-insights">
+    {{if or .InsightLine.ThisWeek .InsightLine.LastWeek}}
+    <span class="homepage-insight"><strong>{{.InsightLine.ThisWeek}}</strong> completed this week{{if .InsightLine.LastWeek}}, <strong>{{.InsightLine.LastWeek}}</strong> last week{{end}}</span>
+    {{end}}
+    {{if gt .StreakDays 0}}
+    <span class="badge-streak">{{.StreakDays}}-day streak</span>
+    {{end}}
+    {{if .MilestoneBadge}}
+    <span class="badge-milestone">{{.MilestoneBadge}}</span>
+    {{end}}
+</div>
+{{end}}
+
 <div class="homepage-grid">
 
 {{if or .PersonalTasks (gt .PersonalTaskCount 0)}}
@@ -61,7 +76,7 @@
             {{if gt .Target 0.0}}
             <div class="homepage-progress">
                 <div class="progress-bar">
-                    <div class="progress-fill" style="width: {{percentage .Current .Target}}%"></div>
+                    <div class="progress-fill {{progressColour .Current .Target .Added .Deadline}}" style="width: {{percentage .Current .Target}}%"></div>
                 </div>
                 <span class="progress-text">{{formatNum .Current}}/{{formatNum .Target}}{{if .Unit}} {{.Unit}}{{end}}</span>
             </div>
@@ -82,6 +97,26 @@
         {{range .UntriagedIdeas}}
         <div class="homepage-idea">
             <a href="/ideas/{{.Slug}}">{{.Title}}</a>
+        </div>
+        {{end}}
+    </div>
+</section>
+{{end}}
+
+{{if .TagSummaries}}
+<section class="homepage-card homepage-col-left tag-summary-card">
+    <div class="homepage-card-header">
+        <span class="homepage-card-title">Tags</span>
+    </div>
+    <div class="homepage-card-body">
+        {{range .TagSummaries}}
+        <div class="tag-summary-row">
+            <span class="badge badge-tag">{{.Tag}}</span>
+            <span class="tag-summary-counts">
+                {{if .TaskCount}}<span class="meta-dim">{{.TaskCount}} tasks</span>{{end}}
+                {{if .GoalCount}}<span class="meta-dim">{{.GoalCount}} goals</span>{{end}}
+                {{if .IdeaCount}}<span class="meta-dim">{{.IdeaCount}} ideas</span>{{end}}
+            </span>
         </div>
         {{end}}
     </div>

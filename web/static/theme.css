@@ -1115,6 +1115,98 @@ section h2 {
 }
 .homepage-idea a { color: var(--fg); text-decoration: none; }
 .homepage-idea a:hover { color: var(--accent); }
+
+/* --- Homepage insights --- */
+.homepage-insights {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: var(--fg-dim);
+    flex-wrap: wrap;
+}
+.homepage-insight {
+    color: var(--fg-dim);
+}
+.homepage-insight strong {
+    color: var(--fg);
+    font-variant-numeric: tabular-nums;
+}
+.badge-streak {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    background: var(--green);
+    color: var(--base);
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+.badge-milestone {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    background: var(--mauve);
+    color: var(--base);
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+/* --- Tag summary --- */
+.tag-summary-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.15rem 0;
+    font-size: 0.85rem;
+}
+.tag-summary-counts {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* --- Age badges --- */
+.badge-age {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    border: 1px solid;
+}
+.badge-age-fresh { color: var(--green); border-color: var(--green); }
+.badge-age-ageing { color: var(--yellow); border-color: var(--yellow); }
+.badge-age-stale { color: var(--peach); border-color: var(--peach); }
+.badge-age-old { color: var(--red); border-color: var(--red); }
+
+/* --- Progress bar colour variants --- */
+.progress-fill-green { background: var(--green); }
+.progress-fill-yellow { background: var(--yellow); }
+.progress-fill-orange { background: var(--peach); }
+.progress-fill-red { background: var(--red); }
+
+/* --- Goal pace indicator --- */
+.goal-pace {
+    font-size: 0.75rem;
+    color: var(--fg-dim);
+    margin-top: 0.15rem;
+}
+
+/* --- Converted ideas section --- */
+.badge-converted { color: var(--green); border-color: var(--green); }
+.converted-link {
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+}
+.converted-link a { color: var(--accent); }
+
 .build-info {
     text-align: center;
     padding: 1.5rem 0 0.75rem;

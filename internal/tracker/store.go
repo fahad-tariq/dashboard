@@ -85,8 +85,8 @@ func (s *Store) ReplaceAllWithAttribution(items []Item, attributionUserID int64)
 
 	// Upsert each item.
 	stmt, err := tx.Prepare(`
-		INSERT OR REPLACE INTO tracker_items (slug, title, type, category, priority, current_val, target_val, unit, done, graduated, added, completed, tags, images, list, user_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT OR REPLACE INTO tracker_items (slug, title, type, category, priority, current_val, target_val, unit, done, graduated, added, completed, deadline, from_idea, tags, images, list, user_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -96,7 +96,7 @@ func (s *Store) ReplaceAllWithAttribution(items []Item, attributionUserID int64)
 	for _, it := range items {
 		tagsJSON, _ := json.Marshal(it.Tags)
 		_, err := stmt.Exec(it.Slug, it.Title, string(it.Type), strings.Join(it.Tags, ","), it.Priority,
-			it.Current, it.Target, it.Unit, it.Done, it.Graduated, it.Added, it.Completed, string(tagsJSON),
+			it.Current, it.Target, it.Unit, it.Done, it.Graduated, it.Added, it.Completed, it.Deadline, it.FromIdea, string(tagsJSON),
 			strings.Join(it.Images, ","), s.listName, attributionUserID)
 		if err != nil {
 			return err
