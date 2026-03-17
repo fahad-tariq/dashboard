@@ -30,7 +30,7 @@
     </form>
 </details>
 
-<form method="POST" action="/ideas/{{.Idea.Slug}}/delete" style="margin-top: 1rem;">
-    <button type="submit" class="action-btn action-drop" onclick="return confirm('Permanently delete this idea?')">delete</button>
+<form method="POST" action="/ideas/{{.Idea.Slug}}/delete" style="margin-top: 1rem;" onsubmit="return confirmAction(this, 'Permanently delete this idea?')">
+    <button type="submit" class="action-btn action-drop">delete</button>
 </form>
 {{end}}

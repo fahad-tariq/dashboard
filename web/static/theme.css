@@ -833,10 +833,142 @@ section h2 {
     color: var(--red);
 }
 
+/* --- Animations --- */
+@keyframes dash-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+@keyframes dash-complete-flash {
+    0% { background-color: transparent; }
+    20% { background-color: rgba(64, 160, 43, 0.25); }
+    50% { background-color: rgba(64, 160, 43, 0.25); }
+    100% { background-color: transparent; }
+}
+
+@keyframes dash-fade-out {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes modal-fade-in {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+@keyframes modal-scale-in {
+    0% { opacity: 0; transform: scale(0.95); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
 /* --- htmx loading indicator --- */
-.htmx-indicator { display: none; }
+.htmx-indicator {
+    display: none;
+    color: var(--accent);
+    font-weight: 600;
+    animation: dash-pulse 1.2s ease-in-out infinite;
+}
 .htmx-request .htmx-indicator,
 .htmx-request.htmx-indicator { display: inline-block; }
+
+/* --- Task completion celebration --- */
+.tracker-item-completing {
+    animation: dash-complete-flash 600ms ease-out;
+}
+
+/* --- Idea triage transition --- */
+.idea-transitioning {
+    animation: dash-fade-out 300ms ease-out forwards;
+    pointer-events: none;
+}
+
+/* --- Filter active badge --- */
+.filter-active-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    background: var(--accent);
+    color: var(--base);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* --- Modal overlay (shared base) --- */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+    animation: modal-fade-in 150ms ease-out;
+}
+.modal-overlay.visible {
+    display: flex;
+}
+.modal-content {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.5rem;
+    max-width: 400px;
+    width: 90%;
+    animation: modal-scale-in 150ms ease-out;
+}
+.modal-content h2 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    color: var(--fg);
+    border: none;
+}
+.confirm-warning {
+    color: var(--red);
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+.confirm-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+.confirm-actions .action-btn {
+    padding: 0.4rem 1rem;
+    font-size: 0.85rem;
+}
+.confirm-actions .confirm-btn-danger {
+    background: var(--red);
+    color: var(--base);
+    border-color: var(--red);
+}
+.confirm-actions .confirm-btn-danger:hover {
+    opacity: 0.9;
+}
+
+/* --- Reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+    .htmx-indicator {
+        animation: none;
+    }
+    .tracker-item-completing {
+        animation: none;
+    }
+    .idea-transitioning {
+        animation: none;
+        opacity: 0;
+    }
+    .modal-overlay {
+        animation: none;
+    }
+    .modal-content {
+        animation: none;
+    }
+}
 
 .sr-only {
     position: absolute;

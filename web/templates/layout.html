@@ -78,7 +78,18 @@
             });
         })();
     </script>{{end}}
+    <div class="modal-overlay" id="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+        <div class="modal-content">
+            <h2 id="confirm-modal-title">Are you sure?</h2>
+            <p class="confirm-warning" id="confirm-modal-warning">This cannot be undone.</p>
+            <div class="confirm-actions">
+                <button type="button" class="action-btn" id="confirm-modal-cancel" onclick="confirmModalCancel()">Cancel</button>
+                <button type="button" class="action-btn" id="confirm-modal-ok" onclick="confirmModalOk()">Confirm</button>
+            </div>
+        </div>
+    </div>
     <footer class="build-info">build {{buildVersion}}</footer>
+    <script src="/static/dialog.js"></script>
     <script src="/static/tracker.js"></script>
     <script src="/static/upload.js"></script>
     <script>

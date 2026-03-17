@@ -16,19 +16,19 @@
             {{end}}
             <div class="tracker-item-actions">
                 {{if ne .Status "untriaged"}}
-                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage">
+                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage" onsubmit="return triageAnimate(this)">
                     <input type="hidden" name="action" value="untriage">
                     <button type="submit" class="action-btn">untriage</button>
                 </form>
                 {{end}}
                 {{if ne .Status "parked"}}
-                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage">
+                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage" onsubmit="return triageAnimate(this)">
                     <input type="hidden" name="action" value="park">
                     <button type="submit" class="action-btn">park</button>
                 </form>
                 {{end}}
                 {{if ne .Status "dropped"}}
-                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage">
+                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage" onsubmit="return triageAnimate(this)">
                     <input type="hidden" name="action" value="drop">
                     <button type="submit" class="action-btn action-drop">drop</button>
                 </form>
@@ -36,8 +36,8 @@
                 <form method="POST" action="/ideas/{{.Slug}}/to-task" class="inline-triage">
                     <button type="submit" class="action-btn action-assign">to todos</button>
                 </form>
-                <form method="POST" action="/ideas/{{.Slug}}/delete" class="inline-triage">
-                    <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this idea?')">delete</button>
+                <form method="POST" action="/ideas/{{.Slug}}/delete" class="inline-triage" onsubmit="return confirmAction(this, 'Delete this idea?')">
+                    <button type="submit" class="action-btn action-drop">delete</button>
                 </form>
             </div>
             {{if .Images}}
@@ -65,7 +65,7 @@
      hx-ext="sse" sse-connect="/events"
      hx-get="/ideas" hx-select=".ideas-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
-<span class="htmx-indicator meta-dim">updating&hellip;</span>
+<span class="htmx-indicator">updating&hellip;</span>
 
 <h1>Ideas</h1>
 {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
