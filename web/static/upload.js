@@ -50,17 +50,22 @@
             form.appendChild(area);
         }
 
-        // Load existing images.
+        // Load existing images. Entries may be "filename" or "filename|caption".
         var existing = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
-        existing.forEach(function(img) {
-            addThumbnail(gallery, hidden, img);
+        var filenames = [];
+        existing.forEach(function(entry) {
+            var parts = splitOnFirstPipe(entry);
+            filenames.push(parts[0]);
+            addThumbnail(gallery, hidden, parts[0], parts[1]);
         });
+        // Rewrite hidden value to filenames only; captions travel via caption-N fields.
+        hidden.value = filenames.join(',');
 
         // File input handler.
         fileInput.addEventListener('change', function() {
             Array.from(fileInput.files).forEach(function(file) {
                 uploadFile(file, function(filename) {
-                    appendImage(hidden, gallery, filename);
+                    appendImage(hidden, gallery, filename, '');
                 });
             });
             fileInput.value = '';
@@ -76,13 +81,20 @@
                         e.preventDefault();
                         var blob = items[i].getAsFile();
                         uploadFile(blob, function(filename) {
-                            appendImage(hidden, gallery, filename);
+                            appendImage(hidden, gallery, filename, '');
                         });
                         break;
                     }
                 }
             });
         });
+    }
+
+    // Split a string on the first pipe character only.
+    function splitOnFirstPipe(s) {
+        var idx = s.indexOf('|');
+        if (idx === -1) return [s.trim(), ''];
+        return [s.substring(0, idx).trim(), s.substring(idx + 1).trim()];
     }
 
     function uploadFile(file, onSuccess) {
@@ -109,35 +121,63 @@
             });
     }
 
-    function appendImage(hidden, gallery, filename) {
-        var images = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
-        images.push(filename);
-        hidden.value = images.join(',');
-        addThumbnail(gallery, hidden, filename);
+    function appendImage(hidden, gallery, filename, caption) {
+        // Hidden field stores filenames only (no captions).
+        var filenames = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
+        filenames.push(filename);
+        hidden.value = filenames.join(',');
+        addThumbnail(gallery, hidden, filename, caption);
     }
 
-    function addThumbnail(gallery, hidden, filename) {
+    function addThumbnail(gallery, hidden, filename, caption) {
         var wrap = document.createElement('div');
         wrap.className = 'image-thumb-wrap';
+        wrap.setAttribute('data-filename', filename);
 
         var img = document.createElement('img');
         img.src = '/uploads/' + filename;
         img.className = 'image-thumb';
         img.loading = 'lazy';
 
+        var captionInput = document.createElement('input');
+        captionInput.type = 'text';
+        captionInput.className = 'image-caption-input';
+        captionInput.placeholder = 'caption';
+        captionInput.value = caption || '';
+
+        // Assign sequential caption-N name.
+        var idx = gallery.querySelectorAll('.image-thumb-wrap').length;
+        captionInput.name = 'caption-' + idx;
+
+        // Strip forbidden characters on input.
+        captionInput.addEventListener('input', function() {
+            captionInput.value = captionInput.value.replace(/[|,\]]/g, '');
+        });
+
         var remove = document.createElement('button');
         remove.type = 'button';
         remove.className = 'image-thumb-remove';
         remove.textContent = '\u00d7';
         remove.addEventListener('click', function() {
-            var images = hidden.value.split(',').filter(function(f) { return f !== filename; });
-            hidden.value = images.join(',');
+            var filenames = hidden.value.split(',').filter(function(f) { return f !== filename; });
+            hidden.value = filenames.join(',');
             wrap.remove();
+            // Re-index all remaining caption inputs sequentially.
+            reindexCaptions(gallery);
         });
 
         wrap.appendChild(img);
         wrap.appendChild(remove);
+        wrap.appendChild(captionInput);
         gallery.appendChild(wrap);
+    }
+
+    // Walk all caption inputs and reassign name attributes sequentially.
+    function reindexCaptions(gallery) {
+        var inputs = gallery.querySelectorAll('.image-caption-input');
+        for (var i = 0; i < inputs.length; i++) {
+            inputs[i].name = 'caption-' + i;
+        }
     }
 
     // Initialise on load and after htmx swaps.

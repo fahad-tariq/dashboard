@@ -121,7 +121,7 @@
     </div>
     {{if .Images}}
     <div class="image-gallery">
-        {{range .Images}}<div class="image-thumb-wrap"><img src="/uploads/{{.}}" class="image-thumb" loading="lazy" alt="Attached image"></div>{{end}}
+        {{range .Images}}{{$parts := splitImageCaption .}}<div class="image-thumb-wrap"><img src="/uploads/{{index $parts 0}}" class="image-thumb" loading="lazy" alt="{{if index $parts 1}}{{index $parts 1}}{{else}}Attached image{{end}}">{{if index $parts 1}}<span class="image-caption">{{index $parts 1}}</span>{{end}}</div>{{end}}
     </div>
     {{end}}
     <details class="tracker-notes-edit">

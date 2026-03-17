@@ -26,6 +26,7 @@ import (
 	"github.com/fahad/dashboard/internal/admin"
 	"github.com/fahad/dashboard/internal/auth"
 	"github.com/fahad/dashboard/internal/config"
+	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/db"
 	"github.com/fahad/dashboard/internal/home"
 	"github.com/fahad/dashboard/internal/ideas"
@@ -72,6 +73,14 @@ var funcMap = template.FuncMap{
 	},
 	"goalPace": func(current, target float64, added, deadline string) string {
 		return insights.GoalPace(current, target, added, deadline, time.Now())
+	},
+	"splitImageCaption": func(entry string) []string {
+		file, caption := httputil.SplitImageCaption(entry)
+		return []string{file, caption}
+	},
+	"imageFilename": func(entry string) string {
+		file, _ := httputil.SplitImageCaption(entry)
+		return file
 	},
 	"linkify": func(text string) template.HTML {
 		var b strings.Builder
