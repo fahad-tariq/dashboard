@@ -264,6 +264,7 @@ func main() {
 
 		homeHandler := home.NewHandler(registry, templates)
 		homePage = homeHandler.HomePage
+		digestPage := homeHandler.DigestPage
 
 		sessionStore := auth.NewSQLiteStore(database)
 
@@ -339,7 +340,7 @@ func main() {
 			r.Get("/account/password", http.RedirectHandler("/account", http.StatusMovedPermanently).ServeHTTP)
 			r.Post("/account/password", acctHandler.PasswordSubmit)
 
-			mountAppRoutes(r, homePage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir)
+			mountAppRoutes(r, homePage, digestPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir)
 		})
 	} else {
 		// Auth disabled: singleton services are fine for single-user mode.
@@ -398,9 +399,10 @@ func main() {
 			return personalSvc, familySvc, ideaSvc
 		})
 		homePage = home.HomePageSingle(personalSvc, familySvc, ideaSvc, templates)
+		digestPage := home.DigestPageSingle(personalSvc, familySvc, ideaSvc, templates)
 
 		r.Get("/events", broker.ServeHTTP)
-		mountAppRoutes(r, homePage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir)
+		mountAppRoutes(r, homePage, digestPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir)
 	}
 
 	// API routes: always use bearer token auth (separate from session auth).
@@ -478,12 +480,13 @@ func runUserAdd() {
 	fmt.Printf("created user %q with id %d\n", *email, id)
 }
 
-func mountAppRoutes(r chi.Router, homePage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string) {
+func mountAppRoutes(r chi.Router, homePage http.HandlerFunc, digestPage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string) {
 	r.Post("/upload", uploadHandler.Upload)
 	r.Handle("/uploads/*", cacheImmutable(http.StripPrefix("/uploads/", noDirectoryListing(http.Dir(uploadsDir)))))
 
 	r.Get("/search", searchHandler.SearchAPI)
 	r.Get("/", homePage)
+	r.Get("/digest", digestPage)
 	r.Get("/todos", personalHandler.TrackerPage)
 	r.Get("/personal", http.RedirectHandler("/todos", http.StatusMovedPermanently).ServeHTTP)
 	r.Get("/family", familyHandler.TrackerPage)
@@ -564,7 +567,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		return nil, fmt.Errorf("parsing layout: %w", err)
 	}
 
-	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "homepage.html", "admin-users.html", "admin-user-form.html", "admin-password.html", "account.html"}
+	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "homepage.html", "digest.html", "admin-users.html", "admin-user-form.html", "admin-password.html", "account.html"}
 	templates := make(map[string]*template.Template, len(pages))
 
 	for _, page := range pages {
