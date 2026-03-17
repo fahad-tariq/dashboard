@@ -93,18 +93,23 @@
             <button type="submit" class="action-btn">set</button>
         </form>
         {{end}}
-        <form method="POST" action="/todos/{{.Slug}}/priority" class="inline-triage">
-            <select name="priority" class="form-select-sm">
-                <option value="" {{if eq .Priority ""}}selected{{end}}>--</option>
-                <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
-                <option value="medium" {{if eq .Priority "medium"}}selected{{end}}>medium</option>
-                <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
-            </select>
-            <button type="submit" class="action-btn">apply</button>
-        </form>
-        <form method="POST" action="/todos/{{.Slug}}/delete" class="inline-triage">
-            <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this goal?')">delete</button>
-        </form>
+        <details class="item-actions-menu" open>
+            <summary class="action-btn item-actions-toggle">more</summary>
+            <div class="item-actions-panel">
+                <form method="POST" action="/todos/{{.Slug}}/priority" class="inline-triage">
+                    <select name="priority" class="form-select-sm">
+                        <option value="" {{if eq .Priority ""}}selected{{end}}>--</option>
+                        <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
+                        <option value="medium" {{if eq .Priority "medium"}}selected{{end}}>medium</option>
+                        <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
+                    </select>
+                    <button type="submit" class="action-btn">apply</button>
+                </form>
+                <form method="POST" action="/todos/{{.Slug}}/delete" class="inline-triage">
+                    <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this goal?')">delete</button>
+                </form>
+            </div>
+        </details>
     </div>
     {{if .Images}}
     <div class="image-gallery">

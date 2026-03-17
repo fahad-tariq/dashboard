@@ -67,23 +67,26 @@
             {{if .Body}}
             <div class="tracker-item-body">{{linkify .Body}}</div>
             {{end}}
-            <div class="tracker-item-actions">
-                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/priority" class="inline-triage">
-                    <select name="priority" class="form-select-sm">
-                        <option value="" {{if eq .Priority ""}}selected{{end}}>--</option>
-                        <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
-                        <option value="medium" {{if eq .Priority "medium"}}selected{{end}}>medium</option>
-                        <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
-                    </select>
-                    <button type="submit" class="action-btn">apply</button>
-                </form>
-                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="inline-triage">
-                    <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this item?')">delete</button>
-                </form>
-                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/move" class="inline-triage">
-                    <button type="submit" class="action-btn" onclick="return confirm('Move to {{$.OtherListName}}?')">move to {{$.OtherListName}}</button>
-                </form>
-            </div>
+            <details class="item-actions-menu" open>
+                <summary class="action-btn item-actions-toggle">more</summary>
+                <div class="tracker-item-actions item-actions-panel">
+                    <form method="POST" action="/{{$.ListName}}/{{.Slug}}/priority" class="inline-triage">
+                        <select name="priority" class="form-select-sm">
+                            <option value="" {{if eq .Priority ""}}selected{{end}}>--</option>
+                            <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
+                            <option value="medium" {{if eq .Priority "medium"}}selected{{end}}>medium</option>
+                            <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
+                        </select>
+                        <button type="submit" class="action-btn">apply</button>
+                    </form>
+                    <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="inline-triage">
+                        <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this item?')">delete</button>
+                    </form>
+                    <form method="POST" action="/{{$.ListName}}/{{.Slug}}/move" class="inline-triage">
+                        <button type="submit" class="action-btn" onclick="return confirm('Move to {{$.OtherListName}}?')">move to {{$.OtherListName}}</button>
+                    </form>
+                </div>
+            </details>
             {{if .Images}}
             <div class="image-gallery">
                 {{range .Images}}<div class="image-thumb-wrap"><img src="/uploads/{{.}}" class="image-thumb" loading="lazy" alt="Attached image"></div>{{end}}
