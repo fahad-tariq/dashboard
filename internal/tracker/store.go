@@ -38,8 +38,9 @@ func (s *Store) ReplaceAll(items []Item) error {
 	return s.ReplaceAllWithAttribution(items, s.userID)
 }
 
-// ReplaceAllWithAttribution deletes all cached items for this store's scope
-// and inserts the given set with the specified user_id for attribution.
+// ReplaceAllWithAttribution syncs cached items for this store's scope using
+// upsert: removes rows whose slugs are no longer present, then inserts or
+// replaces each current item.
 func (s *Store) ReplaceAllWithAttribution(items []Item, attributionUserID int64) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -47,18 +48,44 @@ func (s *Store) ReplaceAllWithAttribution(items []Item, attributionUserID int64)
 	}
 	defer tx.Rollback()
 
-	if s.shared {
-		if _, err := tx.Exec("DELETE FROM tracker_items WHERE list = ?", s.listName); err != nil {
-			return err
+	// Delete rows whose slugs are no longer in the item set.
+	if len(items) == 0 {
+		// No items remain -- delete everything for this scope.
+		if s.shared {
+			if _, err := tx.Exec("DELETE FROM tracker_items WHERE list = ?", s.listName); err != nil {
+				return err
+			}
+		} else {
+			if _, err := tx.Exec("DELETE FROM tracker_items WHERE list = ? AND user_id = ?", s.listName, s.userID); err != nil {
+				return err
+			}
 		}
 	} else {
-		if _, err := tx.Exec("DELETE FROM tracker_items WHERE list = ? AND user_id = ?", s.listName, s.userID); err != nil {
-			return err
+		slugs := make([]any, len(items))
+		for i, it := range items {
+			slugs[i] = it.Slug
+		}
+		placeholders := strings.Repeat("?,", len(slugs))
+		placeholders = placeholders[:len(placeholders)-1]
+
+		if s.shared {
+			args := []any{s.listName}
+			args = append(args, slugs...)
+			if _, err := tx.Exec("DELETE FROM tracker_items WHERE list = ? AND slug NOT IN ("+placeholders+")", args...); err != nil {
+				return err
+			}
+		} else {
+			args := []any{s.listName, s.userID}
+			args = append(args, slugs...)
+			if _, err := tx.Exec("DELETE FROM tracker_items WHERE list = ? AND user_id = ? AND slug NOT IN ("+placeholders+")", args...); err != nil {
+				return err
+			}
 		}
 	}
 
+	// Upsert each item.
 	stmt, err := tx.Prepare(`
-		INSERT INTO tracker_items (slug, title, type, category, priority, current_val, target_val, unit, done, graduated, added, completed, tags, images, list, user_id)
+		INSERT OR REPLACE INTO tracker_items (slug, title, type, category, priority, current_val, target_val, unit, done, graduated, added, completed, tags, images, list, user_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {

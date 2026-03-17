@@ -3,13 +3,14 @@ package markdown
 import (
 	"bytes"
 
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/renderer/html"
 )
 
 var md goldmark.Markdown
+var sanitiser *bluemonday.Policy
 
 func init() {
 	md = goldmark.New(
@@ -19,17 +20,15 @@ func init() {
 				highlighting.WithStyle("monokai"),
 			),
 		),
-		goldmark.WithRendererOptions(
-			html.WithUnsafe(), // allow raw HTML in markdown
-		),
 	)
+	sanitiser = bluemonday.UGCPolicy()
 }
 
-// Render converts markdown source to HTML.
+// Render converts markdown source to sanitised HTML.
 func Render(source []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	if err := md.Convert(source, &buf); err != nil {
 		return nil, err
 	}
-	return buf.Bytes(), nil
+	return sanitiser.SanitizeBytes(buf.Bytes()), nil
 }

@@ -1,7 +1,9 @@
 {{define "content"}}
 <div class="homepage-page"
+     hx-ext="sse" sse-connect="/events"
      hx-get="/" hx-select=".homepage-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
+<span class="htmx-indicator meta-dim">updating&hellip;</span>
 
 {{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .TotalIdeaCount 0)}}
 <p class="empty">Nothing here yet{{if .UserName}}, {{.UserName}}{{end}}. Use the nav above to get started.</p>

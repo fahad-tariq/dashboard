@@ -1,12 +1,12 @@
 {{define "content"}}
-<div class="breadcrumb">account</div>
+<nav class="breadcrumb" aria-label="Breadcrumb">account</nav>
 <h1>Account Settings</h1>
 
-{{if .FlashMsg}}<div class="flash-msg" style="margin-bottom: 0.75rem;">{{.FlashMsg}}</div>{{end}}
+{{if .FlashMsg}}<div class="flash-msg mb-sm">{{.FlashMsg}}</div>{{end}}
 
 <div class="admin-form-card">
-    <h2 style="margin: 0 0 0.75rem 0; font-size: 1rem;">Display Name</h2>
-    {{if .NameError}}<div class="form-error" style="margin-bottom: 0.75rem;">{{.NameError}}</div>{{end}}
+    <h2 class="admin-section-title">Display Name</h2>
+    {{if .NameError}}<div class="form-error mb-sm">{{.NameError}}</div>{{end}}
     <form class="admin-form" method="POST" action="/account/name">
         <div class="form-group">
             <label for="first_name">First Name</label>
@@ -16,20 +16,38 @@
     </form>
 </div>
 
-<div class="admin-form-card" style="margin-top: 1.5rem;">
-    <h2 style="margin: 0 0 0.75rem 0; font-size: 1rem;">Change Password</h2>
-    {{if .PasswordError}}<div class="form-error" style="margin-bottom: 0.75rem;">{{.PasswordError}}</div>{{end}}
-    <form class="admin-form" method="POST" action="/account/password"
-          onsubmit="if(this.password.value !== this.confirm.value){alert('Passwords do not match.');return false;}">
+<div class="admin-form-card mt-md">
+    <h2 class="admin-section-title">Change Password</h2>
+    {{if .PasswordError}}<div class="form-error mb-sm">{{.PasswordError}}</div>{{end}}
+    <form class="admin-form" method="POST" action="/account/password" id="account-pw-form">
         <div class="form-group">
-            <label for="password">New Password</label>
+            <label for="current_password">Current Password<span class="required-indicator">*</span></label>
+            <input type="password" name="current_password" id="current_password" class="form-input" required>
+        </div>
+        <div class="form-group">
+            <label for="password">New Password<span class="required-indicator">*</span></label>
             <input type="password" name="password" id="password" class="form-input" required>
         </div>
         <div class="form-group">
-            <label for="confirm">Confirm Password</label>
+            <label for="confirm">Confirm Password<span class="required-indicator">*</span></label>
             <input type="password" name="confirm" id="confirm" class="form-input" required>
         </div>
+        <div class="form-error mb-sm" id="account-pw-error" style="display:none">Passwords do not match.</div>
         <button type="submit" class="form-btn">Update Password</button>
     </form>
+    <script>
+    (function() {
+        var form = document.getElementById('account-pw-form');
+        var errDiv = document.getElementById('account-pw-error');
+        form.addEventListener('submit', function(e) {
+            if (form.password.value !== form.confirm.value) {
+                e.preventDefault();
+                errDiv.style.display = 'block';
+            } else {
+                errDiv.style.display = 'none';
+            }
+        });
+    })();
+    </script>
 </div>
 {{end}}

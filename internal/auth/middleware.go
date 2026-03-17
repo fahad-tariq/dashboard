@@ -3,10 +3,19 @@ package auth
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/alexedwards/scs/v2"
 )
+
+// TemplateData returns common template fields from the request context.
+func TemplateData(r *http.Request) map[string]any {
+	return map[string]any{
+		"UserName": UserName(r.Context()),
+		"IsAdmin":  IsAdmin(r.Context()),
+	}
+}
 
 type contextKey string
 
@@ -70,19 +79,13 @@ func RequireAuth(sm *scs.SessionManager) func(http.Handler) http.Handler {
 			if userID == 0 {
 				dest := "/login"
 				if p := r.URL.Path; p != "/" && p != "" {
-					dest += "?next=" + p
+					dest += "?next=" + url.QueryEscape(p)
 				}
 				http.Redirect(w, r, dest, http.StatusSeeOther)
 				return
 			}
 
-			email := sm.GetString(r.Context(), "user_email")
-			isAdmin := sm.GetBool(r.Context(), "is_admin")
-			firstName := sm.GetString(r.Context(), "first_name")
-			ctx := context.WithValue(r.Context(), ctxUserID, userID)
-			ctx = context.WithValue(ctx, ctxUserEmail, email)
-			ctx = context.WithValue(ctx, ctxIsAdmin, isAdmin)
-			ctx = context.WithValue(ctx, ctxFirstName, firstName)
+			ctx := injectSessionContext(r.Context(), sm)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -101,13 +104,7 @@ func RequireAuthAPI(sm *scs.SessionManager) func(http.Handler) http.Handler {
 				return
 			}
 
-			email := sm.GetString(r.Context(), "user_email")
-			isAdmin := sm.GetBool(r.Context(), "is_admin")
-			firstName := sm.GetString(r.Context(), "first_name")
-			ctx := context.WithValue(r.Context(), ctxUserID, userID)
-			ctx = context.WithValue(ctx, ctxUserEmail, email)
-			ctx = context.WithValue(ctx, ctxIsAdmin, isAdmin)
-			ctx = context.WithValue(ctx, ctxFirstName, firstName)
+			ctx := injectSessionContext(r.Context(), sm)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -124,6 +121,18 @@ func RequireAdmin(sm *scs.SessionManager) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func injectSessionContext(ctx context.Context, sm *scs.SessionManager) context.Context {
+	userID := sm.GetInt64(ctx, "user_id")
+	email := sm.GetString(ctx, "user_email")
+	isAdmin := sm.GetBool(ctx, "is_admin")
+	firstName := sm.GetString(ctx, "first_name")
+	ctx = context.WithValue(ctx, ctxUserID, userID)
+	ctx = context.WithValue(ctx, ctxUserEmail, email)
+	ctx = context.WithValue(ctx, ctxIsAdmin, isAdmin)
+	ctx = context.WithValue(ctx, ctxFirstName, firstName)
+	return ctx
 }
 
 // isLocalPath validates that a next parameter is a relative path to prevent open redirects.

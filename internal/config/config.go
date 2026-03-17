@@ -29,7 +29,10 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("parsing SESSION_LIFETIME: %w", err)
 	}
 
-	secureCookies, _ := strconv.ParseBool(os.Getenv("DASHBOARD_SECURE_COOKIES"))
+	secureCookies := true
+	if v, ok := os.LookupEnv("DASHBOARD_SECURE_COOKIES"); ok {
+		secureCookies, _ = strconv.ParseBool(v)
+	}
 
 	// IDEAS_PATH takes precedence. Fall back to IDEAS_DIR for backwards
 	// compatibility: if IDEAS_DIR is set, derive the file path from it.

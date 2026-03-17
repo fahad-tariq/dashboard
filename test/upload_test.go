@@ -6,7 +6,6 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -116,6 +115,21 @@ func TestUploadSpoofedExtension(t *testing.T) {
 	}
 }
 
+func TestUploadFileTooLarge(t *testing.T) {
+	dir := t.TempDir()
+	h := upload.NewHandler(dir)
+
+	// 10 MB limit: create content just over that.
+	oversized := make([]byte, 11<<20)
+	copy(oversized, createTestPNG(t))
+
+	rr := uploadFile(t, http.HandlerFunc(h.Upload), "huge.png", oversized)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want 400 for oversized upload", rr.Code)
+	}
+}
+
 func TestUploadEmptyFile(t *testing.T) {
 	dir := t.TempDir()
 	h := upload.NewHandler(dir)
@@ -131,13 +145,7 @@ func TestUploadEmptyFile(t *testing.T) {
 	rr := httptest.NewRecorder()
 	h.Upload(rr, req)
 
-	// Empty file should be rejected (MIME will be application/octet-stream or similar).
 	if rr.Code == http.StatusOK {
-		// Read response to check
-		respBody, _ := io.ReadAll(rr.Result().Body)
-		var resp map[string]string
-		json.Unmarshal(respBody, &resp)
-		// If it somehow passed, it should at least not have a dangerous extension
-		t.Logf("response: %s", string(respBody))
+		t.Errorf("empty file should be rejected, got status 200")
 	}
 }

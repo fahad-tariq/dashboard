@@ -128,8 +128,8 @@ func TestRequireAuthRedirects(t *testing.T) {
 		t.Errorf("expected 303, got %d", rr.Code)
 	}
 	loc := rr.Header().Get("Location")
-	if loc != "/login?next=/ideas/test" {
-		t.Errorf("expected redirect to /login?next=/ideas/test, got %q", loc)
+	if loc != "/login?next=%2Fideas%2Ftest" {
+		t.Errorf("expected redirect to /login?next=%%2Fideas%%2Ftest, got %q", loc)
 	}
 }
 

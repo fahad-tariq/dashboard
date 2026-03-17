@@ -11,11 +11,11 @@
             if (t) document.documentElement.setAttribute('data-theme', t);
         })();
     </script>
-    <script src="/static/htmx.min.js"></script>
-    <script src="/static/htmx-sse.js"></script>
+    <script defer src="/static/htmx.min.js"></script>
+    <script defer src="/static/htmx-sse.js"></script>
 </head>
-<body hx-ext="sse" sse-connect="/events">
-    <nav class="nav">
+<body>
+    <nav class="nav" aria-label="Main navigation">
         <a href="/" class="nav-brand">dash&gt;_</a>
         <div class="nav-links">
             <a href="/">home</a>
@@ -24,11 +24,11 @@
             <a href="/ideas">ideas</a>
             <a href="/family">family</a>
         </div>
-        <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme"></button>
-        {{if authEnabled}}{{if .UserName}}{{if .IsAdmin}}<a href="/admin/users" class="nav-user nav-user-link" title="Admin">{{.UserName}}</a>{{else}}<a href="/account" class="nav-user nav-user-link" title="Account settings">{{.UserName}}</a>{{end}}{{end}}<form method="POST" action="/logout" style="margin:0;display:inline"><button type="submit" class="theme-toggle" title="Logout">logout</button></form>{{end}}
+        <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme" aria-label="Toggle theme"></button>
+        {{if authEnabled}}{{if .UserName}}{{if .IsAdmin}}<a href="/admin/users" class="nav-user nav-user-link" title="Admin">{{.UserName}}</a>{{else}}<a href="/account" class="nav-user nav-user-link" title="Account settings">{{.UserName}}</a>{{end}}{{end}}<form method="POST" action="/logout" class="inline-form"><button type="submit" class="theme-toggle" title="Logout" aria-label="Log out">logout</button></form>{{end}}
     </nav>
     <main class="container">
-        {{if .FlashMsg}}<div class="flash-msg">{{.FlashMsg}}</div>{{end}}
+        {{if .FlashMsg}}<div class="flash-msg{{if .FlashError}} flash-msg-error{{end}}" role="alert">{{.FlashMsg}}</div>{{end}}
         {{template "content" .}}
     </main>
     <script>

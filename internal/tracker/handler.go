@@ -14,24 +14,14 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/auth"
+	"github.com/fahad/dashboard/internal/ideas"
 )
 
-var priorityWeight = map[string]int{"high": 0, "medium": 1, "low": 2, "": 3}
+var PriorityWeight = map[string]int{"high": 0, "medium": 1, "low": 2, "": 3}
 var validPriorities = map[string]bool{"": true, "high": true, "medium": true, "low": true}
 
-func parseTags(raw string) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil
-	}
-	var tags []string
-	for t := range strings.SplitSeq(raw, ",") {
-		t = strings.TrimSpace(t)
-		if t != "" {
-			tags = append(tags, t)
-		}
-	}
-	return tags
+var flashMessages = map[string]string{
+	"title-required": "Title is required.",
 }
 
 func sanitisePriority(p string) string {
@@ -80,7 +70,7 @@ func (h *Handler) otherListName() string {
 
 func sortItems(s []Item) {
 	slices.SortFunc(s, func(a, b Item) int {
-		pa, pb := priorityWeight[a.Priority], priorityWeight[b.Priority]
+		pa, pb := PriorityWeight[a.Priority], PriorityWeight[b.Priority]
 		if pa != pb {
 			return pa - pb
 		}
@@ -153,21 +143,20 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 	} else {
 		title = strings.ToUpper(h.listName[:1]) + h.listName[1:] + " Tasks"
 	}
-	userName := auth.UserName(r.Context())
-	data := map[string]any{
-		"Title":         title,
-		"ListName":      h.listName,
-		"OtherListName": h.otherListName(),
-		"Tasks":         tasks,
-		"DoneTasks":     doneTasks,
-		"Categories":    allTags,
-		"Priorities":    priorities,
-		"UserName":      userName,
-		"IsAdmin":       auth.IsAdmin(r.Context()),
+	data := auth.TemplateData(r)
+	data["Title"] = title
+	data["ListName"] = h.listName
+	data["OtherListName"] = h.otherListName()
+	data["Tasks"] = tasks
+	data["DoneTasks"] = doneTasks
+	data["Categories"] = allTags
+	data["Priorities"] = priorities
+	if flashMsg := flashMessages[r.URL.Query().Get("msg")]; flashMsg != "" {
+		data["FlashMsg"] = flashMsg
+		data["FlashError"] = true
 	}
-	// Show subtitle for todos pages only, not family.
-	if h.listName == "todos" && userName != "" {
-		data["Subtitle"] = userName + "'s list"
+	if userName := data["UserName"]; h.listName == "todos" && userName != "" {
+		data["Subtitle"] = userName.(string) + "'s list"
 	}
 
 	if err := h.templates["tracker.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -194,17 +183,17 @@ func (h *Handler) GoalsPage(w http.ResponseWriter, r *http.Request) {
 
 	allTags, priorities := collectFilters(goals)
 
-	userName := auth.UserName(r.Context())
-	data := map[string]any{
-		"Title":      "Goals",
-		"Goals":      goals,
-		"Categories": allTags,
-		"Priorities": priorities,
-		"UserName":   userName,
-		"IsAdmin":    auth.IsAdmin(r.Context()),
+	data := auth.TemplateData(r)
+	data["Title"] = "Goals"
+	data["Goals"] = goals
+	data["Categories"] = allTags
+	data["Priorities"] = priorities
+	if flashMsg := flashMessages[r.URL.Query().Get("msg")]; flashMsg != "" {
+		data["FlashMsg"] = flashMsg
+		data["FlashError"] = true
 	}
-	if userName != "" {
-		data["Subtitle"] = userName + "'s goals"
+	if userName := data["UserName"]; userName != "" {
+		data["Subtitle"] = userName.(string) + "'s goals"
 	}
 
 	if err := h.templates["goals.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -220,7 +209,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
-		http.Error(w, "Title required", http.StatusBadRequest)
+		http.Redirect(w, r, "/"+h.listName+"?msg=title-required", http.StatusSeeOther)
 		return
 	}
 
@@ -229,8 +218,8 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		Type:     TaskType,
 		Priority: sanitisePriority(r.FormValue("priority")),
 		Body:     strings.TrimSpace(r.FormValue("body")),
-		Tags:     parseTags(r.FormValue("tags")),
-		Images:   parseTags(r.FormValue("images")),
+		Tags:     ideas.ParseCSV(r.FormValue("tags")),
+		Images:   ideas.ParseCSV(r.FormValue("images")),
 	}
 
 	svc, _ := h.resolve(r)
@@ -251,7 +240,7 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
-		http.Error(w, "Title required", http.StatusBadRequest)
+		http.Redirect(w, r, "/goals?msg=title-required", http.StatusSeeOther)
 		return
 	}
 
@@ -266,8 +255,8 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 		Target:   target,
 		Unit:     strings.TrimSpace(r.FormValue("unit")),
 		Body:     strings.TrimSpace(r.FormValue("body")),
-		Tags:     parseTags(r.FormValue("tags")),
-		Images:   parseTags(r.FormValue("images")),
+		Tags:     ideas.ParseCSV(r.FormValue("tags")),
+		Images:   ideas.ParseCSV(r.FormValue("images")),
 	}
 
 	svc, _ := h.resolve(r)
@@ -403,16 +392,7 @@ func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	raw := strings.TrimSpace(r.FormValue("tags"))
-	var tags []string
-	if raw != "" {
-		for t := range strings.SplitSeq(raw, ",") {
-			t = strings.TrimSpace(t)
-			if t != "" {
-				tags = append(tags, t)
-			}
-		}
-	}
+	tags := ideas.ParseCSV(r.FormValue("tags"))
 	svc, _ := h.resolve(r)
 	if err := svc.UpdateTags(slug, tags); err != nil {
 		slog.Error("updating tags", "slug", slug, "error", err)
@@ -430,8 +410,8 @@ func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body := strings.TrimSpace(r.FormValue("body"))
-	tags := parseTags(r.FormValue("tags"))
-	images := parseTags(r.FormValue("images"))
+	tags := ideas.ParseCSV(r.FormValue("tags"))
+	images := ideas.ParseCSV(r.FormValue("images"))
 
 	svc, _ := h.resolve(r)
 	if err := svc.UpdateEdit(slug, body, tags, images); err != nil {
@@ -454,20 +434,21 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check for slug collision in target list and deduplicate if needed.
 	movedItem := *item
+
+	if err := svc.Delete(slug); err != nil {
+		slog.Error("deleting item from source list", "slug", slug, "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	if _, err := otherSvc.Get(movedItem.Slug); err == nil {
 		movedItem.Slug = movedItem.Slug + "-" + fmt.Sprintf("%d", time.Now().Unix())
 	}
 
 	if err := otherSvc.AddItem(movedItem); err != nil {
-		slog.Error("adding item to target list", "slug", slug, "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if err := svc.Delete(slug); err != nil {
-		slog.Error("deleting item from source list", "slug", slug, "error", err)
+		slog.Warn("item deleted from source but failed to add to target, manual recovery may be needed",
+			"slug", slug, "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}

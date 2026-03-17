@@ -48,8 +48,8 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering.
 
 	ch := make(chan string, 16)
-	b.subscribe(ch)
-	defer b.unsubscribe(ch)
+	b.Subscribe(ch)
+	defer b.Unsubscribe(ch)
 
 	// Send initial keepalive.
 	fmt.Fprint(w, ": connected\n\n")
@@ -67,14 +67,14 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (b *Broker) subscribe(ch chan string) {
+func (b *Broker) Subscribe(ch chan string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.clients[ch] = struct{}{}
 	slog.Debug("sse client connected", "total", len(b.clients))
 }
 
-func (b *Broker) unsubscribe(ch chan string) {
+func (b *Broker) Unsubscribe(ch chan string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	delete(b.clients, ch)

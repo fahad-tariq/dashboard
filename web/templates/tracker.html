@@ -1,8 +1,10 @@
 {{define "content"}}
 
 <div class="tracker-page"
+     hx-ext="sse" sse-connect="/events"
      hx-get="/{{.ListName}}" hx-select=".tracker-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
+<span class="htmx-indicator meta-dim">updating&hellip;</span>
 
 <h1>{{.Title}}</h1>
 {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
@@ -14,17 +16,21 @@
 <details class="quick-add tracker-add-form">
     <summary>Add task</summary>
     <form method="POST" action="/{{.ListName}}/add" class="tracker-goal-form" onsubmit="clearTrackerFilter()">
-        <input type="text" name="title" placeholder="Task title" required class="form-input">
+        <label for="task-title" class="sr-only">Task title</label>
+        <input type="text" name="title" id="task-title" placeholder="Task title" required class="form-input">
         <div class="goal-form-row">
-            <input type="text" name="tags" placeholder="Tags (comma-separated)" class="form-input">
-            <select name="priority" class="form-select">
+            <label for="task-tags" class="sr-only">Tags</label>
+            <input type="text" name="tags" id="task-tags" placeholder="Tags (comma-separated)" class="form-input">
+            <label for="task-priority" class="sr-only">Priority</label>
+            <select name="priority" id="task-priority" class="form-select">
                 <option value="">no priority</option>
                 <option value="high">high</option>
                 <option value="medium">medium</option>
                 <option value="low">low</option>
             </select>
         </div>
-        <textarea name="body" placeholder="Notes (optional)" rows="2" class="form-textarea"></textarea>
+        <label for="task-body" class="sr-only">Notes</label>
+        <textarea name="body" id="task-body" placeholder="Notes (optional)" rows="2" class="form-textarea"></textarea>
         <button type="submit" class="form-btn">add task</button>
     </form>
 </details>
@@ -44,12 +50,12 @@
 
 {{range .Tasks}}
 <div class="tracker-item minimised" id="item-{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
-    <div class="tracker-item-header" onclick="toggleItem(this.querySelector('.item-toggle'))">
+    <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
         <button class="item-toggle" onclick="event.stopPropagation()" title="Minimise/expand">&#x25B8;</button>
         <span class="tracker-item-title">{{linkify .Title}}</span>
         <div class="tracker-item-meta">
-            {{range .Tags}}<span class="badge badge-tag" onclick="event.stopPropagation();trackerFilter('category','{{.}}')">{{.}}</span>{{end}}
-            {{if .Priority}}<span class="badge badge-priority-{{.Priority}}" onclick="event.stopPropagation();trackerFilter('priority','{{.Priority}}')">{{.Priority}}</span>{{end}}
+            {{range .Tags}}<span class="badge badge-tag badge-clickable" role="button" tabindex="0" onclick="event.stopPropagation();trackerFilter('category','{{.}}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();trackerFilter('category','{{.}}')}">{{.}}</span>{{end}}
+            {{if .Priority}}<span class="badge badge-priority-{{.Priority}} badge-clickable" role="button" tabindex="0" onclick="event.stopPropagation();trackerFilter('priority','{{.Priority}}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();trackerFilter('priority','{{.Priority}}')}">{{.Priority}}</span>{{end}}
             {{if .Added}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
             <form method="POST" action="/{{$.ListName}}/{{.Slug}}/complete" class="item-complete-form" onclick="event.stopPropagation()">
                 <button type="submit" class="item-complete-btn" title="Complete">&#x2713;</button>
@@ -63,12 +69,13 @@
             {{end}}
             <div class="tracker-item-actions">
                 <form method="POST" action="/{{$.ListName}}/{{.Slug}}/priority" class="inline-triage">
-                    <select name="priority" class="form-select-sm" onchange="this.form.submit()">
+                    <select name="priority" class="form-select-sm">
                         <option value="" {{if eq .Priority ""}}selected{{end}}>--</option>
                         <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
                         <option value="medium" {{if eq .Priority "medium"}}selected{{end}}>medium</option>
                         <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
                     </select>
+                    <button type="submit" class="action-btn">apply</button>
                 </form>
                 <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="inline-triage">
                     <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this item?')">delete</button>
@@ -79,7 +86,7 @@
             </div>
             {{if .Images}}
             <div class="image-gallery">
-                {{range .Images}}<div class="image-thumb-wrap"><img src="/uploads/{{.}}" class="image-thumb" loading="lazy"></div>{{end}}
+                {{range .Images}}<div class="image-thumb-wrap"><img src="/uploads/{{.}}" class="image-thumb" loading="lazy" alt="Attached image"></div>{{end}}
             </div>
             {{end}}
             <details class="tracker-notes-edit">
@@ -101,7 +108,7 @@
     <summary class="tracker-done-summary">Done ({{len .DoneTasks}})</summary>
     {{range .DoneTasks}}
     <div class="tracker-item tracker-item-done minimised" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
-        <div class="tracker-item-header" onclick="toggleItem(this.querySelector('.item-toggle'))">
+        <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
             <button class="item-toggle" onclick="event.stopPropagation()" title="Minimise/expand">&#x25B8;</button>
             <span class="tracker-item-title">{{linkify .Title}}</span>
             <div class="tracker-item-meta">
@@ -120,7 +127,7 @@
                 {{if .Body}}
                 <div class="tracker-item-body">{{linkify .Body}}</div>
                 {{end}}
-                {{if .Added}}<div class="tracker-item-date" style="margin-top:0.2rem">added {{.Added}}</div>{{end}}
+                {{if .Added}}<div class="tracker-item-date" class="mt-xs">added {{.Added}}</div>{{end}}
             </div>
         </div>
     </div>

@@ -25,7 +25,7 @@ type Registry struct {
 	familyPath  string
 	familySvc   *tracker.Service
 
-	mu    sync.Mutex
+	mu    sync.RWMutex
 	cache map[int64]*UserServices
 }
 
@@ -81,16 +81,22 @@ func (r *Registry) EnsureUserDirs(userID int64) error {
 // ForUser returns cached per-user service instances.
 // Lazily creates user directories on cache miss via EnsureUserDirs.
 func (r *Registry) ForUser(userID int64) *UserServices {
+	r.mu.RLock()
+	if svc, ok := r.cache[userID]; ok {
+		r.mu.RUnlock()
+		return svc
+	}
+	r.mu.RUnlock()
+
+	if err := r.EnsureUserDirs(userID); err != nil {
+		slog.Error("provisioning user dirs", "user_id", userID, "error", err)
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if svc, ok := r.cache[userID]; ok {
 		return svc
-	}
-
-	// Lazily provision user directories on first access.
-	if err := r.EnsureUserDirs(userID); err != nil {
-		slog.Error("provisioning user dirs", "user_id", userID, "error", err)
 	}
 
 	base := filepath.Join(r.userDataDir, fmt.Sprintf("%d", userID))

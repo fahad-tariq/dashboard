@@ -44,23 +44,32 @@ var migrations = []string{
 	`UPDATE users SET role = 'admin' WHERE id = (SELECT MIN(id) FROM users)`,
 	`ALTER TABLE sessions ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0`,
 	`ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT ''`,
+	`CREATE INDEX IF NOT EXISTS idx_tracker_items_list_user ON tracker_items(list, user_id)`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_tracker_items_unique ON tracker_items(list, slug, user_id)`,
 }
 
 func Migrate(db *sql.DB) error {
 	current := currentVersion(db)
 
 	for i := current; i < len(migrations); i++ {
-		if _, err := db.Exec(migrations[i]); err != nil {
+		tx, err := db.Begin()
+		if err != nil {
+			return fmt.Errorf("migration %d: begin tx: %w", i, err)
+		}
+		if _, err := tx.Exec(migrations[i]); err != nil {
+			tx.Rollback()
 			return fmt.Errorf("migration %d: %w", i, err)
 		}
-	}
-
-	if current < len(migrations) {
-		if _, err := db.Exec("DELETE FROM schema_version"); err != nil {
-			return err
+		if _, err := tx.Exec("DELETE FROM schema_version"); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("migration %d: update version: %w", i, err)
 		}
-		if _, err := db.Exec("INSERT INTO schema_version (version) VALUES (?)", len(migrations)); err != nil {
-			return err
+		if _, err := tx.Exec("INSERT INTO schema_version (version) VALUES (?)", i+1); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("migration %d: insert version: %w", i, err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("migration %d: commit: %w", i, err)
 		}
 	}
 

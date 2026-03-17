@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/auth"
+	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/markdown"
 )
 
@@ -20,6 +21,10 @@ type ToTaskFunc func(ctx context.Context, title, body string, tags []string) err
 
 // ServiceResolver returns the ideas service for the current request.
 type ServiceResolver func(r *http.Request) *Service
+
+var flashMessages = map[string]string{
+	"title-required": "Title is required.",
+}
 
 // Handler handles HTTP requests for ideas.
 type Handler struct {
@@ -67,17 +72,17 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 		grouped[idea.Status] = append(grouped[idea.Status], idea)
 	}
 
-	userName := auth.UserName(r.Context())
-	data := map[string]any{
-		"Title":     "Ideas",
-		"Untriaged": grouped["untriaged"],
-		"Parked":    grouped["parked"],
-		"Dropped":   grouped["dropped"],
-		"UserName":  userName,
-		"IsAdmin":   auth.IsAdmin(r.Context()),
+	data := auth.TemplateData(r)
+	data["Title"] = "Ideas"
+	data["Untriaged"] = grouped["untriaged"]
+	data["Parked"] = grouped["parked"]
+	data["Dropped"] = grouped["dropped"]
+	if flashMsg := flashMessages[r.URL.Query().Get("msg")]; flashMsg != "" {
+		data["FlashMsg"] = flashMsg
+		data["FlashError"] = true
 	}
-	if userName != "" {
-		data["Subtitle"] = userName + "'s ideas"
+	if userName := data["UserName"]; userName != "" {
+		data["Subtitle"] = userName.(string) + "'s ideas"
 	}
 
 	if err := h.templates["ideas.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -97,13 +102,10 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 
 	bodyHTML, _ := markdown.Render([]byte(idea.Body))
 
-	data := map[string]any{
-		"Title":    idea.Title,
-		"Idea":     idea,
-		"BodyHTML":  template.HTML(bodyHTML),
-		"UserName": auth.UserName(r.Context()),
-		"IsAdmin":  auth.IsAdmin(r.Context()),
-	}
+	data := auth.TemplateData(r)
+	data["Title"] = idea.Title
+	data["Idea"] = idea
+	data["BodyHTML"] = template.HTML(bodyHTML)
 
 	if err := h.templates["idea.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
 		slog.Error("rendering idea detail", "error", err)
@@ -119,7 +121,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
-		http.Error(w, "Title required", http.StatusBadRequest)
+		http.Redirect(w, r, "/ideas?msg=title-required", http.StatusSeeOther)
 		return
 	}
 
@@ -155,7 +157,7 @@ func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 
 	if err := svc.Triage(slug, action); err != nil {
 		slog.Error("triaging idea", "slug", slug, "action", action, "error", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
@@ -226,14 +228,15 @@ func (h *Handler) APIListIdeas(w http.ResponseWriter, r *http.Request) {
 	svc := h.resolve(r)
 	ideas, err := svc.List()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, ideas)
+	httputil.WriteJSON(w, http.StatusOK, ideas)
 }
 
 // APIAddIdea creates a new idea from a JSON request.
 func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req struct {
 		Title string   `json:"title"`
 		Tags  []string `json:"tags"`
@@ -241,12 +244,12 @@ func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 		Body  string   `json:"body"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		return
 	}
 
 	if req.Title == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "title required"})
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "title required"})
 		return
 	}
 
@@ -265,55 +268,51 @@ func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 
 	svc := h.resolve(r)
 	if err := svc.Add(idea); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, idea)
+	httputil.WriteJSON(w, http.StatusCreated, idea)
 }
 
 // APITriageIdea changes an idea's status via JSON API.
 func (h *Handler) APITriageIdea(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	slug := chi.URLParam(r, "slug")
 	var req struct {
 		Action string `json:"action"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		return
 	}
 
 	svc := h.resolve(r)
 	if err := svc.Triage(slug, req.Action); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // APIAddResearch appends research content to an idea's body.
 func (h *Handler) APIAddResearch(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	slug := chi.URLParam(r, "slug")
 	var req struct {
 		Content string `json:"content"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		return
 	}
 
 	svc := h.resolve(r)
 	if err := svc.AddResearch(slug, req.Content); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	httputil.WriteJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
 }

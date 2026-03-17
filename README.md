@@ -56,7 +56,7 @@ This reads old-format idea and exploration files, merges research notes into ide
 | `DASHBOARD_PASSWORD_HASH` | (empty) | Bcrypt hash for auto-creating first admin user |
 | `DASHBOARD_API_TOKEN` | (empty) | Bearer token for API auth (optional) |
 | `SESSION_LIFETIME` | `720h` | Session cookie lifetime (30 days) |
-| `DASHBOARD_SECURE_COOKIES` | `false` | Set `true` when serving over HTTPS |
+| `DASHBOARD_SECURE_COOKIES` | `true` | Set `false` for local HTTP development |
 | `ADDR` | `:8080` | Server listen address |
 
 ## Running
@@ -252,4 +252,4 @@ git init && git add -A && git commit -m "initial"
 
 ## Stack
 
-Go, chi, SQLite (modernc), goldmark, fsnotify, htmx.
+Go, chi, SQLite (modernc), goldmark, bluemonday, fsnotify, htmx.

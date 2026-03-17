@@ -50,7 +50,10 @@ function toggleItem(btn) {
     if (!btn) return;
     var item = btn.closest('.tracker-item');
     item.classList.toggle('minimised');
-    btn.textContent = item.classList.contains('minimised') ? '\u25B8' : '\u25BE';
+    var minimised = item.classList.contains('minimised');
+    btn.textContent = minimised ? '\u25B8' : '\u25BE';
+    var header = item.querySelector('.tracker-item-header');
+    if (header) header.setAttribute('aria-expanded', String(!minimised));
 }
 
 function trackerToggleAll() {
@@ -68,6 +71,8 @@ function trackerToggleAll() {
         }
         var btn = el.querySelector('.item-toggle');
         if (btn) btn.textContent = shouldMinimise ? '\u25B8' : '\u25BE';
+        var header = el.querySelector('.tracker-item-header');
+        if (header) header.setAttribute('aria-expanded', String(!shouldMinimise));
     });
     // Update the toggle-all button label.
     var toggleBtn = document.querySelector('.filter-toggle');
@@ -98,6 +103,8 @@ function clearTrackerFilter() {
     el.classList.remove('minimised');
     var btn = el.querySelector('.item-toggle');
     if (btn) btn.textContent = '\u25BE';
+    var header = el.querySelector('.tracker-item-header');
+    if (header) header.setAttribute('aria-expanded', 'true');
     el.scrollIntoView({block: 'nearest'});
 })();
 

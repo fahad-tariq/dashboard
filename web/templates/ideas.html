@@ -1,6 +1,6 @@
 {{define "idea-card"}}
 <div class="tracker-item minimised" id="idea-{{.Slug}}">
-    <div class="tracker-item-header" onclick="toggleItem(this.querySelector('.item-toggle'))">
+    <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
         <button class="item-toggle" onclick="event.stopPropagation()" title="Expand/collapse">&#x25B8;</button>
         <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
         <div class="tracker-item-meta">
@@ -41,7 +41,7 @@
             </div>
             {{if .Images}}
             <div class="image-gallery">
-                {{range .Images}}<div class="image-thumb-wrap"><img src="/uploads/{{.}}" class="image-thumb" loading="lazy"></div>{{end}}
+                {{range .Images}}<div class="image-thumb-wrap"><img src="/uploads/{{.}}" class="image-thumb" loading="lazy" alt="Attached image"></div>{{end}}
             </div>
             {{end}}
             <details class="tracker-notes-edit">
@@ -60,8 +60,10 @@
 
 {{define "content"}}
 <div class="ideas-page"
+     hx-ext="sse" sse-connect="/events"
      hx-get="/ideas" hx-select=".ideas-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
+<span class="htmx-indicator meta-dim">updating&hellip;</span>
 
 <h1>Ideas</h1>
 {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
@@ -74,9 +76,12 @@
 <details class="quick-add tracker-add-form" open>
     <summary>Quick add</summary>
     <form method="POST" action="/ideas/add" class="tracker-goal-form">
-        <input type="text" name="title" placeholder="Idea title" required class="form-input">
-        <input type="text" name="tags" placeholder="Tags (comma-separated)" class="form-input">
-        <textarea name="body" placeholder="Description (optional)" rows="2" class="form-textarea"></textarea>
+        <label for="idea-title" class="sr-only">Idea title</label>
+        <input type="text" name="title" id="idea-title" placeholder="Idea title" required class="form-input">
+        <label for="idea-tags" class="sr-only">Tags</label>
+        <input type="text" name="tags" id="idea-tags" placeholder="Tags (comma-separated)" class="form-input">
+        <label for="idea-body" class="sr-only">Description</label>
+        <textarea name="body" id="idea-body" placeholder="Description (optional)" rows="2" class="form-textarea"></textarea>
         <button type="submit" class="form-btn">add</button>
     </form>
 </details>

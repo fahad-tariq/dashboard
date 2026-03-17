@@ -1,7 +1,7 @@
 {{define "content"}}
-<div class="breadcrumb">
+<nav class="breadcrumb" aria-label="Breadcrumb">
     <a href="/ideas">ideas</a> / {{.Idea.Slug}}
-</div>
+</nav>
 <h1>{{.Idea.Title}}</h1>
 <div class="idea-meta-detail">
     {{range .Idea.Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
@@ -11,7 +11,7 @@
 
 {{if .Idea.Images}}
 <div class="image-gallery">
-    {{range .Idea.Images}}<div class="image-thumb-wrap"><img src="/uploads/{{.}}" class="image-thumb" loading="lazy"></div>{{end}}
+    {{range .Idea.Images}}<div class="image-thumb-wrap"><img src="/uploads/{{.}}" class="image-thumb" loading="lazy" alt="Attached image"></div>{{end}}
 </div>
 {{end}}
 

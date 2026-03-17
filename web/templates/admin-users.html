@@ -1,9 +1,9 @@
 {{define "content"}}
-<div class="breadcrumb">admin / users</div>
+<nav class="breadcrumb" aria-label="Breadcrumb">admin / users</nav>
 <h1>Users</h1>
 
-<div style="margin-bottom: 1rem;">
-    <a href="/admin/users/new" class="form-btn" style="display:inline-block;text-decoration:none;">+ New User</a>
+<div class="admin-actions-row">
+    <a href="/admin/users/new" class="form-btn form-btn-link">+ New User</a>
 </div>
 
 {{range .Users}}
@@ -24,7 +24,7 @@
         {{if eq .Role "admin"}}<span class="badge badge-admin">admin</span>{{else}}<span class="badge badge-user">user</span>{{end}}
         <a href="/admin/users/{{.ID}}/edit" class="action-btn">edit</a>
         <a href="/admin/users/{{.ID}}/password" class="action-btn">password</a>
-        <form method="POST" action="/admin/users/{{.ID}}/delete" style="margin:0;display:inline">
+        <form method="POST" action="/admin/users/{{.ID}}/delete" class="inline-form">
             <button type="submit" class="action-btn action-delete" onclick="return confirm('Delete user {{.Email}}?')">delete</button>
         </form>
     </div>

@@ -98,6 +98,14 @@
             })
             .catch(function(err) {
                 console.error('Upload failed:', err);
+                var area = document.querySelector('.upload-area');
+                if (area) {
+                    var msg = document.createElement('div');
+                    msg.className = 'flash-msg flash-msg-error';
+                    msg.textContent = 'Upload failed';
+                    area.parentNode.insertBefore(msg, area);
+                    setTimeout(function() { msg.remove(); }, 5000);
+                }
             });
     }
 

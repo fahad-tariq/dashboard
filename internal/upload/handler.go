@@ -3,13 +3,14 @@ package upload
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/fahad/dashboard/internal/httputil"
 )
 
 const maxUploadSize = 10 << 20 // 10 MB
@@ -35,7 +36,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		slog.Error("reading upload", "error", err)
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid file upload"})
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid file upload"})
 		return
 	}
 	defer file.Close()
@@ -45,7 +46,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	n, err := io.ReadFull(file, header)
 	if err != nil && err != io.ErrUnexpectedEOF {
 		slog.Error("reading upload header", "error", err)
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read file"})
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read file"})
 		return
 	}
 	header = header[:n]
@@ -53,14 +54,14 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	mime := http.DetectContentType(header)
 	ext, ok := mimeToExt[mime]
 	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("unsupported image type: %s", mime)})
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("unsupported image type: %s", mime)})
 		return
 	}
 
 	randBytes := make([]byte, 16)
 	if _, err := rand.Read(randBytes); err != nil {
 		slog.Error("generating filename", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
 	filename := hex.EncodeToString(randBytes) + ext
@@ -69,7 +70,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	dest, err := os.Create(destPath)
 	if err != nil {
 		slog.Error("creating upload file", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
 	defer dest.Close()
@@ -78,21 +79,15 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	if _, err := dest.Write(header); err != nil {
 		os.Remove(destPath)
 		slog.Error("writing upload", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
 	if _, err := io.Copy(dest, file); err != nil {
 		os.Remove(destPath)
 		slog.Error("writing upload", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"filename": filename})
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	httputil.WriteJSON(w, http.StatusOK, map[string]string{"filename": filename})
 }

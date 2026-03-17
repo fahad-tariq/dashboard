@@ -85,19 +85,22 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	flashMsg := ""
+	var flashMsg string
+	var flashError bool
 	if key := r.URL.Query().Get("msg"); key != "" {
 		flashMsg = flashMessages[key]
+		switch key {
+		case "cannot-delete-self", "cannot-delete-last-admin", "delete-failed":
+			flashError = true
+		}
 	}
 
-	data := map[string]any{
-		"Title":     "Admin / Users",
-		"Users":     users,
-		"UserStats": statsMap,
-		"FlashMsg":  flashMsg,
-		"UserName":  auth.UserName(r.Context()),
-		"IsAdmin":   auth.IsAdmin(r.Context()),
-	}
+	data := auth.TemplateData(r)
+	data["Title"] = "Admin / Users"
+	data["Users"] = users
+	data["UserStats"] = statsMap
+	data["FlashMsg"] = flashMsg
+	data["FlashError"] = flashError
 
 	if err := h.templates["admin-users.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
 		slog.Error("rendering admin users", "error", err)
@@ -106,12 +109,9 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 // NewUserForm renders the create user form (GET /admin/users/new).
 func (h *Handler) NewUserForm(w http.ResponseWriter, r *http.Request) {
-	data := map[string]any{
-		"Title":    "Admin / New User",
-		"FormMode": "create",
-		"UserName": auth.UserName(r.Context()),
-		"IsAdmin":  auth.IsAdmin(r.Context()),
-	}
+	data := auth.TemplateData(r)
+	data["Title"] = "Admin / New User"
+	data["FormMode"] = "create"
 	if err := h.templates["admin-user-form.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
 		slog.Error("rendering new user form", "error", err)
 	}
@@ -174,14 +174,11 @@ func (h *Handler) EditUserForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]any{
-		"Title":      "Admin / Edit User",
-		"FormMode":   "edit",
-		"EditUser":   user,
-		"EditUserID": user.ID,
-		"UserName":   auth.UserName(r.Context()),
-		"IsAdmin":    auth.IsAdmin(r.Context()),
-	}
+	data := auth.TemplateData(r)
+	data["Title"] = "Admin / Edit User"
+	data["FormMode"] = "edit"
+	data["EditUser"] = user
+	data["EditUserID"] = user.ID
 	if err := h.templates["admin-user-form.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
 		slog.Error("rendering edit user form", "error", err)
 	}
@@ -284,13 +281,10 @@ func (h *Handler) ResetPasswordForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]any{
-		"Title":      "Admin / Reset Password",
-		"EditUser":   user,
-		"EditUserID": user.ID,
-		"UserName":   auth.UserName(r.Context()),
-		"IsAdmin":    auth.IsAdmin(r.Context()),
-	}
+	data := auth.TemplateData(r)
+	data["Title"] = "Admin / Reset Password"
+	data["EditUser"] = user
+	data["EditUserID"] = user.ID
 	if err := h.templates["admin-password.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
 		slog.Error("rendering password form", "error", err)
 	}
@@ -401,16 +395,13 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 // --- helper renderers ---
 
 func (h *Handler) renderUserForm(w http.ResponseWriter, r *http.Request, mode string, id int64, email, firstName, role, errMsg string) {
-	data := map[string]any{
-		"Title":         "Admin / " + strings.ToUpper(mode[:1]) + mode[1:] + " User",
-		"FormMode":      mode,
-		"FormEmail":     email,
-		"FormFirstName": firstName,
-		"FormRole":      role,
-		"Error":         errMsg,
-		"UserName":      auth.UserName(r.Context()),
-		"IsAdmin":       auth.IsAdmin(r.Context()),
-	}
+	data := auth.TemplateData(r)
+	data["Title"] = "Admin / " + strings.ToUpper(mode[:1]) + mode[1:] + " User"
+	data["FormMode"] = mode
+	data["FormEmail"] = email
+	data["FormFirstName"] = firstName
+	data["FormRole"] = role
+	data["Error"] = errMsg
 	if id != 0 {
 		data["EditUserID"] = id
 	}
@@ -420,29 +411,23 @@ func (h *Handler) renderUserForm(w http.ResponseWriter, r *http.Request, mode st
 }
 
 func (h *Handler) renderEditForm(w http.ResponseWriter, r *http.Request, user *auth.User, errMsg string) {
-	data := map[string]any{
-		"Title":      "Admin / Edit User",
-		"FormMode":   "edit",
-		"EditUser":   user,
-		"EditUserID": user.ID,
-		"Error":      errMsg,
-		"UserName":   auth.UserName(r.Context()),
-		"IsAdmin":    auth.IsAdmin(r.Context()),
-	}
+	data := auth.TemplateData(r)
+	data["Title"] = "Admin / Edit User"
+	data["FormMode"] = "edit"
+	data["EditUser"] = user
+	data["EditUserID"] = user.ID
+	data["Error"] = errMsg
 	if err := h.templates["admin-user-form.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
 		slog.Error("rendering edit form", "error", err)
 	}
 }
 
 func (h *Handler) renderPasswordForm(w http.ResponseWriter, r *http.Request, user *auth.User, errMsg string) {
-	data := map[string]any{
-		"Title":      "Admin / Reset Password",
-		"EditUser":   user,
-		"EditUserID": user.ID,
-		"Error":      errMsg,
-		"UserName":   auth.UserName(r.Context()),
-		"IsAdmin":    auth.IsAdmin(r.Context()),
-	}
+	data := auth.TemplateData(r)
+	data["Title"] = "Admin / Reset Password"
+	data["EditUser"] = user
+	data["EditUserID"] = user.ID
+	data["Error"] = errMsg
 	if err := h.templates["admin-password.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
 		slog.Error("rendering password form", "error", err)
 	}
