@@ -5,8 +5,10 @@
      hx-trigger="sse:file-changed">
 <span class="htmx-indicator meta-dim">updating&hellip;</span>
 
+{{if .Greeting}}<h1 class="homepage-greeting">{{.Greeting}}{{if .UserName}}, {{.UserName}}{{end}}</h1>{{end}}
+
 {{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .TotalIdeaCount 0)}}
-<p class="empty">Nothing here yet{{if .UserName}}, {{.UserName}}{{end}}. Use the nav above to get started.</p>
+<p class="empty">Welcome{{if .UserName}}, {{.UserName}}{{end}}. Your todos, goals, and ideas will appear here once you start adding them.</p>
 {{else}}
 <div class="homepage-grid">
 

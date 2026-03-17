@@ -3,7 +3,7 @@
 <h1>Users</h1>
 
 <div class="admin-actions-row">
-    <a href="/admin/users/new" class="form-btn form-btn-link">+ New User</a>
+    <a href="/admin/users/new" class="form-btn form-btn-link">+ New user</a>
 </div>
 
 {{range .Users}}
@@ -32,6 +32,6 @@
 {{end}}
 
 {{if not .Users}}
-<p class="empty">No users yet.</p>
+<p class="empty">No users yet. Create one to get started.</p>
 {{end}}
 {{end}}

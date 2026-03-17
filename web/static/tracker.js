@@ -33,17 +33,35 @@ function applyFilter() {
         }
     });
 
-    document.querySelectorAll('.tracker-item').forEach(function(el) {
+    var items = document.querySelectorAll('.tracker-item');
+    var totalItems = items.length;
+    var visibleCount = 0;
+
+    items.forEach(function(el) {
         if (!activeFilterType) {
             el.style.display = '';
+            visibleCount++;
         } else if (activeFilterType === 'category') {
             var tags = (el.getAttribute('data-tags') || '').trim().split(/\s+/);
-            el.style.display = tags.indexOf(activeFilterValue) >= 0 ? '' : 'none';
+            var show = tags.indexOf(activeFilterValue) >= 0;
+            el.style.display = show ? '' : 'none';
+            if (show) visibleCount++;
         } else {
             var attr = el.getAttribute('data-' + activeFilterType);
-            el.style.display = (attr === activeFilterValue) ? '' : 'none';
+            var show = attr === activeFilterValue;
+            el.style.display = show ? '' : 'none';
+            if (show) visibleCount++;
         }
     });
+
+    var filterEmpty = document.querySelector('.filter-empty');
+    if (filterEmpty) {
+        if (activeFilterType && visibleCount === 0 && totalItems > 0) {
+            filterEmpty.style.display = '';
+        } else {
+            filterEmpty.style.display = 'none';
+        }
+    }
 }
 
 function toggleItem(btn) {

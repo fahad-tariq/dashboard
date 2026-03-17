@@ -26,11 +26,11 @@ type UserStats struct {
 
 // Flash message keys mapped to display text.
 var flashMessages = map[string]string{
-	"user-created":       "User created.",
-	"user-updated":       "User updated.",
-	"user-deleted":       "User deleted.",
-	"password-reset":     "Password reset.",
-	"role-changed":       "Role updated. User sessions invalidated.",
+	"user-created":             "User created.",
+	"user-updated":             "Changes saved.",
+	"user-deleted":             "User removed.",
+	"password-reset":           "Password has been reset.",
+	"role-changed":             "Role updated -- user sessions have been invalidated.",
 	"cannot-delete-self":       "You cannot delete your own account.",
 	"cannot-delete-last-admin": "Cannot delete the last admin.",
 	"delete-failed":            "Failed to delete user.",

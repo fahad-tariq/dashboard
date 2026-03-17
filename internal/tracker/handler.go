@@ -21,7 +21,21 @@ var PriorityWeight = map[string]int{"high": 0, "medium": 1, "low": 2, "": 3}
 var validPriorities = map[string]bool{"": true, "high": true, "medium": true, "low": true}
 
 var flashMessages = map[string]string{
-	"title-required": "Title is required.",
+	"title-required":    "A title is required.",
+	"task-added":        "Task added.",
+	"goal-added":        "Goal added.",
+	"task-completed":    "Nice one -- task completed.",
+	"task-uncompleted":  "Task reopened.",
+	"notes-updated":     "Notes saved.",
+	"priority-updated":  "Priority updated.",
+	"tags-updated":      "Tags updated.",
+	"item-updated":      "Changes saved.",
+	"item-deleted":      "Item removed.",
+	"item-moved":        "Moved to the other list.",
+}
+
+var flashErrorKeys = map[string]bool{
+	"title-required": true,
 }
 
 func sanitisePriority(p string) string {
@@ -151,9 +165,11 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 	data["DoneTasks"] = doneTasks
 	data["Categories"] = allTags
 	data["Priorities"] = priorities
-	if flashMsg := flashMessages[r.URL.Query().Get("msg")]; flashMsg != "" {
-		data["FlashMsg"] = flashMsg
-		data["FlashError"] = true
+	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
+		if flashMsg := flashMessages[msgKey]; flashMsg != "" {
+			data["FlashMsg"] = flashMsg
+			data["FlashError"] = flashErrorKeys[msgKey]
+		}
 	}
 	if userName := data["UserName"]; h.listName == "todos" && userName != "" {
 		data["Subtitle"] = userName.(string) + "'s list"
@@ -188,9 +204,11 @@ func (h *Handler) GoalsPage(w http.ResponseWriter, r *http.Request) {
 	data["Goals"] = goals
 	data["Categories"] = allTags
 	data["Priorities"] = priorities
-	if flashMsg := flashMessages[r.URL.Query().Get("msg")]; flashMsg != "" {
-		data["FlashMsg"] = flashMsg
-		data["FlashError"] = true
+	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
+		if flashMsg := flashMessages[msgKey]; flashMsg != "" {
+			data["FlashMsg"] = flashMsg
+			data["FlashError"] = flashErrorKeys[msgKey]
+		}
 	}
 	if userName := data["UserName"]; userName != "" {
 		data["Subtitle"] = userName.(string) + "'s goals"
@@ -229,7 +247,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/"+h.listName, http.StatusSeeOther)
+	http.Redirect(w, r, "/"+h.listName+"?msg=task-added", http.StatusSeeOther)
 }
 
 func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
@@ -266,10 +284,10 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/goals", http.StatusSeeOther)
+	http.Redirect(w, r, "/goals?msg=goal-added", http.StatusSeeOther)
 }
 
-func (h *Handler) redirectBack(w http.ResponseWriter, r *http.Request, anchor string) {
+func (h *Handler) redirectBack(w http.ResponseWriter, r *http.Request, anchor string, msg ...string) {
 	dest := r.Header.Get("Referer")
 
 	if dest != "" {
@@ -281,6 +299,9 @@ func (h *Handler) redirectBack(w http.ResponseWriter, r *http.Request, anchor st
 	}
 	if dest == "" || !strings.HasPrefix(dest, "/") {
 		dest = "/" + h.listName
+	}
+	if len(msg) > 0 && msg[0] != "" {
+		dest += "?msg=" + msg[0]
 	}
 	if anchor != "" {
 		dest += "#" + anchor
@@ -303,7 +324,7 @@ func (h *Handler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.redirectBack(w, r, slug)
+	h.redirectBack(w, r, slug, "notes-updated")
 }
 
 func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
@@ -314,7 +335,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	h.redirectBack(w, r, "")
+	h.redirectBack(w, r, "", "task-completed")
 }
 
 func (h *Handler) Uncomplete(w http.ResponseWriter, r *http.Request) {
@@ -325,7 +346,7 @@ func (h *Handler) Uncomplete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	h.redirectBack(w, r, "")
+	h.redirectBack(w, r, "", "task-uncompleted")
 }
 
 func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
@@ -367,7 +388,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	h.redirectBack(w, r, "")
+	h.redirectBack(w, r, "", "item-deleted")
 }
 
 func (h *Handler) UpdatePriority(w http.ResponseWriter, r *http.Request) {
@@ -383,7 +404,7 @@ func (h *Handler) UpdatePriority(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	h.redirectBack(w, r, slug)
+	h.redirectBack(w, r, slug, "priority-updated")
 }
 
 func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
@@ -399,7 +420,7 @@ func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	h.redirectBack(w, r, slug)
+	h.redirectBack(w, r, slug, "tags-updated")
 }
 
 func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
@@ -420,7 +441,7 @@ func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.redirectBack(w, r, slug)
+	h.redirectBack(w, r, slug, "item-updated")
 }
 
 func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
@@ -453,5 +474,5 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/"+h.listName, http.StatusSeeOther)
+	http.Redirect(w, r, "/"+h.listName+"?msg=item-moved", http.StatusSeeOther)
 }

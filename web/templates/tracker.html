@@ -30,10 +30,11 @@
             </select>
         </div>
         <label for="task-body" class="sr-only">Notes</label>
-        <textarea name="body" id="task-body" placeholder="Notes (optional)" rows="2" class="form-textarea"></textarea>
+        <textarea name="body" id="task-body" placeholder="Notes, links, or context (optional)" rows="2" class="form-textarea"></textarea>
         <button type="submit" class="form-btn">add task</button>
     </form>
 </details>
+<p class="section-help">Todos are actionable items you want to complete. Use tags and priorities to organise them.</p>
 
 <div class="tracker-filters">
     <button class="filter-tag active" onclick="trackerFilter('','')">all</button>
@@ -136,8 +137,9 @@
 {{end}}
 
 {{if and (not .Tasks) (not .DoneTasks)}}
-<p class="empty">No tasks yet. Add one above.</p>
+<p class="empty">{{if eq .ListName "family"}}No family tasks yet. Use this list to coordinate shared household tasks.{{else}}No tasks yet. Todos are for things you want to get done -- open the form above to add your first.{{end}}</p>
 {{end}}
+<p class="empty filter-empty" style="display:none">No tasks match the current filter.</p>
 
 </div>
 {{end}}
