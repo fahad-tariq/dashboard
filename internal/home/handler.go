@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/fahad/dashboard/internal/auth"
 	"github.com/fahad/dashboard/internal/ideas"
@@ -37,6 +38,20 @@ func HomePageSingle(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Serv
 	}
 }
 
+// Greeting returns a time-of-day greeting for the given time.
+// 5-11: "Good morning", 12-17: "Good afternoon", 18-4: "Good evening".
+func Greeting(now time.Time) string {
+	hour := now.Hour()
+	switch {
+	case hour >= 5 && hour <= 11:
+		return "Good morning"
+	case hour >= 12 && hour <= 17:
+		return "Good afternoon"
+	default:
+		return "Good evening"
+	}
+}
+
 func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template) {
 	personalItems, err := personalSvc.List()
 	if err != nil {
@@ -55,6 +70,7 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 
 	data := auth.TemplateData(r)
 	data["Title"] = "Home"
+	data["Greeting"] = Greeting(time.Now())
 	data["PersonalTasks"] = topTasks(personalItems, 5)
 	data["PersonalTaskCount"] = countOpenTasks(personalItems)
 	data["FamilyTasks"] = topTasks(familyItems, 5)

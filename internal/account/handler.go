@@ -14,8 +14,8 @@ import (
 )
 
 var flashMessages = map[string]string{
-	"name-updated":     "Name updated.",
-	"password-updated": "Password updated.",
+	"name-updated":     "All good -- name saved.",
+	"password-updated": "Password updated successfully.",
 }
 
 type Handler struct {

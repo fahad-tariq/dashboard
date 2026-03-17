@@ -19,10 +19,10 @@
         <input type="text" name="title" id="goal-title" placeholder="Goal title" required class="form-input">
         <div class="goal-form-row">
             <label for="goal-current" class="sr-only">Current value</label>
-            <input type="number" name="current" id="goal-current" placeholder="Current" step="any" value="0" class="form-input form-input-sm">
+            <input type="number" name="current" id="goal-current" placeholder="Starting value" step="any" value="0" class="form-input form-input-sm">
             <span class="goal-form-slash">/</span>
             <label for="goal-target" class="sr-only">Target value</label>
-            <input type="number" name="target" id="goal-target" placeholder="Target (optional)" step="any" class="form-input form-input-sm">
+            <input type="number" name="target" id="goal-target" placeholder="Target to reach (optional)" step="any" class="form-input form-input-sm">
             <label for="goal-unit" class="sr-only">Unit</label>
             <input type="text" name="unit" id="goal-unit" placeholder="Unit (e.g. kg)" class="form-input form-input-sm">
         </div>
@@ -38,10 +38,11 @@
             </select>
         </div>
         <label for="goal-body" class="sr-only">Notes</label>
-        <textarea name="body" id="goal-body" placeholder="Notes (optional)" rows="2" class="form-textarea"></textarea>
+        <textarea name="body" id="goal-body" placeholder="Notes, links, or context (optional)" rows="2" class="form-textarea"></textarea>
         <button type="submit" class="form-btn">add goal</button>
     </form>
 </details>
+<p class="section-help">Goals track measurable progress. Set a target and unit, then update your progress over time.</p>
 
 {{if or .Categories .Priorities}}
 <div class="tracker-filters">
@@ -125,8 +126,9 @@
 {{end}}
 
 {{if not .Goals}}
-<p class="empty">No goals yet. Add one above.</p>
+<p class="empty">No goals yet. Goals track measurable progress over time -- things like fitness targets, reading goals, or savings milestones.</p>
 {{end}}
+<p class="empty filter-empty" style="display:none">No goals match the current filter.</p>
 
 </div>
 {{end}}

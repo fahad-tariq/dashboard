@@ -933,6 +933,31 @@ section h2 {
     padding: 2rem 0;
 }
 
+/* --- Section help text --- */
+.section-help {
+    font-size: 0.85rem;
+    color: var(--fg-dim);
+    margin-top: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+
+/* --- Status legend --- */
+.status-legend {
+    font-size: 0.85rem;
+    color: var(--fg-dim);
+    margin-bottom: 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+}
+.status-legend-item strong {
+    color: var(--fg);
+}
+.status-legend-sep {
+    color: var(--surface2);
+}
+
 /* --- Mobile --- */
 @media (max-width: 768px) {
     .homepage-grid {

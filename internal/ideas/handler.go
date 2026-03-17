@@ -24,7 +24,16 @@ type ToTaskFunc func(ctx context.Context, title, body string, tags []string) err
 type ServiceResolver func(r *http.Request) *Service
 
 var flashMessages = map[string]string{
-	"title-required": "Title is required.",
+	"title-required": "A title is required.",
+	"idea-added":     "Idea captured.",
+	"idea-triaged":   "Status updated.",
+	"idea-edited":    "Changes saved.",
+	"idea-converted": "Idea converted to a task -- check your todos.",
+	"idea-deleted":   "Idea removed.",
+}
+
+var flashErrorKeys = map[string]bool{
+	"title-required": true,
 }
 
 // Handler handles HTTP requests for ideas.
@@ -89,10 +98,11 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 	data["Untriaged"] = grouped["untriaged"]
 	data["Parked"] = grouped["parked"]
 	data["Dropped"] = grouped["dropped"]
-	data["Categories"] = allTags
-	if flashMsg := flashMessages[r.URL.Query().Get("msg")]; flashMsg != "" {
-		data["FlashMsg"] = flashMsg
-		data["FlashError"] = true
+	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
+		if flashMsg := flashMessages[msgKey]; flashMsg != "" {
+			data["FlashMsg"] = flashMsg
+			data["FlashError"] = flashErrorKeys[msgKey]
+		}
 	}
 	if userName := data["UserName"]; userName != "" {
 		data["Subtitle"] = userName.(string) + "'s ideas"
@@ -154,7 +164,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
+	http.Redirect(w, r, "/ideas?msg=idea-added", http.StatusSeeOther)
 }
 
 // TriageAction changes an idea's status (park/drop/untriage).
@@ -174,7 +184,7 @@ func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
+	http.Redirect(w, r, "/ideas?msg=idea-triaged", http.StatusSeeOther)
 }
 
 // ToTask converts an idea to a personal task and deletes it.
@@ -196,7 +206,7 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 
 	_ = svc.Delete(slug)
 
-	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
+	http.Redirect(w, r, "/ideas?msg=idea-converted", http.StatusSeeOther)
 }
 
 // Edit updates an idea's body, tags, and images.
@@ -219,7 +229,7 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
+	http.Redirect(w, r, "/ideas?msg=idea-edited", http.StatusSeeOther)
 }
 
 // DeleteIdea removes an idea.
@@ -232,7 +242,7 @@ func (h *Handler) DeleteIdea(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/ideas", http.StatusSeeOther)
+	http.Redirect(w, r, "/ideas?msg=idea-deleted", http.StatusSeeOther)
 }
 
 // --- API handlers ---

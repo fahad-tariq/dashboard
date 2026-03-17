@@ -74,6 +74,14 @@
     {{if .Dropped}}<span class="stat-item"><span class="stat-value">{{len .Dropped}}</span> dropped</span>{{end}}
 </div>
 
+<div class="status-legend">
+    <span class="status-legend-item"><strong>Untriaged</strong> -- New ideas waiting for a decision</span>
+    <span class="status-legend-sep">&middot;</span>
+    <span class="status-legend-item"><strong>Parked</strong> -- Worth keeping, not acting on now</span>
+    <span class="status-legend-sep">&middot;</span>
+    <span class="status-legend-item"><strong>Dropped</strong> -- Decided against, kept for reference</span>
+</div>
+
 <details class="quick-add tracker-add-form">
     <summary>Add idea</summary>
     <form method="POST" action="/ideas/add" class="tracker-goal-form">
@@ -83,9 +91,10 @@
         <input type="text" name="tags" id="idea-tags" placeholder="Tags (comma-separated)" class="form-input">
         <label for="idea-body" class="sr-only">Description</label>
         <textarea name="body" id="idea-body" placeholder="Description (optional)" rows="2" class="form-textarea"></textarea>
-        <button type="submit" class="form-btn">add</button>
+        <button type="submit" class="form-btn">add idea</button>
     </form>
 </details>
+<p class="section-help">Ideas are things worth capturing but not ready to act on. Triage them as you go -- park what you might revisit, drop what you won't.</p>
 
 {{if .Categories}}
 <div class="tracker-filters">
@@ -124,8 +133,9 @@
 {{end}}
 
 {{if and (not .Untriaged) (not .Parked) (not .Dropped)}}
-<p class="empty">No ideas yet. Add one above or POST to /api/v1/ideas.</p>
+<p class="empty">No ideas yet. Ideas are for things you might want to explore someday -- projects, topics, half-formed thoughts worth capturing.</p>
 {{end}}
+<p class="empty filter-empty" style="display:none">No ideas match the current filter.</p>
 
 </div>
 {{end}}
