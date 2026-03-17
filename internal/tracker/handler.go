@@ -178,8 +178,8 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 			data["FlashError"] = flashErrorKeys[msgKey]
 		}
 	}
-	if userName := data["UserName"]; h.listName == "todos" && userName != "" {
-		data["Subtitle"] = userName.(string) + "'s list"
+	if userName, ok := data["UserName"].(string); ok && h.listName == "todos" && userName != "" {
+		data["Subtitle"] = userName + "'s list"
 	}
 
 	if err := h.templates["tracker.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -216,8 +216,8 @@ func (h *Handler) GoalsPage(w http.ResponseWriter, r *http.Request) {
 			data["FlashError"] = flashErrorKeys[msgKey]
 		}
 	}
-	if userName := data["UserName"]; userName != "" {
-		data["Subtitle"] = userName.(string) + "'s goals"
+	if userName, ok := data["UserName"].(string); ok && userName != "" {
+		data["Subtitle"] = userName + "'s goals"
 	}
 
 	if err := h.templates["goals.html"].ExecuteTemplate(w, "layout.html", data); err != nil {

@@ -2,6 +2,7 @@ package search
 
 import (
 	"html/template"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -89,10 +90,12 @@ func (h *Handler) SearchAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	h.template.Execute(w, map[string]any{
+	if err := h.template.Execute(w, map[string]any{
 		"Results": results,
 		"Query":   query,
-	})
+	}); err != nil {
+		slog.Error("rendering search results", "error", err)
+	}
 }
 
 // snippet returns a short excerpt from body around the query match.

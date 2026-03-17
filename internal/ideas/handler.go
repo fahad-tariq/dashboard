@@ -114,8 +114,8 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 			data["FlashError"] = flashErrorKeys[msgKey]
 		}
 	}
-	if userName := data["UserName"]; userName != "" {
-		data["Subtitle"] = userName.(string) + "'s ideas"
+	if userName, ok := data["UserName"].(string); ok && userName != "" {
+		data["Subtitle"] = userName + "'s ideas"
 	}
 
 	if err := h.templates["ideas.html"].ExecuteTemplate(w, "layout.html", data); err != nil {

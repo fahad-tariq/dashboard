@@ -16,7 +16,7 @@ function isInputFocused() {
 }
 
 function openSearch() {
-    searchOverlay.classList.add('active');
+    searchOverlay.classList.add('visible');
     searchInput.value = '';
     searchResults.innerHTML = '';
     searchActiveIdx = -1;
@@ -24,18 +24,18 @@ function openSearch() {
 }
 
 function closeSearch() {
-    searchOverlay.classList.remove('active');
+    searchOverlay.classList.remove('visible');
     searchInput.value = '';
     searchResults.innerHTML = '';
     searchActiveIdx = -1;
 }
 
 function openShortcutHelp() {
-    shortcutHelp.classList.add('active');
+    shortcutHelp.classList.add('visible');
 }
 
 function closeShortcutHelp() {
-    shortcutHelp.classList.remove('active');
+    shortcutHelp.classList.remove('visible');
 }
 
 function doSearch(query) {
@@ -108,11 +108,11 @@ if (searchInput) {
 document.addEventListener('keydown', function(e) {
     // Close any open modal on Escape.
     if (e.key === 'Escape') {
-        if (searchOverlay.classList.contains('active')) {
+        if (searchOverlay.classList.contains('visible')) {
             closeSearch();
             return;
         }
-        if (shortcutHelp.classList.contains('active')) {
+        if (shortcutHelp.classList.contains('visible')) {
             closeShortcutHelp();
             return;
         }
@@ -121,7 +121,7 @@ document.addEventListener('keydown', function(e) {
     // Ctrl+K / Cmd+K to open search (works even when input focused).
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
-        if (searchOverlay.classList.contains('active')) {
+        if (searchOverlay.classList.contains('visible')) {
             closeSearch();
         } else {
             openSearch();
@@ -142,7 +142,7 @@ document.addEventListener('keydown', function(e) {
     // "?" opens shortcut help.
     if (e.key === '?') {
         e.preventDefault();
-        if (shortcutHelp.classList.contains('active')) {
+        if (shortcutHelp.classList.contains('visible')) {
             closeShortcutHelp();
         } else {
             openShortcutHelp();
