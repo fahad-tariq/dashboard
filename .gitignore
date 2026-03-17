@@ -1,5 +1,5 @@
 bin/
-dashboard
+/dashboard
 data/
 /ideas/
 .env
