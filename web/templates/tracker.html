@@ -4,7 +4,7 @@
      hx-ext="sse" sse-connect="/events"
      hx-get="/{{.ListName}}" hx-select=".tracker-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
-<span class="htmx-indicator meta-dim">updating&hellip;</span>
+<span class="htmx-indicator">updating&hellip;</span>
 
 <h1>{{.Title}}</h1>
 {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
@@ -57,7 +57,7 @@
             {{range .Tags}}<span class="badge badge-tag badge-clickable" role="button" tabindex="0" onclick="event.stopPropagation();trackerFilter('category','{{.}}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();trackerFilter('category','{{.}}')}">{{.}}</span>{{end}}
             {{if .Priority}}<span class="badge badge-priority-{{.Priority}} badge-clickable" role="button" tabindex="0" onclick="event.stopPropagation();trackerFilter('priority','{{.Priority}}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();trackerFilter('priority','{{.Priority}}')}">{{.Priority}}</span>{{end}}
             {{if .Added}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
-            <form method="POST" action="/{{$.ListName}}/{{.Slug}}/complete" class="item-complete-form" onclick="event.stopPropagation()">
+            <form method="POST" action="/{{$.ListName}}/{{.Slug}}/complete" class="item-complete-form" onclick="event.stopPropagation()" onsubmit="return celebrateComplete(this)">
                 <button type="submit" class="item-complete-btn" title="Complete">&#x2713;</button>
             </form>
         </div>
@@ -77,11 +77,11 @@
                     </select>
                     <button type="submit" class="action-btn">apply</button>
                 </form>
-                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="inline-triage">
-                    <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this item?')">delete</button>
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="inline-triage" onsubmit="return confirmAction(this, 'Delete this item?')">
+                    <button type="submit" class="action-btn action-drop">delete</button>
                 </form>
-                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/move" class="inline-triage">
-                    <button type="submit" class="action-btn" onclick="return confirm('Move to {{$.OtherListName}}?')">move to {{$.OtherListName}}</button>
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/move" class="inline-triage" onsubmit="return confirmAction(this, 'Move to {{$.OtherListName}}?')">
+                    <button type="submit" class="action-btn">move to {{$.OtherListName}}</button>
                 </form>
             </div>
             {{if .Images}}
@@ -117,8 +117,8 @@
                 <form method="POST" action="/{{$.ListName}}/{{.Slug}}/uncomplete" class="item-complete-form" onclick="event.stopPropagation()">
                     <button type="submit" class="item-undo-btn" title="Undo">&#x21A9;</button>
                 </form>
-                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="item-complete-form" onclick="event.stopPropagation()">
-                    <button type="submit" class="item-undo-btn" title="Delete" onclick="return confirm('Delete this item?')">&#x2715;</button>
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="item-complete-form" onclick="event.stopPropagation()" onsubmit="return confirmAction(this, 'Delete this item?')">
+                    <button type="submit" class="item-undo-btn" title="Delete">&#x2715;</button>
                 </form>
             </div>
         </div>

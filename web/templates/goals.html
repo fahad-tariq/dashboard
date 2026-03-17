@@ -4,7 +4,7 @@
      hx-ext="sse" sse-connect="/events"
      hx-get="/goals" hx-select=".tracker-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
-<span class="htmx-indicator meta-dim">updating&hellip;</span>
+<span class="htmx-indicator">updating&hellip;</span>
 
 <h1>Goals</h1>
 {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
@@ -102,8 +102,8 @@
             </select>
             <button type="submit" class="action-btn">apply</button>
         </form>
-        <form method="POST" action="/todos/{{.Slug}}/delete" class="inline-triage">
-            <button type="submit" class="action-btn action-drop" onclick="return confirm('Delete this goal?')">delete</button>
+        <form method="POST" action="/todos/{{.Slug}}/delete" class="inline-triage" onsubmit="return confirmAction(this, 'Delete this goal?')">
+            <button type="submit" class="action-btn action-drop">delete</button>
         </form>
     </div>
     {{if .Images}}

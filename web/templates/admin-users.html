@@ -24,8 +24,8 @@
         {{if eq .Role "admin"}}<span class="badge badge-admin">admin</span>{{else}}<span class="badge badge-user">user</span>{{end}}
         <a href="/admin/users/{{.ID}}/edit" class="action-btn">edit</a>
         <a href="/admin/users/{{.ID}}/password" class="action-btn">password</a>
-        <form method="POST" action="/admin/users/{{.ID}}/delete" class="inline-form">
-            <button type="submit" class="action-btn action-delete" onclick="return confirm('Delete user {{.Email}}?')">delete</button>
+        <form method="POST" action="/admin/users/{{.ID}}/delete" class="inline-form" onsubmit="return confirmAction(this, 'Delete user {{.Email}}?')">
+            <button type="submit" class="action-btn action-delete">delete</button>
         </form>
     </div>
 </div>

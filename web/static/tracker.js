@@ -22,6 +22,22 @@ function trackerFilter(type, value) {
     applyFilter();
 }
 
+function updateFilterBadge() {
+    var container = document.querySelector('.tracker-filters');
+    if (!container) return;
+    var existing = container.querySelector('.filter-active-badge');
+    if (activeFilterType) {
+        if (!existing) {
+            var badge = document.createElement('span');
+            badge.className = 'filter-active-badge';
+            badge.textContent = 'filtered';
+            container.appendChild(badge);
+        }
+    } else {
+        if (existing) existing.parentNode.removeChild(existing);
+    }
+}
+
 function applyFilter() {
     document.querySelectorAll('.filter-tag').forEach(function(b) {
         if (!activeFilterType && b.textContent.trim() === 'all') {
@@ -44,6 +60,8 @@ function applyFilter() {
             el.style.display = (attr === activeFilterValue) ? '' : 'none';
         }
     });
+
+    updateFilterBadge();
 }
 
 function toggleItem(btn) {
@@ -74,7 +92,6 @@ function trackerToggleAll() {
         var header = el.querySelector('.tracker-item-header');
         if (header) header.setAttribute('aria-expanded', String(!shouldMinimise));
     });
-    // Update the toggle-all button label.
     var toggleBtn = document.querySelector('.filter-toggle');
     if (toggleBtn) toggleBtn.textContent = shouldMinimise ? 'expand' : 'collapse';
 }
@@ -83,6 +100,37 @@ function clearTrackerFilter() {
     var prefix = filterKeyPrefix();
     localStorage.removeItem(prefix + '_filterType');
     localStorage.removeItem(prefix + '_filterValue');
+}
+
+// Task completion celebration animation.
+function celebrateComplete(form) {
+    var item = form.closest('.tracker-item');
+    if (item) {
+        item.classList.add('tracker-item-completing');
+    }
+    return true;
+}
+
+// Idea triage transition animation.
+function triageAnimate(form) {
+    var item = form.closest('.tracker-item');
+    var action = form.getAttribute('action');
+    var method = form.getAttribute('method') || 'POST';
+    if (item) {
+        item.classList.add('idea-transitioning');
+    }
+    setTimeout(function() {
+        fetch(action, {
+            method: method,
+            body: new FormData(form),
+            credentials: 'same-origin'
+        }).then(function() {
+            window.location.reload();
+        }).catch(function() {
+            window.location.reload();
+        });
+    }, 250);
+    return false;
 }
 
 // On page load: restore filter, expand hash target.
@@ -108,9 +156,37 @@ function clearTrackerFilter() {
     el.scrollIntoView({block: 'nearest'});
 })();
 
-// Re-apply filter after HTMX SSE swap.
+// Re-apply filter and badge after HTMX SSE swap.
 document.addEventListener('htmx:afterSwap', function() {
     if (activeFilterType) {
         applyFilter();
     }
+    updateFilterBadge();
+});
+
+// Delay SSE swap when a completion celebration is in progress so the
+// green flash animation is visible before the DOM is replaced.
+var pendingSwap = null;
+
+document.addEventListener('htmx:beforeSwap', function(evt) {
+    var target = evt.detail.target;
+    if (!target) return;
+    var completing = target.querySelector && target.querySelector('.tracker-item-completing');
+    if (!completing) return;
+
+    // Store swap details and prevent the immediate swap.
+    var elt = evt.detail.elt;
+    pendingSwap = {
+        elt: elt,
+        target: target
+    };
+    evt.detail.shouldSwap = false;
+
+    // After the animation delay, re-trigger the SSE refresh.
+    setTimeout(function() {
+        pendingSwap = null;
+        if (typeof htmx !== 'undefined' && elt) {
+            htmx.trigger(elt, 'sse:file-changed');
+        }
+    }, 400);
 });
