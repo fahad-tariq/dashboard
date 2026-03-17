@@ -5,6 +5,7 @@
         <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
         <div class="tracker-item-meta">
             {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
+            <span class="badge badge-{{.Status}}">{{.Status}}</span>
             {{if .Added}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
         </div>
     </div>

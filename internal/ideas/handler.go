@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"html/template"
-	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -63,13 +62,20 @@ func NewHandlerWithResolver(resolver ServiceResolver, toTask ToTaskFunc, templat
 	}
 }
 
+// classifyIdeaError returns an appropriate HTTP error message for a service error.
+func classifyIdeaError(err error) string {
+	if httputil.IsNotFound(err) {
+		return "Idea not found"
+	}
+	return "Failed to update idea"
+}
+
 // IdeasPage renders the ideas list grouped by status.
 func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 	svc := h.resolve(r)
 	ideas, err := svc.List()
 	if err != nil {
-		slog.Error("listing ideas", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		httputil.ServerError(w, "listing ideas", err)
 		return
 	}
 
@@ -109,7 +115,7 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.templates["ideas.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
-		slog.Error("rendering ideas", "error", err)
+		httputil.ServerError(w, "rendering ideas", err)
 	}
 }
 
@@ -131,14 +137,14 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 	data["BodyHTML"] = template.HTML(bodyHTML)
 
 	if err := h.templates["idea.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
-		slog.Error("rendering idea detail", "error", err)
+		httputil.ServerError(w, "rendering idea detail", err)
 	}
 }
 
 // QuickAdd creates a new idea from the quick-add form.
 func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
@@ -159,8 +165,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 
 	svc := h.resolve(r)
 	if err := svc.Add(idea); err != nil {
-		slog.Error("adding idea", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		httputil.ServerError(w, "adding idea", err)
 		return
 	}
 
@@ -171,7 +176,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
@@ -179,8 +184,7 @@ func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	svc := h.resolve(r)
 
 	if err := svc.Triage(slug, action); err != nil {
-		slog.Error("triaging idea", "slug", slug, "action", action, "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
 		return
 	}
 
@@ -199,8 +203,7 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.toTask(r.Context(), idea.Title, idea.Body, idea.Tags); err != nil {
-		slog.Error("converting idea to task", "slug", slug, "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		httputil.ServerError(w, "converting idea to task", err, "slug", slug)
 		return
 	}
 
@@ -213,7 +216,7 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
@@ -224,8 +227,7 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 
 	svc := h.resolve(r)
 	if err := svc.Edit(slug, title, body, tags, images); err != nil {
-		slog.Error("editing idea", "slug", slug, "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
 		return
 	}
 
@@ -237,8 +239,7 @@ func (h *Handler) DeleteIdea(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	svc := h.resolve(r)
 	if err := svc.Delete(slug); err != nil {
-		slog.Error("deleting idea", "slug", slug, "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
 		return
 	}
 

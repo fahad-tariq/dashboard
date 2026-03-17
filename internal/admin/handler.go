@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/auth"
+	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/services"
 	"github.com/fahad/dashboard/internal/tracker"
 )
@@ -58,8 +59,7 @@ func NewHandler(db *sql.DB, registry *services.Registry, userDataDir string, tem
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := auth.AllUsers(h.db)
 	if err != nil {
-		slog.Error("listing users", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		httputil.ServerError(w, "listing users", err)
 		return
 	}
 
@@ -120,7 +120,7 @@ func (h *Handler) NewUserForm(w http.ResponseWriter, r *http.Request) {
 // CreateUser handles the create user form submission (POST /admin/users/new).
 func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
@@ -193,7 +193,7 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
@@ -299,7 +299,7 @@ func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 

@@ -803,10 +803,15 @@ section h2 {
     width: fit-content;
 }
 
-/* --- Form error (shared across login, admin) --- */
+/* --- Form error / info (shared across login, admin) --- */
 .form-error {
     color: var(--red);
     font-size: 0.85rem;
+}
+.form-info {
+    color: var(--fg-dim);
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
 }
 
 /* --- Required field indicator --- */

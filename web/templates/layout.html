@@ -65,7 +65,14 @@
                 if (navigating) return;
                 fetch('/events', { method: 'HEAD', credentials: 'same-origin' }).then(function(resp) {
                     if (resp.status === 401) {
-                        window.location.href = '/login?next=' + window.location.pathname;
+                        var toast = document.createElement('div');
+                        toast.className = 'flash-msg';
+                        toast.textContent = 'Session expired. Redirecting to login...';
+                        var container = document.querySelector('.container');
+                        if (container) container.prepend(toast);
+                        setTimeout(function() {
+                            window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname) + '&expired=1';
+                        }, 2000);
                     }
                 }).catch(function() {});
             });
