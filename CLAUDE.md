@@ -45,7 +45,8 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 - `SecureCookies` defaults to `true`. Set `DASHBOARD_SECURE_COOKIES=false` for local HTTP development.
 - All CSS animations respect `prefers-reduced-motion: reduce`. JS is ES5 compatible (no const/let/arrow functions).
 - Modal system uses `.modal-overlay`/`.modal-content` as shared base CSS classes with `.visible` to toggle display. All modals (confirm, search, shortcut help) reuse this infrastructure.
-- Bulk actions use `mutateBatch` for single-file-write atomicity. Select mode toggle on list pages; sticky bulk bar with `role="toolbar"` and `aria-live="polite"`. Escape key priority: confirm modal > search overlay > shortcut help > select mode. SSE swaps are suppressed while select mode is active.
+- Bulk actions use `mutateBatch` for single-file-write atomicity. Select mode toggle on list pages; sticky bulk bar with `role="toolbar"` and `aria-live="polite"`. Escape key priority: confirm modal > search overlay > shortcut help > select mode > nav menu. SSE swaps are suppressed while select mode or `window.planDragInProgress` is active.
+- Mobile nav uses a hamburger menu (`#nav-hamburger` toggles `.nav-links-open` on `#nav-links`). Hidden on desktop via `.nav-hamburger { display: none }`, shown at `max-width: 768px`. `.nav-right` wraps theme toggle, user link, and hamburger to keep them right-aligned.
 - Permanent delete flash messages (`item-purged`, `idea-purged`) use error styling via `flashErrorKeys`. "Move to trash" is the user-facing label for soft delete.
 </CONVENTIONS>
 
