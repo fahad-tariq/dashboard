@@ -35,9 +35,9 @@ func setupHomeEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.Se
 
 	personalStore := tracker.NewStore(database, "personal")
 	familyStore := tracker.NewStore(database, "family")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore)
-	familySvc := tracker.NewService(familyPath, "Family", familyStore)
-	ideasSvc := ideas.NewService(ideasPath)
+	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
+	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
 		"authEnabled":  func() bool { return false },
@@ -56,7 +56,7 @@ func setupHomeEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.Se
 	)
 	templates["homepage.html"] = tmpl
 
-	handler := home.HomePageSingle(personalSvc, familySvc, ideasSvc, templates)
+	handler := home.HomePageSingle(personalSvc, familySvc, ideasSvc, templates, time.UTC)
 	return handler, personalSvc, familySvc, ideasSvc
 }
 
@@ -112,9 +112,9 @@ func TestHomePageShowsIdeaCounts(t *testing.T) {
 
 	personalStore := tracker.NewStore(database, "personal")
 	familyStore := tracker.NewStore(database, "family")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore)
-	familySvc := tracker.NewService(familyPath, "Family", familyStore)
-	ideasSvc := ideas.NewService(ideasPath)
+	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
+	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
 		"authEnabled":  func() bool { return false },
@@ -133,7 +133,7 @@ func TestHomePageShowsIdeaCounts(t *testing.T) {
 	)
 	templates["homepage.html"] = tmpl
 
-	handler := home.HomePageSingle(personalSvc, familySvc, ideasSvc, templates)
+	handler := home.HomePageSingle(personalSvc, familySvc, ideasSvc, templates, time.UTC)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
@@ -165,9 +165,9 @@ func TestHomePageEmpty(t *testing.T) {
 
 	personalStore := tracker.NewStore(database, "personal")
 	familyStore := tracker.NewStore(database, "family")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore)
-	familySvc := tracker.NewService(familyPath, "Family", familyStore)
-	ideasSvc := ideas.NewService(ideasPath)
+	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
+	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
 		"authEnabled":  func() bool { return false },
@@ -186,7 +186,7 @@ func TestHomePageEmpty(t *testing.T) {
 	)
 	templates["homepage.html"] = tmpl
 
-	handler := home.HomePageSingle(personalSvc, familySvc, ideasSvc, templates)
+	handler := home.HomePageSingle(personalSvc, familySvc, ideasSvc, templates, time.UTC)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()

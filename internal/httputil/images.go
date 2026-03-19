@@ -73,11 +73,11 @@ func captionFieldName(i int) string {
 	return "caption-" + strconv.Itoa(i)
 }
 
-// CutoffDate returns the date `days` ago at midnight UTC, used for
-// determining whether soft-deleted items should be purged.
-func CutoffDate(days int) time.Time {
-	now := time.Now()
-	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -days)
+// CutoffDate returns the date `days` ago at midnight in the given timezone,
+// used for determining whether soft-deleted items should be purged.
+func CutoffDate(days int, loc *time.Location) time.Time {
+	now := time.Now().In(loc)
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, -days)
 }
 
 // ParseCSV splits a comma-separated string into trimmed non-empty parts.

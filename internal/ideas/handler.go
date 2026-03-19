@@ -48,25 +48,28 @@ type Handler struct {
 	resolve   ServiceResolver
 	toTask    ToTaskFunc
 	templates map[string]*template.Template
+	loc       *time.Location
 }
 
 // NewHandler creates a handler with a static service reference.
-func NewHandler(svc *Service, toTask ToTaskFunc, templates map[string]*template.Template) *Handler {
+func NewHandler(svc *Service, toTask ToTaskFunc, templates map[string]*template.Template, loc *time.Location) *Handler {
 	return &Handler{
 		resolve: func(r *http.Request) *Service {
 			return svc
 		},
 		toTask:    toTask,
 		templates: templates,
+		loc:       loc,
 	}
 }
 
 // NewHandlerWithResolver creates a handler that resolves the service per-request.
-func NewHandlerWithResolver(resolver ServiceResolver, toTask ToTaskFunc, templates map[string]*template.Template) *Handler {
+func NewHandlerWithResolver(resolver ServiceResolver, toTask ToTaskFunc, templates map[string]*template.Template, loc *time.Location) *Handler {
 	return &Handler{
 		resolve:   resolver,
 		toTask:    toTask,
 		templates: templates,
+		loc:       loc,
 	}
 }
 
@@ -173,7 +176,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		Title:  title,
 		Tags:   httputil.ParseCSV(r.FormValue("tags")),
 		Images: httputil.ReconstructImages(r),
-		Added:  time.Now().Format("2006-01-02"),
+		Added:  time.Now().In(h.loc).Format("2006-01-02"),
 		Body:   strings.TrimSpace(r.FormValue("body")),
 	}
 
@@ -363,7 +366,7 @@ func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 		Slug:  Slugify(req.Title),
 		Title: req.Title,
 		Tags:  tags,
-		Added: time.Now().Format("2006-01-02"),
+		Added: time.Now().In(h.loc).Format("2006-01-02"),
 		Body:  req.Body,
 	}
 

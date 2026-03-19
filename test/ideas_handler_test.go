@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -40,9 +41,9 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 	}
 	t.Cleanup(func() { database.Close() })
 
-	ideasSvc := ideas.NewService(ideasPath)
+	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 	personalStore := tracker.NewStore(database, "personal")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore)
+	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
 
 	toTask := func(_ context.Context, title, body string, tags []string, fromIdeaSlug string) (string, error) {
 		item := tracker.Item{
@@ -75,7 +76,7 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 		templates[name] = tmpl
 	}
 
-	handler := ideas.NewHandler(ideasSvc, toTask, templates)
+	handler := ideas.NewHandler(ideasSvc, toTask, templates, time.UTC)
 
 	r := chi.NewRouter()
 	r.Get("/ideas", handler.IdeasPage)

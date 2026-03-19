@@ -14,12 +14,13 @@ type Service struct {
 	trackerPath string
 	heading     string
 	store       *Store
+	loc         *time.Location
 	mu          sync.RWMutex
 	cache       []Item
 }
 
-func NewService(trackerPath, heading string, store *Store) *Service {
-	s := &Service{trackerPath: trackerPath, heading: heading, store: store}
+func NewService(trackerPath, heading string, store *Store, loc *time.Location) *Service {
+	s := &Service{trackerPath: trackerPath, heading: heading, store: store, loc: loc}
 	s.loadCache()
 	return s
 }
@@ -119,7 +120,7 @@ func (s *Service) AddItem(item Item) error {
 	}
 	item.Slug = Slugify(item.Title)
 	if item.Added == "" {
-		item.Added = time.Now().Format("2006-01-02")
+		item.Added = time.Now().In(s.loc).Format("2006-01-02")
 	}
 
 	items, err := ParseTracker(s.trackerPath)
@@ -145,7 +146,7 @@ func (s *Service) UpdateNotes(slug, body string) error {
 func (s *Service) Complete(slug string) error {
 	return s.mutate(slug, func(it *Item) error {
 		it.Done = true
-		it.Completed = time.Now().Format("2006-01-02")
+		it.Completed = time.Now().In(s.loc).Format("2006-01-02")
 		return nil
 	})
 }
@@ -161,7 +162,7 @@ func (s *Service) Uncomplete(slug string) error {
 // Delete soft-deletes an item by setting its DeletedAt timestamp.
 func (s *Service) Delete(slug string) error {
 	return s.mutate(slug, func(it *Item) error {
-		it.DeletedAt = time.Now().Format("2006-01-02")
+		it.DeletedAt = time.Now().In(s.loc).Format("2006-01-02")
 		return nil
 	})
 }
@@ -213,7 +214,7 @@ func (s *Service) PurgeExpired(days int) error {
 		return err
 	}
 
-	cutoff := httputil.CutoffDate(days)
+	cutoff := httputil.CutoffDate(days, s.loc)
 	var kept []Item
 	for _, it := range items {
 		if it.DeletedAt != "" {
@@ -280,7 +281,7 @@ func (s *Service) mutateBatch(slugs []string, fn func(*Item) error) error {
 
 // BulkComplete marks multiple items as done in a single file write.
 func (s *Service) BulkComplete(slugs []string) error {
-	now := time.Now().Format("2006-01-02")
+	now := time.Now().In(s.loc).Format("2006-01-02")
 	return s.mutateBatch(slugs, func(it *Item) error {
 		it.Done = true
 		it.Completed = now
@@ -290,7 +291,7 @@ func (s *Service) BulkComplete(slugs []string) error {
 
 // BulkDelete soft-deletes multiple items in a single file write.
 func (s *Service) BulkDelete(slugs []string) error {
-	now := time.Now().Format("2006-01-02")
+	now := time.Now().In(s.loc).Format("2006-01-02")
 	return s.mutateBatch(slugs, func(it *Item) error {
 		it.DeletedAt = now
 		return nil

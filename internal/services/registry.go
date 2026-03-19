@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -23,6 +24,7 @@ type Registry struct {
 	db          *sql.DB
 	userDataDir string
 	familyPath  string
+	loc         *time.Location
 	familySvc   *tracker.Service
 
 	mu    sync.RWMutex
@@ -30,14 +32,15 @@ type Registry struct {
 }
 
 // NewRegistry creates a new service registry.
-func NewRegistry(db *sql.DB, userDataDir, familyPath string) *Registry {
+func NewRegistry(db *sql.DB, userDataDir, familyPath string, loc *time.Location) *Registry {
 	familyStore := tracker.NewSharedStore(db, "family")
-	familySvc := tracker.NewService(familyPath, "Family", familyStore)
+	familySvc := tracker.NewService(familyPath, "Family", familyStore, loc)
 
 	return &Registry{
 		db:          db,
 		userDataDir: userDataDir,
 		familyPath:  familyPath,
+		loc:         loc,
 		familySvc:   familySvc,
 		cache:       make(map[int64]*UserServices),
 	}
@@ -103,10 +106,10 @@ func (r *Registry) ForUser(userID int64) *UserServices {
 
 	personalPath := filepath.Join(base, "personal.md")
 	personalStore := tracker.NewUserStore(r.db, "personal", userID)
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore)
+	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, r.loc)
 
 	ideasPath := filepath.Join(base, "ideas.md")
-	ideaSvc := ideas.NewService(ideasPath)
+	ideaSvc := ideas.NewService(ideasPath, r.loc)
 
 	svc := &UserServices{
 		Personal: personalSvc,

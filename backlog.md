@@ -4,7 +4,6 @@
 
 ### M (2-5 hours)
 
-- **Planner: drag-and-drop scheduling** -- Reorder tasks within the daily plan and drag between days in calendar view.
 - **Planner: ironclaw API integration** -- Automated triage via the ironclaw agent using `PUT /api/v1/plan/{slug}` to plan tasks.
 
 ### Ideas
@@ -16,6 +15,7 @@
 
 ## Done
 
+- Planner drag-and-drop scheduling: homepage reorder within plan, calendar week view drag between days, mobile arrow button fallback, SSE-resilient event delegation
 - Edit form drops image captions -- confirmed not-a-bug via code analysis. JS init, caption fields, and ReconstructImages all work correctly including inside collapsed details.
 
 - Planner calendar view: `/plan/calendar` with week/month toggle, prev/next navigation, responsive grid, `g c` keyboard shortcut

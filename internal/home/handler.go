@@ -22,12 +22,14 @@ import (
 type Handler struct {
 	registry  *services.Registry
 	templates map[string]*template.Template
+	loc       *time.Location
 }
 
-func NewHandler(registry *services.Registry, templates map[string]*template.Template) *Handler {
+func NewHandler(registry *services.Registry, templates map[string]*template.Template, loc *time.Location) *Handler {
 	return &Handler{
 		registry:  registry,
 		templates: templates,
+		loc:       loc,
 	}
 }
 
@@ -35,12 +37,12 @@ func (h *Handler) HomePage(w http.ResponseWriter, r *http.Request) {
 	uid := auth.UserID(r.Context())
 	userSvc := h.registry.ForUser(uid)
 	familySvc := h.registry.Family()
-	renderHomePage(w, r, userSvc.Personal, familySvc, userSvc.Ideas, h.templates)
+	renderHomePage(w, r, userSvc.Personal, familySvc, userSvc.Ideas, h.templates, h.loc)
 }
 
-func HomePageSingle(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template) http.HandlerFunc {
+func HomePageSingle(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		renderHomePage(w, r, personalSvc, familySvc, ideaSvc, templates)
+		renderHomePage(w, r, personalSvc, familySvc, ideaSvc, templates, loc)
 	}
 }
 
@@ -68,7 +70,7 @@ var planPrompts = []string{
 	"Anything for today?",        // Saturday
 }
 
-func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template) {
+func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) {
 	personalItems, err := personalSvc.List()
 	if err != nil {
 		slog.Error("homepage personal list", "error", err)
@@ -84,7 +86,7 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 
 	untriaged, untriagedCount := filterAndCountUntriaged(allIdeas, 3)
 
-	now := time.Now()
+	now := time.Now().In(loc)
 
 	// Build completed items from both personal and family lists.
 	completedItems := toCompletedItems(personalItems)
@@ -171,7 +173,7 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 
 	data := auth.TemplateData(r)
 	data["Title"] = "Home"
-	data["Greeting"] = Greeting(time.Now())
+	data["Greeting"] = Greeting(now)
 	data["DateLabel"] = formatDateLabel(now)
 	data["Today"] = today
 	data["PersonalPlanned"] = personalPlanned
@@ -343,7 +345,7 @@ func (h *Handler) SetPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if date == "" {
-		date = time.Now().Format("2006-01-02")
+		date = time.Now().In(h.loc).Format("2006-01-02")
 	}
 
 	svc := h.serviceForList(r, list)
@@ -431,7 +433,7 @@ func (h *Handler) BulkSetPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if date == "" {
-		date = time.Now().Format("2006-01-02")
+		date = time.Now().In(h.loc).Format("2006-01-02")
 	}
 
 	svc := h.serviceForList(r, list)
@@ -483,7 +485,7 @@ func (h *Handler) ReorderPlanned(w http.ResponseWriter, r *http.Request) {
 // ClearCarriedOver handles POST /plan/bulk/clear-carried -- drops all overdue planned items.
 func (h *Handler) ClearCarriedOver(w http.ResponseWriter, r *http.Request) {
 	personal, family := h.resolveServices(r)
-	today := time.Now().Format("2006-01-02")
+	today := time.Now().In(h.loc).Format("2006-01-02")
 	clearOverdue(personal, today)
 	clearOverdue(family, today)
 	http.Redirect(w, r, "/?msg=carried-cleared", http.StatusSeeOther)
@@ -508,11 +510,11 @@ func (h *Handler) serviceForList(r *http.Request, list string) *tracker.Service 
 }
 
 // APIListPlan handles GET /api/v1/plan?date=YYYY-MM-DD.
-func APIListPlan(personalSvc, familySvc *tracker.Service) http.HandlerFunc {
+func APIListPlan(personalSvc, familySvc *tracker.Service, loc *time.Location) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		date := r.URL.Query().Get("date")
 		if date == "" {
-			date = time.Now().Format("2006-01-02")
+			date = time.Now().In(loc).Format("2006-01-02")
 		}
 
 		personal := personalSvc.ListPlanned(date)
@@ -530,7 +532,7 @@ func APIListPlan(personalSvc, familySvc *tracker.Service) http.HandlerFunc {
 }
 
 // APISetPlan handles PUT /api/v1/plan/{slug}.
-func APISetPlan(personalSvc, familySvc *tracker.Service) http.HandlerFunc {
+func APISetPlan(personalSvc, familySvc *tracker.Service, loc *time.Location) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slug := chi.URLParam(r, "slug")
 
@@ -543,7 +545,7 @@ func APISetPlan(personalSvc, familySvc *tracker.Service) http.HandlerFunc {
 			return
 		}
 		if body.Date == "" {
-			body.Date = time.Now().Format("2006-01-02")
+			body.Date = time.Now().In(loc).Format("2006-01-02")
 		}
 
 		var svc *tracker.Service
@@ -603,10 +605,11 @@ func APIClearPlan(personalSvc, familySvc *tracker.Service) http.HandlerFunc {
 type SingleUserPlanHandlers struct {
 	personalSvc *tracker.Service
 	familySvc   *tracker.Service
+	loc         *time.Location
 }
 
-func NewSingleUserPlanHandlers(personalSvc, familySvc *tracker.Service) *SingleUserPlanHandlers {
-	return &SingleUserPlanHandlers{personalSvc: personalSvc, familySvc: familySvc}
+func NewSingleUserPlanHandlers(personalSvc, familySvc *tracker.Service, loc *time.Location) *SingleUserPlanHandlers {
+	return &SingleUserPlanHandlers{personalSvc: personalSvc, familySvc: familySvc, loc: loc}
 }
 
 func (h *SingleUserPlanHandlers) serviceForList(list string) *tracker.Service {
@@ -632,7 +635,7 @@ func (h *SingleUserPlanHandlers) SetPlanned(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if date == "" {
-		date = time.Now().Format("2006-01-02")
+		date = time.Now().In(h.loc).Format("2006-01-02")
 	}
 	svc := h.serviceForList(list)
 	if svc == nil {
@@ -720,7 +723,7 @@ func (h *SingleUserPlanHandlers) ReorderPlanned(w http.ResponseWriter, r *http.R
 }
 
 func (h *SingleUserPlanHandlers) ClearCarriedOver(w http.ResponseWriter, r *http.Request) {
-	today := time.Now().Format("2006-01-02")
+	today := time.Now().In(h.loc).Format("2006-01-02")
 	clearOverdue(h.personalSvc, today)
 	clearOverdue(h.familySvc, today)
 	http.Redirect(w, r, "/?msg=carried-cleared", http.StatusSeeOther)
@@ -739,7 +742,7 @@ func (h *SingleUserPlanHandlers) BulkSetPlanned(w http.ResponseWriter, r *http.R
 		return
 	}
 	if date == "" {
-		date = time.Now().Format("2006-01-02")
+		date = time.Now().In(h.loc).Format("2006-01-02")
 	}
 	svc := h.serviceForList(list)
 	if svc == nil {

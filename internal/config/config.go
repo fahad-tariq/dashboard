@@ -21,6 +21,7 @@ type Config struct {
 	SessionLifetime time.Duration
 	SecureCookies   bool
 	HasUsers        bool // Set at startup after checking the users table.
+	Location        *time.Location
 }
 
 func Load() (*Config, error) {
@@ -32,6 +33,15 @@ func Load() (*Config, error) {
 	secureCookies := true
 	if v, ok := os.LookupEnv("DASHBOARD_SECURE_COOKIES"); ok {
 		secureCookies, _ = strconv.ParseBool(v)
+	}
+
+	loc := time.Local
+	if tz := os.Getenv("DASHBOARD_TIMEZONE"); tz != "" {
+		var err error
+		loc, err = time.LoadLocation(tz)
+		if err != nil {
+			return nil, fmt.Errorf("parsing DASHBOARD_TIMEZONE %q: %w", tz, err)
+		}
 	}
 
 	// IDEAS_PATH takes precedence. Fall back to IDEAS_DIR for backwards
@@ -58,6 +68,7 @@ func Load() (*Config, error) {
 		PasswordHash:    os.Getenv("DASHBOARD_PASSWORD_HASH"),
 		SessionLifetime: sessionLifetime,
 		SecureCookies:   secureCookies,
+		Location:        loc,
 	}
 
 	if err := c.validate(); err != nil {

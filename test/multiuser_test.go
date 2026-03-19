@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/fahad/dashboard/internal/db"
 	"github.com/fahad/dashboard/internal/ideas"
@@ -25,7 +26,7 @@ func setupRegistry(t *testing.T) (*services.Registry, string) {
 	familyPath := filepath.Join(tmpDir, "family.md")
 	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
 
-	reg := services.NewRegistry(database, userDataDir, familyPath)
+	reg := services.NewRegistry(database, userDataDir, familyPath, time.UTC)
 	return reg, tmpDir
 }
 

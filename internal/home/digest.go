@@ -17,19 +17,19 @@ func (h *Handler) DigestPage(w http.ResponseWriter, r *http.Request) {
 	uid := auth.UserID(r.Context())
 	userSvc := h.registry.ForUser(uid)
 	familySvc := h.registry.Family()
-	renderDigestPage(w, r, userSvc.Personal, familySvc, userSvc.Ideas, h.templates)
+	renderDigestPage(w, r, userSvc.Personal, familySvc, userSvc.Ideas, h.templates, h.loc)
 }
 
 // DigestPageSingle returns a handler for GET /digest in single-user mode.
-func DigestPageSingle(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template) http.HandlerFunc {
+func DigestPageSingle(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		renderDigestPage(w, r, personalSvc, familySvc, ideaSvc, templates)
+		renderDigestPage(w, r, personalSvc, familySvc, ideaSvc, templates, loc)
 	}
 }
 
-func renderDigestPage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template) {
+func renderDigestPage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) {
 	period := insights.ParseDigestPeriod(r.URL.Query().Get("period"))
-	now := time.Now()
+	now := time.Now().In(loc)
 
 	personalItems, err := personalSvc.List()
 	if err != nil {

@@ -186,9 +186,9 @@ func setupDigestEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.
 
 	personalStore := tracker.NewStore(database, "personal")
 	familyStore := tracker.NewStore(database, "family")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore)
-	familySvc := tracker.NewService(familyPath, "Family", familyStore)
-	ideasSvc := ideas.NewService(ideasPath)
+	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
+	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
 		"authEnabled":  func() bool { return false },
@@ -207,7 +207,7 @@ func setupDigestEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.
 	)
 	templates["digest.html"] = tmpl
 
-	handler := home.DigestPageSingle(personalSvc, familySvc, ideasSvc, templates)
+	handler := home.DigestPageSingle(personalSvc, familySvc, ideasSvc, templates, time.UTC)
 	return handler, personalSvc, familySvc, ideasSvc
 }
 
@@ -289,9 +289,9 @@ func TestDigestPageEmptyState(t *testing.T) {
 
 	personalStore := tracker.NewStore(database, "personal")
 	familyStore := tracker.NewStore(database, "family")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore)
-	familySvc := tracker.NewService(familyPath, "Family", familyStore)
-	ideasSvc := ideas.NewService(ideasPath)
+	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
+	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
 		"authEnabled":  func() bool { return false },
@@ -310,7 +310,7 @@ func TestDigestPageEmptyState(t *testing.T) {
 	)
 	templates["digest.html"] = tmpl
 
-	handler := home.DigestPageSingle(personalSvc, familySvc, ideasSvc, templates)
+	handler := home.DigestPageSingle(personalSvc, familySvc, ideasSvc, templates, time.UTC)
 
 	req := httptest.NewRequest("GET", "/digest", nil)
 	rr := httptest.NewRecorder()

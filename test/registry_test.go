@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/fahad/dashboard/internal/db"
 	"github.com/fahad/dashboard/internal/services"
@@ -22,7 +23,7 @@ func TestEnsureUserDirsCreatesStructure(t *testing.T) {
 	familyPath := filepath.Join(tmpDir, "family.md")
 	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
 
-	reg := services.NewRegistry(database, userDataDir, familyPath)
+	reg := services.NewRegistry(database, userDataDir, familyPath, time.UTC)
 
 	if err := reg.EnsureUserDirs(1); err != nil {
 		t.Fatalf("EnsureUserDirs: %v", err)
@@ -54,7 +55,7 @@ func TestEnsureUserDirsIdempotent(t *testing.T) {
 	familyPath := filepath.Join(tmpDir, "family.md")
 	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
 
-	reg := services.NewRegistry(database, userDataDir, familyPath)
+	reg := services.NewRegistry(database, userDataDir, familyPath, time.UTC)
 
 	// Write some content to personal.md.
 	if err := reg.EnsureUserDirs(1); err != nil {
@@ -85,7 +86,7 @@ func TestForUserReturnsCachedInstances(t *testing.T) {
 	familyPath := filepath.Join(tmpDir, "family.md")
 	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
 
-	reg := services.NewRegistry(database, userDataDir, familyPath)
+	reg := services.NewRegistry(database, userDataDir, familyPath, time.UTC)
 	reg.EnsureUserDirs(1)
 
 	svc1 := reg.ForUser(1)

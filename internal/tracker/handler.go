@@ -63,24 +63,27 @@ type Handler struct {
 	resolve   ServiceResolver
 	templates map[string]*template.Template
 	listName  string
+	loc       *time.Location
 }
 
-func NewHandler(svc, otherSvc *Service, templates map[string]*template.Template, listName string) *Handler {
+func NewHandler(svc, otherSvc *Service, templates map[string]*template.Template, listName string, loc *time.Location) *Handler {
 	return &Handler{
 		resolve: func(r *http.Request) (*Service, *Service) {
 			return svc, otherSvc
 		},
 		templates: templates,
 		listName:  listName,
+		loc:       loc,
 	}
 }
 
 // NewHandlerWithResolver creates a handler that resolves services per-request.
-func NewHandlerWithResolver(resolver ServiceResolver, templates map[string]*template.Template, listName string) *Handler {
+func NewHandlerWithResolver(resolver ServiceResolver, templates map[string]*template.Template, listName string, loc *time.Location) *Handler {
 	return &Handler{
 		resolve:   resolver,
 		templates: templates,
 		listName:  listName,
+		loc:       loc,
 	}
 }
 
@@ -568,7 +571,7 @@ func (h *Handler) BulkAddTag(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) PlanForToday(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	today := time.Now().Format("2006-01-02")
+	today := time.Now().In(h.loc).Format("2006-01-02")
 	svc, _ := h.resolve(r)
 	if err := svc.SetPlanned(slug, today); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
@@ -587,7 +590,7 @@ func (h *Handler) BulkPlanForToday(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "No items selected", http.StatusBadRequest)
 		return
 	}
-	today := time.Now().Format("2006-01-02")
+	today := time.Now().In(h.loc).Format("2006-01-02")
 	svc, _ := h.resolve(r)
 	if err := svc.BulkSetPlanned(slugs, today); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)

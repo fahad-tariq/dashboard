@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -42,8 +43,8 @@ func setupTrackerEnv(t *testing.T) *trackerTestEnv {
 
 	personalStore := tracker.NewStore(database, "personal")
 	familyStore := tracker.NewStore(database, "family")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore)
-	familySvc := tracker.NewService(familyPath, "Family", familyStore)
+	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
 
 	funcMap := template.FuncMap{
 		"authEnabled":  func() bool { return false },
@@ -64,8 +65,8 @@ func setupTrackerEnv(t *testing.T) *trackerTestEnv {
 		templates[name] = tmpl
 	}
 
-	personalHandler := tracker.NewHandler(personalSvc, familySvc, templates, "todos")
-	familyHandler := tracker.NewHandler(familySvc, personalSvc, templates, "family")
+	personalHandler := tracker.NewHandler(personalSvc, familySvc, templates, "todos", time.UTC)
+	familyHandler := tracker.NewHandler(familySvc, personalSvc, templates, "family", time.UTC)
 
 	r := chi.NewRouter()
 	r.Get("/todos", personalHandler.TrackerPage)

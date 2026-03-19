@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -26,8 +27,8 @@ func newTestHandler(t *testing.T) (*ideas.Handler, *ideas.Service) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
 	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
-	svc := ideas.NewService(path)
-	h := ideas.NewHandler(svc, nil, nil)
+	svc := ideas.NewService(path, time.UTC)
+	h := ideas.NewHandler(svc, nil, nil, time.UTC)
 	return h, svc
 }
 

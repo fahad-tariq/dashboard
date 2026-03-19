@@ -58,7 +58,7 @@ function applyFilter() {
             el.style.display = '';
             visibleCount++;
         } else if (activeFilterType === 'category') {
-            var tags = (el.getAttribute('data-tags') || '').trim().split(/\s+/);
+            var tags = (el.getAttribute('data-tags') || '').toLowerCase().trim().split(/\s+/);
             var show = tags.indexOf(activeFilterValue) >= 0;
             el.style.display = show ? '' : 'none';
             if (show) visibleCount++;

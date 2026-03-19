@@ -36,6 +36,12 @@
         {{template "content" .}}
     </main>
     <script>
+        if (window.location.search.indexOf('msg=') !== -1) {
+            var qs = window.location.search.substring(1).split('&').filter(function(p) {
+                return p.indexOf('msg=') !== 0;
+            }).join('&');
+            window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : '') + window.location.hash);
+        }
         function getTheme() {
             return document.documentElement.getAttribute('data-theme') || 'dark';
         }

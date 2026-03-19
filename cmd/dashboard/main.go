@@ -47,88 +47,90 @@ var (
 	authEnabledFlag bool
 )
 
-var funcMap = template.FuncMap{
-	"authEnabled": func() bool { return authEnabledFlag },
-	"buildVersion": func() string { return version },
-	"percentage": func(current, target float64) int {
-		if target == 0 {
-			return 0
-		}
-		p := int(current / target * 100)
-		return max(0, min(p, 100))
-	},
-	"formatNum": func(f float64) string {
-		if f == float64(int(f)) {
-			return fmt.Sprintf("%d", int(f))
-		}
-		return fmt.Sprintf("%g", f)
-	},
-	"subtract": func(a, b int) int {
-		return a - b
-	},
-	"ageBadge": func(added string) []string {
-		label, level := insights.AgeBadge(added, time.Now())
-		return []string{label, level}
-	},
-	"progressColour": func(current, target float64, added, deadline string) string {
-		return insights.ProgressColour(current, target, added, deadline, time.Now())
-	},
-	"goalPace": func(current, target float64, added, deadline string) string {
-		return insights.GoalPace(current, target, added, deadline, time.Now())
-	},
-	"splitImageCaption": func(entry string) []string {
-		file, caption := httputil.SplitImageCaption(entry)
-		return []string{file, caption}
-	},
-	"relativeDate": func(date string) string {
-		t, err := time.Parse("2006-01-02", date)
-		if err != nil {
-			return date
-		}
-		days := int(time.Since(t).Hours() / 24)
-		switch {
-		case days == 0:
-			return "today"
-		case days == 1:
-			return "yesterday"
-		case days < 7:
-			return fmt.Sprintf("%d days ago", days)
-		case days < 14:
-			return "1 week ago"
-		default:
-			return fmt.Sprintf("%d weeks ago", days/7)
-		}
-	},
-	"planPercent": func(done, total int) int {
-		if total == 0 {
-			return 0
-		}
-		return min(done*100/total, 100)
-	},
-	"formatDateLabel": func() string {
-		return time.Now().Format("Monday, 2 January")
-	},
-	"linkify": func(text string) template.HTML {
-		var b strings.Builder
-		last := 0
-		for _, loc := range urlRe.FindAllStringIndex(text, -1) {
-			b.WriteString(html.EscapeString(text[last:loc[0]]))
-			rawURL := text[loc[0]:loc[1]]
-			parsed, err := url.Parse(rawURL)
-			if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || strings.Contains(rawURL, "'") {
-				b.WriteString(html.EscapeString(rawURL))
-			} else {
-				b.WriteString(`<a href="`)
-				b.WriteString(html.EscapeString(parsed.String()))
-				b.WriteString(`" target="_blank" rel="noopener">`)
-				b.WriteString(html.EscapeString(rawURL))
-				b.WriteString(`</a>`)
+func buildFuncMap(loc *time.Location) template.FuncMap {
+	return template.FuncMap{
+		"authEnabled":  func() bool { return authEnabledFlag },
+		"buildVersion": func() string { return version },
+		"percentage": func(current, target float64) int {
+			if target == 0 {
+				return 0
 			}
-			last = loc[1]
-		}
-		b.WriteString(html.EscapeString(text[last:]))
-		return template.HTML(b.String())
-	},
+			p := int(current / target * 100)
+			return max(0, min(p, 100))
+		},
+		"formatNum": func(f float64) string {
+			if f == float64(int(f)) {
+				return fmt.Sprintf("%d", int(f))
+			}
+			return fmt.Sprintf("%g", f)
+		},
+		"subtract": func(a, b int) int {
+			return a - b
+		},
+		"ageBadge": func(added string) []string {
+			label, level := insights.AgeBadge(added, time.Now().In(loc))
+			return []string{label, level}
+		},
+		"progressColour": func(current, target float64, added, deadline string) string {
+			return insights.ProgressColour(current, target, added, deadline, time.Now().In(loc))
+		},
+		"goalPace": func(current, target float64, added, deadline string) string {
+			return insights.GoalPace(current, target, added, deadline, time.Now().In(loc))
+		},
+		"splitImageCaption": func(entry string) []string {
+			file, caption := httputil.SplitImageCaption(entry)
+			return []string{file, caption}
+		},
+		"relativeDate": func(date string) string {
+			t, err := time.Parse("2006-01-02", date)
+			if err != nil {
+				return date
+			}
+			days := int(time.Now().In(loc).Sub(t).Hours() / 24)
+			switch {
+			case days == 0:
+				return "today"
+			case days == 1:
+				return "yesterday"
+			case days < 7:
+				return fmt.Sprintf("%d days ago", days)
+			case days < 14:
+				return "1 week ago"
+			default:
+				return fmt.Sprintf("%d weeks ago", days/7)
+			}
+		},
+		"planPercent": func(done, total int) int {
+			if total == 0 {
+				return 0
+			}
+			return min(done*100/total, 100)
+		},
+		"formatDateLabel": func() string {
+			return time.Now().In(loc).Format("Monday, 2 January")
+		},
+		"linkify": func(text string) template.HTML {
+			var b strings.Builder
+			last := 0
+			for _, m := range urlRe.FindAllStringIndex(text, -1) {
+				b.WriteString(html.EscapeString(text[last:m[0]]))
+				rawURL := text[m[0]:m[1]]
+				parsed, err := url.Parse(rawURL)
+				if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || strings.Contains(rawURL, "'") {
+					b.WriteString(html.EscapeString(rawURL))
+				} else {
+					b.WriteString(`<a href="`)
+					b.WriteString(html.EscapeString(parsed.String()))
+					b.WriteString(`" target="_blank" rel="noopener">`)
+					b.WriteString(html.EscapeString(rawURL))
+					b.WriteString(`</a>`)
+				}
+				last = m[1]
+			}
+			b.WriteString(html.EscapeString(text[last:]))
+			return template.HTML(b.String())
+		},
+	}
 }
 
 var urlRe = regexp.MustCompile(`https?://[^\s<>"` + "`" + `]+`)
@@ -179,7 +181,8 @@ func main() {
 	}
 	cfg.HasUsers = count > 0
 
-	templates, err := parseTemplates()
+	fm := buildFuncMap(cfg.Location)
+	templates, err := parseTemplates(fm)
 	if err != nil {
 		slog.Error("parsing templates", "error", err)
 		os.Exit(1)
@@ -222,7 +225,7 @@ func main() {
 	if cfg.AuthEnabled() {
 		// Per-user service registry: each user gets isolated personal and ideas
 		// services. Family is shared across all users.
-		registry = services.NewRegistry(database, cfg.UserDataDir, cfg.FamilyPath)
+		registry = services.NewRegistry(database, cfg.UserDataDir, cfg.FamilyPath, cfg.Location)
 
 		// Provision directories for every existing user on startup.
 		allUsers, err := auth.AllUsers(database)
@@ -281,12 +284,12 @@ func main() {
 		personalHandler = tracker.NewHandlerWithResolver(func(r *http.Request) (*tracker.Service, *tracker.Service) {
 			uid := auth.UserID(r.Context())
 			return registry.ForUser(uid).Personal, registry.Family()
-		}, templates, "todos")
+		}, templates, "todos", cfg.Location)
 
 		familyHandler = tracker.NewHandlerWithResolver(func(r *http.Request) (*tracker.Service, *tracker.Service) {
 			uid := auth.UserID(r.Context())
 			return registry.Family(), registry.ForUser(uid).Personal
-		}, templates, "family")
+		}, templates, "family", cfg.Location)
 
 		ideaHandler = ideas.NewHandlerWithResolver(func(r *http.Request) *ideas.Service {
 			return registry.ForUser(auth.UserID(r.Context())).Ideas
@@ -300,7 +303,7 @@ func main() {
 			}
 			taskSlug := tracker.Slugify(title)
 			return taskSlug, registry.ForUser(auth.UserID(ctx)).Personal.AddItem(item)
-		}, templates)
+		}, templates, cfg.Location)
 
 		searchHandler = search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
 			uid := auth.UserID(r.Context())
@@ -308,7 +311,7 @@ func main() {
 			return svc.Personal, registry.Family(), svc.Ideas
 		})
 
-		homeHandler := home.NewHandler(registry, templates)
+		homeHandler := home.NewHandler(registry, templates, cfg.Location)
 		homePage = homeHandler.HomePage
 		digestPage := homeHandler.DigestPage
 		calendarPage := homeHandler.CalendarPage
@@ -417,11 +420,11 @@ func main() {
 		}
 	} else {
 		// Auth disabled: singleton services are fine for single-user mode.
-		ideaSvc := ideas.NewService(cfg.IdeasPath)
+		ideaSvc := ideas.NewService(cfg.IdeasPath, cfg.Location)
 		personalStore := tracker.NewStore(database, "personal")
 		familyStore := tracker.NewStore(database, "family")
-		personalSvc := tracker.NewService(cfg.PersonalPath, "Personal", personalStore)
-		familySvc := tracker.NewService(cfg.FamilyPath, "Family", familyStore)
+		personalSvc := tracker.NewService(cfg.PersonalPath, "Personal", personalStore, cfg.Location)
+		familySvc := tracker.NewService(cfg.FamilyPath, "Family", familyStore, cfg.Location)
 		if err := personalSvc.Resync(); err != nil {
 			slog.Warn("initial personal sync", "error", err)
 		}
@@ -465,17 +468,17 @@ func main() {
 			}
 			taskSlug := tracker.Slugify(title)
 			return taskSlug, personalSvc.AddItem(item)
-		}, templates)
-		personalHandler = tracker.NewHandler(personalSvc, familySvc, templates, "todos")
-		familyHandler = tracker.NewHandler(familySvc, personalSvc, templates, "family")
+		}, templates, cfg.Location)
+		personalHandler = tracker.NewHandler(personalSvc, familySvc, templates, "todos", cfg.Location)
+		familyHandler = tracker.NewHandler(familySvc, personalSvc, templates, "family", cfg.Location)
 		searchHandler = search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
 			return personalSvc, familySvc, ideaSvc
 		})
-		homePage = home.HomePageSingle(personalSvc, familySvc, ideaSvc, templates)
-		digestPage := home.DigestPageSingle(personalSvc, familySvc, ideaSvc, templates)
-		calendarPage := home.CalendarPageSingle(personalSvc, familySvc, ideaSvc, templates)
+		homePage = home.HomePageSingle(personalSvc, familySvc, ideaSvc, templates, cfg.Location)
+		digestPage := home.DigestPageSingle(personalSvc, familySvc, ideaSvc, templates, cfg.Location)
+		calendarPage := home.CalendarPageSingle(personalSvc, familySvc, ideaSvc, templates, cfg.Location)
 
-		singlePlan := home.NewSingleUserPlanHandlers(personalSvc, familySvc)
+		singlePlan := home.NewSingleUserPlanHandlers(personalSvc, familySvc, cfg.Location)
 		planSetHandler = singlePlan.SetPlanned
 		planClearHandler = singlePlan.ClearPlanned
 		planCompleteHandler = singlePlan.CompletePlanned
@@ -483,8 +486,8 @@ func main() {
 		planClearCarriedHandler = singlePlan.ClearCarriedOver
 		planReorderHandler = singlePlan.ReorderPlanned
 
-		apiPlanListHandler = home.APIListPlan(personalSvc, familySvc)
-		apiPlanSetHandler = home.APISetPlan(personalSvc, familySvc)
+		apiPlanListHandler = home.APIListPlan(personalSvc, familySvc, cfg.Location)
+		apiPlanSetHandler = home.APISetPlan(personalSvc, familySvc, cfg.Location)
 		apiPlanClearHandler = home.APIClearPlan(personalSvc, familySvc)
 
 		r.Get("/events", broker.ServeHTTP)
@@ -537,9 +540,10 @@ func main() {
 				return taskSlug, userSvc.Personal.AddItem(item)
 			},
 			templates,
+			cfg.Location,
 		)
-		apiPlanListHandler = home.APIListPlan(userSvc.Personal, registry.Family())
-		apiPlanSetHandler = home.APISetPlan(userSvc.Personal, registry.Family())
+		apiPlanListHandler = home.APIListPlan(userSvc.Personal, registry.Family(), cfg.Location)
+		apiPlanSetHandler = home.APISetPlan(userSvc.Personal, registry.Family(), cfg.Location)
 		apiPlanClearHandler = home.APIClearPlan(userSvc.Personal, registry.Family())
 	}
 	r.Route("/api/v1", func(r chi.Router) {
@@ -702,8 +706,8 @@ func bearerAuth(token string) func(http.Handler) http.Handler {
 	}
 }
 
-func parseTemplates() (map[string]*template.Template, error) {
-	layout, err := template.New("layout.html").Funcs(funcMap).ParseFS(web.TemplateFS, "templates/layout.html")
+func parseTemplates(fm template.FuncMap) (map[string]*template.Template, error) {
+	layout, err := template.New("layout.html").Funcs(fm).ParseFS(web.TemplateFS, "templates/layout.html")
 	if err != nil {
 		return nil, fmt.Errorf("parsing layout: %w", err)
 	}

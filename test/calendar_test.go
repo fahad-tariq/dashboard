@@ -115,8 +115,8 @@ func setupCalendarEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracke
 	}
 	t.Cleanup(func() { database.Close() })
 
-	personalSvc := tracker.NewService(dir+"/personal.md", "Personal", tracker.NewStore(database, "personal"))
-	familySvc := tracker.NewService(dir+"/family.md", "Family", tracker.NewStore(database, "family"))
+	personalSvc := tracker.NewService(dir+"/personal.md", "Personal", tracker.NewStore(database, "personal"), time.UTC)
+	familySvc := tracker.NewService(dir+"/family.md", "Family", tracker.NewStore(database, "family"), time.UTC)
 
 	funcMap := template.FuncMap{
 		"authEnabled":  func() bool { return false },
@@ -134,7 +134,7 @@ func setupCalendarEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracke
 	)
 	templates["calendar.html"] = tmpl
 
-	handler := home.CalendarPageSingle(personalSvc, familySvc, nil, templates)
+	handler := home.CalendarPageSingle(personalSvc, familySvc, nil, templates, time.UTC)
 	return handler, personalSvc, familySvc
 }
 

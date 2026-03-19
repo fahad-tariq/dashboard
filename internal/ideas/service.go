@@ -14,13 +14,14 @@ import (
 // Follows the tracker's read-modify-write pattern: parse, mutate, write back.
 type Service struct {
 	ideasPath string
+	loc       *time.Location
 	mu        sync.RWMutex
 	cache     []Idea
 }
 
 // NewService creates a new ideas service operating on the given ideas.md file path.
-func NewService(ideasPath string) *Service {
-	s := &Service{ideasPath: ideasPath}
+func NewService(ideasPath string, loc *time.Location) *Service {
+	s := &Service{ideasPath: ideasPath, loc: loc}
 	s.loadCache()
 	return s
 }
@@ -78,7 +79,7 @@ func (s *Service) Add(idea *Idea) error {
 	defer s.mu.Unlock()
 
 	if idea.Added == "" {
-		idea.Added = time.Now().Format("2006-01-02")
+		idea.Added = time.Now().In(s.loc).Format("2006-01-02")
 	}
 	if idea.Status == "" {
 		idea.Status = "untriaged"
@@ -163,7 +164,7 @@ func (s *Service) Edit(slug, title, body string, tags, images []string) error {
 // Delete soft-deletes an idea by setting its DeletedAt timestamp.
 func (s *Service) Delete(slug string) error {
 	return s.mutate(slug, func(idea *Idea) error {
-		idea.DeletedAt = time.Now().Format("2006-01-02")
+		idea.DeletedAt = time.Now().In(s.loc).Format("2006-01-02")
 		return nil
 	})
 }
@@ -209,7 +210,7 @@ func (s *Service) PurgeExpired(days int) error {
 		return err
 	}
 
-	cutoff := httputil.CutoffDate(days)
+	cutoff := httputil.CutoffDate(days, s.loc)
 	var kept []Idea
 	for _, idea := range ideas {
 		if idea.DeletedAt != "" {
@@ -276,7 +277,7 @@ func (s *Service) mutateBatch(slugs []string, fn func(*Idea) error) error {
 
 // BulkDelete soft-deletes multiple ideas in a single file write.
 func (s *Service) BulkDelete(slugs []string) error {
-	now := time.Now().Format("2006-01-02")
+	now := time.Now().In(s.loc).Format("2006-01-02")
 	return s.mutateBatch(slugs, func(idea *Idea) error {
 		idea.DeletedAt = now
 		return nil

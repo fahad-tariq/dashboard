@@ -24,7 +24,7 @@ func newTestService(t *testing.T, content string) *tracker.Service {
 	t.Cleanup(func() { database.Close() })
 
 	store := tracker.NewStore(database, "personal")
-	return tracker.NewService(mdPath, "Tracker", store)
+	return tracker.NewService(mdPath, "Tracker", store, time.UTC)
 }
 
 func TestTrackerServiceAddItem(t *testing.T) {
@@ -468,8 +468,10 @@ func TestTrackerServicePurgeExpired(t *testing.T) {
 
 func TestTrackerServicePurgeExpiredBoundary(t *testing.T) {
 	// Item deleted exactly 7 days ago should be purged (cutoff is strictly before).
-	sevenDaysAgo := time.Now().AddDate(0, 0, -7).Format("2006-01-02")
-	sixDaysAgo := time.Now().AddDate(0, 0, -6).Format("2006-01-02")
+	// Use UTC to match the service's timezone (time.UTC passed to NewService).
+	now := time.Now().UTC()
+	sevenDaysAgo := now.AddDate(0, 0, -7).Format("2006-01-02")
+	sixDaysAgo := now.AddDate(0, 0, -6).Format("2006-01-02")
 	content := "# Tracker\n\n- [ ] At boundary [deleted: " + sevenDaysAgo + "]\n- [ ] Within window [deleted: " + sixDaysAgo + "]\n"
 	svc := newTestService(t, content)
 

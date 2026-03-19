@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/fahad/dashboard/internal/db"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -61,7 +62,7 @@ func newPlannerService(t *testing.T, content string) *tracker.Service {
 	}
 	t.Cleanup(func() { database.Close() })
 	store := tracker.NewStore(database, "personal")
-	return tracker.NewService(mdPath, "Test", store)
+	return tracker.NewService(mdPath, "Test", store, time.UTC)
 }
 
 func TestSetPlannedAndClear(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -197,7 +198,7 @@ func TestServiceCRUD(t *testing.T) {
 	path := filepath.Join(dir, "ideas.md")
 	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
 
-	svc := ideas.NewService(path)
+	svc := ideas.NewService(path, time.UTC)
 
 	// Add.
 	idea := &ideas.Idea{
@@ -287,7 +288,7 @@ func TestServiceTriage(t *testing.T) {
 	path := filepath.Join(dir, "ideas.md")
 	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
 
-	svc := ideas.NewService(path)
+	svc := ideas.NewService(path, time.UTC)
 	svc.Add(&ideas.Idea{
 		Slug:  "park-me",
 		Title: "Park Me",
@@ -408,7 +409,7 @@ func TestServiceMarkConverted(t *testing.T) {
 	path := filepath.Join(dir, "ideas.md")
 	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
 
-	svc := ideas.NewService(path)
+	svc := ideas.NewService(path, time.UTC)
 	svc.Add(&ideas.Idea{
 		Slug:  "convert-me",
 		Title: "Convert Me",
@@ -444,7 +445,7 @@ func TestConversionFlowWithLinkage(t *testing.T) {
 	os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644)
 	os.WriteFile(trackerPath, []byte("# Personal\n\n"), 0o644)
 
-	ideaSvc := ideas.NewService(ideasPath)
+	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 	ideaSvc.Add(&ideas.Idea{
 		Slug:  "my-feature",
 		Title: "My Feature",
@@ -528,7 +529,7 @@ func TestServiceAddResearch(t *testing.T) {
 	path := filepath.Join(dir, "ideas.md")
 	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
 
-	svc := ideas.NewService(path)
+	svc := ideas.NewService(path, time.UTC)
 	svc.Add(&ideas.Idea{
 		Slug:  "research-me",
 		Title: "Research Me",

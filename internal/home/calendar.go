@@ -27,23 +27,23 @@ func (h *Handler) CalendarPage(w http.ResponseWriter, r *http.Request) {
 	uid := auth.UserID(r.Context())
 	userSvc := h.registry.ForUser(uid)
 	familySvc := h.registry.Family()
-	renderCalendarPage(w, r, userSvc.Personal, familySvc, h.templates)
+	renderCalendarPage(w, r, userSvc.Personal, familySvc, h.templates, h.loc)
 }
 
 // CalendarPageSingle returns a handler for GET /plan/calendar in single-user mode.
-func CalendarPageSingle(personalSvc, familySvc *tracker.Service, _ *ideas.Service, templates map[string]*template.Template) http.HandlerFunc {
+func CalendarPageSingle(personalSvc, familySvc *tracker.Service, _ *ideas.Service, templates map[string]*template.Template, loc *time.Location) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		renderCalendarPage(w, r, personalSvc, familySvc, templates)
+		renderCalendarPage(w, r, personalSvc, familySvc, templates, loc)
 	}
 }
 
-func renderCalendarPage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc *tracker.Service, templates map[string]*template.Template) {
+func renderCalendarPage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc *tracker.Service, templates map[string]*template.Template, loc *time.Location) {
 	view := r.URL.Query().Get("view")
 	if view != "month" {
 		view = "week"
 	}
 
-	now := time.Now()
+	now := time.Now().In(loc)
 	today := now.Format("2006-01-02")
 
 	dateStr := r.URL.Query().Get("date")

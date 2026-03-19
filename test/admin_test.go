@@ -349,7 +349,7 @@ func TestForUserCreatesDirectoriesLazily(t *testing.T) {
 	familyPath := filepath.Join(tmpDir, "family.md")
 	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
 
-	reg := services.NewRegistry(database, userDataDir, familyPath)
+	reg := services.NewRegistry(database, userDataDir, familyPath, time.UTC)
 
 	// ForUser should NOT panic -- it should lazily create directories.
 	svc := reg.ForUser(1)
@@ -381,7 +381,7 @@ func TestEvictUserRemovesFromCache(t *testing.T) {
 	familyPath := filepath.Join(tmpDir, "family.md")
 	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
 
-	reg := services.NewRegistry(database, userDataDir, familyPath)
+	reg := services.NewRegistry(database, userDataDir, familyPath, time.UTC)
 
 	svc1 := reg.ForUser(1)
 	reg.EvictUser(1)
