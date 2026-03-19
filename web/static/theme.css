@@ -1927,6 +1927,8 @@ section h2 {
 .plan-section .item-complete-btn {
     color: var(--green);
     border-color: var(--green);
+    width: auto;
+    padding: 0.15rem 0.4rem;
 }
 
 /* Plan button on tracker items */
