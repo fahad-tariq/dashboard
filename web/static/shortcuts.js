@@ -125,6 +125,13 @@ document.addEventListener('keydown', function(e) {
             exitSelectMode();
             return;
         }
+        var navLinks = document.getElementById('nav-links');
+        if (navLinks && navLinks.classList.contains('nav-links-open')) {
+            navLinks.classList.remove('nav-links-open');
+            var hamburger = document.getElementById('nav-hamburger');
+            if (hamburger) { hamburger.setAttribute('aria-expanded', 'false'); hamburger.textContent = '\u2630'; }
+            return;
+        }
     }
 
     // Ctrl+K / Cmd+K to open search (works even when input focused).

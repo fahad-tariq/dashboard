@@ -17,7 +17,7 @@
 <body>
     <nav class="nav" aria-label="Main navigation">
         <a href="/" class="nav-brand">dash&gt;_</a>
-        <div class="nav-links">
+        <div class="nav-links" id="nav-links">
             <a href="/">home</a>
             <a href="/todos">todos</a>
             <a href="/goals">goals</a>
@@ -25,8 +25,11 @@
             <a href="/family">family</a>
             <a href="/digest">digest</a>
         </div>
-        <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme" aria-label="Toggle theme"></button>
-        {{if authEnabled}}{{if .UserName}}{{if .IsAdmin}}<a href="/admin/users" class="nav-user nav-user-link" title="Admin">{{.UserName}}</a>{{else}}<a href="/account" class="nav-user nav-user-link" title="Account settings">{{.UserName}}</a>{{end}}{{end}}<form method="POST" action="/logout" class="inline-form"><button type="submit" class="theme-toggle" title="Logout" aria-label="Log out">logout</button></form>{{end}}
+        <div class="nav-right">
+            <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme" aria-label="Toggle theme"></button>
+            {{if authEnabled}}{{if .UserName}}{{if .IsAdmin}}<a href="/admin/users" class="nav-user nav-user-link" title="Admin">{{.UserName}}</a>{{else}}<a href="/account" class="nav-user nav-user-link" title="Account settings">{{.UserName}}</a>{{end}}{{end}}<form method="POST" action="/logout" class="inline-form"><button type="submit" class="theme-toggle" title="Logout" aria-label="Log out">logout</button></form>{{end}}
+            <button class="nav-hamburger" id="nav-hamburger" onclick="toggleNav()" title="Menu" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-links">&#9776;</button>
+        </div>
     </nav>
     <main class="container">
         {{if .FlashMsg}}<div class="flash-msg{{if .FlashError}} flash-msg-error{{end}}" role="alert">{{.FlashMsg}}</div>{{end}}
@@ -46,6 +49,13 @@
             setLabel();
         }
         setLabel();
+        function toggleNav() {
+            var links = document.getElementById('nav-links');
+            var btn = document.getElementById('nav-hamburger');
+            var open = links.classList.toggle('nav-links-open');
+            btn.setAttribute('aria-expanded', String(open));
+            btn.textContent = open ? '\u2715' : '\u2630';
+        }
         (function() {
             var path = window.location.pathname;
             document.querySelectorAll('.nav-links a').forEach(function(a) {
