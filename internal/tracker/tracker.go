@@ -33,6 +33,7 @@ type Item struct {
 	Added     string   // date added, YYYY-MM-DD
 	Completed string   // date completed, YYYY-MM-DD
 	Deadline  string   // goals only, YYYY-MM-DD
+	Planned   string   // planned date, YYYY-MM-DD (daily planner)
 	FromIdea  string   // slug of the idea this task was converted from
 	Tags      []string // tags for categorisation and filtering
 	Images    []string // uploaded image filenames
@@ -60,6 +61,7 @@ var goalRe = regexp.MustCompile(`\[goal:\s*([\d.]+)\s*/\s*([\d.]+)\s*(.*?)\]`)
 var addedRe = regexp.MustCompile(`\[added:\s*(\d{4}-\d{2}-\d{2})\]`)
 var completedRe = regexp.MustCompile(`\[completed:\s*(\d{4}-\d{2}-\d{2})\]`)
 var deadlineRe = regexp.MustCompile(`\[deadline:\s*(\d{4}-\d{2}-\d{2})\]`)
+var plannedRe = regexp.MustCompile(`\[planned:\s*(\d{4}-\d{2}-\d{2})\]`)
 var fromIdeaRe = regexp.MustCompile(`\[from-idea:\s*([\w-]+)\]`)
 var tagsRe = regexp.MustCompile(`\[tags:\s*(.*?)\]`)
 var imagesRe = regexp.MustCompile(`\[images:\s*(.*?)\]`)
@@ -184,6 +186,12 @@ func parseItemLine(raw string, done bool) *Item {
 		title = strings.TrimSpace(deadlineRe.ReplaceAllString(title, ""))
 	}
 
+	// Extract planned date: [planned: YYYY-MM-DD]
+	if m := plannedRe.FindStringSubmatch(title); m != nil {
+		item.Planned = m[1]
+		title = strings.TrimSpace(plannedRe.ReplaceAllString(title, ""))
+	}
+
 	// Extract from-idea: [from-idea: slug]
 	if m := fromIdeaRe.FindStringSubmatch(title); m != nil {
 		item.FromIdea = m[1]
@@ -269,6 +277,9 @@ func writeItem(sb *strings.Builder, it Item) {
 	}
 	if it.Deadline != "" {
 		sb.WriteString(" [deadline: " + it.Deadline + "]")
+	}
+	if it.Planned != "" {
+		sb.WriteString(" [planned: " + it.Planned + "]")
 	}
 	if it.FromIdea != "" {
 		sb.WriteString(" [from-idea: " + it.FromIdea + "]")

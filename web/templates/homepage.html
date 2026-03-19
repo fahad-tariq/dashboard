@@ -6,6 +6,9 @@
 <span class="htmx-indicator meta-dim">updating&hellip;</span>
 
 {{if .Greeting}}<h1 class="homepage-greeting">{{.Greeting}}{{if .UserName}}, {{.UserName}}{{end}}</h1>{{end}}
+{{if .DateLabel}}<p class="plan-date-label">{{.DateLabel}}</p>{{end}}
+
+{{if .FlashMsg}}<div class="flash-msg">{{.FlashMsg}}</div>{{end}}
 
 {{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .TotalIdeaCount 0)}}
 <p class="empty">Welcome{{if .UserName}}, {{.UserName}}{{end}}. Your todos, goals, and ideas will appear here once you start adding them.</p>
@@ -24,6 +27,198 @@
     {{end}}
 </div>
 {{end}}
+
+{{/* ===== Today's Plan ===== */}}
+<section class="plan-section" id="plan-section">
+    {{if gt .PlanTotalCount 0}}
+    <div class="plan-progress-wrap">
+        <div class="progress-bar plan-progress-bar">
+            <div class="progress-fill progress-fill-teal" style="width: {{planPercent .PlanDoneCount .PlanTotalCount}}%"></div>
+        </div>
+        <span class="plan-progress-text">{{.PlanDoneCount}}/{{.PlanTotalCount}} done</span>
+    </div>
+    {{end}}
+
+    {{if .PlanAllDone}}
+    <div class="plan-done-state">All done for the day</div>
+    {{end}}
+
+    {{if or .PersonalCarriedOver .FamilyCarriedOver}}
+    <div class="plan-carried-over">
+        <h3 class="plan-sub-heading plan-carried-label">Carried over</h3>
+        {{if .PersonalCarriedOver}}
+        <form method="POST" action="/plan/bulk/set" class="plan-replan-form">
+            <input type="hidden" name="slugs" value="{{range $i, $it := .PersonalCarriedOver}}{{if $i}},{{end}}{{$it.Slug}}{{end}}">
+            <input type="hidden" name="list" value="todos">
+            <input type="hidden" name="date" value="{{$.Today}}">
+            <button type="submit" class="action-btn action-btn-sm">re-plan personal for today</button>
+        </form>
+        {{range .PersonalCarriedOver}}
+        <div class="plan-item plan-item-carried" data-priority="{{.Priority}}">
+            <span class="plan-item-title">{{.Title}}</span>
+            <div class="plan-item-meta">
+                {{if .Priority}}<span class="badge badge-priority-{{.Priority}}">{{.Priority}}</span>{{end}}
+                {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
+                <span class="plan-item-date meta-dim">from {{.Planned}}</span>
+            </div>
+            <div class="plan-item-actions">
+                <form method="POST" action="/plan/set" class="inline-form">
+                    <input type="hidden" name="slug" value="{{.Slug}}">
+                    <input type="hidden" name="list" value="todos">
+                    <input type="hidden" name="date" value="{{$.Today}}">
+                    <button type="submit" class="action-btn action-btn-sm" title="Re-plan for today">today</button>
+                </form>
+                <form method="POST" action="/plan/{{.Slug}}/complete" class="inline-form" onsubmit="return celebrateComplete(this)">
+                    <input type="hidden" name="list" value="todos">
+                    <button type="submit" class="item-complete-btn" title="Complete">&#x2713;</button>
+                </form>
+                <form method="POST" action="/plan/clear" class="inline-form">
+                    <input type="hidden" name="slug" value="{{.Slug}}">
+                    <input type="hidden" name="list" value="todos">
+                    <button type="submit" class="plan-remove-btn" title="Remove from plan">&#x2715;</button>
+                </form>
+            </div>
+        </div>
+        {{end}}
+        {{end}}
+        {{if .FamilyCarriedOver}}
+        <form method="POST" action="/plan/bulk/set" class="plan-replan-form">
+            <input type="hidden" name="slugs" value="{{range $i, $it := .FamilyCarriedOver}}{{if $i}},{{end}}{{$it.Slug}}{{end}}">
+            <input type="hidden" name="list" value="family">
+            <input type="hidden" name="date" value="{{$.Today}}">
+            <button type="submit" class="action-btn action-btn-sm">re-plan family for today</button>
+        </form>
+        {{range .FamilyCarriedOver}}
+        <div class="plan-item plan-item-carried" data-priority="{{.Priority}}">
+            <span class="plan-item-title">{{.Title}}</span>
+            <div class="plan-item-meta">
+                {{if .Priority}}<span class="badge badge-priority-{{.Priority}}">{{.Priority}}</span>{{end}}
+                {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
+                <span class="plan-item-date meta-dim">from {{.Planned}}</span>
+            </div>
+            <div class="plan-item-actions">
+                <form method="POST" action="/plan/set" class="inline-form">
+                    <input type="hidden" name="slug" value="{{.Slug}}">
+                    <input type="hidden" name="list" value="family">
+                    <input type="hidden" name="date" value="{{$.Today}}">
+                    <button type="submit" class="action-btn action-btn-sm" title="Re-plan for today">today</button>
+                </form>
+                <form method="POST" action="/plan/{{.Slug}}/complete" class="inline-form" onsubmit="return celebrateComplete(this)">
+                    <input type="hidden" name="list" value="family">
+                    <button type="submit" class="item-complete-btn" title="Complete">&#x2713;</button>
+                </form>
+                <form method="POST" action="/plan/clear" class="inline-form">
+                    <input type="hidden" name="slug" value="{{.Slug}}">
+                    <input type="hidden" name="list" value="family">
+                    <button type="submit" class="plan-remove-btn" title="Remove from plan">&#x2715;</button>
+                </form>
+            </div>
+        </div>
+        {{end}}
+        {{end}}
+    </div>
+    {{end}}
+
+    {{if or .PersonalPlanned .FamilyPlanned}}
+    <div class="plan-today-tasks">
+        {{if .PersonalPlanned}}
+        {{if .FamilyPlanned}}<span class="plan-list-label meta-dim">Personal</span>{{end}}
+        {{range .PersonalPlanned}}
+        <div class="plan-item {{if .Done}}plan-item-done{{end}}" data-priority="{{.Priority}}">
+            <span class="plan-item-title">{{.Title}}</span>
+            <div class="plan-item-meta">
+                {{if .Priority}}<span class="badge badge-priority-{{.Priority}}">{{.Priority}}</span>{{end}}
+                {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
+            </div>
+            <div class="plan-item-actions">
+                {{if not .Done}}
+                <form method="POST" action="/plan/{{.Slug}}/complete" class="inline-form" onsubmit="return celebrateComplete(this)">
+                    <input type="hidden" name="list" value="todos">
+                    <button type="submit" class="item-complete-btn" title="Complete">&#x2713;</button>
+                </form>
+                {{end}}
+                <form method="POST" action="/plan/clear" class="inline-form">
+                    <input type="hidden" name="slug" value="{{.Slug}}">
+                    <input type="hidden" name="list" value="todos">
+                    <button type="submit" class="plan-remove-btn" title="Remove from plan">&#x2715;</button>
+                </form>
+            </div>
+        </div>
+        {{end}}
+        {{end}}
+
+        {{if .FamilyPlanned}}
+        {{if .PersonalPlanned}}<span class="plan-list-label meta-dim">Family</span>{{end}}
+        {{range .FamilyPlanned}}
+        <div class="plan-item {{if .Done}}plan-item-done{{end}}" data-priority="{{.Priority}}">
+            <span class="plan-item-title">{{.Title}}</span>
+            <div class="plan-item-meta">
+                {{if .Priority}}<span class="badge badge-priority-{{.Priority}}">{{.Priority}}</span>{{end}}
+                {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
+            </div>
+            <div class="plan-item-actions">
+                {{if not .Done}}
+                <form method="POST" action="/plan/{{.Slug}}/complete" class="inline-form" onsubmit="return celebrateComplete(this)">
+                    <input type="hidden" name="list" value="family">
+                    <button type="submit" class="item-complete-btn" title="Complete">&#x2713;</button>
+                </form>
+                {{end}}
+                <form method="POST" action="/plan/clear" class="inline-form">
+                    <input type="hidden" name="slug" value="{{.Slug}}">
+                    <input type="hidden" name="list" value="family">
+                    <button type="submit" class="plan-remove-btn" title="Remove from plan">&#x2715;</button>
+                </form>
+            </div>
+        </div>
+        {{end}}
+        {{end}}
+    </div>
+    {{end}}
+
+    {{/* Task picker */}}
+    {{if or .UnplannedPersonal .UnplannedFamily}}
+    <details class="plan-picker" {{if and (not .PersonalPlanned) (not .FamilyPlanned) (not .PersonalCarriedOver) (not .FamilyCarriedOver)}}open{{end}}>
+        <summary class="plan-picker-toggle">{{if or .PersonalPlanned .FamilyPlanned .PersonalCarriedOver .FamilyCarriedOver}}Add more tasks{{else}}What matters today?{{end}}</summary>
+        <input type="text" class="plan-picker-filter form-input" placeholder="Filter tasks..." oninput="plannerFilter(this.value)" id="plan-filter">
+        {{if .UnplannedPersonal}}
+        <span class="plan-list-label meta-dim">Personal</span>
+        {{range .UnplannedPersonal}}
+        <div class="plan-pick-item" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+            <span class="plan-pick-title">{{.Title}}</span>
+            <div class="plan-pick-meta">
+                {{if .Priority}}<span class="badge badge-priority-{{.Priority}}">{{.Priority}}</span>{{end}}
+                {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
+            </div>
+            <form method="POST" action="/plan/set" class="inline-form">
+                <input type="hidden" name="slug" value="{{.Slug}}">
+                <input type="hidden" name="list" value="todos">
+                <input type="hidden" name="date" value="{{$.Today}}">
+                <button type="submit" class="action-btn action-btn-sm">plan</button>
+            </form>
+        </div>
+        {{end}}
+        {{end}}
+        {{if .UnplannedFamily}}
+        <span class="plan-list-label meta-dim">Family</span>
+        {{range .UnplannedFamily}}
+        <div class="plan-pick-item" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+            <span class="plan-pick-title">{{.Title}}</span>
+            <div class="plan-pick-meta">
+                {{if .Priority}}<span class="badge badge-priority-{{.Priority}}">{{.Priority}}</span>{{end}}
+                {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
+            </div>
+            <form method="POST" action="/plan/set" class="inline-form">
+                <input type="hidden" name="slug" value="{{.Slug}}">
+                <input type="hidden" name="list" value="family">
+                <input type="hidden" name="date" value="{{$.Today}}">
+                <button type="submit" class="action-btn action-btn-sm">plan</button>
+            </form>
+        </div>
+        {{end}}
+        {{end}}
+    </details>
+    {{end}}
+</section>
 
 <div class="homepage-grid">
 
@@ -128,4 +323,5 @@
 </div>
 {{end}}
 </div>
+<script src="/static/planner.js"></script>
 {{end}}

@@ -1749,3 +1749,198 @@ section h2 {
         gap: 0.35rem;
     }
 }
+
+/* --- Daily Planner --- */
+.plan-date-label {
+    color: var(--fg-dim);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.plan-section {
+    margin-bottom: 1.5rem;
+}
+
+.plan-progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+.plan-progress-bar { flex: 1; height: 10px; }
+.progress-fill-teal { background: var(--teal); }
+.plan-progress-text {
+    font-size: 0.85rem;
+    color: var(--fg-dim);
+    white-space: nowrap;
+}
+
+.plan-done-state {
+    text-align: center;
+    padding: 1rem;
+    color: var(--teal);
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.plan-sub-heading {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.plan-carried-over {
+    border-left: 3px solid var(--peach);
+    padding-left: 0.75rem;
+    margin-bottom: 1rem;
+}
+.plan-carried-label { color: var(--peach); }
+.plan-replan-form {
+    display: inline;
+    margin-left: 0.5rem;
+}
+
+.plan-today-tasks {
+    margin-bottom: 1rem;
+}
+
+.plan-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+.plan-item:last-child { border-bottom: none; }
+.plan-item-done { opacity: 0.5; }
+.plan-item-done .plan-item-title { text-decoration: line-through; }
+.plan-item-carried { opacity: 0.85; }
+
+.plan-item-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.plan-item-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.plan-item-date { font-size: 0.8rem; }
+
+.plan-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.plan-remove-btn {
+    background: none;
+    border: none;
+    color: var(--fg-dim);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0.15rem 0.35rem;
+    border-radius: 3px;
+}
+.plan-remove-btn:hover { color: var(--red); background: var(--row-hover); }
+
+.plan-list-label {
+    display: block;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 0.5rem;
+    margin-bottom: 0.15rem;
+}
+
+/* Task picker */
+.plan-picker {
+    margin-top: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem;
+}
+.plan-picker[open] { padding-bottom: 0.75rem; }
+
+.plan-picker-toggle {
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--fg-dim);
+    padding: 0.25rem 0;
+}
+.plan-picker-toggle:hover { color: var(--fg); }
+
+.plan-picker-filter {
+    width: 100%;
+    margin: 0.5rem 0;
+    font-size: 0.85rem;
+}
+
+.plan-pick-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--border);
+}
+.plan-pick-item:last-child { border-bottom: none; }
+
+.plan-pick-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9rem;
+}
+
+.plan-pick-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+/* Plan button on tracker items */
+.item-plan-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--fg-dim);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    line-height: 1;
+}
+.item-plan-btn:hover {
+    color: var(--teal);
+    border-color: var(--teal);
+}
+
+.action-btn-sm {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+}
+.inline-form { display: inline; }
+
+/* Flash messages on homepage */
+.flash-msg {
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    border-radius: 4px;
+    background: var(--bg-card);
+    border-left: 3px solid var(--teal);
+    font-size: 0.9rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .plan-item, .plan-pick-item { transition: none; }
+}

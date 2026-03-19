@@ -61,6 +61,9 @@
             {{range .Tags}}<span class="badge badge-tag badge-clickable" role="button" tabindex="0" onclick="event.stopPropagation();trackerFilter('category','{{.}}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();trackerFilter('category','{{.}}')}">{{.}}</span>{{end}}
             {{if .Priority}}<span class="badge badge-priority-{{.Priority}} badge-clickable" role="button" tabindex="0" onclick="event.stopPropagation();trackerFilter('priority','{{.Priority}}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();trackerFilter('priority','{{.Priority}}')}">{{.Priority}}</span>{{end}}
             {{if .Added}}{{$age := ageBadge .Added}}{{if index $age 0}}<span class="badge badge-age badge-age-{{index $age 1}}">{{index $age 0}}</span>{{end}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
+            {{if not .Planned}}<form method="POST" action="/{{$.ListName}}/{{.Slug}}/plan" class="item-complete-form" onclick="event.stopPropagation()">
+                <button type="submit" class="item-plan-btn" title="Plan for today">&#x2606;</button>
+            </form>{{end}}
             <form method="POST" action="/{{$.ListName}}/{{.Slug}}/complete" class="item-complete-form" onclick="event.stopPropagation()" onsubmit="return celebrateComplete(this)">
                 <button type="submit" class="item-complete-btn" title="Complete">&#x2713;</button>
             </form>
@@ -205,6 +208,10 @@
         <input type="hidden" name="slugs" value="">
         <input type="text" name="tag" placeholder="tag" class="form-input-sm">
         <button type="submit" class="action-btn" onclick="return submitBulkAction('bulk-tag-form')">add tag</button>
+    </form>
+    <form method="POST" action="/{{.ListName}}/bulk/plan" id="bulk-plan-form" style="display:inline">
+        <input type="hidden" name="slugs" value="">
+        <button type="submit" class="action-btn action-assign" onclick="return submitBulkAction('bulk-plan-form')">plan for today</button>
     </form>
 </div>
 

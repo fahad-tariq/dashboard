@@ -2,22 +2,31 @@
 
 ## Backlog
 
-### L (5+ hours each)
+### S (under 2 hours)
 
-- **Soft delete / trash** -- Items move to trash instead of permanent deletion. "Recently Deleted" section with restore button. Auto-purge after 7 days. Addresses no-undo gap.
-- **Bulk actions** -- Checkbox select mode with bulk complete/delete/retag/reprioritise. Reduces repetitive clicking when managing many items.
-- **Weekly/monthly digest view** -- "This week" tab showing completed, added, converted, triaged counts. Small bar chart or summary. Positions dashboard as reflective tool.
-- **Image captions** -- Add caption field to uploaded images. Currently images are inert thumbnails with no context.
+- **Edit form drops image captions** -- The tracker edit form (`tracker.html`) sends images via a single comma-separated hidden input. Captions require separate `caption-N` form fields to work with `httputil.ReconstructImages`. Currently captions are lost on save through the edit form. Fix: add individual caption fields per image in the edit form, matching the add-task form pattern.
+- **Consolidate `httputil.ParseCSV` and `ideas.ParseCSV`** -- Two identical CSV-parsing functions exist due to import cycle constraints. Evaluate whether moving `ParseCSV` to a shared leaf package resolves the cycle.
+- **Graduated field resurrection or removal** -- `Graduated` exists in the data model but is unused in UI. Either remove it (simplify) or resurrect as "completed N times, now a habit" celebration.
+
+### M (2-5 hours)
+
+- **Planner: calendar view** -- `/plan/calendar` with week/month toggle showing planned tasks across days. Depends on `ListPlannedRange` which is already implemented.
+- **Planner: drag-and-drop scheduling** -- Reorder tasks within the daily plan and drag between days in calendar view.
+- **Planner: ironclaw API integration** -- Automated triage via the ironclaw agent using `PUT /api/v1/plan/{slug}` to plan tasks.
 
 ### Ideas
 
 - **Ironclaw PA commentary on dashboard items** -- Integrate commentary from ironclaw (Claude instance, currently AWS-hosted, may move to local nanoclaw) into the dashboard. Ironclaw would write its thoughts, suggestions, and actionable guidance for each task, exploration item, and idea to a separate data location. The dashboard reads and displays this commentary when a user clicks into an item. Ironclaw's prompt and behaviour are managed separately (via Slack); the dashboard only needs to consume and render the linked commentary data.
-- **Graduated field resurrection or removal** -- `Graduated` exists in the data model but is unused in UI. Either remove it (simplify) or resurrect as "completed N times, now a habit" celebration.
 - **Personality slider** -- User preference for interface tone: minimal vs chatty vs playful. Adjusts copy and animations per preference.
 - **Seasonal/contextual touches** -- Reflect time of day, seasons, or streaks in the visual language.
 
 ## Done
 
+- Daily planner: `[planned: YYYY-MM-DD]` inline metadata, homepage redesign with Today's Plan section (progress bar, carried-over tasks, task picker with filter), plan/unplan/complete from homepage, plan button on tracker items + bulk plan action, API endpoints (GET/PUT/DELETE `/api/v1/plan`), planner tests (8 tests)
+- Soft delete / trash: items move to trash with `[deleted:]` metadata, "Recently Deleted" sections, restore/purge, auto-purge after 7 days
+- Bulk actions: checkbox select mode, bulk complete/delete/priority/tag, `mutateBatch` atomicity, sticky bulk bar
+- Weekly/monthly digest view: `/digest` page with period-specific activity summaries
+- Image captions: inline `filename|caption` storage, upload form caption fields, sanitisation
 - UX/UI overhaul: success flash messages on all 15 mutation endpoints, warm copy, empty state rewrites with family-specific text, button label consistency, onboarding help text, idea status legend, time-of-day greeting, form placeholder improvements
 - Visual feedback: loading indicator pulse animation, filter-active badge, task completion celebration (green flash with beforeSwap delay), idea triage fade-out animations, 7 styled confirmation modals replacing browser confirm()
 - Typography and layout: base font 14px to 16px, WCAG AA contrast for --fg-dim/--fg-muted, 2-line clamp on homepage cards, mobile action button consolidation behind details/summary menu, container max-width 1100px to 1200px

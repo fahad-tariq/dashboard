@@ -48,6 +48,7 @@ var migrations = []string{
 	`CREATE UNIQUE INDEX IF NOT EXISTS idx_tracker_items_unique ON tracker_items(list, slug, user_id)`,
 	`ALTER TABLE tracker_items ADD COLUMN deadline TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE tracker_items ADD COLUMN from_idea TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE tracker_items ADD COLUMN planned TEXT NOT NULL DEFAULT ''`,
 }
 
 func Migrate(db *sql.DB) error {

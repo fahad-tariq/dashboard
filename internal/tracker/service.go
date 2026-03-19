@@ -401,6 +401,69 @@ func (s *Service) Search(query string) []Item {
 	return results
 }
 
+// SetPlanned marks an item as planned for the given date (YYYY-MM-DD).
+func (s *Service) SetPlanned(slug, date string) error {
+	return s.mutate(slug, func(it *Item) error {
+		it.Planned = date
+		return nil
+	})
+}
+
+// ClearPlanned removes the planned date from an item.
+func (s *Service) ClearPlanned(slug string) error {
+	return s.mutate(slug, func(it *Item) error {
+		it.Planned = ""
+		return nil
+	})
+}
+
+// BulkSetPlanned sets the planned date on multiple items in a single file write.
+func (s *Service) BulkSetPlanned(slugs []string, date string) error {
+	return s.mutateBatch(slugs, func(it *Item) error {
+		it.Planned = date
+		return nil
+	})
+}
+
+// ListPlanned returns active non-deleted items planned for the given date.
+func (s *Service) ListPlanned(date string) []Item {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []Item
+	for _, it := range s.cache {
+		if it.DeletedAt == "" && it.Planned == date {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
+// ListOverdue returns active incomplete items planned before the given date.
+func (s *Service) ListOverdue(beforeDate string) []Item {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []Item
+	for _, it := range s.cache {
+		if it.DeletedAt == "" && !it.Done && it.Planned != "" && it.Planned < beforeDate {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
+// ListPlannedRange returns active non-deleted items planned within [start, end] inclusive.
+func (s *Service) ListPlannedRange(start, end string) []Item {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []Item
+	for _, it := range s.cache {
+		if it.DeletedAt == "" && it.Planned >= start && it.Planned <= end {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
 func (s *Service) Summary() (Summary, error) {
 	return s.store.Summary()
 }

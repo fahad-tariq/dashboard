@@ -38,6 +38,8 @@ var flashMessages = map[string]string{
 	"bulk-deleted":      "Items moved to trash.",
 	"bulk-priority":     "Priority updated for selected items.",
 	"bulk-tagged":       "Tag added to selected items.",
+	"plan-set":          "Added to today's plan.",
+	"bulk-planned":      "Tasks added to today's plan.",
 }
 
 var flashErrorKeys = map[string]bool{
@@ -563,6 +565,36 @@ func (h *Handler) BulkAddTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.redirectBack(w, r, "", "bulk-tagged")
+}
+
+func (h *Handler) PlanForToday(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	today := time.Now().Format("2006-01-02")
+	svc, _ := h.resolve(r)
+	if err := svc.SetPlanned(slug, today); err != nil {
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
+		return
+	}
+	h.redirectBack(w, r, "", "plan-set")
+}
+
+func (h *Handler) BulkPlanForToday(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	if len(slugs) == 0 {
+		http.Error(w, "No items selected", http.StatusBadRequest)
+		return
+	}
+	today := time.Now().Format("2006-01-02")
+	svc, _ := h.resolve(r)
+	if err := svc.BulkSetPlanned(slugs, today); err != nil {
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
+		return
+	}
+	h.redirectBack(w, r, "", "bulk-planned")
 }
 
 func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {

@@ -1,13 +1,18 @@
 package home
 
 import (
+	"encoding/json"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/fahad/dashboard/internal/auth"
+	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/insights"
 	"github.com/fahad/dashboard/internal/services"
@@ -94,9 +99,74 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 	}
 	tagSummaries := insights.TopN(insights.TagAggregation(tagInfos), 5)
 
+	// Daily planner data.
+	today := now.Format("2006-01-02")
+	personalPlanned := personalSvc.ListPlanned(today)
+	familyPlanned := familySvc.ListPlanned(today)
+	personalCarriedOver := personalSvc.ListOverdue(today)
+	familyCarriedOver := familySvc.ListOverdue(today)
+
+	// Unplanned tasks for the picker (open, not done, not planned, not carried over).
+	personalExclude := make(map[string]bool)
+	for _, it := range personalPlanned {
+		personalExclude[it.Slug] = true
+	}
+	for _, it := range personalCarriedOver {
+		personalExclude[it.Slug] = true
+	}
+	var unplannedPersonal []tracker.Item
+	for _, it := range personalItems {
+		if it.Type == tracker.TaskType && !it.Done && !personalExclude[it.Slug] {
+			unplannedPersonal = append(unplannedPersonal, it)
+		}
+	}
+
+	familyExclude := make(map[string]bool)
+	for _, it := range familyPlanned {
+		familyExclude[it.Slug] = true
+	}
+	for _, it := range familyCarriedOver {
+		familyExclude[it.Slug] = true
+	}
+	var unplannedFamily []tracker.Item
+	for _, it := range familyItems {
+		if it.Type == tracker.TaskType && !it.Done && !familyExclude[it.Slug] {
+			unplannedFamily = append(unplannedFamily, it)
+		}
+	}
+
+	sortByPriority(personalPlanned)
+	sortByPriority(familyPlanned)
+	sortByPriority(unplannedPersonal)
+	sortByPriority(unplannedFamily)
+
+	planDone := 0
+	planTotal := len(personalPlanned) + len(familyPlanned) + len(personalCarriedOver) + len(familyCarriedOver)
+	for _, it := range personalPlanned {
+		if it.Done {
+			planDone++
+		}
+	}
+	for _, it := range familyPlanned {
+		if it.Done {
+			planDone++
+		}
+	}
+
 	data := auth.TemplateData(r)
 	data["Title"] = "Home"
 	data["Greeting"] = Greeting(time.Now())
+	data["DateLabel"] = formatDateLabel(now)
+	data["Today"] = today
+	data["PersonalPlanned"] = personalPlanned
+	data["FamilyPlanned"] = familyPlanned
+	data["PersonalCarriedOver"] = personalCarriedOver
+	data["FamilyCarriedOver"] = familyCarriedOver
+	data["UnplannedPersonal"] = unplannedPersonal
+	data["UnplannedFamily"] = unplannedFamily
+	data["PlanDoneCount"] = planDone
+	data["PlanTotalCount"] = planTotal
+	data["PlanAllDone"] = planTotal > 0 && planDone == planTotal
 	data["PersonalTasks"] = topTasks(personalItems, 5)
 	data["PersonalTaskCount"] = countOpenTasks(personalItems)
 	data["FamilyTasks"] = topTasks(familyItems, 5)
@@ -111,9 +181,26 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 	data["MilestoneBadge"] = milestone
 	data["TagSummaries"] = tagSummaries
 
+	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
+		if flashMsg := planFlashMessages[msgKey]; flashMsg != "" {
+			data["FlashMsg"] = flashMsg
+		}
+	}
+
 	if err := templates["homepage.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
 		slog.Error("rendering homepage", "error", err)
 	}
+}
+
+// formatDateLabel returns a human-readable date like "Thursday, 19 March".
+func formatDateLabel(t time.Time) string {
+	return t.Format("Monday, 2 January")
+}
+
+func sortByPriority(items []tracker.Item) {
+	slices.SortFunc(items, func(a, b tracker.Item) int {
+		return tracker.PriorityWeight[a.Priority] - tracker.PriorityWeight[b.Priority]
+	})
 }
 
 func toCompletedItems(items []tracker.Item) []insights.CompletedItem {
@@ -176,4 +263,381 @@ func filterAndCountUntriaged(allIdeas []ideas.Idea, n int) ([]ideas.Idea, int) {
 		}
 	}
 	return preview, count
+}
+
+// resolveServices returns (personalSvc, familySvc) for the current request context.
+func (h *Handler) resolveServices(r *http.Request) (*tracker.Service, *tracker.Service) {
+	uid := auth.UserID(r.Context())
+	userSvc := h.registry.ForUser(uid)
+	return userSvc.Personal, h.registry.Family()
+}
+
+var planFlashMessages = map[string]string{
+	"plan-set":        "Added to today's plan.",
+	"plan-cleared":    "Removed from plan.",
+	"plan-completed":  "Nice one -- task completed.",
+	"plan-bulk-set":   "Tasks added to today's plan.",
+}
+
+// SetPlanned handles POST /plan/set -- adds a task to the daily plan.
+func (h *Handler) SetPlanned(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+
+	slug := strings.TrimSpace(r.FormValue("slug"))
+	list := strings.TrimSpace(r.FormValue("list"))
+	date := strings.TrimSpace(r.FormValue("date"))
+	if slug == "" || list == "" {
+		http.Error(w, "Missing slug or list", http.StatusBadRequest)
+		return
+	}
+	if date == "" {
+		date = time.Now().Format("2006-01-02")
+	}
+
+	svc := h.serviceForList(r, list)
+	if svc == nil {
+		http.Error(w, "Invalid list", http.StatusBadRequest)
+		return
+	}
+
+	if err := svc.SetPlanned(slug, date); err != nil {
+		http.Error(w, "Item not found", http.StatusBadRequest)
+		return
+	}
+
+	http.Redirect(w, r, "/?msg=plan-set", http.StatusSeeOther)
+}
+
+// ClearPlanned handles POST /plan/clear -- removes a task from the plan.
+func (h *Handler) ClearPlanned(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+
+	slug := strings.TrimSpace(r.FormValue("slug"))
+	list := strings.TrimSpace(r.FormValue("list"))
+	if slug == "" || list == "" {
+		http.Error(w, "Missing slug or list", http.StatusBadRequest)
+		return
+	}
+
+	svc := h.serviceForList(r, list)
+	if svc == nil {
+		http.Error(w, "Invalid list", http.StatusBadRequest)
+		return
+	}
+
+	if err := svc.ClearPlanned(slug); err != nil {
+		http.Error(w, "Item not found", http.StatusBadRequest)
+		return
+	}
+
+	http.Redirect(w, r, "/?msg=plan-cleared", http.StatusSeeOther)
+}
+
+// CompletePlanned handles POST /plan/{slug}/complete -- completes a task from the plan view.
+func (h *Handler) CompletePlanned(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+
+	slug := chi.URLParam(r, "slug")
+	list := strings.TrimSpace(r.FormValue("list"))
+	if slug == "" || list == "" {
+		http.Error(w, "Missing slug or list", http.StatusBadRequest)
+		return
+	}
+
+	svc := h.serviceForList(r, list)
+	if svc == nil {
+		http.Error(w, "Invalid list", http.StatusBadRequest)
+		return
+	}
+
+	if err := svc.Complete(slug); err != nil {
+		http.Error(w, "Item not found", http.StatusBadRequest)
+		return
+	}
+
+	http.Redirect(w, r, "/?msg=plan-completed", http.StatusSeeOther)
+}
+
+// BulkSetPlanned handles POST /plan/bulk/set -- adds multiple tasks to the plan.
+func (h *Handler) BulkSetPlanned(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+
+	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	list := strings.TrimSpace(r.FormValue("list"))
+	date := strings.TrimSpace(r.FormValue("date"))
+	if len(slugs) == 0 || list == "" {
+		http.Error(w, "No items selected", http.StatusBadRequest)
+		return
+	}
+	if date == "" {
+		date = time.Now().Format("2006-01-02")
+	}
+
+	svc := h.serviceForList(r, list)
+	if svc == nil {
+		http.Error(w, "Invalid list", http.StatusBadRequest)
+		return
+	}
+
+	if err := svc.BulkSetPlanned(slugs, date); err != nil {
+		http.Error(w, "Failed to update items", http.StatusBadRequest)
+		return
+	}
+
+	http.Redirect(w, r, "/?msg=plan-bulk-set", http.StatusSeeOther)
+}
+
+// serviceForList returns the tracker service for the given list name.
+func (h *Handler) serviceForList(r *http.Request, list string) *tracker.Service {
+	personal, family := h.resolveServices(r)
+	switch list {
+	case "todos", "personal":
+		return personal
+	case "family":
+		return family
+	}
+	return nil
+}
+
+// APIListPlan handles GET /api/v1/plan?date=YYYY-MM-DD.
+func APIListPlan(personalSvc, familySvc *tracker.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		date := r.URL.Query().Get("date")
+		if date == "" {
+			date = time.Now().Format("2006-01-02")
+		}
+
+		personal := personalSvc.ListPlanned(date)
+		family := familySvc.ListPlanned(date)
+		overdue := personalSvc.ListOverdue(date)
+		overdue = append(overdue, familySvc.ListOverdue(date)...)
+
+		httputil.WriteJSON(w, http.StatusOK, map[string]any{
+			"date":     date,
+			"personal": planItemsToAPI(personal, "personal"),
+			"family":   planItemsToAPI(family, "family"),
+			"overdue":  planItemsToAPI(overdue, ""),
+		})
+	}
+}
+
+// APISetPlan handles PUT /api/v1/plan/{slug}.
+func APISetPlan(personalSvc, familySvc *tracker.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		slug := chi.URLParam(r, "slug")
+
+		var body struct {
+			Date string `json:"date"`
+			List string `json:"list"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
+		if body.Date == "" {
+			body.Date = time.Now().Format("2006-01-02")
+		}
+
+		var svc *tracker.Service
+		switch body.List {
+		case "personal", "todos":
+			svc = personalSvc
+		case "family":
+			svc = familySvc
+		default:
+			http.Error(w, "Invalid list", http.StatusBadRequest)
+			return
+		}
+
+		if err := svc.SetPlanned(slug, body.Date); err != nil {
+			http.Error(w, "Item not found", http.StatusNotFound)
+			return
+		}
+
+		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	}
+}
+
+// APIClearPlan handles DELETE /api/v1/plan/{slug}.
+func APIClearPlan(personalSvc, familySvc *tracker.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		slug := chi.URLParam(r, "slug")
+
+		var body struct {
+			List string `json:"list"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
+
+		var svc *tracker.Service
+		switch body.List {
+		case "personal", "todos":
+			svc = personalSvc
+		case "family":
+			svc = familySvc
+		default:
+			http.Error(w, "Invalid list", http.StatusBadRequest)
+			return
+		}
+
+		if err := svc.ClearPlanned(slug); err != nil {
+			http.Error(w, "Item not found", http.StatusNotFound)
+			return
+		}
+
+		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	}
+}
+
+// SingleUserPlanHandlers holds plan handlers for single-user mode.
+type SingleUserPlanHandlers struct {
+	personalSvc *tracker.Service
+	familySvc   *tracker.Service
+}
+
+func NewSingleUserPlanHandlers(personalSvc, familySvc *tracker.Service) *SingleUserPlanHandlers {
+	return &SingleUserPlanHandlers{personalSvc: personalSvc, familySvc: familySvc}
+}
+
+func (h *SingleUserPlanHandlers) serviceForList(list string) *tracker.Service {
+	switch list {
+	case "todos", "personal":
+		return h.personalSvc
+	case "family":
+		return h.familySvc
+	}
+	return nil
+}
+
+func (h *SingleUserPlanHandlers) SetPlanned(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("slug"))
+	list := strings.TrimSpace(r.FormValue("list"))
+	date := strings.TrimSpace(r.FormValue("date"))
+	if slug == "" || list == "" {
+		http.Error(w, "Missing slug or list", http.StatusBadRequest)
+		return
+	}
+	if date == "" {
+		date = time.Now().Format("2006-01-02")
+	}
+	svc := h.serviceForList(list)
+	if svc == nil {
+		http.Error(w, "Invalid list", http.StatusBadRequest)
+		return
+	}
+	if err := svc.SetPlanned(slug, date); err != nil {
+		http.Error(w, "Item not found", http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/?msg=plan-set", http.StatusSeeOther)
+}
+
+func (h *SingleUserPlanHandlers) ClearPlanned(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("slug"))
+	list := strings.TrimSpace(r.FormValue("list"))
+	if slug == "" || list == "" {
+		http.Error(w, "Missing slug or list", http.StatusBadRequest)
+		return
+	}
+	svc := h.serviceForList(list)
+	if svc == nil {
+		http.Error(w, "Invalid list", http.StatusBadRequest)
+		return
+	}
+	if err := svc.ClearPlanned(slug); err != nil {
+		http.Error(w, "Item not found", http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/?msg=plan-cleared", http.StatusSeeOther)
+}
+
+func (h *SingleUserPlanHandlers) CompletePlanned(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	slug := chi.URLParam(r, "slug")
+	list := strings.TrimSpace(r.FormValue("list"))
+	if slug == "" || list == "" {
+		http.Error(w, "Missing slug or list", http.StatusBadRequest)
+		return
+	}
+	svc := h.serviceForList(list)
+	if svc == nil {
+		http.Error(w, "Invalid list", http.StatusBadRequest)
+		return
+	}
+	if err := svc.Complete(slug); err != nil {
+		http.Error(w, "Item not found", http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/?msg=plan-completed", http.StatusSeeOther)
+}
+
+func (h *SingleUserPlanHandlers) BulkSetPlanned(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	list := strings.TrimSpace(r.FormValue("list"))
+	date := strings.TrimSpace(r.FormValue("date"))
+	if len(slugs) == 0 || list == "" {
+		http.Error(w, "No items selected", http.StatusBadRequest)
+		return
+	}
+	if date == "" {
+		date = time.Now().Format("2006-01-02")
+	}
+	svc := h.serviceForList(list)
+	if svc == nil {
+		http.Error(w, "Invalid list", http.StatusBadRequest)
+		return
+	}
+	if err := svc.BulkSetPlanned(slugs, date); err != nil {
+		http.Error(w, "Failed to update items", http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/?msg=plan-bulk-set", http.StatusSeeOther)
+}
+
+func planItemsToAPI(items []tracker.Item, list string) []map[string]any {
+	out := make([]map[string]any, 0, len(items))
+	for _, it := range items {
+		m := map[string]any{
+			"slug":     it.Slug,
+			"title":    it.Title,
+			"priority": it.Priority,
+			"done":     it.Done,
+			"planned":  it.Planned,
+			"tags":     it.Tags,
+		}
+		if list != "" {
+			m["list"] = list
+		}
+		out = append(out, m)
+	}
+	return out
 }

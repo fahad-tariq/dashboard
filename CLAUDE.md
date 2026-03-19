@@ -21,13 +21,15 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 
 **Auth evolution paths:** Session infrastructure is auth-method-agnostic. OIDC or passkeys can be added by writing a new callback handler that sets the same `user_id` session key. `RequireAuth` middleware does not change.
 
+**Daily planner** (`internal/home/handler.go`): The homepage doubles as a daily planning hub. `[planned: YYYY-MM-DD]` inline metadata marks tasks for a specific day. The planner is a view over existing tasks, not a separate store. `ListPlanned(date)` returns today's planned items; `ListOverdue(beforeDate)` surfaces carried-over tasks. Plan handlers live in the home package (`SetPlanned`, `ClearPlanned`, `CompletePlanned`, `BulkSetPlanned`). Auth-enabled mode uses `Handler` methods; single-user mode uses `SingleUserPlanHandlers` closures. The homepage template shows Today's Plan as the primary section with a task picker below. Tasks can also be planned from `/todos` via per-item and bulk actions.
+
 **API scoping:** Bearer token API uses the service registry for user 1's data. Per-user API tokens are not implemented -- can be added by mapping tokens to user IDs.
 </ARCHITECTURE>
 
 <CONVENTIONS>
 - `tracker.NewUserStore` filters by `user_id`; `NewSharedStore` never does. Two constructors make intent explicit -- no conditional SQL.
 - `user_id DEFAULT 1` in `tracker_items` means existing rows auto-belong to the first user with no data migration.
-- Inline metadata tags (`[status: ...]`, `[tags: ...]`, `[deadline: ...]`, `[from-idea: ...]`, `[converted-to: ...]`, `[deleted: YYYY-MM-DD]`) are parsed from checkbox lines only. Titles containing bracket patterns are a known limitation.
+- Inline metadata tags (`[status: ...]`, `[tags: ...]`, `[deadline: ...]`, `[planned: ...]`, `[from-idea: ...]`, `[converted-to: ...]`, `[deleted: YYYY-MM-DD]`) are parsed from checkbox lines only. Titles containing bracket patterns are a known limitation.
 - `auth.TemplateData(r)` returns a base `map[string]any` with `UserName` and `IsAdmin`. All handlers merge page-specific data into this map. Use comma-ok type assertions when reading `UserName`: `if name, ok := data["UserName"].(string); ok { ... }`.
 - Uploads are shared (not per-user). Random hex filenames with no ownership tracking.
 - POST for destructive actions (delete, triage) -- HTML forms only support GET/POST. Destructive actions use themed confirmation modals (`dialog.js` + `#confirm-modal` in layout), not browser `confirm()`.
@@ -67,6 +69,10 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 **Caption XSS prevention:** `splitImageCaption` template function returns plain strings, never `template.HTML`. Following the `linkify` pattern (which returns `template.HTML`) would bypass all escaping. `SanitiseCaption` strips `|,]<>"` and truncates to 200 runes.
 
 **`httputil.ParseCSV` vs `ideas.ParseCSV`:** Both exist. `httputil.ParseCSV` is used internally by `ReconstructImages`. `ideas.ParseCSV` is used by handlers for tags and slugs. Consolidating would require a larger import refactor.
+
+**Planner dual-mode handlers:** Plan routes need to work in both auth-enabled and single-user modes. Auth mode uses `home.Handler` methods (which resolve services per-request via the registry). Single-user mode uses `home.SingleUserPlanHandlers` closures over fixed service instances. Both are wired as `http.HandlerFunc` variables in `main.go` and passed to `mountAppRoutes`. The API plan handlers are similarly set in both branches.
+
+**Carried-over items split by list:** `PersonalCarriedOver` and `FamilyCarriedOver` are separate template fields so each carried-over item's forms use the correct `list` value. Merging them into a single slice would lose list-source information and route actions to the wrong service.
 </GOTCHAS>
 
 <TESTING>
