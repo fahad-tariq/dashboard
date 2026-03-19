@@ -215,7 +215,7 @@ func main() {
 
 	// Plan handler funcs -- set by either auth or single-user branch.
 	var planSetHandler, planClearHandler, planBulkSetHandler, planClearCarriedHandler http.HandlerFunc
-	var planCompleteHandler http.HandlerFunc
+	var planCompleteHandler, planReorderHandler http.HandlerFunc
 	// API plan handlers (use user 1's services).
 	var apiPlanListHandler, apiPlanSetHandler, apiPlanClearHandler http.HandlerFunc
 
@@ -317,6 +317,7 @@ func main() {
 		planCompleteHandler = homeHandler.CompletePlanned
 		planBulkSetHandler = homeHandler.BulkSetPlanned
 		planClearCarriedHandler = homeHandler.ClearCarriedOver
+		planReorderHandler = homeHandler.ReorderPlanned
 
 		sessionStore := auth.NewSQLiteStore(database)
 
@@ -390,7 +391,7 @@ func main() {
 			r.Get("/account/password", http.RedirectHandler("/account", http.StatusMovedPermanently).ServeHTTP)
 			r.Post("/account/password", acctHandler.PasswordSubmit)
 
-			mountAppRoutes(r, homePage, digestPage, calendarPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler)
+			mountAppRoutes(r, homePage, digestPage, calendarPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler, planReorderHandler)
 		})
 
 		purgeFunc = func() {
@@ -480,13 +481,14 @@ func main() {
 		planCompleteHandler = singlePlan.CompletePlanned
 		planBulkSetHandler = singlePlan.BulkSetPlanned
 		planClearCarriedHandler = singlePlan.ClearCarriedOver
+		planReorderHandler = singlePlan.ReorderPlanned
 
 		apiPlanListHandler = home.APIListPlan(personalSvc, familySvc)
 		apiPlanSetHandler = home.APISetPlan(personalSvc, familySvc)
 		apiPlanClearHandler = home.APIClearPlan(personalSvc, familySvc)
 
 		r.Get("/events", broker.ServeHTTP)
-		mountAppRoutes(r, homePage, digestPage, calendarPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler)
+		mountAppRoutes(r, homePage, digestPage, calendarPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler, planReorderHandler)
 
 		purgeFunc = func() {
 			if err := personalSvc.PurgeExpired(trashRetentionDays); err != nil {
@@ -598,7 +600,7 @@ func runUserAdd() {
 	fmt.Printf("created user %q with id %d\n", *email, id)
 }
 
-func mountAppRoutes(r chi.Router, homePage, digestPage, calendarPage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string, planSet, planClear, planComplete, planBulkSet, planClearCarried http.HandlerFunc) {
+func mountAppRoutes(r chi.Router, homePage, digestPage, calendarPage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string, planSet, planClear, planComplete, planBulkSet, planClearCarried, planReorder http.HandlerFunc) {
 	r.Post("/upload", uploadHandler.Upload)
 	r.Handle("/uploads/*", cacheImmutable(http.StripPrefix("/uploads/", noDirectoryListing(http.Dir(uploadsDir)))))
 
@@ -613,6 +615,7 @@ func mountAppRoutes(r chi.Router, homePage, digestPage, calendarPage http.Handle
 	r.Post("/plan/{slug}/complete", planComplete)
 	r.Post("/plan/bulk/set", planBulkSet)
 	r.Post("/plan/bulk/clear-carried", planClearCarried)
+	r.Post("/plan/reorder", planReorder)
 	r.Get("/todos", personalHandler.TrackerPage)
 	r.Get("/personal", http.RedirectHandler("/todos", http.StatusMovedPermanently).ServeHTTP)
 	r.Get("/family", familyHandler.TrackerPage)

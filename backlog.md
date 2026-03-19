@@ -2,10 +2,6 @@
 
 ## Backlog
 
-### S (under 2 hours)
-
-- **Edit form drops image captions** -- Investigated: the JS init path correctly populates caption fields even inside collapsed `<details>`. Manual testing needed to confirm, but code analysis shows this is likely not-a-bug.
-
 ### M (2-5 hours)
 
 - **Planner: drag-and-drop scheduling** -- Reorder tasks within the daily plan and drag between days in calendar view.
@@ -16,8 +12,11 @@
 - **Ironclaw PA commentary on dashboard items** -- Integrate commentary from ironclaw (Claude instance, currently AWS-hosted, may move to local nanoclaw) into the dashboard. Ironclaw would write its thoughts, suggestions, and actionable guidance for each task, exploration item, and idea to a separate data location. The dashboard reads and displays this commentary when a user clicks into an item. Ironclaw's prompt and behaviour are managed separately (via Slack); the dashboard only needs to consume and render the linked commentary data.
 - **Personality slider** -- User preference for interface tone: minimal vs chatty vs playful. Adjusts copy and animations per preference.
 - **Seasonal/contextual touches** -- Reflect time of day, seasons, or streaks in the visual language.
+- **Google Calendar sync** -- Bidirectional sync between planner and Google Calendar (personal + family calendars). Key design point: calendar events and tasks are many-to-many, not 1:1. A single task may span multiple calendar events across different days (e.g. step 1 on day 1, step 2 on day 8). Push task steps/sub-items to calendar, pull events back into the planner view. Requires OAuth2 with Google Calendar API scopes. Needs a linking model to track which calendar events belong to which task (and which part of it). Family calendar support means writing to shared/secondary calendars, not just the user's primary.
 
 ## Done
+
+- Edit form drops image captions -- confirmed not-a-bug via code analysis. JS init, caption fields, and ReconstructImages all work correctly including inside collapsed details.
 
 - Planner calendar view: `/plan/calendar` with week/month toggle, prev/next navigation, responsive grid, `g c` keyboard shortcut
 - Consolidated `ParseCSV` into `httputil.ParseCSV` (removed duplicate from ideas package)

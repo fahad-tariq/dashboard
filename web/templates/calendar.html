@@ -25,19 +25,19 @@
     </div>
     <div class="calendar-day-row" role="row">
         {{range .Days}}
-        <div class="calendar-cell{{if .IsToday}} calendar-cell-today{{end}}" role="gridcell"{{if .IsToday}} aria-current="date"{{end}}>
+        <div class="calendar-cell{{if .IsToday}} calendar-cell-today{{end}}" role="gridcell"{{if .IsToday}} aria-current="date"{{end}} data-date="{{.Date}}">
             <span class="calendar-day-num">{{.Label}}</span>
             {{if gt .TaskCount 0}}
             <div class="calendar-tasks">
                 {{$count := 0}}
                 {{range .Personal}}{{if lt $count 3}}
-                <div class="calendar-task" data-priority="{{.Priority}}">
+                <div class="calendar-task" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="personal" draggable="true">
                     <span class="calendar-task-list meta-dim">P</span>
                     <span class="calendar-task-title{{if .Done}} calendar-task-done{{end}}">{{.Title}}</span>
                 </div>
                 {{$count = (subtract $count -1)}}{{end}}{{end}}
                 {{range .Family}}{{if lt $count 3}}
-                <div class="calendar-task" data-priority="{{.Priority}}">
+                <div class="calendar-task" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="family" draggable="true">
                     <span class="calendar-task-list meta-dim">F</span>
                     <span class="calendar-task-title{{if .Done}} calendar-task-done{{end}}">{{.Title}}</span>
                 </div>
@@ -96,4 +96,5 @@
 {{end}}
 
 </div>
+<script src="/static/planner.js"></script>
 {{end}}

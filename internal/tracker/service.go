@@ -402,25 +402,42 @@ func (s *Service) Search(query string) []Item {
 }
 
 // SetPlanned marks an item as planned for the given date (YYYY-MM-DD).
+// Resets PlanOrder since a new day has no established order yet.
 func (s *Service) SetPlanned(slug, date string) error {
 	return s.mutate(slug, func(it *Item) error {
 		it.Planned = date
+		it.PlanOrder = 0
 		return nil
 	})
 }
 
-// ClearPlanned removes the planned date from an item.
+// ClearPlanned removes the planned date and resets PlanOrder.
 func (s *Service) ClearPlanned(slug string) error {
 	return s.mutate(slug, func(it *Item) error {
 		it.Planned = ""
+		it.PlanOrder = 0
 		return nil
 	})
 }
 
 // BulkSetPlanned sets the planned date on multiple items in a single file write.
+// Resets PlanOrder since bulk-planning from /todos shouldn't carry stale order.
 func (s *Service) BulkSetPlanned(slugs []string, date string) error {
 	return s.mutateBatch(slugs, func(it *Item) error {
 		it.Planned = date
+		it.PlanOrder = 0
+		return nil
+	})
+}
+
+// ReorderPlanned sets PlanOrder = position+1 for each slug in the given order.
+func (s *Service) ReorderPlanned(slugs []string) error {
+	slugIndex := make(map[string]int, len(slugs))
+	for i, sl := range slugs {
+		slugIndex[sl] = i + 1
+	}
+	return s.mutateBatch(slugs, func(it *Item) error {
+		it.PlanOrder = slugIndex[it.Slug]
 		return nil
 	})
 }

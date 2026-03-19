@@ -3,6 +3,7 @@ package test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/fahad/dashboard/internal/db"
@@ -173,5 +174,138 @@ func TestDeletedItemsExcludedFromListPlanned(t *testing.T) {
 	}
 	if planned[0].Slug != "active" {
 		t.Errorf("expected 'active', got %q", planned[0].Slug)
+	}
+}
+
+func TestPlanOrderMetadataRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tracker.md")
+	content := "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [plan-order: 2]\n- [ ] Task B [added: 2026-03-02] [planned: 2026-03-19] [plan-order: 1]\n"
+	os.WriteFile(path, []byte(content), 0o644)
+
+	items, err := tracker.ParseTracker(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+	if items[0].PlanOrder != 2 {
+		t.Errorf("item[0].PlanOrder: got %d, want 2", items[0].PlanOrder)
+	}
+	if items[1].PlanOrder != 1 {
+		t.Errorf("item[1].PlanOrder: got %d, want 1", items[1].PlanOrder)
+	}
+
+	// Write back and re-parse.
+	outPath := filepath.Join(dir, "out.md")
+	if err := tracker.WriteTracker(outPath, "Test", items); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	items2, err := tracker.ParseTracker(outPath)
+	if err != nil {
+		t.Fatalf("re-parse: %v", err)
+	}
+	if items2[0].PlanOrder != 2 {
+		t.Errorf("round-trip item[0].PlanOrder: got %d, want 2", items2[0].PlanOrder)
+	}
+	if items2[1].PlanOrder != 1 {
+		t.Errorf("round-trip item[1].PlanOrder: got %d, want 1", items2[1].PlanOrder)
+	}
+	if items2[0].Title != "Task A" {
+		t.Errorf("round-trip title: got %q, want %q", items2[0].Title, "Task A")
+	}
+}
+
+func TestReorderPlanned(t *testing.T) {
+	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19]\n- [ ] Task B [added: 2026-03-02] [planned: 2026-03-19]\n- [ ] Task C [added: 2026-03-03] [planned: 2026-03-19]\n")
+
+	// Reorder: C, A, B
+	if err := svc.ReorderPlanned([]string{"task-c", "task-a", "task-b"}); err != nil {
+		t.Fatalf("ReorderPlanned: %v", err)
+	}
+
+	a, _ := svc.Get("task-a")
+	b, _ := svc.Get("task-b")
+	c, _ := svc.Get("task-c")
+
+	if c.PlanOrder != 1 {
+		t.Errorf("task-c PlanOrder: got %d, want 1", c.PlanOrder)
+	}
+	if a.PlanOrder != 2 {
+		t.Errorf("task-a PlanOrder: got %d, want 2", a.PlanOrder)
+	}
+	if b.PlanOrder != 3 {
+		t.Errorf("task-b PlanOrder: got %d, want 3", b.PlanOrder)
+	}
+}
+
+func TestSortPlanItems(t *testing.T) {
+	items := []tracker.Item{
+		{Slug: "unordered-high", Priority: "high", PlanOrder: 0},
+		{Slug: "ordered-3", PlanOrder: 3},
+		{Slug: "ordered-1", PlanOrder: 1},
+		{Slug: "unordered-low", Priority: "low", PlanOrder: 0},
+		{Slug: "ordered-2", PlanOrder: 2},
+	}
+
+	// Use the same sort logic as sortPlanItems.
+	slices.SortStableFunc(items, func(a, b tracker.Item) int {
+		aHas := a.PlanOrder > 0
+		bHas := b.PlanOrder > 0
+		switch {
+		case aHas && bHas:
+			return a.PlanOrder - b.PlanOrder
+		case aHas:
+			return -1
+		case bHas:
+			return 1
+		default:
+			return tracker.PriorityWeight[a.Priority] - tracker.PriorityWeight[b.Priority]
+		}
+	})
+
+	want := []string{"ordered-1", "ordered-2", "ordered-3", "unordered-high", "unordered-low"}
+	for i, slug := range want {
+		if items[i].Slug != slug {
+			t.Errorf("position %d: got %q, want %q", i, items[i].Slug, slug)
+		}
+	}
+}
+
+func TestClearPlannedResetsPlanOrder(t *testing.T) {
+	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [plan-order: 2]\n")
+
+	if err := svc.ClearPlanned("task-a"); err != nil {
+		t.Fatalf("ClearPlanned: %v", err)
+	}
+	item, err := svc.Get("task-a")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if item.Planned != "" {
+		t.Errorf("Planned should be empty, got %q", item.Planned)
+	}
+	if item.PlanOrder != 0 {
+		t.Errorf("PlanOrder should be 0 after clear, got %d", item.PlanOrder)
+	}
+}
+
+func TestSetPlannedResetsPlanOrder(t *testing.T) {
+	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [plan-order: 3]\n")
+
+	// Re-plan to a different date -- order should reset.
+	if err := svc.SetPlanned("task-a", "2026-03-20"); err != nil {
+		t.Fatalf("SetPlanned: %v", err)
+	}
+	item, err := svc.Get("task-a")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if item.Planned != "2026-03-20" {
+		t.Errorf("Planned: got %q, want %q", item.Planned, "2026-03-20")
+	}
+	if item.PlanOrder != 0 {
+		t.Errorf("PlanOrder should be 0 after replanning, got %d", item.PlanOrder)
 	}
 }

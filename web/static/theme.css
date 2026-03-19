@@ -1866,6 +1866,32 @@ section h2 {
 }
 .plan-remove-btn:hover { color: var(--red); background: var(--row-hover); }
 
+/* Drag-and-drop reorder */
+.plan-item-dragging { opacity: 0.4; }
+.plan-drop-above { border-top: 2px solid var(--teal); }
+.plan-drop-below { border-bottom: 2px solid var(--teal); }
+.plan-item[draggable="true"] { cursor: grab; }
+.plan-item[draggable="true"]:active { cursor: grabbing; }
+.calendar-cell-drop-target { background: var(--row-hover); outline: 2px dashed var(--teal); }
+.calendar-task[draggable="true"] { cursor: grab; }
+
+.plan-reorder-btn {
+    display: none;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--fg-dim);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    line-height: 1;
+}
+.plan-reorder-btn:hover { color: var(--teal); border-color: var(--teal); }
+@media (pointer: coarse) {
+    .plan-reorder-btn { display: inline-block; }
+    .plan-item[draggable="true"] { cursor: default; }
+}
+
 .plan-list-label {
     display: block;
     font-size: 0.8rem;
@@ -1968,6 +1994,7 @@ section h2 {
     .progress-fill-teal { transition: none; }
     .plan-done-state { animation: none; }
     .plan-item-completing { animation: none; }
+    .plan-item-dragging { transition: none; }
 }
 
 /* --- Calendar --- */

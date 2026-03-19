@@ -151,8 +151,8 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 	personalPlanned = append(personalPlanned, personalCarriedOver...)
 	familyPlanned = append(familyPlanned, familyCarriedOver...)
 
-	sortByPriority(personalPlanned)
-	sortByPriority(familyPlanned)
+	sortPlanItems(personalPlanned)
+	sortPlanItems(familyPlanned)
 	sortByPriority(unplannedPersonal)
 	sortByPriority(unplannedFamily)
 
@@ -231,6 +231,25 @@ func sortByPriority(items []tracker.Item) {
 	})
 }
 
+// sortPlanItems sorts planned items: explicit PlanOrder first (ascending),
+// then unordered items by priority weight.
+func sortPlanItems(items []tracker.Item) {
+	slices.SortStableFunc(items, func(a, b tracker.Item) int {
+		aHas := a.PlanOrder > 0
+		bHas := b.PlanOrder > 0
+		switch {
+		case aHas && bHas:
+			return a.PlanOrder - b.PlanOrder
+		case aHas:
+			return -1
+		case bHas:
+			return 1
+		default:
+			return tracker.PriorityWeight[a.Priority] - tracker.PriorityWeight[b.Priority]
+		}
+	})
+}
+
 func toCompletedItems(items []tracker.Item) []insights.CompletedItem {
 	result := make([]insights.CompletedItem, len(items))
 	for i, it := range items {
@@ -306,6 +325,7 @@ var planFlashMessages = map[string]string{
 	"plan-completed":      "Nice one -- task completed.",
 	"plan-bulk-set":       "Tasks added to today's plan.",
 	"carried-cleared":     "Carried-over tasks dropped.",
+	"plan-reordered":      "Plan order updated.",
 }
 
 // SetPlanned handles POST /plan/set -- adds a task to the daily plan.
@@ -426,6 +446,38 @@ func (h *Handler) BulkSetPlanned(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/?msg=plan-bulk-set", http.StatusSeeOther)
+}
+
+// ReorderPlanned handles POST /plan/reorder -- sets manual sort order for plan items.
+func (h *Handler) ReorderPlanned(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+
+	slugs := httputil.ParseCSV(r.FormValue("slugs"))
+	list := strings.TrimSpace(r.FormValue("list"))
+	if len(slugs) == 0 || list == "" {
+		http.Error(w, "Missing slugs or list", http.StatusBadRequest)
+		return
+	}
+
+	svc := h.serviceForList(r, list)
+	if svc == nil {
+		http.Error(w, "Invalid list", http.StatusBadRequest)
+		return
+	}
+
+	if err := svc.ReorderPlanned(slugs); err != nil {
+		http.Error(w, "Failed to reorder", http.StatusBadRequest)
+		return
+	}
+
+	if r.Header.Get("HX-Request") == "true" || r.Header.Get("X-Requested-With") == "XMLHttpRequest" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/?msg=plan-reordered", http.StatusSeeOther)
 }
 
 // ClearCarriedOver handles POST /plan/bulk/clear-carried -- drops all overdue planned items.
@@ -638,6 +690,33 @@ func (h *SingleUserPlanHandlers) CompletePlanned(w http.ResponseWriter, r *http.
 		return
 	}
 	http.Redirect(w, r, "/?msg=plan-completed", http.StatusSeeOther)
+}
+
+func (h *SingleUserPlanHandlers) ReorderPlanned(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	slugs := httputil.ParseCSV(r.FormValue("slugs"))
+	list := strings.TrimSpace(r.FormValue("list"))
+	if len(slugs) == 0 || list == "" {
+		http.Error(w, "Missing slugs or list", http.StatusBadRequest)
+		return
+	}
+	svc := h.serviceForList(list)
+	if svc == nil {
+		http.Error(w, "Invalid list", http.StatusBadRequest)
+		return
+	}
+	if err := svc.ReorderPlanned(slugs); err != nil {
+		http.Error(w, "Failed to reorder", http.StatusBadRequest)
+		return
+	}
+	if r.Header.Get("HX-Request") == "true" || r.Header.Get("X-Requested-With") == "XMLHttpRequest" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/?msg=plan-reordered", http.StatusSeeOther)
 }
 
 func (h *SingleUserPlanHandlers) ClearCarriedOver(w http.ResponseWriter, r *http.Request) {

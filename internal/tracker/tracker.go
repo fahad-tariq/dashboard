@@ -33,6 +33,7 @@ type Item struct {
 	Completed string   // date completed, YYYY-MM-DD
 	Deadline  string   // goals only, YYYY-MM-DD
 	Planned   string   // planned date, YYYY-MM-DD (daily planner)
+	PlanOrder int      // manual sort order within a day (0 = unset, 1+ = explicit)
 	FromIdea  string   // slug of the idea this task was converted from
 	Tags      []string // tags for categorisation and filtering
 	Images    []string // uploaded image filenames
@@ -64,6 +65,7 @@ var plannedRe = regexp.MustCompile(`\[planned:\s*(\d{4}-\d{2}-\d{2})\]`)
 var fromIdeaRe = regexp.MustCompile(`\[from-idea:\s*([\w-]+)\]`)
 var tagsRe = regexp.MustCompile(`\[tags:\s*(.*?)\]`)
 var imagesRe = regexp.MustCompile(`\[images:\s*(.*?)\]`)
+var planOrderRe = regexp.MustCompile(`\[plan-order:\s*(\d+)\]`)
 var deletedRe = regexp.MustCompile(`\[deleted:\s*(\d{4}-\d{2}-\d{2})\]`)
 
 // ParseTracker reads a tracker.md file and returns structured items.
@@ -191,6 +193,12 @@ func parseItemLine(raw string, done bool) *Item {
 		title = strings.TrimSpace(plannedRe.ReplaceAllString(title, ""))
 	}
 
+	// Extract plan order: [plan-order: N]
+	if m := planOrderRe.FindStringSubmatch(title); m != nil {
+		item.PlanOrder, _ = strconv.Atoi(m[1])
+		title = strings.TrimSpace(planOrderRe.ReplaceAllString(title, ""))
+	}
+
 	// Extract from-idea: [from-idea: slug]
 	if m := fromIdeaRe.FindStringSubmatch(title); m != nil {
 		item.FromIdea = m[1]
@@ -273,6 +281,9 @@ func writeItem(sb *strings.Builder, it Item) {
 	}
 	if it.Planned != "" {
 		sb.WriteString(" [planned: " + it.Planned + "]")
+	}
+	if it.PlanOrder > 0 {
+		sb.WriteString(" [plan-order: " + strconv.Itoa(it.PlanOrder) + "]")
 	}
 	if it.FromIdea != "" {
 		sb.WriteString(" [from-idea: " + it.FromIdea + "]")

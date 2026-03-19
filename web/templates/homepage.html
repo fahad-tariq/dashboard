@@ -57,11 +57,13 @@
         {{if .PersonalPlanned}}
         {{if .FamilyPlanned}}<span class="plan-list-label meta-dim">Personal</span>{{end}}
         {{range .PersonalPlanned}}
-        <div class="plan-item {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}">
+        <div class="plan-item {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="todos" {{if not .Done}}draggable="true"{{end}}>
             <span class="plan-item-title">{{.Title}}</span>
             {{if ne .Planned $.Today}}<span class="plan-item-date meta-dim">from {{relativeDate .Planned}}</span>{{end}}
             <div class="plan-item-actions">
                 {{if not .Done}}
+                <button type="button" class="plan-reorder-btn" onclick="planMoveUp(this)" title="Move up">&uarr;</button>
+                <button type="button" class="plan-reorder-btn" onclick="planMoveDown(this)" title="Move down">&darr;</button>
                 <form method="POST" action="/plan/{{.Slug}}/complete" class="inline-form" onsubmit="return celebrateComplete(this)">
                     <input type="hidden" name="list" value="todos">
                     <button type="submit" class="item-complete-btn" title="Complete">done</button>
@@ -80,11 +82,13 @@
         {{if .FamilyPlanned}}
         {{if .PersonalPlanned}}<span class="plan-list-label meta-dim">Family</span>{{end}}
         {{range .FamilyPlanned}}
-        <div class="plan-item {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}">
+        <div class="plan-item {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="family" {{if not .Done}}draggable="true"{{end}}>
             <span class="plan-item-title">{{.Title}}</span>
             {{if ne .Planned $.Today}}<span class="plan-item-date meta-dim">from {{relativeDate .Planned}}</span>{{end}}
             <div class="plan-item-actions">
                 {{if not .Done}}
+                <button type="button" class="plan-reorder-btn" onclick="planMoveUp(this)" title="Move up">&uarr;</button>
+                <button type="button" class="plan-reorder-btn" onclick="planMoveDown(this)" title="Move down">&darr;</button>
                 <form method="POST" action="/plan/{{.Slug}}/complete" class="inline-form" onsubmit="return celebrateComplete(this)">
                     <input type="hidden" name="list" value="family">
                     <button type="submit" class="item-complete-btn" title="Complete">done</button>

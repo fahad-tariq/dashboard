@@ -296,8 +296,8 @@ document.addEventListener('htmx:beforeSwap', function(evt) {
     var target = evt.detail.target;
     if (!target) return;
 
-    // Suppress SSE swaps while select mode is active.
-    if (bulkSelectActive) {
+    // Suppress SSE swaps while select mode or drag is active.
+    if (bulkSelectActive || window.planDragInProgress) {
         evt.detail.shouldSwap = false;
         return;
     }
