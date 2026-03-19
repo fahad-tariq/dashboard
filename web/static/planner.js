@@ -122,9 +122,9 @@ function postReorder(list) {
         draggedEl = null;
         clearDropIndicators();
         window.planDragInProgress = false;
-        if (typeof htmx !== 'undefined') {
-            htmx.trigger(document.body, 'sse:file-changed');
-        }
+        // No manual SSE trigger needed: postReorder writes the file,
+        // the file watcher sends an SSE event, and planDragInProgress
+        // is already false so the swap proceeds normally.
     });
 })();
 
