@@ -21,7 +21,9 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 
 **Auth evolution paths:** Session infrastructure is auth-method-agnostic. OIDC or passkeys can be added by writing a new callback handler that sets the same `user_id` session key. `RequireAuth` middleware does not change.
 
-**Daily planner** (`internal/home/handler.go`): The homepage doubles as a daily planning hub. `[planned: YYYY-MM-DD]` inline metadata marks tasks for a specific day. The planner is a view over existing tasks, not a separate store. `ListPlanned(date)` returns today's planned items; `ListOverdue(beforeDate)` surfaces carried-over tasks. Plan handlers live in the home package (`SetPlanned`, `ClearPlanned`, `CompletePlanned`, `BulkSetPlanned`). Auth-enabled mode uses `Handler` methods; single-user mode uses `SingleUserPlanHandlers` closures. The homepage template shows Today's Plan as the primary section with a task picker below. Tasks can also be planned from `/todos` via per-item and bulk actions.
+**Daily planner** (`internal/home/handler.go`): The homepage doubles as a daily planning hub. `[planned: YYYY-MM-DD]` inline metadata marks tasks for a specific day. The planner is a view over existing tasks, not a separate store. `ListPlanned(date)` returns today's planned items; `ListOverdue(beforeDate)` surfaces carried-over tasks. Plan handlers live in the home package (`SetPlanned`, `ClearPlanned`, `CompletePlanned`, `BulkSetPlanned`, `ClearCarriedOver`). Auth-enabled mode uses `Handler` methods; single-user mode uses `SingleUserPlanHandlers` closures. The homepage template shows Today's Plan as the primary section with a task picker below. Tasks can also be planned from `/todos` via per-item and bulk actions.
+
+**Auto-promote carried-over:** `renderHomePage` merges overdue items into the planned lists so they appear inline rather than in a separate section. Carried-over items are detected in the template by `Planned < Today` and styled with a dotted peach left-border plus a `relativeDate` label. A "drop all carried" banner (POST `/plan/bulk/clear-carried`) lets users dismiss all overdue items at once. Summary cards (`topTasksExcluding`) exclude planned/carried-over slugs so they don't duplicate the plan section. `PlanPrompt` rotates by weekday for the empty-plan state.
 
 **API scoping:** Bearer token API uses the service registry for user 1's data. Per-user API tokens are not implemented -- can be added by mapping tokens to user IDs.
 </ARCHITECTURE>
@@ -72,7 +74,7 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 
 **Planner dual-mode handlers:** Plan routes need to work in both auth-enabled and single-user modes. Auth mode uses `home.Handler` methods (which resolve services per-request via the registry). Single-user mode uses `home.SingleUserPlanHandlers` closures over fixed service instances. Both are wired as `http.HandlerFunc` variables in `main.go` and passed to `mountAppRoutes`. The API plan handlers are similarly set in both branches.
 
-**Carried-over items split by list:** `PersonalCarriedOver` and `FamilyCarriedOver` are separate template fields so each carried-over item's forms use the correct `list` value. Merging them into a single slice would lose list-source information and route actions to the wrong service.
+**Carried-over items merged per-list:** Overdue items are appended to `PersonalPlanned`/`FamilyPlanned` in the handler before sorting, keeping list-source information intact for form actions. The template detects carried-over items by comparing `.Planned` against `.Today`. `ClearCarriedOver` iterates both services' `ListOverdue` results and calls `ClearPlanned` on each.
 </GOTCHAS>
 
 <TESTING>

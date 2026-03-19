@@ -80,6 +80,25 @@ var funcMap = template.FuncMap{
 		file, caption := httputil.SplitImageCaption(entry)
 		return []string{file, caption}
 	},
+	"relativeDate": func(date string) string {
+		t, err := time.Parse("2006-01-02", date)
+		if err != nil {
+			return date
+		}
+		days := int(time.Since(t).Hours() / 24)
+		switch {
+		case days == 0:
+			return "today"
+		case days == 1:
+			return "yesterday"
+		case days < 7:
+			return fmt.Sprintf("%d days ago", days)
+		case days < 14:
+			return "1 week ago"
+		default:
+			return fmt.Sprintf("%d weeks ago", days/7)
+		}
+	},
 	"planPercent": func(done, total int) int {
 		if total == 0 {
 			return 0
@@ -195,7 +214,7 @@ func main() {
 	var purgeFunc func() // called hourly to purge expired trash items
 
 	// Plan handler funcs -- set by either auth or single-user branch.
-	var planSetHandler, planClearHandler, planBulkSetHandler http.HandlerFunc
+	var planSetHandler, planClearHandler, planBulkSetHandler, planClearCarriedHandler http.HandlerFunc
 	var planCompleteHandler http.HandlerFunc
 	// API plan handlers (use user 1's services).
 	var apiPlanListHandler, apiPlanSetHandler, apiPlanClearHandler http.HandlerFunc
@@ -296,6 +315,7 @@ func main() {
 		planClearHandler = homeHandler.ClearPlanned
 		planCompleteHandler = homeHandler.CompletePlanned
 		planBulkSetHandler = homeHandler.BulkSetPlanned
+		planClearCarriedHandler = homeHandler.ClearCarriedOver
 
 		sessionStore := auth.NewSQLiteStore(database)
 
@@ -369,7 +389,7 @@ func main() {
 			r.Get("/account/password", http.RedirectHandler("/account", http.StatusMovedPermanently).ServeHTTP)
 			r.Post("/account/password", acctHandler.PasswordSubmit)
 
-			mountAppRoutes(r, homePage, digestPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler)
+			mountAppRoutes(r, homePage, digestPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler)
 		})
 
 		purgeFunc = func() {
@@ -457,13 +477,14 @@ func main() {
 		planClearHandler = singlePlan.ClearPlanned
 		planCompleteHandler = singlePlan.CompletePlanned
 		planBulkSetHandler = singlePlan.BulkSetPlanned
+		planClearCarriedHandler = singlePlan.ClearCarriedOver
 
 		apiPlanListHandler = home.APIListPlan(personalSvc, familySvc)
 		apiPlanSetHandler = home.APISetPlan(personalSvc, familySvc)
 		apiPlanClearHandler = home.APIClearPlan(personalSvc, familySvc)
 
 		r.Get("/events", broker.ServeHTTP)
-		mountAppRoutes(r, homePage, digestPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler)
+		mountAppRoutes(r, homePage, digestPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler)
 
 		purgeFunc = func() {
 			if err := personalSvc.PurgeExpired(trashRetentionDays); err != nil {
@@ -575,7 +596,7 @@ func runUserAdd() {
 	fmt.Printf("created user %q with id %d\n", *email, id)
 }
 
-func mountAppRoutes(r chi.Router, homePage http.HandlerFunc, digestPage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string, planSet, planClear, planComplete, planBulkSet http.HandlerFunc) {
+func mountAppRoutes(r chi.Router, homePage http.HandlerFunc, digestPage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string, planSet, planClear, planComplete, planBulkSet, planClearCarried http.HandlerFunc) {
 	r.Post("/upload", uploadHandler.Upload)
 	r.Handle("/uploads/*", cacheImmutable(http.StripPrefix("/uploads/", noDirectoryListing(http.Dir(uploadsDir)))))
 
@@ -588,6 +609,7 @@ func mountAppRoutes(r chi.Router, homePage http.HandlerFunc, digestPage http.Han
 	r.Post("/plan/clear", planClear)
 	r.Post("/plan/{slug}/complete", planComplete)
 	r.Post("/plan/bulk/set", planBulkSet)
+	r.Post("/plan/bulk/clear-carried", planClearCarried)
 	r.Get("/todos", personalHandler.TrackerPage)
 	r.Get("/personal", http.RedirectHandler("/todos", http.StatusMovedPermanently).ServeHTTP)
 	r.Get("/family", familyHandler.TrackerPage)

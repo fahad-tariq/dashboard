@@ -894,7 +894,8 @@ section h2 {
 .htmx-request.htmx-indicator { display: inline-block; }
 
 /* --- Task completion celebration --- */
-.tracker-item-completing {
+.tracker-item-completing,
+.plan-item-completing {
     animation: dash-complete-flash 600ms ease-out;
 }
 
@@ -1161,6 +1162,10 @@ section h2 {
         min-height: 2.75rem;
         min-width: 2.75rem;
         font-size: 0.85rem;
+    }
+    .plan-section .item-complete-btn,
+    .plan-section .plan-remove-btn {
+        min-width: auto;
     }
     .form-select-sm {
         min-height: 2.75rem;
@@ -1758,7 +1763,11 @@ section h2 {
 }
 
 .plan-section {
-    margin-bottom: 1.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .plan-progress-wrap {
@@ -1768,41 +1777,54 @@ section h2 {
     margin-bottom: 1rem;
 }
 .plan-progress-bar { flex: 1; height: 10px; }
-.progress-fill-teal { background: var(--teal); }
+.progress-fill-teal {
+    background: var(--teal);
+    transition: width 400ms ease-out, background-color 300ms ease-out;
+}
+.progress-fill-teal.progress-complete {
+    background: var(--green);
+}
 .plan-progress-text {
     font-size: 0.85rem;
     color: var(--fg-dim);
     white-space: nowrap;
 }
 
+@keyframes plan-done-appear {
+    0% { opacity: 0; transform: translateY(6px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
 .plan-done-state {
     text-align: center;
     padding: 1rem;
-    color: var(--teal);
+    color: var(--green);
     font-weight: bold;
     font-size: 1.1rem;
+    animation: plan-done-appear 500ms ease-out;
 }
 
-.plan-sub-heading {
+.plan-carried-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+    margin-bottom: 0.5rem;
     font-size: 0.85rem;
-    font-weight: 600;
-    margin-bottom: 0.25rem;
 }
-
-.plan-carried-over {
-    border-left: 3px solid var(--peach);
-    padding-left: 0.75rem;
-    margin-bottom: 1rem;
-}
-.plan-carried-label { color: var(--peach); }
-.plan-replan-form {
-    display: inline;
-    margin-left: 0.5rem;
+.plan-today-tasks .plan-item.plan-item-carried {
+    border-left: 3px dotted var(--peach);
 }
 
 .plan-today-tasks {
     margin-bottom: 1rem;
 }
+.plan-today-tasks .plan-item {
+    border-left: 3px solid transparent;
+    padding-left: 0.5rem;
+}
+.plan-today-tasks .plan-item[data-priority="high"] { border-left-color: var(--priority-high); }
+.plan-today-tasks .plan-item[data-priority="medium"] { border-left-color: var(--priority-medium); }
+.plan-today-tasks .plan-item[data-priority="low"] { border-left-color: var(--priority-low); }
 
 .plan-item {
     display: flex;
@@ -1815,7 +1837,6 @@ section h2 {
 .plan-item:last-child { border-bottom: none; }
 .plan-item-done { opacity: 0.5; }
 .plan-item-done .plan-item-title { text-decoration: line-through; }
-.plan-item-carried { opacity: 0.85; }
 
 .plan-item-title {
     flex: 1;
@@ -1823,13 +1844,6 @@ section h2 {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.plan-item-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    flex-shrink: 0;
 }
 
 .plan-item-date { font-size: 0.8rem; }
@@ -1909,6 +1923,12 @@ section h2 {
     flex-shrink: 0;
 }
 
+/* Green complete button in plan section */
+.plan-section .item-complete-btn {
+    color: var(--green);
+    border-color: var(--green);
+}
+
 /* Plan button on tracker items */
 .item-plan-btn {
     background: none;
@@ -1943,4 +1963,7 @@ section h2 {
 
 @media (prefers-reduced-motion: reduce) {
     .plan-item, .plan-pick-item { transition: none; }
+    .progress-fill-teal { transition: none; }
+    .plan-done-state { animation: none; }
+    .plan-item-completing { animation: none; }
 }

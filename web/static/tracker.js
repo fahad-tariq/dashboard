@@ -122,9 +122,9 @@ function clearTrackerFilter() {
 
 // Task completion celebration animation.
 function celebrateComplete(form) {
-    var item = form.closest('.tracker-item');
+    var item = form.closest('.tracker-item') || form.closest('.plan-item');
     if (item) {
-        item.classList.add('tracker-item-completing');
+        item.classList.add(item.classList.contains('plan-item') ? 'plan-item-completing' : 'tracker-item-completing');
     }
     return true;
 }
@@ -302,7 +302,7 @@ document.addEventListener('htmx:beforeSwap', function(evt) {
         return;
     }
 
-    var completing = target.querySelector && target.querySelector('.tracker-item-completing');
+    var completing = target.querySelector && (target.querySelector('.tracker-item-completing') || target.querySelector('.plan-item-completing'));
     if (!completing) return;
 
     // Store swap details and prevent the immediate swap.

@@ -58,6 +58,16 @@ func Greeting(now time.Time) string {
 	}
 }
 
+var planPrompts = []string{
+	"Anything for today?",        // Sunday
+	"What needs doing?",          // Monday
+	"What matters today?",        // Tuesday
+	"Three things?",              // Wednesday
+	"What would make today good?", // Thursday
+	"Last stretch of the week",   // Friday
+	"Anything for today?",        // Saturday
+}
+
 func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template) {
 	personalItems, err := personalSvc.List()
 	if err != nil {
@@ -135,13 +145,19 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 		}
 	}
 
+	// Auto-promote: merge carried-over items into planned lists.
+	personalCarriedCount := len(personalCarriedOver)
+	familyCarriedCount := len(familyCarriedOver)
+	personalPlanned = append(personalPlanned, personalCarriedOver...)
+	familyPlanned = append(familyPlanned, familyCarriedOver...)
+
 	sortByPriority(personalPlanned)
 	sortByPriority(familyPlanned)
 	sortByPriority(unplannedPersonal)
 	sortByPriority(unplannedFamily)
 
 	planDone := 0
-	planTotal := len(personalPlanned) + len(familyPlanned) + len(personalCarriedOver) + len(familyCarriedOver)
+	planTotal := len(personalPlanned) + len(familyPlanned)
 	for _, it := range personalPlanned {
 		if it.Done {
 			planDone++
@@ -160,16 +176,28 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 	data["Today"] = today
 	data["PersonalPlanned"] = personalPlanned
 	data["FamilyPlanned"] = familyPlanned
-	data["PersonalCarriedOver"] = personalCarriedOver
-	data["FamilyCarriedOver"] = familyCarriedOver
+	data["PersonalCarriedCount"] = personalCarriedCount
+	data["FamilyCarriedCount"] = familyCarriedCount
+	data["CarriedOverCount"] = personalCarriedCount + familyCarriedCount
 	data["UnplannedPersonal"] = unplannedPersonal
 	data["UnplannedFamily"] = unplannedFamily
 	data["PlanDoneCount"] = planDone
 	data["PlanTotalCount"] = planTotal
 	data["PlanAllDone"] = planTotal > 0 && planDone == planTotal
-	data["PersonalTasks"] = topTasks(personalItems, 5)
+	data["PlanPrompt"] = planPrompts[now.Weekday()]
+	// Build set of planned slugs to exclude from summary cards.
+	plannedSlugs := make(map[string]bool)
+	for _, it := range personalPlanned {
+		plannedSlugs[it.Slug] = true
+	}
+	familyPlannedSlugs := make(map[string]bool)
+	for _, it := range familyPlanned {
+		familyPlannedSlugs[it.Slug] = true
+	}
+
+	data["PersonalTasks"] = topTasksExcluding(personalItems, 5, plannedSlugs)
 	data["PersonalTaskCount"] = countOpenTasks(personalItems)
-	data["FamilyTasks"] = topTasks(familyItems, 5)
+	data["FamilyTasks"] = topTasksExcluding(familyItems, 5, familyPlannedSlugs)
 	data["FamilyTaskCount"] = countOpenTasks(familyItems)
 	data["Goals"] = activeGoals(personalItems)
 	data["UntriagedIdeas"] = untriaged
@@ -221,10 +249,10 @@ func countOpenTasks(items []tracker.Item) int {
 	return count
 }
 
-func topTasks(items []tracker.Item, n int) []tracker.Item {
+func topTasksExcluding(items []tracker.Item, n int, exclude map[string]bool) []tracker.Item {
 	var tasks []tracker.Item
 	for _, it := range items {
-		if it.Type == tracker.TaskType && !it.Done {
+		if it.Type == tracker.TaskType && !it.Done && !exclude[it.Slug] {
 			tasks = append(tasks, it)
 		}
 	}
@@ -273,10 +301,11 @@ func (h *Handler) resolveServices(r *http.Request) (*tracker.Service, *tracker.S
 }
 
 var planFlashMessages = map[string]string{
-	"plan-set":        "Added to today's plan.",
-	"plan-cleared":    "Removed from plan.",
-	"plan-completed":  "Nice one -- task completed.",
-	"plan-bulk-set":   "Tasks added to today's plan.",
+	"plan-set":            "Added to today's plan.",
+	"plan-cleared":        "Removed from plan.",
+	"plan-completed":      "Nice one -- task completed.",
+	"plan-bulk-set":       "Tasks added to today's plan.",
+	"carried-cleared":     "Carried-over tasks dropped.",
 }
 
 // SetPlanned handles POST /plan/set -- adds a task to the daily plan.
@@ -397,6 +426,21 @@ func (h *Handler) BulkSetPlanned(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/?msg=plan-bulk-set", http.StatusSeeOther)
+}
+
+// ClearCarriedOver handles POST /plan/bulk/clear-carried -- drops all overdue planned items.
+func (h *Handler) ClearCarriedOver(w http.ResponseWriter, r *http.Request) {
+	personal, family := h.resolveServices(r)
+	today := time.Now().Format("2006-01-02")
+	clearOverdue(personal, today)
+	clearOverdue(family, today)
+	http.Redirect(w, r, "/?msg=carried-cleared", http.StatusSeeOther)
+}
+
+func clearOverdue(svc *tracker.Service, today string) {
+	for _, it := range svc.ListOverdue(today) {
+		_ = svc.ClearPlanned(it.Slug)
+	}
 }
 
 // serviceForList returns the tracker service for the given list name.
@@ -594,6 +638,13 @@ func (h *SingleUserPlanHandlers) CompletePlanned(w http.ResponseWriter, r *http.
 		return
 	}
 	http.Redirect(w, r, "/?msg=plan-completed", http.StatusSeeOther)
+}
+
+func (h *SingleUserPlanHandlers) ClearCarriedOver(w http.ResponseWriter, r *http.Request) {
+	today := time.Now().Format("2006-01-02")
+	clearOverdue(h.personalSvc, today)
+	clearOverdue(h.familySvc, today)
+	http.Redirect(w, r, "/?msg=carried-cleared", http.StatusSeeOther)
 }
 
 func (h *SingleUserPlanHandlers) BulkSetPlanned(w http.ResponseWriter, r *http.Request) {
