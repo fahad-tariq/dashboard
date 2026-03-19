@@ -1,6 +1,7 @@
 /* planner.js -- client-side picker filter + drag-and-drop (ES5 compatible) */
+/* All DnD events are delegated from document so they survive SSE outerHTML swaps. */
 
-/* global window, document, fetch, FormData, htmx */
+/* global window, document, fetch, htmx */
 
 window.planDragInProgress = false;
 
@@ -53,38 +54,47 @@ function postReorder(list) {
     });
 }
 
-(function() {
-    var container = document.querySelector('.plan-today-tasks');
-    if (!container) return;
-
-    container.addEventListener('dragstart', function(e) {
-        var item = e.target.closest('.plan-item');
-        if (!item || item.classList.contains('plan-item-done')) {
-            e.preventDefault();
-            return;
-        }
+// All DnD delegated from document so listeners survive SSE DOM replacement.
+document.addEventListener('dragstart', function(e) {
+    // Homepage plan reorder.
+    var item = e.target.closest('.plan-today-tasks .plan-item');
+    if (item && !item.classList.contains('plan-item-done')) {
         draggedEl = item;
         item.classList.add('plan-item-dragging');
         window.planDragInProgress = true;
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', item.getAttribute('data-slug'));
-    });
+        return;
+    }
 
-    container.addEventListener('dragover', function(e) {
-        if (!draggedEl) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
+    // Calendar week view day move.
+    var task = e.target.closest('.calendar-grid-week .calendar-task');
+    if (task) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', task.getAttribute('data-slug'));
+        e.dataTransfer.setData('application/x-list', task.getAttribute('data-list'));
+        task.classList.add('plan-item-dragging');
+        window.planDragInProgress = true;
+    }
+});
 
-        var target = e.target.closest('.plan-item');
+document.addEventListener('dragover', function(e) {
+    // Homepage reorder.
+    if (draggedEl) {
+        var target = e.target.closest('.plan-today-tasks .plan-item');
         if (!target || target === draggedEl) {
             clearDropIndicators();
+            // Still need preventDefault if over the container to allow drop.
+            if (e.target.closest('.plan-today-tasks')) e.preventDefault();
             return;
         }
         if (target.getAttribute('data-list') !== draggedEl.getAttribute('data-list')) {
             clearDropIndicators();
+            e.preventDefault();
             return;
         }
-
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
         clearDropIndicators();
         var rect = target.getBoundingClientRect();
         var mid = rect.top + rect.height / 2;
@@ -93,13 +103,28 @@ function postReorder(list) {
         } else {
             target.classList.add('plan-drop-below');
         }
-    });
+        return;
+    }
 
-    container.addEventListener('drop', function(e) {
+    // Calendar day move.
+    var cell = e.target.closest('.calendar-grid-week .calendar-cell');
+    if (cell && cell.getAttribute('data-date')) {
         e.preventDefault();
-        if (!draggedEl) return;
+        e.dataTransfer.dropEffect = 'move';
+        var grid = cell.closest('.calendar-grid-week');
+        var cells = grid.querySelectorAll('.calendar-cell-drop-target');
+        for (var i = 0; i < cells.length; i++) {
+            if (cells[i] !== cell) cells[i].classList.remove('calendar-cell-drop-target');
+        }
+        cell.classList.add('calendar-cell-drop-target');
+    }
+});
 
-        var target = e.target.closest('.plan-item');
+document.addEventListener('drop', function(e) {
+    // Homepage reorder.
+    if (draggedEl) {
+        e.preventDefault();
+        var target = e.target.closest('.plan-today-tasks .plan-item');
         if (!target || target === draggedEl) return;
         if (target.getAttribute('data-list') !== draggedEl.getAttribute('data-list')) return;
 
@@ -110,95 +135,57 @@ function postReorder(list) {
         } else {
             target.parentNode.insertBefore(draggedEl, target.nextSibling);
         }
+        postReorder(draggedEl.getAttribute('data-list'));
+        return;
+    }
 
-        var list = draggedEl.getAttribute('data-list');
-        postReorder(list);
+    // Calendar day move.
+    var cell = e.target.closest('.calendar-grid-week .calendar-cell');
+    if (!cell) return;
+    var date = cell.getAttribute('data-date');
+    if (!date) return;
+    e.preventDefault();
+
+    var slug = e.dataTransfer.getData('text/plain');
+    var list = e.dataTransfer.getData('application/x-list');
+    if (!slug || !list) return;
+
+    if (list === 'personal') list = 'todos';
+
+    var body = 'slug=' + encodeURIComponent(slug) + '&list=' + encodeURIComponent(list) + '&date=' + encodeURIComponent(date);
+    fetch('/plan/set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'HX-Request': 'true' },
+        credentials: 'same-origin',
+        body: body
+    }).then(function() {
+        window.location.reload();
     });
+});
 
-    container.addEventListener('dragend', function() {
-        if (draggedEl) {
-            draggedEl.classList.remove('plan-item-dragging');
-        }
-        draggedEl = null;
-        clearDropIndicators();
-        window.planDragInProgress = false;
-        // No manual SSE trigger needed: postReorder writes the file,
-        // the file watcher sends an SSE event, and planDragInProgress
-        // is already false so the swap proceeds normally.
-    });
-})();
+document.addEventListener('dragend', function() {
+    if (draggedEl) {
+        draggedEl.classList.remove('plan-item-dragging');
+    }
+    draggedEl = null;
+    clearDropIndicators();
+    window.planDragInProgress = false;
 
-// --- Calendar week view: drag tasks between days ---
+    // Clean up calendar highlights.
+    var cells = document.querySelectorAll('.calendar-cell-drop-target');
+    for (var i = 0; i < cells.length; i++) {
+        cells[i].classList.remove('calendar-cell-drop-target');
+    }
+    var tasks = document.querySelectorAll('.plan-item-dragging');
+    for (var j = 0; j < tasks.length; j++) {
+        tasks[j].classList.remove('plan-item-dragging');
+    }
+});
 
-(function() {
-    var grid = document.querySelector('.calendar-grid-week');
-    if (!grid) return;
-
-    grid.addEventListener('dragstart', function(e) {
-        var task = e.target.closest('.calendar-task');
-        if (!task) return;
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', task.getAttribute('data-slug'));
-        e.dataTransfer.setData('application/x-list', task.getAttribute('data-list'));
-        task.classList.add('plan-item-dragging');
-        window.planDragInProgress = true;
-    });
-
-    grid.addEventListener('dragover', function(e) {
-        var cell = e.target.closest('.calendar-cell');
-        if (!cell || !cell.getAttribute('data-date')) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        // Clear other highlights.
-        var cells = grid.querySelectorAll('.calendar-cell-drop-target');
-        for (var i = 0; i < cells.length; i++) {
-            if (cells[i] !== cell) cells[i].classList.remove('calendar-cell-drop-target');
-        }
-        cell.classList.add('calendar-cell-drop-target');
-    });
-
-    grid.addEventListener('dragleave', function(e) {
-        var cell = e.target.closest('.calendar-cell');
-        if (cell) cell.classList.remove('calendar-cell-drop-target');
-    });
-
-    grid.addEventListener('drop', function(e) {
-        e.preventDefault();
-        var cell = e.target.closest('.calendar-cell');
-        if (!cell) return;
-        var date = cell.getAttribute('data-date');
-        if (!date) return;
-
-        var slug = e.dataTransfer.getData('text/plain');
-        var list = e.dataTransfer.getData('application/x-list');
-        if (!slug || !list) return;
-
-        // Map list aliases.
-        if (list === 'personal') list = 'todos';
-
-        var body = 'slug=' + encodeURIComponent(slug) + '&list=' + encodeURIComponent(list) + '&date=' + encodeURIComponent(date);
-        fetch('/plan/set', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'HX-Request': 'true' },
-            credentials: 'same-origin',
-            body: body
-        }).then(function() {
-            window.location.reload();
-        });
-    });
-
-    grid.addEventListener('dragend', function() {
-        window.planDragInProgress = false;
-        var cells = grid.querySelectorAll('.calendar-cell-drop-target');
-        for (var i = 0; i < cells.length; i++) {
-            cells[i].classList.remove('calendar-cell-drop-target');
-        }
-        var tasks = grid.querySelectorAll('.plan-item-dragging');
-        for (var j = 0; j < tasks.length; j++) {
-            tasks[j].classList.remove('plan-item-dragging');
-        }
-    });
-})();
+document.addEventListener('dragleave', function(e) {
+    var cell = e.target.closest('.calendar-cell');
+    if (cell) cell.classList.remove('calendar-cell-drop-target');
+});
 
 // --- Mobile fallback: up/down arrow buttons ---
 
@@ -206,7 +193,6 @@ function planMoveUp(btn) {
     var item = btn.closest('.plan-item');
     if (!item) return;
     var prev = item.previousElementSibling;
-    // Skip non-plan-item siblings (like list labels).
     while (prev && !prev.classList.contains('plan-item')) {
         prev = prev.previousElementSibling;
     }
@@ -220,7 +206,6 @@ function planMoveDown(btn) {
     var item = btn.closest('.plan-item');
     if (!item) return;
     var next = item.nextElementSibling;
-    // Skip non-plan-item siblings (like list labels).
     while (next && !next.classList.contains('plan-item')) {
         next = next.nextElementSibling;
     }
