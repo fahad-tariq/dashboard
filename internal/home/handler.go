@@ -403,7 +403,7 @@ func (h *Handler) BulkSetPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	slugs := httputil.ParseCSV(r.FormValue("slugs"))
 	list := strings.TrimSpace(r.FormValue("list"))
 	date := strings.TrimSpace(r.FormValue("date"))
 	if len(slugs) == 0 || list == "" {
@@ -652,7 +652,7 @@ func (h *SingleUserPlanHandlers) BulkSetPlanned(w http.ResponseWriter, r *http.R
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	slugs := httputil.ParseCSV(r.FormValue("slugs"))
 	list := strings.TrimSpace(r.FormValue("list"))
 	date := strings.TrimSpace(r.FormValue("date"))
 	if len(slugs) == 0 || list == "" {

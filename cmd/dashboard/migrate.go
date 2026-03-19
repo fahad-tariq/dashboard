@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/fahad/dashboard/internal/config"
+	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
 )
 
@@ -163,7 +164,7 @@ func migrateOldIdea(path, status string) *ideas.Idea {
 		}
 		switch k {
 		case "tags":
-			idea.Tags = ideas.ParseCSV(v)
+			idea.Tags = httputil.ParseCSV(v)
 		case "type":
 			// Legacy: single type becomes a tag.
 			v = strings.TrimSpace(v)
@@ -171,7 +172,7 @@ func migrateOldIdea(path, status string) *ideas.Idea {
 				idea.Tags = append(idea.Tags, v)
 			}
 		case "images":
-			idea.Images = ideas.ParseCSV(v)
+			idea.Images = httputil.ParseCSV(v)
 		case "suggested-project":
 			idea.Project = strings.TrimSpace(v)
 		case "date":

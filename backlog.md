@@ -4,13 +4,10 @@
 
 ### S (under 2 hours)
 
-- **Edit form drops image captions** -- The tracker edit form (`tracker.html`) sends images via a single comma-separated hidden input. Captions require separate `caption-N` form fields to work with `httputil.ReconstructImages`. Currently captions are lost on save through the edit form. Fix: add individual caption fields per image in the edit form, matching the add-task form pattern.
-- **Consolidate `httputil.ParseCSV` and `ideas.ParseCSV`** -- Two identical CSV-parsing functions exist due to import cycle constraints. Evaluate whether moving `ParseCSV` to a shared leaf package resolves the cycle.
-- **Graduated field resurrection or removal** -- `Graduated` exists in the data model but is unused in UI. Either remove it (simplify) or resurrect as "completed N times, now a habit" celebration.
+- **Edit form drops image captions** -- Investigated: the JS init path correctly populates caption fields even inside collapsed `<details>`. Manual testing needed to confirm, but code analysis shows this is likely not-a-bug.
 
 ### M (2-5 hours)
 
-- **Planner: calendar view** -- `/plan/calendar` with week/month toggle showing planned tasks across days. Depends on `ListPlannedRange` which is already implemented.
 - **Planner: drag-and-drop scheduling** -- Reorder tasks within the daily plan and drag between days in calendar view.
 - **Planner: ironclaw API integration** -- Automated triage via the ironclaw agent using `PUT /api/v1/plan/{slug}` to plan tasks.
 
@@ -22,6 +19,9 @@
 
 ## Done
 
+- Planner calendar view: `/plan/calendar` with week/month toggle, prev/next navigation, responsive grid, `g c` keyboard shortcut
+- Consolidated `ParseCSV` into `httputil.ParseCSV` (removed duplicate from ideas package)
+- Removed unused `Graduated` field from tracker data model (DB column left as harmless DEFAULT 0)
 - Daily planner: `[planned: YYYY-MM-DD]` inline metadata, homepage redesign with Today's Plan section (progress bar, carried-over tasks, task picker with filter), plan/unplan/complete from homepage, plan button on tracker items + bulk plan action, API endpoints (GET/PUT/DELETE `/api/v1/plan`), planner tests (8 tests)
 - Soft delete / trash: items move to trash with `[deleted:]` metadata, "Recently Deleted" sections, restore/purge, auto-purge after 7 days
 - Bulk actions: checkbox select mode, bulk complete/delete/priority/tag, `mutateBatch` atomicity, sticky bulk bar

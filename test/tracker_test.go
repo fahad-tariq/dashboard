@@ -154,23 +154,6 @@ func TestParseTrackerGoalWithDecimals(t *testing.T) {
 	}
 }
 
-func TestParseTrackerGraduatedItem(t *testing.T) {
-	content := "## Work\n\n- [ ] Study system design [graduated]\n"
-	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(content), 0o644)
-
-	items, err := tracker.ParseTracker(path)
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if len(items) != 1 {
-		t.Fatalf("expected 1 item, got %d", len(items))
-	}
-	if !items[0].Graduated {
-		t.Error("expected graduated=true")
-	}
-}
-
 func TestParseTrackerItemWithBody(t *testing.T) {
 	content := "## Work\n\n- [ ] Finish report !high\n  Draft is in Google Docs\n  Due next Friday\n"
 	path := filepath.Join(t.TempDir(), "tracker.md")

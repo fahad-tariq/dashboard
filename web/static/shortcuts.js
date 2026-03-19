@@ -175,6 +175,7 @@ document.addEventListener('keydown', function(e) {
             case 'i': window.location.href = '/ideas'; break;
             case 'f': window.location.href = '/family'; break;
             case 'd': window.location.href = '/digest'; break;
+            case 'c': window.location.href = '/plan/calendar'; break;
         }
     }
 });

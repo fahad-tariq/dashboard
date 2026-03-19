@@ -1,0 +1,99 @@
+{{define "content"}}
+<div class="calendar-page">
+
+<h1>Calendar</h1>
+
+<div class="calendar-controls">
+    <div class="digest-period-toggle">
+        <a href="/plan/calendar?view=week{{if ne .Today ""}}&date={{.Today}}{{end}}" class="filter-tag{{if eq .View "week"}} active{{end}}">Week</a>
+        <a href="/plan/calendar?view=month{{if ne .Today ""}}&date={{.Today}}{{end}}" class="filter-tag{{if eq .View "month"}} active{{end}}">Month</a>
+    </div>
+    <div class="calendar-nav">
+        <a href="/plan/calendar?view={{.View}}&date={{.PrevDate}}" class="action-btn action-btn-sm" aria-label="Previous {{.View}}">&lsaquo;</a>
+        <a href="/plan/calendar?view={{.View}}" class="action-btn action-btn-sm" aria-label="Jump to today">today</a>
+        <a href="/plan/calendar?view={{.View}}&date={{.NextDate}}" class="action-btn action-btn-sm" aria-label="Next {{.View}}">&rsaquo;</a>
+    </div>
+</div>
+
+<p class="calendar-header meta-dim">{{.Header}}</p>
+
+{{if eq .View "week"}}
+{{/* Week view: 7-column grid on desktop, stacked on mobile */}}
+<div class="calendar-grid calendar-grid-week" role="grid">
+    <div class="calendar-weekday-row" role="row">
+        {{range .Days}}<div class="calendar-weekday-label" role="columnheader">{{.Weekday}}</div>{{end}}
+    </div>
+    <div class="calendar-day-row" role="row">
+        {{range .Days}}
+        <div class="calendar-cell{{if .IsToday}} calendar-cell-today{{end}}" role="gridcell"{{if .IsToday}} aria-current="date"{{end}}>
+            <span class="calendar-day-num">{{.Label}}</span>
+            {{if gt .TaskCount 0}}
+            <div class="calendar-tasks">
+                {{$count := 0}}
+                {{range .Personal}}{{if lt $count 3}}
+                <div class="calendar-task" data-priority="{{.Priority}}">
+                    <span class="calendar-task-list meta-dim">P</span>
+                    <span class="calendar-task-title{{if .Done}} calendar-task-done{{end}}">{{.Title}}</span>
+                </div>
+                {{$count = (subtract $count -1)}}{{end}}{{end}}
+                {{range .Family}}{{if lt $count 3}}
+                <div class="calendar-task" data-priority="{{.Priority}}">
+                    <span class="calendar-task-list meta-dim">F</span>
+                    <span class="calendar-task-title{{if .Done}} calendar-task-done{{end}}">{{.Title}}</span>
+                </div>
+                {{$count = (subtract $count -1)}}{{end}}{{end}}
+                {{if gt .TaskCount 3}}
+                <a href="/?date={{.Date}}" class="calendar-more meta-dim">+{{subtract .TaskCount 3}} more</a>
+                {{end}}
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+</div>
+{{else}}
+{{/* Month view: day cells with count badges */}}
+<div class="calendar-grid calendar-grid-month" role="grid">
+    <div class="calendar-weekday-row" role="row">
+        <div class="calendar-weekday-label" role="columnheader">Mon</div>
+        <div class="calendar-weekday-label" role="columnheader">Tue</div>
+        <div class="calendar-weekday-label" role="columnheader">Wed</div>
+        <div class="calendar-weekday-label" role="columnheader">Thu</div>
+        <div class="calendar-weekday-label" role="columnheader">Fri</div>
+        <div class="calendar-weekday-label" role="columnheader">Sat</div>
+        <div class="calendar-weekday-label" role="columnheader">Sun</div>
+    </div>
+    <div class="calendar-month-grid" role="row">
+        {{range $i, $day := .Days}}
+        {{if and (eq $i 0) (ne $day.Weekday "Mon")}}
+            {{/* Pad leading empty cells */}}
+            {{if eq $day.Weekday "Tue"}}<div class="calendar-cell calendar-cell-empty"></div>{{end}}
+            {{if eq $day.Weekday "Wed"}}<div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div>{{end}}
+            {{if eq $day.Weekday "Thu"}}<div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div>{{end}}
+            {{if eq $day.Weekday "Fri"}}<div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div>{{end}}
+            {{if eq $day.Weekday "Sat"}}<div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div>{{end}}
+            {{if eq $day.Weekday "Sun"}}<div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div>{{end}}
+        {{end}}
+        <div class="calendar-cell calendar-cell-month{{if $day.IsToday}} calendar-cell-today{{end}}" role="gridcell"{{if $day.IsToday}} aria-current="date"{{end}}>
+            {{if gt $day.TaskCount 0}}
+            <a href="/?date={{$day.Date}}" class="calendar-day-link">
+                <span class="calendar-day-num">{{$day.Label}}</span>
+                <span class="calendar-count-badge">{{$day.TaskCount}}</span>
+            </a>
+            {{else}}
+            <span class="calendar-day-num">{{$day.Label}}</span>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+</div>
+{{end}}
+
+{{$hasAny := false}}
+{{range .Days}}{{if gt .TaskCount 0}}{{$hasAny = true}}{{end}}{{end}}
+{{if not $hasAny}}
+<p class="empty">No tasks planned for this {{.View}}.</p>
+{{end}}
+
+</div>
+{{end}}

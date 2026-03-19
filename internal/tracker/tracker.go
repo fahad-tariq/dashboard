@@ -27,9 +27,8 @@ type Item struct {
 	Current   float64  // goals only
 	Target    float64  // goals only
 	Unit      string   // goals only (e.g. "kg", "books")
-	Done      bool
-	Graduated bool
-	Body      string
+	Done bool
+	Body string
 	Added     string   // date added, YYYY-MM-DD
 	Completed string   // date completed, YYYY-MM-DD
 	Deadline  string   // goals only, YYYY-MM-DD
@@ -226,12 +225,6 @@ func parseItemLine(raw string, done bool) *Item {
 		title = strings.TrimSpace(deletedRe.ReplaceAllString(title, ""))
 	}
 
-	// Extract graduated marker.
-	if strings.Contains(title, "[graduated]") {
-		item.Graduated = true
-		title = strings.TrimSpace(strings.Replace(title, "[graduated]", "", 1))
-	}
-
 	item.Title = strings.TrimSpace(title)
 	item.Slug = Slugify(item.Title)
 
@@ -289,9 +282,6 @@ func writeItem(sb *strings.Builder, it Item) {
 	}
 	if len(it.Images) > 0 {
 		sb.WriteString(" [images: " + strings.Join(it.Images, ", ") + "]")
-	}
-	if it.Graduated {
-		sb.WriteString(" [graduated]")
 	}
 	if it.DeletedAt != "" {
 		sb.WriteString(" [deleted: " + it.DeletedAt + "]")

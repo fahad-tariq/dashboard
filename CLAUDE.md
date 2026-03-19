@@ -25,6 +25,8 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 
 **Auto-promote carried-over:** `renderHomePage` merges overdue items into the planned lists so they appear inline rather than in a separate section. Carried-over items are detected in the template by `Planned < Today` and styled with a dotted peach left-border plus a `relativeDate` label. A "drop all carried" banner (POST `/plan/bulk/clear-carried`) lets users dismiss all overdue items at once. Summary cards (`topTasksExcluding`) exclude planned/carried-over slugs so they don't duplicate the plan section. `PlanPrompt` rotates by weekday for the empty-plan state.
 
+**Calendar** (`internal/home/calendar.go`): `/plan/calendar` shows planned tasks across days in week or month view. `BuildCalendarDays` is a pure function that groups items by date. Week view: 7-column CSS grid (stacked on mobile), capped at 3 tasks per cell with "+N more" linking to `/?date=`. Month view: day cells with count badges linking to the homepage. Navigation via prev/next links and a "today" button. No JS required. Keyboard shortcut `g c`.
+
 **API scoping:** Bearer token API uses the service registry for user 1's data. Per-user API tokens are not implemented -- can be added by mapping tokens to user IDs.
 </ARCHITECTURE>
 
@@ -69,8 +71,6 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 **Converted idea linkage survives soft-delete:** Trashing a converted idea does NOT affect the linked task (and vice versa). Permanent delete of either side leaves a dangling `[from-idea:]`/`[converted-to:]` reference -- accepted limitation.
 
 **Caption XSS prevention:** `splitImageCaption` template function returns plain strings, never `template.HTML`. Following the `linkify` pattern (which returns `template.HTML`) would bypass all escaping. `SanitiseCaption` strips `|,]<>"` and truncates to 200 runes.
-
-**`httputil.ParseCSV` vs `ideas.ParseCSV`:** Both exist. `httputil.ParseCSV` is used internally by `ReconstructImages`. `ideas.ParseCSV` is used by handlers for tags and slugs. Consolidating would require a larger import refactor.
 
 **Planner dual-mode handlers:** Plan routes need to work in both auth-enabled and single-user modes. Auth mode uses `home.Handler` methods (which resolve services per-request via the registry). Single-user mode uses `home.SingleUserPlanHandlers` closures over fixed service instances. Both are wired as `http.HandlerFunc` variables in `main.go` and passed to `mountAppRoutes`. The API plan handlers are similarly set in both branches.
 

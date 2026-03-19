@@ -311,6 +311,7 @@ func main() {
 		homeHandler := home.NewHandler(registry, templates)
 		homePage = homeHandler.HomePage
 		digestPage := homeHandler.DigestPage
+		calendarPage := homeHandler.CalendarPage
 		planSetHandler = homeHandler.SetPlanned
 		planClearHandler = homeHandler.ClearPlanned
 		planCompleteHandler = homeHandler.CompletePlanned
@@ -389,7 +390,7 @@ func main() {
 			r.Get("/account/password", http.RedirectHandler("/account", http.StatusMovedPermanently).ServeHTTP)
 			r.Post("/account/password", acctHandler.PasswordSubmit)
 
-			mountAppRoutes(r, homePage, digestPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler)
+			mountAppRoutes(r, homePage, digestPage, calendarPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler)
 		})
 
 		purgeFunc = func() {
@@ -471,6 +472,7 @@ func main() {
 		})
 		homePage = home.HomePageSingle(personalSvc, familySvc, ideaSvc, templates)
 		digestPage := home.DigestPageSingle(personalSvc, familySvc, ideaSvc, templates)
+		calendarPage := home.CalendarPageSingle(personalSvc, familySvc, ideaSvc, templates)
 
 		singlePlan := home.NewSingleUserPlanHandlers(personalSvc, familySvc)
 		planSetHandler = singlePlan.SetPlanned
@@ -484,7 +486,7 @@ func main() {
 		apiPlanClearHandler = home.APIClearPlan(personalSvc, familySvc)
 
 		r.Get("/events", broker.ServeHTTP)
-		mountAppRoutes(r, homePage, digestPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler)
+		mountAppRoutes(r, homePage, digestPage, calendarPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler)
 
 		purgeFunc = func() {
 			if err := personalSvc.PurgeExpired(trashRetentionDays); err != nil {
@@ -596,13 +598,14 @@ func runUserAdd() {
 	fmt.Printf("created user %q with id %d\n", *email, id)
 }
 
-func mountAppRoutes(r chi.Router, homePage http.HandlerFunc, digestPage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string, planSet, planClear, planComplete, planBulkSet, planClearCarried http.HandlerFunc) {
+func mountAppRoutes(r chi.Router, homePage, digestPage, calendarPage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string, planSet, planClear, planComplete, planBulkSet, planClearCarried http.HandlerFunc) {
 	r.Post("/upload", uploadHandler.Upload)
 	r.Handle("/uploads/*", cacheImmutable(http.StripPrefix("/uploads/", noDirectoryListing(http.Dir(uploadsDir)))))
 
 	r.Get("/search", searchHandler.SearchAPI)
 	r.Get("/", homePage)
 	r.Get("/digest", digestPage)
+	r.Get("/plan/calendar", calendarPage)
 
 	// Daily planner routes.
 	r.Post("/plan/set", planSet)
@@ -702,7 +705,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		return nil, fmt.Errorf("parsing layout: %w", err)
 	}
 
-	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "homepage.html", "digest.html", "admin-users.html", "admin-user-form.html", "admin-password.html", "account.html"}
+	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "homepage.html", "digest.html", "calendar.html", "admin-users.html", "admin-user-form.html", "admin-password.html", "account.html"}
 	templates := make(map[string]*template.Template, len(pages))
 
 	for _, page := range pages {

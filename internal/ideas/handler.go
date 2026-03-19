@@ -171,7 +171,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	idea := &Idea{
 		Slug:   Slugify(title),
 		Title:  title,
-		Tags:   ParseCSV(r.FormValue("tags")),
+		Tags:   httputil.ParseCSV(r.FormValue("tags")),
 		Images: httputil.ReconstructImages(r),
 		Added:  time.Now().Format("2006-01-02"),
 		Body:   strings.TrimSpace(r.FormValue("body")),
@@ -237,7 +237,7 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 
 	title := strings.TrimSpace(r.FormValue("title"))
 	body := strings.TrimSpace(r.FormValue("body"))
-	tags := ParseCSV(r.FormValue("tags"))
+	tags := httputil.ParseCSV(r.FormValue("tags"))
 	images := httputil.ReconstructImages(r)
 
 	svc := h.resolve(r)
@@ -289,7 +289,7 @@ func (h *Handler) BulkDeleteIdeas(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := ParseCSV(r.FormValue("slugs"))
+	slugs := httputil.ParseCSV(r.FormValue("slugs"))
 	if len(slugs) == 0 {
 		http.Error(w, "No ideas selected", http.StatusBadRequest)
 		return
@@ -308,7 +308,7 @@ func (h *Handler) BulkTriageIdeas(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := ParseCSV(r.FormValue("slugs"))
+	slugs := httputil.ParseCSV(r.FormValue("slugs"))
 	if len(slugs) == 0 {
 		http.Error(w, "No ideas selected", http.StatusBadRequest)
 		return

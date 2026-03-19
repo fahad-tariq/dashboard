@@ -14,7 +14,6 @@ import (
 
 	"github.com/fahad/dashboard/internal/auth"
 	"github.com/fahad/dashboard/internal/httputil"
-	"github.com/fahad/dashboard/internal/ideas"
 )
 
 var PriorityWeight = map[string]int{"high": 0, "medium": 1, "low": 2, "": 3}
@@ -270,7 +269,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		Type:     TaskType,
 		Priority: sanitisePriority(r.FormValue("priority")),
 		Body:     strings.TrimSpace(r.FormValue("body")),
-		Tags:     ideas.ParseCSV(r.FormValue("tags")),
+		Tags:     httputil.ParseCSV(r.FormValue("tags")),
 		Images:   httputil.ReconstructImages(r),
 	}
 
@@ -307,7 +306,7 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 		Unit:     strings.TrimSpace(r.FormValue("unit")),
 		Deadline: strings.TrimSpace(r.FormValue("deadline")),
 		Body:     strings.TrimSpace(r.FormValue("body")),
-		Tags:     ideas.ParseCSV(r.FormValue("tags")),
+		Tags:     httputil.ParseCSV(r.FormValue("tags")),
 		Images:   httputil.ReconstructImages(r),
 	}
 
@@ -459,7 +458,7 @@ func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	tags := ideas.ParseCSV(r.FormValue("tags"))
+	tags := httputil.ParseCSV(r.FormValue("tags"))
 	svc, _ := h.resolve(r)
 	if err := svc.UpdateTags(slug, tags); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
@@ -477,7 +476,7 @@ func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 
 	title := strings.TrimSpace(r.FormValue("title"))
 	body := strings.TrimSpace(r.FormValue("body"))
-	tags := ideas.ParseCSV(r.FormValue("tags"))
+	tags := httputil.ParseCSV(r.FormValue("tags"))
 	images := httputil.ReconstructImages(r)
 
 	svc, _ := h.resolve(r)
@@ -494,7 +493,7 @@ func (h *Handler) BulkComplete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	slugs := httputil.ParseCSV(r.FormValue("slugs"))
 	if len(slugs) == 0 {
 		http.Error(w, "No items selected", http.StatusBadRequest)
 		return
@@ -512,7 +511,7 @@ func (h *Handler) BulkDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	slugs := httputil.ParseCSV(r.FormValue("slugs"))
 	if len(slugs) == 0 {
 		http.Error(w, "No items selected", http.StatusBadRequest)
 		return
@@ -530,7 +529,7 @@ func (h *Handler) BulkPriority(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	slugs := httputil.ParseCSV(r.FormValue("slugs"))
 	if len(slugs) == 0 {
 		http.Error(w, "No items selected", http.StatusBadRequest)
 		return
@@ -549,7 +548,7 @@ func (h *Handler) BulkAddTag(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	slugs := httputil.ParseCSV(r.FormValue("slugs"))
 	if len(slugs) == 0 {
 		http.Error(w, "No items selected", http.StatusBadRequest)
 		return
@@ -583,7 +582,7 @@ func (h *Handler) BulkPlanForToday(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := ideas.ParseCSV(r.FormValue("slugs"))
+	slugs := httputil.ParseCSV(r.FormValue("slugs"))
 	if len(slugs) == 0 {
 		http.Error(w, "No items selected", http.StatusBadRequest)
 		return

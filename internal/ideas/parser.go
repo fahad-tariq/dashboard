@@ -212,18 +212,3 @@ func Slugify(title string) string {
 	return slug.Slugify(title)
 }
 
-// ParseCSV splits a comma-separated string into trimmed non-empty parts.
-func ParseCSV(raw string) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil
-	}
-	var out []string
-	for v := range strings.SplitSeq(raw, ",") {
-		v = strings.TrimSpace(v)
-		if v != "" {
-			out = append(out, v)
-		}
-	}
-	return out
-}
