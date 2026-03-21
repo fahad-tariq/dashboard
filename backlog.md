@@ -9,12 +9,11 @@
 ### Ideas
 
 - **Ironclaw PA commentary on dashboard items** -- Integrate commentary from ironclaw (Claude instance, currently AWS-hosted, may move to local nanoclaw) into the dashboard. Ironclaw would write its thoughts, suggestions, and actionable guidance for each task, exploration item, and idea to a separate data location. The dashboard reads and displays this commentary when a user clicks into an item. Ironclaw's prompt and behaviour are managed separately (via Slack); the dashboard only needs to consume and render the linked commentary data.
-- **Personality slider** -- User preference for interface tone: minimal vs chatty vs playful. Adjusts copy and animations per preference.
-- **Seasonal/contextual touches** -- Reflect time of day, seasons, or streaks in the visual language.
 - **Google Calendar sync** -- Bidirectional sync between planner and Google Calendar (personal + family calendars). Key design point: calendar events and tasks are many-to-many, not 1:1. A single task may span multiple calendar events across different days (e.g. step 1 on day 1, step 2 on day 8). Push task steps/sub-items to calendar, pull events back into the planner view. Requires OAuth2 with Google Calendar API scopes. Needs a linking model to track which calendar events belong to which task (and which part of it). Family calendar support means writing to shared/secondary calendars, not just the user's primary.
 
 ## Done
 
+- Personality and seasonal touches: seasonal accent hue shift (southern hemisphere, HSL injection via layout), varied greetings with name and streak milestones, rotating flash messages for celebratory actions, context-aware plan prompts, warmer empty-state copy, plan-done message rotation. No personality toggle -- research showed no shipping app offers one. 20 new tests.
 - Planner drag-and-drop scheduling: homepage reorder within plan, calendar week view drag between days, mobile arrow button fallback, SSE-resilient event delegation
 - Edit form drops image captions -- confirmed not-a-bug via code analysis. JS init, caption fields, and ReconstructImages all work correctly including inside collapsed details.
 

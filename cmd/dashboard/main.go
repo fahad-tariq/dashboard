@@ -32,6 +32,7 @@ import (
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/insights"
 	"github.com/fahad/dashboard/internal/search"
+	"github.com/fahad/dashboard/internal/seasonal"
 	"github.com/fahad/dashboard/internal/services"
 	"github.com/fahad/dashboard/internal/sse"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -108,6 +109,17 @@ func buildFuncMap(loc *time.Location) template.FuncMap {
 		},
 		"formatDateLabel": func() string {
 			return time.Now().In(loc).Format("Monday, 2 January")
+		},
+		"seasonalAccent": func() int {
+			return seasonal.AccentHue(time.Now().In(loc))
+		},
+		"planDoneMessage": func() string {
+			return httputil.RotatingFlash("plan-done", []string{
+				"All done for the day.",
+				"That's the lot.",
+				"Nothing left.",
+				"Clear plate.",
+			}, time.Now().In(loc))
 		},
 		"linkify": func(text string) template.HTML {
 			var b strings.Builder

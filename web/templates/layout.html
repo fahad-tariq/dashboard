@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{.Title}} - dash</title>
     <link rel="stylesheet" href="/static/theme.css">
+    <style>
+        :root, [data-theme="light"] { --accent: hsl({{seasonalAccent}}, 68%, 40%); }
+        [data-theme="dark"] { --accent: hsl({{seasonalAccent}}, 78%, 74%); }
+    </style>
     <script>
         (function() {
             var t = localStorage.getItem('theme');

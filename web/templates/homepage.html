@@ -5,13 +5,13 @@
      hx-trigger="sse:file-changed">
 <span class="htmx-indicator meta-dim">updating&hellip;</span>
 
-{{if .Greeting}}<h1 class="homepage-greeting">{{.Greeting}}{{if .UserName}}, {{.UserName}}{{end}}</h1>{{end}}
+{{if .Greeting}}<h1 class="homepage-greeting">{{.Greeting}}</h1>{{end}}
 {{if .DateLabel}}<p class="plan-date-label">{{.DateLabel}} &middot; <a href="/plan/calendar" class="meta-dim">calendar</a></p>{{end}}
 
 {{if .FlashMsg}}<div class="flash-msg">{{.FlashMsg}}</div>{{end}}
 
 {{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .TotalIdeaCount 0)}}
-<p class="empty">Welcome{{if .UserName}}, {{.UserName}}{{end}}. Your todos, goals, and ideas will appear here once you start adding them.</p>
+<p class="empty">Nothing here yet. Add a task or capture an idea to get started.</p>
 {{else}}
 
 {{if or .InsightLine.ThisWeek .InsightLine.LastWeek .StreakDays .MilestoneBadge}}
@@ -40,7 +40,7 @@
     {{end}}
 
     {{if .PlanAllDone}}
-    <div class="plan-done-state">All done for the day</div>
+    <div class="plan-done-state">{{planDoneMessage}}</div>
     {{end}}
 
     {{if gt .CarriedOverCount 0}}

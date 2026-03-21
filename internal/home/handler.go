@@ -2,6 +2,7 @@ package home
 
 import (
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -46,21 +47,46 @@ func HomePageSingle(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Serv
 	}
 }
 
-// Greeting returns a time-of-day greeting for the given time.
-// 5-11: "Good morning", 12-17: "Good afternoon", 18-4: "Good evening".
-func Greeting(now time.Time) string {
+// Greeting returns a time-of-day greeting, optionally personalised with the
+// user's name and contextual suffixes at natural rest points.
+// Greetings rotate by day-of-year for variety without randomness.
+func Greeting(now time.Time, name string, streakDays int, planAllDone bool) string {
 	hour := now.Hour()
+	doy := now.YearDay()
+
+	var base string
 	switch {
 	case hour >= 5 && hour <= 11:
-		return "Good morning"
+		pool := []string{"Good morning", "Morning"}
+		base = pool[doy%len(pool)]
 	case hour >= 12 && hour <= 17:
-		return "Good afternoon"
+		pool := []string{"Good afternoon", "Afternoon"}
+		base = pool[doy%len(pool)]
 	default:
-		return "Good evening"
+		pool := []string{"Good evening", "Evening"}
+		base = pool[doy%len(pool)]
+	}
+
+	if name != "" {
+		base += ", " + name
+	}
+
+	// Contextual suffixes -- rare triggers only.
+	switch {
+	case isStreakMilestone(streakDays) && hour >= 5 && hour <= 11:
+		return fmt.Sprintf("%s. %d-day streak.", base, streakDays)
+	case planAllDone && hour >= 12:
+		return base + ". All clear for today."
+	default:
+		return base
 	}
 }
 
-var planPrompts = []string{
+func isStreakMilestone(days int) bool {
+	return days == 7 || days == 14 || days == 30 || days == 60 || days == 90 || days == 180 || days == 365
+}
+
+var defaultPlanPrompts = []string{
 	"Anything for today?",        // Sunday
 	"What needs doing?",          // Monday
 	"What matters today?",        // Tuesday
@@ -68,6 +94,22 @@ var planPrompts = []string{
 	"What would make today good?", // Thursday
 	"Last stretch of the week",   // Friday
 	"Anything for today?",        // Saturday
+}
+
+// PlanPrompt returns a context-aware prompt for the empty plan state.
+func PlanPrompt(now time.Time, openTaskCount int, streakDays int) string {
+	weekday := now.Weekday()
+
+	switch {
+	case weekday == time.Friday && openTaskCount > 0 && openTaskCount <= 3:
+		return "Nearly there. Anything else?"
+	case isStreakMilestone(streakDays):
+		return fmt.Sprintf("Day %d. What's on?", streakDays)
+	case openTaskCount == 0:
+		return "All caught up. Anything new?"
+	default:
+		return defaultPlanPrompts[weekday]
+	}
 }
 
 func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) {
@@ -172,8 +214,10 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 	}
 
 	data := auth.TemplateData(r)
+	planAllDone := planTotal > 0 && planDone == planTotal
+	userName, _ := data["UserName"].(string)
 	data["Title"] = "Home"
-	data["Greeting"] = Greeting(now)
+	data["Greeting"] = Greeting(now, userName, streakDays, planAllDone)
 	data["DateLabel"] = formatDateLabel(now)
 	data["Today"] = today
 	data["PersonalPlanned"] = personalPlanned
@@ -185,8 +229,9 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 	data["UnplannedFamily"] = unplannedFamily
 	data["PlanDoneCount"] = planDone
 	data["PlanTotalCount"] = planTotal
-	data["PlanAllDone"] = planTotal > 0 && planDone == planTotal
-	data["PlanPrompt"] = planPrompts[now.Weekday()]
+	data["PlanAllDone"] = planAllDone
+	openTaskCount := countOpenTasks(personalItems) + countOpenTasks(familyItems)
+	data["PlanPrompt"] = PlanPrompt(now, openTaskCount, streakDays)
 	// Build set of planned slugs to exclude from summary cards.
 	plannedSlugs := make(map[string]bool)
 	for _, it := range personalPlanned {
@@ -212,7 +257,7 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 	data["TagSummaries"] = tagSummaries
 
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
-		if flashMsg := planFlashMessages[msgKey]; flashMsg != "" {
+		if flashMsg := resolvePlanFlash(msgKey, now); flashMsg != "" {
 			data["FlashMsg"] = flashMsg
 		}
 	}
@@ -322,12 +367,22 @@ func (h *Handler) resolveServices(r *http.Request) (*tracker.Service, *tracker.S
 }
 
 var planFlashMessages = map[string]string{
-	"plan-set":            "Added to today's plan.",
-	"plan-cleared":        "Removed from plan.",
-	"plan-completed":      "Nice one -- task completed.",
-	"plan-bulk-set":       "Tasks added to today's plan.",
-	"carried-cleared":     "Carried-over tasks dropped.",
-	"plan-reordered":      "Plan order updated.",
+	"plan-cleared":    "Removed from plan.",
+	"plan-bulk-set":   "Tasks added to today's plan.",
+	"carried-cleared": "Carried-over tasks dropped.",
+	"plan-reordered":  "Plan order updated.",
+}
+
+var rotatingPlanFlash = map[string][]string{
+	"plan-set":       {"Planned.", "On today's list.", "Locked in."},
+	"plan-completed": {"Done.", "Nice one.", "Sorted.", "Ticked off."},
+}
+
+func resolvePlanFlash(key string, now time.Time) string {
+	if variants, ok := rotatingPlanFlash[key]; ok {
+		return httputil.RotatingFlash(key, variants, now)
+	}
+	return planFlashMessages[key]
 }
 
 // SetPlanned handles POST /plan/set -- adds a task to the daily plan.

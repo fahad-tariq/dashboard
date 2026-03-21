@@ -26,7 +26,6 @@ type ServiceResolver func(r *http.Request) *Service
 
 var flashMessages = map[string]string{
 	"title-required": "A title is required.",
-	"idea-added":     "Idea captured.",
 	"idea-triaged":   "Status updated.",
 	"idea-edited":    "Changes saved.",
 	"idea-converted": "Idea converted to a task -- check your todos.",
@@ -35,6 +34,17 @@ var flashMessages = map[string]string{
 	"idea-purged":    "Idea permanently deleted.",
 	"bulk-deleted":   "Ideas moved to trash.",
 	"bulk-triaged":   "Ideas triaged.",
+}
+
+var rotatingFlashMessages = map[string][]string{
+	"idea-added": {"Captured.", "Noted.", "Saved for later."},
+}
+
+func resolveFlash(key string, now time.Time) string {
+	if variants, ok := rotatingFlashMessages[key]; ok {
+		return httputil.RotatingFlash(key, variants, now)
+	}
+	return flashMessages[key]
 }
 
 var flashErrorKeys = map[string]bool{
@@ -121,7 +131,7 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 	data["Converted"] = grouped["converted"]
 	data["DeletedIdeas"] = deletedIdeas
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
-		if flashMsg := flashMessages[msgKey]; flashMsg != "" {
+		if flashMsg := resolveFlash(msgKey, time.Now().In(h.loc)); flashMsg != "" {
 			data["FlashMsg"] = flashMsg
 			data["FlashError"] = flashErrorKeys[msgKey]
 		}

@@ -20,25 +20,35 @@ var PriorityWeight = map[string]int{"high": 0, "medium": 1, "low": 2, "": 3}
 var validPriorities = map[string]bool{"": true, "high": true, "medium": true, "low": true}
 
 var flashMessages = map[string]string{
-	"title-required":    "A title is required.",
-	"task-added":        "Task added.",
-	"goal-added":        "Goal added.",
-	"task-completed":    "Nice one -- task completed.",
-	"task-uncompleted":  "Task reopened.",
-	"notes-updated":     "Notes saved.",
-	"priority-updated":  "Priority updated.",
-	"tags-updated":      "Tags updated.",
-	"item-updated":      "Changes saved.",
-	"item-deleted":      "Item moved to trash.",
-	"item-moved":        "Moved to the other list.",
-	"item-restored":     "Item restored from trash.",
-	"item-purged":       "Item permanently deleted.",
-	"bulk-completed":    "Items completed.",
-	"bulk-deleted":      "Items moved to trash.",
-	"bulk-priority":     "Priority updated for selected items.",
-	"bulk-tagged":       "Tag added to selected items.",
-	"plan-set":          "Added to today's plan.",
-	"bulk-planned":      "Tasks added to today's plan.",
+	"title-required":   "A title is required.",
+	"task-uncompleted": "Task reopened.",
+	"notes-updated":    "Notes saved.",
+	"priority-updated": "Priority updated.",
+	"tags-updated":     "Tags updated.",
+	"item-updated":     "Changes saved.",
+	"item-deleted":     "Item moved to trash.",
+	"item-moved":       "Moved to the other list.",
+	"item-restored":    "Item restored from trash.",
+	"item-purged":      "Item permanently deleted.",
+	"bulk-deleted":     "Items moved to trash.",
+	"bulk-priority":    "Priority updated for selected items.",
+	"bulk-tagged":      "Tag added to selected items.",
+	"bulk-planned":     "Tasks added to today's plan.",
+}
+
+var rotatingFlashMessages = map[string][]string{
+	"task-added":     {"Added.", "On the list.", "Captured."},
+	"goal-added":     {"Added.", "Tracked."},
+	"task-completed": {"Done.", "Nice one.", "Sorted.", "Ticked off."},
+	"bulk-completed": {"Done.", "All sorted.", "Ticked off."},
+	"plan-set":       {"Planned.", "On today's list.", "Locked in."},
+}
+
+func resolveFlash(key string, now time.Time) string {
+	if variants, ok := rotatingFlashMessages[key]; ok {
+		return httputil.RotatingFlash(key, variants, now)
+	}
+	return flashMessages[key]
 }
 
 var flashErrorKeys = map[string]bool{
@@ -194,7 +204,7 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 	data["Categories"] = allTags
 	data["Priorities"] = priorities
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
-		if flashMsg := flashMessages[msgKey]; flashMsg != "" {
+		if flashMsg := resolveFlash(msgKey, time.Now().In(h.loc)); flashMsg != "" {
 			data["FlashMsg"] = flashMsg
 			data["FlashError"] = flashErrorKeys[msgKey]
 		}
@@ -241,7 +251,7 @@ func (h *Handler) GoalsPage(w http.ResponseWriter, r *http.Request) {
 	data["Categories"] = allTags
 	data["Priorities"] = priorities
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
-		if flashMsg := flashMessages[msgKey]; flashMsg != "" {
+		if flashMsg := resolveFlash(msgKey, time.Now().In(h.loc)); flashMsg != "" {
 			data["FlashMsg"] = flashMsg
 			data["FlashError"] = flashErrorKeys[msgKey]
 		}

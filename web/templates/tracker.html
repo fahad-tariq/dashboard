@@ -178,7 +178,7 @@
 {{end}}
 
 {{if and (not .Tasks) (not .DoneTasks)}}
-<p class="empty">{{if eq .ListName "family"}}No family tasks yet. Use this list to coordinate shared household tasks.{{else}}No tasks yet. Todos are for things you want to get done -- open the form above to add your first.{{end}}</p>
+<p class="empty">{{if eq .ListName "family"}}No family tasks yet. Add shared tasks here.{{else}}No tasks yet. Add one above to get started.{{end}}</p>
 {{end}}
 <p class="empty filter-empty" style="display:none">No tasks match the current filter.</p>
 
