@@ -321,3 +321,15 @@ document.addEventListener('htmx:beforeSwap', function(evt) {
         }
     }, 400);
 });
+
+// Auto-expand and scroll to item when navigating via hash (e.g. /todos#item-slug).
+(function() {
+    if (!window.location.hash) return;
+    var el = document.getElementById(window.location.hash.slice(1));
+    if (!el || !el.classList.contains('tracker-item')) return;
+    if (el.classList.contains('minimised')) {
+        var btn = el.querySelector('.item-toggle');
+        if (btn) toggleItem(btn);
+    }
+    el.scrollIntoView({ block: 'center' });
+})();
