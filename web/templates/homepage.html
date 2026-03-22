@@ -59,7 +59,7 @@
         {{range .PersonalPlanned}}
         <div class="plan-item minimised {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="todos" {{if not .Done}}draggable="true"{{end}}>
             {{if or .Body .Tags .Added}}<button class="plan-item-toggle" onclick="event.stopPropagation();togglePlanItem(this)" aria-expanded="false" title="Expand/collapse">&#x25B8;</button>{{end}}
-            <span class="plan-item-title">{{.Title}}</span>
+            <a href="/todos#item-{{.Slug}}" class="plan-item-title">{{.Title}}</a>
             {{if ne .Planned $.Today}}<span class="plan-item-date meta-dim">from {{relativeDate .Planned}}</span>{{end}}
             <div class="plan-item-actions">
                 {{if not .Done}}
@@ -82,7 +82,6 @@
                     {{if .Body}}<div class="plan-item-body">{{linkify .Body}}</div>{{end}}
                     {{if .Tags}}<div class="plan-item-tags">{{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}</div>{{end}}
                     {{if .Added}}<span class="plan-item-added meta-dim">Added {{.Added}}</span>{{end}}
-                    <a href="/todos#item-{{.Slug}}" class="plan-item-link meta-dim">open in list</a>
                 </div>
             </div>
             {{end}}
@@ -95,7 +94,7 @@
         {{range .FamilyPlanned}}
         <div class="plan-item minimised {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="family" {{if not .Done}}draggable="true"{{end}}>
             {{if or .Body .Tags .Added}}<button class="plan-item-toggle" onclick="event.stopPropagation();togglePlanItem(this)" aria-expanded="false" title="Expand/collapse">&#x25B8;</button>{{end}}
-            <span class="plan-item-title">{{.Title}}</span>
+            <a href="/family#item-{{.Slug}}" class="plan-item-title">{{.Title}}</a>
             {{if ne .Planned $.Today}}<span class="plan-item-date meta-dim">from {{relativeDate .Planned}}</span>{{end}}
             <div class="plan-item-actions">
                 {{if not .Done}}
@@ -118,7 +117,6 @@
                     {{if .Body}}<div class="plan-item-body">{{linkify .Body}}</div>{{end}}
                     {{if .Tags}}<div class="plan-item-tags">{{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}</div>{{end}}
                     {{if .Added}}<span class="plan-item-added meta-dim">Added {{.Added}}</span>{{end}}
-                    <a href="/family#item-{{.Slug}}" class="plan-item-link meta-dim">open in list</a>
                 </div>
             </div>
             {{end}}
