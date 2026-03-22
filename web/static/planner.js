@@ -6,14 +6,14 @@
 window.planDragInProgress = false;
 window.planDetailExpanded = false;
 
-function togglePlanItem(btn) {
-    if (!btn) return;
-    var item = btn.closest('.plan-item');
-    if (!item) return;
+function planItemClick(e) {
+    var item = e.currentTarget;
+    if (!item || !item.classList.contains('plan-item')) return;
     var wasMinimised = item.classList.contains('minimised');
     item.classList.toggle('minimised');
-    btn.innerHTML = wasMinimised ? '\u25BE' : '\u25B8';
-    btn.setAttribute('aria-expanded', String(wasMinimised));
+    var chevron = item.querySelector('.plan-item-toggle');
+    if (chevron) chevron.innerHTML = wasMinimised ? '\u25BE' : '\u25B8';
+    item.setAttribute('aria-expanded', String(wasMinimised));
     // Disable drag on expanded item to prevent accidental drag.
     if (wasMinimised) {
         item.setAttribute('draggable', 'false');
