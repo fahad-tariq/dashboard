@@ -4,6 +4,26 @@
 /* global window, document, fetch, htmx */
 
 window.planDragInProgress = false;
+window.planDetailExpanded = false;
+
+function togglePlanItem(btn) {
+    if (!btn) return;
+    var item = btn.closest('.plan-item');
+    if (!item) return;
+    var wasMinimised = item.classList.contains('minimised');
+    item.classList.toggle('minimised');
+    btn.innerHTML = wasMinimised ? '\u25BE' : '\u25B8';
+    btn.setAttribute('aria-expanded', String(wasMinimised));
+    // Disable drag on expanded item to prevent accidental drag.
+    if (wasMinimised) {
+        item.setAttribute('draggable', 'false');
+    } else if (!item.classList.contains('plan-item-done')) {
+        item.setAttribute('draggable', 'true');
+    }
+    // Update global flag: true if any item is expanded.
+    var expanded = document.querySelectorAll('.plan-item:not(.minimised)');
+    window.planDetailExpanded = expanded.length > 0;
+}
 
 function plannerFilter(query) {
     var items = document.querySelectorAll('.plan-pick-item');

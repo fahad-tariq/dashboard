@@ -286,6 +286,8 @@ document.addEventListener('htmx:afterSwap', function() {
     if (bulkSelectActive) {
         exitSelectMode();
     }
+    // Reset plan detail flag after swap (expanded state is ephemeral).
+    window.planDetailExpanded = false;
 });
 
 // Delay SSE swap when a completion celebration is in progress so the
@@ -296,8 +298,8 @@ document.addEventListener('htmx:beforeSwap', function(evt) {
     var target = evt.detail.target;
     if (!target) return;
 
-    // Suppress SSE swaps while select mode or drag is active.
-    if (bulkSelectActive || window.planDragInProgress) {
+    // Suppress SSE swaps while select mode, drag, or plan detail is expanded.
+    if (bulkSelectActive || window.planDragInProgress || window.planDetailExpanded) {
         evt.detail.shouldSwap = false;
         return;
     }
@@ -333,3 +335,4 @@ document.addEventListener('htmx:beforeSwap', function(evt) {
     }
     el.scrollIntoView({ block: 'center' });
 })();
+

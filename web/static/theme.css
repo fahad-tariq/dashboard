@@ -1881,16 +1881,81 @@ section h2 {
 .plan-item-done { opacity: 0.5; }
 .plan-item-done .plan-item-title { text-decoration: line-through; }
 
+.plan-item-toggle {
+    background: none;
+    border: none;
+    color: var(--fg-muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0.15rem;
+    line-height: 1;
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+}
+.plan-item-toggle:hover {
+    color: var(--fg);
+    background: var(--surface0);
+}
+
 .plan-item-title {
     flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: inherit;
-    text-decoration: none;
+    font-weight: 600;
+    color: var(--fg);
 }
-.plan-item-title:hover { text-decoration: underline; }
+
+/* Expand/collapse animation via grid */
+.plan-item-detail {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.15s ease;
+    flex-basis: 100%;
+}
+.plan-item-detail > * {
+    overflow: hidden;
+}
+.plan-item.minimised .plan-item-detail {
+    grid-template-rows: 0fr;
+}
+.plan-item.minimised .plan-item-detail > * {
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    border: none;
+    visibility: hidden;
+}
+.plan-item-body {
+    margin-top: 0.4rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--fg);
+}
+.plan-item-tags {
+    margin-top: 0.3rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+.plan-item-added {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+}
+.plan-item-link {
+    display: inline-block;
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+}
 
 .plan-item-date { font-size: 0.8rem; }
 
@@ -2037,6 +2102,7 @@ section h2 {
 
 @media (prefers-reduced-motion: reduce) {
     .plan-item, .plan-pick-item { transition: none; }
+    .plan-item-detail { transition: none; }
     .progress-fill-teal { transition: none; }
     .plan-done-state { animation: none; }
     .plan-item-completing { animation: none; }

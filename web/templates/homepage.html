@@ -57,8 +57,9 @@
         {{if .PersonalPlanned}}
         {{if .FamilyPlanned}}<span class="plan-list-label meta-dim">Personal</span>{{end}}
         {{range .PersonalPlanned}}
-        <div class="plan-item {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="todos" {{if not .Done}}draggable="true"{{end}}>
-            <a href="/todos#item-{{.Slug}}" class="plan-item-title">{{.Title}}</a>
+        <div class="plan-item minimised {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="todos" {{if not .Done}}draggable="true"{{end}}>
+            {{if or .Body .Tags .Added}}<button class="plan-item-toggle" onclick="event.stopPropagation();togglePlanItem(this)" aria-expanded="false" title="Expand/collapse">&#x25B8;</button>{{end}}
+            <span class="plan-item-title">{{.Title}}</span>
             {{if ne .Planned $.Today}}<span class="plan-item-date meta-dim">from {{relativeDate .Planned}}</span>{{end}}
             <div class="plan-item-actions">
                 {{if not .Done}}
@@ -75,6 +76,16 @@
                     <button type="submit" class="plan-remove-btn" title="Remove from plan">drop</button>
                 </form>
             </div>
+            {{if or .Body .Tags .Added}}
+            <div class="plan-item-detail">
+                <div>
+                    {{if .Body}}<div class="plan-item-body">{{linkify .Body}}</div>{{end}}
+                    {{if .Tags}}<div class="plan-item-tags">{{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}</div>{{end}}
+                    {{if .Added}}<span class="plan-item-added meta-dim">Added {{.Added}}</span>{{end}}
+                    <a href="/todos#item-{{.Slug}}" class="plan-item-link meta-dim">open in list</a>
+                </div>
+            </div>
+            {{end}}
         </div>
         {{end}}
         {{end}}
@@ -82,8 +93,9 @@
         {{if .FamilyPlanned}}
         {{if .PersonalPlanned}}<span class="plan-list-label meta-dim">Family</span>{{end}}
         {{range .FamilyPlanned}}
-        <div class="plan-item {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="family" {{if not .Done}}draggable="true"{{end}}>
-            <a href="/family#item-{{.Slug}}" class="plan-item-title">{{.Title}}</a>
+        <div class="plan-item minimised {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="family" {{if not .Done}}draggable="true"{{end}}>
+            {{if or .Body .Tags .Added}}<button class="plan-item-toggle" onclick="event.stopPropagation();togglePlanItem(this)" aria-expanded="false" title="Expand/collapse">&#x25B8;</button>{{end}}
+            <span class="plan-item-title">{{.Title}}</span>
             {{if ne .Planned $.Today}}<span class="plan-item-date meta-dim">from {{relativeDate .Planned}}</span>{{end}}
             <div class="plan-item-actions">
                 {{if not .Done}}
@@ -100,6 +112,16 @@
                     <button type="submit" class="plan-remove-btn" title="Remove from plan">drop</button>
                 </form>
             </div>
+            {{if or .Body .Tags .Added}}
+            <div class="plan-item-detail">
+                <div>
+                    {{if .Body}}<div class="plan-item-body">{{linkify .Body}}</div>{{end}}
+                    {{if .Tags}}<div class="plan-item-tags">{{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}</div>{{end}}
+                    {{if .Added}}<span class="plan-item-added meta-dim">Added {{.Added}}</span>{{end}}
+                    <a href="/family#item-{{.Slug}}" class="plan-item-link meta-dim">open in list</a>
+                </div>
+            </div>
+            {{end}}
         </div>
         {{end}}
         {{end}}
