@@ -623,6 +623,71 @@ section h2 {
     color: var(--teal);
     border-color: var(--teal);
 }
+.badge-substeps {
+    color: var(--fg-dim);
+    border-color: var(--surface1);
+    font-variant-numeric: tabular-nums;
+}
+
+/* --- Sub-steps --- */
+.substep-list {
+    margin: 0.25rem 0;
+}
+.substep-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0;
+}
+.substep-item-done .substep-text {
+    text-decoration: line-through;
+    color: var(--fg-muted);
+}
+.substep-form {
+    display: contents;
+}
+.substep-check {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0;
+    color: var(--fg-dim);
+    line-height: 1;
+}
+.substep-check:hover {
+    color: var(--accent);
+}
+.substep-promote,
+.substep-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.7rem;
+    padding: 0.1rem;
+    color: var(--overlay0);
+    visibility: hidden;
+}
+.substep-item:hover .substep-promote,
+.substep-item:hover .substep-remove {
+    visibility: visible;
+}
+.substep-promote:hover {
+    color: var(--accent);
+}
+.substep-remove:hover {
+    color: var(--red);
+}
+.substep-add-form {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+}
+.substep-add-input {
+    flex: 1;
+    font-size: 0.8rem;
+    padding: 0.2rem 0.4rem;
+}
 .badge-clickable {
     cursor: pointer;
     transition: background 0.1s, color 0.1s;

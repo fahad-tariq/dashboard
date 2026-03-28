@@ -121,6 +121,12 @@ func buildFuncMap(loc *time.Location) template.FuncMap {
 				"Clear plate.",
 			}, time.Now().In(loc))
 		},
+		"substeps": func(body string) []tracker.SubStep {
+			return tracker.ParseSubSteps(body)
+		},
+		"bodyText": func(body string) string {
+			return tracker.BodyWithoutSubSteps(body)
+		},
 		"linkify": func(text string) template.HTML {
 			var b strings.Builder
 			last := 0
@@ -679,6 +685,10 @@ func mountTrackerRoutes(r chi.Router, personalHandler, familyHandler *tracker.Ha
 		r.Post(prefix+"/bulk/priority", h.BulkPriority)
 		r.Post(prefix+"/bulk/tag", h.BulkAddTag)
 		r.Post(prefix+"/{slug}/plan", h.PlanForToday)
+		r.Post(prefix+"/{slug}/substep/add", h.AddSubStep)
+		r.Post(prefix+"/{slug}/substep/toggle", h.ToggleSubStep)
+		r.Post(prefix+"/{slug}/substep/remove", h.RemoveSubStep)
+		r.Post(prefix+"/{slug}/substep/promote", h.PromoteSubStep)
 		r.Post(prefix+"/bulk/plan", h.BulkPlanForToday)
 	}
 	r.Post("/todos/add-goal", personalHandler.AddGoal)

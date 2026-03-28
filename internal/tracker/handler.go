@@ -609,6 +609,100 @@ func (h *Handler) BulkPlanForToday(w http.ResponseWriter, r *http.Request) {
 	h.redirectBack(w, r, "", "bulk-planned")
 }
 
+func (h *Handler) AddSubStep(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	text := strings.TrimSpace(r.FormValue("text"))
+	if text == "" {
+		h.redirectBack(w, r, "item-"+slug)
+		return
+	}
+	svc, _ := h.resolve(r)
+	if err := svc.AddSubStep(slug, text); err != nil {
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
+		return
+	}
+	h.redirectBack(w, r, "item-"+slug)
+}
+
+func (h *Handler) ToggleSubStep(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	index, err := strconv.Atoi(r.FormValue("index"))
+	if err != nil {
+		http.Error(w, "Invalid index", http.StatusBadRequest)
+		return
+	}
+	svc, _ := h.resolve(r)
+	if err := svc.ToggleSubStep(slug, index); err != nil {
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
+		return
+	}
+	h.redirectBack(w, r, "item-"+slug)
+}
+
+func (h *Handler) RemoveSubStep(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	index, err := strconv.Atoi(r.FormValue("index"))
+	if err != nil {
+		http.Error(w, "Invalid index", http.StatusBadRequest)
+		return
+	}
+	svc, _ := h.resolve(r)
+	if err := svc.RemoveSubStep(slug, index); err != nil {
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
+		return
+	}
+	h.redirectBack(w, r, "item-"+slug)
+}
+
+func (h *Handler) PromoteSubStep(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	index, err := strconv.Atoi(r.FormValue("index"))
+	if err != nil {
+		http.Error(w, "Invalid index", http.StatusBadRequest)
+		return
+	}
+	svc, _ := h.resolve(r)
+	item, err := svc.Get(slug)
+	if err != nil {
+		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
+		return
+	}
+	steps := ParseSubSteps(item.Body)
+	if index >= len(steps) {
+		http.Error(w, "Sub-step not found", http.StatusBadRequest)
+		return
+	}
+	text := steps[index].Text
+	// Mark the step as done (leaves it as a record) rather than removing it.
+	if !steps[index].Done {
+		if err := svc.ToggleSubStep(slug, index); err != nil {
+			httputil.ServerError(w, "marking sub-step done", err)
+			return
+		}
+	}
+	if err := svc.AddItem(Item{Title: text, Type: TaskType}); err != nil {
+		httputil.ServerError(w, "promoting sub-step to task", err)
+		return
+	}
+	h.redirectBack(w, r, "item-"+slug)
+}
+
 func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 

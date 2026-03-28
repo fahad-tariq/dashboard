@@ -82,6 +82,9 @@ function applyFilter() {
     updateFilterBadge();
 }
 
+// Persistent set of expanded item slugs -- survives SSE swaps.
+var trackerExpandedItems = {};
+
 function toggleItem(btn) {
     if (!btn) return;
     var item = btn.closest('.tracker-item');
@@ -90,6 +93,14 @@ function toggleItem(btn) {
     btn.textContent = minimised ? '\u25B8' : '\u25BE';
     var header = item.querySelector('.tracker-item-header');
     if (header) header.setAttribute('aria-expanded', String(!minimised));
+    var slug = item.getAttribute('data-slug');
+    if (slug) {
+        if (minimised) {
+            delete trackerExpandedItems[slug];
+        } else {
+            trackerExpandedItems[slug] = true;
+        }
+    }
 }
 
 function trackerToggleAll() {
@@ -109,6 +120,14 @@ function trackerToggleAll() {
         if (btn) btn.textContent = shouldMinimise ? '\u25B8' : '\u25BE';
         var header = el.querySelector('.tracker-item-header');
         if (header) header.setAttribute('aria-expanded', String(!shouldMinimise));
+        var slug = el.getAttribute('data-slug');
+        if (slug) {
+            if (shouldMinimise) {
+                delete trackerExpandedItems[slug];
+            } else {
+                trackerExpandedItems[slug] = true;
+            }
+        }
     });
     var toggleBtn = document.querySelector('.filter-toggle');
     if (toggleBtn) toggleBtn.textContent = shouldMinimise ? 'expand' : 'collapse';
@@ -171,6 +190,8 @@ function triageAnimate(form) {
     if (btn) btn.textContent = '\u25BE';
     var header = el.querySelector('.tracker-item-header');
     if (header) header.setAttribute('aria-expanded', 'true');
+    var slug = el.getAttribute('data-slug');
+    if (slug) trackerExpandedItems[slug] = true;
     el.scrollIntoView({block: 'nearest'});
 })();
 
@@ -276,7 +297,7 @@ function confirmBulkDelete(form) {
     return confirmAction(form, 'Delete ' + slugs.length + ' items? This cannot be undone.');
 }
 
-// Re-apply filter and badge after HTMX SSE swap.
+// Re-apply filter, badge, and expand state after HTMX SSE swap.
 document.addEventListener('htmx:afterSwap', function() {
     if (activeFilterType) {
         applyFilter();
@@ -286,6 +307,17 @@ document.addEventListener('htmx:afterSwap', function() {
     if (bulkSelectActive) {
         exitSelectMode();
     }
+    // Re-expand items from the persistent tracker.
+    Object.keys(trackerExpandedItems).forEach(function(slug) {
+        var el = document.getElementById('item-' + slug);
+        if (el && el.classList.contains('minimised')) {
+            el.classList.remove('minimised');
+            var btn = el.querySelector('.item-toggle');
+            if (btn) btn.textContent = '\u25BE';
+            var header = el.querySelector('.tracker-item-header');
+            if (header) header.setAttribute('aria-expanded', 'true');
+        }
+    });
     // Reset plan detail flag after swap (expanded state is ephemeral).
     window.planDetailExpanded = false;
 });
@@ -298,8 +330,10 @@ document.addEventListener('htmx:beforeSwap', function(evt) {
     var target = evt.detail.target;
     if (!target) return;
 
-    // Suppress SSE swaps while select mode, drag, or plan detail is expanded.
-    if (bulkSelectActive || window.planDragInProgress || window.planDetailExpanded) {
+    // Suppress SSE swaps (targeting .tracker-page) while select mode, drag,
+    // plan detail, or any tracker item is expanded.
+    var isSSESwap = target.classList && target.classList.contains('tracker-page');
+    if (isSSESwap && (bulkSelectActive || window.planDragInProgress || window.planDetailExpanded || Object.keys(trackerExpandedItems).length > 0)) {
         evt.detail.shouldSwap = false;
         return;
     }
@@ -331,7 +365,7 @@ document.addEventListener('htmx:beforeSwap', function(evt) {
     if (!el || !el.classList.contains('tracker-item')) return;
     if (el.classList.contains('minimised')) {
         var btn = el.querySelector('.item-toggle');
-        if (btn) toggleItem(btn);
+        if (btn) toggleItem(btn); // toggleItem already tracks in trackerExpandedItems
     }
     el.scrollIntoView({ block: 'center' });
 })();

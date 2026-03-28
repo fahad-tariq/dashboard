@@ -38,6 +38,10 @@ type Item struct {
 	Tags      []string // tags for categorisation and filtering
 	Images    []string // uploaded image filenames
 	DeletedAt string   // soft-delete date, YYYY-MM-DD (empty means not deleted)
+
+	// Computed at parse time from body checkboxes; not stored in the file.
+	SubStepsDone  int
+	SubStepsTotal int
 }
 
 // HasTag returns true if the item has the given tag (case-insensitive).
@@ -68,6 +72,58 @@ var imagesRe = regexp.MustCompile(`\[images:\s*(.*?)\]`)
 var planOrderRe = regexp.MustCompile(`\[plan-order:\s*(\d+)\]`)
 var deletedRe = regexp.MustCompile(`\[deleted:\s*(\d{4}-\d{2}-\d{2})\]`)
 
+// SubStep represents a single checkbox sub-step parsed from the task body.
+type SubStep struct {
+	Text string
+	Done bool
+}
+
+// isSubStepLine returns true if a body line is a sub-step checkbox.
+func isSubStepLine(line string) bool {
+	return strings.HasPrefix(line, "- [ ] ") ||
+		strings.HasPrefix(line, "- [x] ") ||
+		strings.HasPrefix(line, "- [X] ")
+}
+
+// ParseSubSteps extracts sub-step lines from a body string.
+func ParseSubSteps(body string) []SubStep {
+	var steps []SubStep
+	for line := range strings.SplitSeq(body, "\n") {
+		switch {
+		case strings.HasPrefix(line, "- [x] "), strings.HasPrefix(line, "- [X] "):
+			steps = append(steps, SubStep{Text: line[6:], Done: true})
+		case strings.HasPrefix(line, "- [ ] "):
+			steps = append(steps, SubStep{Text: line[6:], Done: false})
+		}
+	}
+	return steps
+}
+
+// BodyWithoutSubSteps returns body text with sub-step lines removed.
+func BodyWithoutSubSteps(body string) string {
+	var lines []string
+	for line := range strings.SplitSeq(body, "\n") {
+		if !isSubStepLine(line) {
+			lines = append(lines, line)
+		}
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+// countSubSteps counts done and total sub-step checkboxes in a body string.
+func countSubSteps(body string) (done, total int) {
+	for line := range strings.SplitSeq(body, "\n") {
+		switch {
+		case strings.HasPrefix(line, "- [x] "), strings.HasPrefix(line, "- [X] "):
+			done++
+			total++
+		case strings.HasPrefix(line, "- [ ] "):
+			total++
+		}
+	}
+	return
+}
+
 // ParseTracker reads a tracker.md file and returns structured items.
 func ParseTracker(path string) ([]Item, error) {
 	data, err := os.ReadFile(path)
@@ -88,6 +144,7 @@ func ParseTracker(path string) ([]Item, error) {
 		if strings.HasPrefix(trimmed, "#") {
 			if current != nil {
 				current.Body = strings.TrimSpace(current.Body)
+				current.SubStepsDone, current.SubStepsTotal = countSubSteps(current.Body)
 				items = append(items, *current)
 				current = nil
 			}
@@ -95,13 +152,17 @@ func ParseTracker(path string) ([]Item, error) {
 		}
 
 		// Checkbox lines: - [ ] Title or - [x] Title.
-		if title, done := parseCheckbox(trimmed); title != "" {
-			if current != nil {
-				current.Body = strings.TrimSpace(current.Body)
-				items = append(items, *current)
+		// Only non-indented lines start new items; indented checkbox lines are body content.
+		if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
+			if title, done := parseCheckbox(trimmed); title != "" {
+				if current != nil {
+					current.Body = strings.TrimSpace(current.Body)
+					current.SubStepsDone, current.SubStepsTotal = countSubSteps(current.Body)
+					items = append(items, *current)
+				}
+				current = parseItemLine(title, done)
+				continue
 			}
-			current = parseItemLine(title, done)
-			continue
 		}
 
 		if current == nil {
@@ -119,6 +180,7 @@ func ParseTracker(path string) ([]Item, error) {
 
 	if current != nil {
 		current.Body = strings.TrimSpace(current.Body)
+		current.SubStepsDone, current.SubStepsTotal = countSubSteps(current.Body)
 		items = append(items, *current)
 	}
 

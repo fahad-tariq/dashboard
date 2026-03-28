@@ -592,6 +592,74 @@ func TestTrackerServiceBulkInvalidSlugRollsBack(t *testing.T) {
 	}
 }
 
+func TestTrackerServiceAddSubStep(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] Plan party\n  Book a venue\n")
+
+	if err := svc.AddSubStep("plan-party", "Send invitations"); err != nil {
+		t.Fatalf("AddSubStep: %v", err)
+	}
+
+	item, _ := svc.Get("plan-party")
+	if item.SubStepsTotal != 1 {
+		t.Errorf("SubStepsTotal: got %d, want 1", item.SubStepsTotal)
+	}
+	if item.SubStepsDone != 0 {
+		t.Errorf("SubStepsDone: got %d, want 0", item.SubStepsDone)
+	}
+
+	// Add a second step.
+	if err := svc.AddSubStep("plan-party", "Order cake"); err != nil {
+		t.Fatalf("AddSubStep: %v", err)
+	}
+	item, _ = svc.Get("plan-party")
+	if item.SubStepsTotal != 2 {
+		t.Errorf("SubStepsTotal: got %d, want 2", item.SubStepsTotal)
+	}
+}
+
+func TestTrackerServiceToggleSubStep(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] My task\n  - [ ] Step one\n  - [ ] Step two\n")
+
+	// Toggle first step to done.
+	if err := svc.ToggleSubStep("my-task", 0); err != nil {
+		t.Fatalf("ToggleSubStep: %v", err)
+	}
+	item, _ := svc.Get("my-task")
+	if item.SubStepsDone != 1 || item.SubStepsTotal != 2 {
+		t.Errorf("after toggle: got %d/%d, want 1/2", item.SubStepsDone, item.SubStepsTotal)
+	}
+
+	// Toggle first step back to undone.
+	if err := svc.ToggleSubStep("my-task", 0); err != nil {
+		t.Fatalf("ToggleSubStep back: %v", err)
+	}
+	item, _ = svc.Get("my-task")
+	if item.SubStepsDone != 0 {
+		t.Errorf("after untoggle: got %d done, want 0", item.SubStepsDone)
+	}
+}
+
+func TestTrackerServiceRemoveSubStep(t *testing.T) {
+	svc := newTestService(t, "# Tracker\n\n- [ ] My task\n  - [ ] Step one\n  - [x] Step two\n  - [ ] Step three\n")
+
+	// Remove middle step (index 1).
+	if err := svc.RemoveSubStep("my-task", 1); err != nil {
+		t.Fatalf("RemoveSubStep: %v", err)
+	}
+	item, _ := svc.Get("my-task")
+	if item.SubStepsTotal != 2 {
+		t.Errorf("SubStepsTotal: got %d, want 2", item.SubStepsTotal)
+	}
+	if item.SubStepsDone != 0 {
+		t.Errorf("SubStepsDone: got %d, want 0 (removed the done step)", item.SubStepsDone)
+	}
+
+	// Out-of-range index should error.
+	if err := svc.RemoveSubStep("my-task", 99); err == nil {
+		t.Error("expected error for out-of-range index")
+	}
+}
+
 func TestTrackerServicePurgeExpiredMalformedDate(t *testing.T) {
 	// Use a date that matches the regex pattern but is invalid for time.Parse.
 	content := "# Tracker\n\n- [ ] Bad date [deleted: 2026-13-45]\n"

@@ -539,6 +539,117 @@ func TestDeletedAtRoundTrip(t *testing.T) {
 	}
 }
 
+func TestParseTrackerNoSubSteps(t *testing.T) {
+	content := "## Work\n\n- [ ] Write report\n  Draft is in Google Docs\n  Due Friday\n"
+	path := filepath.Join(t.TempDir(), "tracker.md")
+	os.WriteFile(path, []byte(content), 0o644)
+
+	items, err := tracker.ParseTracker(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1, got %d", len(items))
+	}
+	if items[0].SubStepsDone != 0 || items[0].SubStepsTotal != 0 {
+		t.Errorf("expected 0/0 sub-steps, got %d/%d", items[0].SubStepsDone, items[0].SubStepsTotal)
+	}
+}
+
+func TestParseTrackerSubSteps(t *testing.T) {
+	content := "## Work\n\n- [ ] Plan birthday party\n  - [ ] Book venue\n  - [x] Send invitations\n  - [ ] Order cake\n"
+	path := filepath.Join(t.TempDir(), "tracker.md")
+	os.WriteFile(path, []byte(content), 0o644)
+
+	items, err := tracker.ParseTracker(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1, got %d", len(items))
+	}
+	if items[0].SubStepsDone != 1 {
+		t.Errorf("SubStepsDone: got %d, want 1", items[0].SubStepsDone)
+	}
+	if items[0].SubStepsTotal != 3 {
+		t.Errorf("SubStepsTotal: got %d, want 3", items[0].SubStepsTotal)
+	}
+}
+
+func TestParseTrackerSubStepsMixedBody(t *testing.T) {
+	content := "## Work\n\n- [ ] Mixed task\n  Some context text\n  - [x] Done step\n  - [X] Also done\n  - [ ] Not done\n  More notes here\n"
+	path := filepath.Join(t.TempDir(), "tracker.md")
+	os.WriteFile(path, []byte(content), 0o644)
+
+	items, err := tracker.ParseTracker(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1, got %d", len(items))
+	}
+	if items[0].SubStepsDone != 2 {
+		t.Errorf("SubStepsDone: got %d, want 2", items[0].SubStepsDone)
+	}
+	if items[0].SubStepsTotal != 3 {
+		t.Errorf("SubStepsTotal: got %d, want 3", items[0].SubStepsTotal)
+	}
+}
+
+func TestParseSubSteps(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		wantDone int
+		wantLen  int
+	}{
+		{"empty body", "", 0, 0},
+		{"no checkboxes", "Some notes\nMore notes", 0, 0},
+		{"all undone", "- [ ] One\n- [ ] Two", 0, 2},
+		{"mixed", "- [ ] One\n- [x] Two\n- [ ] Three", 1, 3},
+		{"uppercase X", "- [X] Done step", 1, 1},
+		{"mixed with text", "Some text\n- [ ] Step\nMore text\n- [x] Done", 1, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			steps := tracker.ParseSubSteps(tt.body)
+			if len(steps) != tt.wantLen {
+				t.Errorf("len: got %d, want %d", len(steps), tt.wantLen)
+			}
+			done := 0
+			for _, s := range steps {
+				if s.Done {
+					done++
+				}
+			}
+			if done != tt.wantDone {
+				t.Errorf("done: got %d, want %d", done, tt.wantDone)
+			}
+		})
+	}
+}
+
+func TestBodyWithoutSubSteps(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{"empty", "", ""},
+		{"no steps", "Some notes\nMore notes", "Some notes\nMore notes"},
+		{"only steps", "- [ ] One\n- [x] Two", ""},
+		{"mixed", "Intro\n- [ ] Step\nTrailing", "Intro\nTrailing"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tracker.BodyWithoutSubSteps(tt.body)
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFromIdeaRoundTrip(t *testing.T) {
 	input := []tracker.Item{
 		{Slug: "converted-task", Title: "Converted task", Type: tracker.TaskType, FromIdea: "original-idea", Added: "2026-03-01"},

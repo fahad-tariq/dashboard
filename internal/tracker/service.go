@@ -48,6 +48,7 @@ func (s *Service) mutate(slug string, fn func(*Item) error) error {
 			if err := fn(&items[i]); err != nil {
 				return err
 			}
+			items[i].SubStepsDone, items[i].SubStepsTotal = countSubSteps(items[i].Body)
 			found = true
 			break
 		}
@@ -265,6 +266,7 @@ func (s *Service) mutateBatch(slugs []string, fn func(*Item) error) error {
 			if err := fn(&items[i]); err != nil {
 				return err
 			}
+			items[i].SubStepsDone, items[i].SubStepsTotal = countSubSteps(items[i].Body)
 			found++
 		}
 	}
@@ -480,6 +482,64 @@ func (s *Service) ListPlannedRange(start, end string) []Item {
 		}
 	}
 	return out
+}
+
+// AddSubStep appends a new unchecked sub-step to the item body.
+func (s *Service) AddSubStep(slug, text string) error {
+	return s.mutate(slug, func(it *Item) error {
+		line := "- [ ] " + strings.TrimSpace(text)
+		if it.Body == "" {
+			it.Body = line
+		} else {
+			it.Body += "\n" + line
+		}
+		return nil
+	})
+}
+
+// ToggleSubStep toggles the done state of the Nth sub-step in the body.
+func (s *Service) ToggleSubStep(slug string, index int) error {
+	return s.mutate(slug, func(it *Item) error {
+		lines := strings.Split(it.Body, "\n")
+		stepIdx := 0
+		for i, line := range lines {
+			if !isSubStepLine(line) {
+				continue
+			}
+			if stepIdx == index {
+				switch {
+				case strings.HasPrefix(line, "- [ ] "):
+					lines[i] = "- [x] " + line[6:]
+				case strings.HasPrefix(line, "- [x] "), strings.HasPrefix(line, "- [X] "):
+					lines[i] = "- [ ] " + line[6:]
+				}
+				it.Body = strings.Join(lines, "\n")
+				return nil
+			}
+			stepIdx++
+		}
+		return fmt.Errorf("sub-step index %d out of range", index)
+	})
+}
+
+// RemoveSubStep removes the Nth sub-step from the body.
+func (s *Service) RemoveSubStep(slug string, index int) error {
+	return s.mutate(slug, func(it *Item) error {
+		lines := strings.Split(it.Body, "\n")
+		stepIdx := 0
+		for i, line := range lines {
+			if !isSubStepLine(line) {
+				continue
+			}
+			if stepIdx == index {
+				lines = append(lines[:i], lines[i+1:]...)
+				it.Body = strings.TrimSpace(strings.Join(lines, "\n"))
+				return nil
+			}
+			stepIdx++
+		}
+		return fmt.Errorf("sub-step index %d out of range", index)
+	})
 }
 
 func (s *Service) Summary() (Summary, error) {
