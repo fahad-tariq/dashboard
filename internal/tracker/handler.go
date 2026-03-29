@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/auth"
+	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/httputil"
 )
 
@@ -64,16 +65,47 @@ func sanitisePriority(p string) string {
 	return ""
 }
 
+var validStatuses = map[string]bool{
+	"todo": true, "active": true, "done": true, "drop": true,
+}
+
+// SanitiseStatus returns the status if it is in the allowlist, otherwise "".
+func SanitiseStatus(s string) string {
+	if validStatuses[s] {
+		return s
+	}
+	return ""
+}
+
+// SanitiseBudget clamps a parsed float to a safe range for SQLite REAL columns.
+// Rejects Inf, NaN, and negative values.
+func SanitiseBudget(f float64) float64 {
+	if f != f || f < 0 { // NaN or negative
+		return 0
+	}
+	const maxBudget = 999999999.99
+	if f > maxBudget {
+		return maxBudget
+	}
+	return f
+}
+
 // ServiceResolver returns the (svc, otherSvc) pair for a request.
 // For personal handlers, svc is the user's personal service and otherSvc is family.
 // For family handlers, svc is family and otherSvc is the user's personal service.
 type ServiceResolver func(r *http.Request) (svc *Service, otherSvc *Service)
 
 type Handler struct {
-	resolve   ServiceResolver
-	templates map[string]*template.Template
-	listName  string
-	loc       *time.Location
+	resolve        ServiceResolver
+	templates      map[string]*template.Template
+	listName       string
+	loc            *time.Location
+	commentarySt   *commentary.Store
+}
+
+// SetCommentaryStore injects a commentary store for displaying ironclaw commentary.
+func (h *Handler) SetCommentaryStore(store *commentary.Store) {
+	h.commentarySt = store
 }
 
 func NewHandler(svc, otherSvc *Service, templates map[string]*template.Template, listName string, loc *time.Location) *Handler {
@@ -198,6 +230,7 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 	data["Title"] = title
 	data["ListName"] = h.listName
 	data["OtherListName"] = h.otherListName()
+	data["HasCommentary"] = h.commentarySt != nil
 	data["Tasks"] = tasks
 	data["DoneTasks"] = doneTasks
 	data["DeletedTasks"] = deletedTasks

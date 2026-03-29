@@ -3,7 +3,7 @@
      hx-ext="sse" sse-connect="/events"
      hx-get="/" hx-select=".homepage-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
-<span class="htmx-indicator meta-dim">updating&hellip;</span>
+<span class="htmx-indicator meta-dim" role="status" aria-live="polite">updating&hellip;</span>
 
 {{if .Greeting}}<h1 class="homepage-greeting">{{.Greeting}}</h1>{{end}}
 {{if .DateLabel}}<p class="plan-date-label">{{.DateLabel}} &middot; <a href="/plan/calendar" class="meta-dim">calendar</a></p>{{end}}
@@ -52,12 +52,12 @@
     </div>
     {{end}}
 
-    {{if or .PersonalPlanned .FamilyPlanned}}
+    {{if or .PersonalPlanned .FamilyPlanned .HousePlanned}}
     <div class="plan-today-tasks">
         {{if .PersonalPlanned}}
-        {{if .FamilyPlanned}}<span class="plan-list-label meta-dim">Personal</span>{{end}}
+        {{if or .FamilyPlanned .HousePlanned}}<span class="plan-list-label meta-dim">Personal</span>{{end}}
         {{range .PersonalPlanned}}
-        <div class="plan-item minimised {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="todos" {{if not .Done}}draggable="true"{{end}} onclick="planItemClick(event)" role="button" aria-expanded="false">
+        <div class="plan-item minimised {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="todos" {{if not .Done}}draggable="true"{{end}} onclick="planItemClick(event)" role="button" tabindex="0" aria-expanded="false">
             <span class="plan-item-toggle">&#x25B8;</span>
             <span class="plan-item-title">{{.Title}}</span>
             {{if ne .Planned $.Today}}<span class="plan-item-date meta-dim">from {{relativeDate .Planned}}</span>{{end}}
@@ -91,7 +91,7 @@
         {{if .FamilyPlanned}}
         {{if .PersonalPlanned}}<span class="plan-list-label meta-dim">Family</span>{{end}}
         {{range .FamilyPlanned}}
-        <div class="plan-item minimised {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="family" {{if not .Done}}draggable="true"{{end}} onclick="planItemClick(event)" role="button" aria-expanded="false">
+        <div class="plan-item minimised {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="family" {{if not .Done}}draggable="true"{{end}} onclick="planItemClick(event)" role="button" tabindex="0" aria-expanded="false">
             <span class="plan-item-toggle">&#x25B8;</span>
             <span class="plan-item-title">{{.Title}}</span>
             {{if ne .Planned $.Today}}<span class="plan-item-date meta-dim">from {{relativeDate .Planned}}</span>{{end}}
@@ -121,14 +121,48 @@
         </div>
         {{end}}
         {{end}}
+
+        {{if .HousePlanned}}
+        <span class="plan-list-label meta-dim">House</span>
+        {{range .HousePlanned}}
+        <div class="plan-item minimised {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="house" {{if not .Done}}draggable="true"{{end}} onclick="planItemClick(event)" role="button" tabindex="0" aria-expanded="false">
+            <span class="plan-item-toggle">&#x25B8;</span>
+            <span class="plan-item-title">{{.Title}}</span>
+            {{if ne .Planned $.Today}}<span class="plan-item-date meta-dim">from {{relativeDate .Planned}}</span>{{end}}
+            <div class="plan-item-actions" onclick="event.stopPropagation()">
+                {{if not .Done}}
+                <button type="button" class="plan-reorder-btn" onclick="planMoveUp(this)" title="Move up">&uarr;</button>
+                <button type="button" class="plan-reorder-btn" onclick="planMoveDown(this)" title="Move down">&darr;</button>
+                <form method="POST" action="/plan/{{.Slug}}/complete" class="inline-form" onsubmit="return celebrateComplete(this)">
+                    <input type="hidden" name="list" value="house">
+                    <button type="submit" class="item-complete-btn" title="Complete">done</button>
+                </form>
+                {{end}}
+                <form method="POST" action="/plan/clear" class="inline-form">
+                    <input type="hidden" name="slug" value="{{.Slug}}">
+                    <input type="hidden" name="list" value="house">
+                    <button type="submit" class="plan-remove-btn" title="Remove from plan">drop</button>
+                </form>
+            </div>
+            <div class="plan-item-detail">
+                <div>
+                    {{if .Body}}<div class="plan-item-body">{{linkify .Body}}</div>{{end}}
+                    {{if .Tags}}<div class="plan-item-tags">{{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}</div>{{end}}
+                    {{if .Added}}<span class="plan-item-added meta-dim">Added {{.Added}}</span>{{end}}
+                    <a href="/house#item-{{.Slug}}" class="plan-item-link meta-dim" onclick="event.stopPropagation()">open in list</a>
+                </div>
+            </div>
+        </div>
+        {{end}}
+        {{end}}
     </div>
     {{end}}
 
     {{/* Task picker */}}
-    {{if or .UnplannedPersonal .UnplannedFamily}}
-    <details class="plan-picker" {{if and (not .PersonalPlanned) (not .FamilyPlanned)}}open{{end}}>
-        <summary class="plan-picker-toggle">{{if or .PersonalPlanned .FamilyPlanned}}Add more tasks{{else}}{{.PlanPrompt}}{{end}}</summary>
-        <input type="text" class="plan-picker-filter form-input" placeholder="Filter tasks..." oninput="plannerFilter(this.value)" id="plan-filter">
+    {{if or .UnplannedPersonal .UnplannedFamily .UnplannedHouse}}
+    <details class="plan-picker" {{if and (not .PersonalPlanned) (not .FamilyPlanned) (not .HousePlanned)}}open{{end}}>
+        <summary class="plan-picker-toggle">{{if or .PersonalPlanned .FamilyPlanned .HousePlanned}}Add more tasks{{else}}{{.PlanPrompt}}{{end}}</summary>
+        <input type="text" class="plan-picker-filter form-input" placeholder="Filter tasks..." oninput="plannerFilter(this.value)" id="plan-filter" aria-label="Filter tasks">
         {{if .UnplannedPersonal}}
         <span class="plan-list-label meta-dim">Personal</span>
         {{range .UnplannedPersonal}}
@@ -165,6 +199,24 @@
         </div>
         {{end}}
         {{end}}
+        {{if .UnplannedHouse}}
+        <span class="plan-list-label meta-dim">House</span>
+        {{range .UnplannedHouse}}
+        <div class="plan-pick-item" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+            <span class="plan-pick-title">{{.Title}}</span>
+            <div class="plan-pick-meta">
+                {{if .Priority}}<span class="badge badge-priority-{{.Priority}}">{{.Priority}}</span>{{end}}
+                {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
+            </div>
+            <form method="POST" action="/plan/set" class="inline-form">
+                <input type="hidden" name="slug" value="{{.Slug}}">
+                <input type="hidden" name="list" value="house">
+                <input type="hidden" name="date" value="{{$.Today}}">
+                <button type="submit" class="action-btn action-btn-sm">today</button>
+            </form>
+        </div>
+        {{end}}
+        {{end}}
     </details>
     {{end}}
 </section>
@@ -174,7 +226,7 @@
 {{if or .PersonalTasks (gt .PersonalTaskCount 0)}}
 <section class="homepage-card homepage-col-left">
     <div class="homepage-card-header">
-        <a href="/todos" class="homepage-card-title">Todos</a>
+        <h2 class="homepage-card-title"><a href="/todos">Todos</a></h2>
         <span><span class="stat-value">{{.PersonalTaskCount}}</span> <span class="meta-dim">open</span></span>
     </div>
     <div class="homepage-card-body">
@@ -193,7 +245,7 @@
 {{if or .FamilyTasks (gt .FamilyTaskCount 0)}}
 <section class="homepage-card homepage-col-left">
     <div class="homepage-card-header">
-        <a href="/family" class="homepage-card-title">Family Tasks</a>
+        <h2 class="homepage-card-title"><a href="/family">Family Tasks</a></h2>
         <span><span class="stat-value">{{.FamilyTaskCount}}</span> <span class="meta-dim">open</span></span>
     </div>
     <div class="homepage-card-body">
@@ -209,10 +261,26 @@
 </section>
 {{end}}
 
+{{if .OverdueMaintenance}}
+<section class="homepage-card homepage-col-left">
+    <div class="homepage-card-header">
+        <h2 class="homepage-card-title"><a href="/house">House Maintenance</a></h2>
+        <span><span class="stat-value">{{.OverdueMaintenanceCount}}</span> <span class="meta-dim">overdue</span></span>
+    </div>
+    <div class="homepage-card-body">
+        {{range .OverdueMaintenance}}
+        <div class="homepage-task homepage-task-overdue">
+            <a href="/house#{{.Slug}}">{{.Title}}</a>
+        </div>
+        {{end}}
+    </div>
+</section>
+{{end}}
+
 {{if .Goals}}
 <section class="homepage-card homepage-col-right">
     <div class="homepage-card-header">
-        <a href="/goals" class="homepage-card-title">Goals</a>
+        <h2 class="homepage-card-title"><a href="/goals">Goals</a></h2>
         <span><span class="stat-value">{{len .Goals}}</span> <span class="meta-dim">active</span></span>
     </div>
     <div class="homepage-card-body">
@@ -236,7 +304,7 @@
 {{if gt .TotalIdeaCount 0}}
 <section class="homepage-card homepage-col-right">
     <div class="homepage-card-header">
-        <a href="/ideas" class="homepage-card-title">Ideas</a>
+        <h2 class="homepage-card-title"><a href="/ideas">Ideas</a></h2>
         <span>{{if gt .UntriagedCount 0}}<span class="stat-value">{{.UntriagedCount}}</span> <span class="meta-dim">untriaged</span> / {{end}}<span class="stat-value">{{.TotalIdeaCount}}</span> <span class="meta-dim">total</span></span>
     </div>
     <div class="homepage-card-body">
@@ -252,7 +320,7 @@
 {{if .TagSummaries}}
 <section class="homepage-card homepage-col-left tag-summary-card">
     <div class="homepage-card-header">
-        <span class="homepage-card-title">Tags</span>
+        <h2 class="homepage-card-title">Tags</h2>
     </div>
     <div class="homepage-card-body">
         {{range .TagSummaries}}

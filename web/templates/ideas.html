@@ -35,7 +35,12 @@
                 </form>
                 {{end}}
                 <form method="POST" action="/ideas/{{.Slug}}/to-task" class="inline-triage">
-                    <button type="submit" class="action-btn action-assign">to todos</button>
+                    <select name="target" class="form-select form-select-sm" aria-label="Convert target">
+                        <option value="personal">personal</option>
+                        <option value="family">family</option>
+                        <option value="house">house</option>
+                    </select>
+                    <button type="submit" class="action-btn action-assign">convert</button>
                 </form>
                 <form method="POST" action="/ideas/{{.Slug}}/delete" class="inline-triage" onsubmit="return confirmAction(this, 'Move this idea to trash?')">
                     <button type="submit" class="action-btn action-drop">trash</button>
@@ -49,9 +54,9 @@
             <details class="tracker-notes-edit">
                 <summary>edit</summary>
                 <form method="POST" action="/ideas/{{.Slug}}/edit" class="tracker-notes-form">
-                    <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input">
-                    <textarea name="body" rows="8" class="form-textarea" placeholder="Description, notes, research...">{{.Body}}</textarea>
-                    <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
+                    <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input" aria-label="Title">
+                    <textarea name="body" rows="8" class="form-textarea" placeholder="Description, notes, research..." aria-label="Description">{{.Body}}</textarea>
+                    <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input" aria-label="Tags">
                     <input type="hidden" name="images" value="{{range $i, $img := .Images}}{{if $i}},{{end}}{{$img}}{{end}}">
                     <button type="submit" class="form-btn form-btn-sm">save</button>
                 </form>
@@ -66,7 +71,7 @@
      hx-ext="sse" sse-connect="/events"
      hx-get="/ideas" hx-select=".ideas-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
-<span class="htmx-indicator">updating&hellip;</span>
+<span class="htmx-indicator" role="status" aria-live="polite">updating&hellip;</span>
 
 <h1>Ideas</h1>
 {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
@@ -211,7 +216,7 @@
     </form>
     <form method="POST" action="/ideas/bulk/triage" id="bulk-triage-form" style="display:inline">
         <input type="hidden" name="slugs" value="">
-        <select name="action" class="form-select-sm">
+        <select name="action" class="form-select-sm" aria-label="Bulk triage action">
             <option value="park">park</option>
             <option value="drop">drop</option>
         </select>

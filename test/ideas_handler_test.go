@@ -45,7 +45,7 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 	personalStore := tracker.NewStore(database, "personal")
 	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
 
-	toTask := func(_ context.Context, title, body string, tags []string, fromIdeaSlug string) (string, error) {
+	toTask := func(_ context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error) {
 		item := tracker.Item{
 			Title:    title,
 			Type:     tracker.TaskType,

@@ -35,6 +35,13 @@
     <div class="markdown-body">{{.BodyHTML}}</div>
 </section>
 
+{{if .CommentaryHTML}}
+<div class="commentary-note">
+    <span class="commentary-label">ironclaw</span>
+    {{.CommentaryHTML}}
+</div>
+{{end}}
+
 {{if not .IsDeleted}}
 <details class="tracker-notes-edit">
     <summary>edit</summary>

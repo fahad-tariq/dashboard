@@ -25,7 +25,7 @@ func TestBuildCalendarDays_Grouping(t *testing.T) {
 
 	start := time.Date(2026, 3, 16, 0, 0, 0, 0, time.UTC) // Monday
 	end := time.Date(2026, 3, 22, 0, 0, 0, 0, time.UTC)   // Sunday
-	days := home.BuildCalendarDays(personal, family, start, end, "2026-03-19")
+	days := home.BuildCalendarDays(personal, family, nil, start, end, "2026-03-19")
 
 	if len(days) != 7 {
 		t.Fatalf("expected 7 days, got %d", len(days))
@@ -71,7 +71,7 @@ func TestBuildCalendarDays_MonthBoundary(t *testing.T) {
 	// Week spanning March/April boundary: Mon 30 Mar - Sun 5 Apr.
 	start := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 4, 5, 0, 0, 0, 0, time.UTC)
-	days := home.BuildCalendarDays(personal, nil, start, end, "2026-04-01")
+	days := home.BuildCalendarDays(personal, nil, nil, start, end, "2026-04-01")
 
 	if len(days) != 7 {
 		t.Fatalf("expected 7 days, got %d", len(days))
@@ -93,7 +93,7 @@ func TestBuildCalendarDays_MonthBoundary(t *testing.T) {
 func TestBuildCalendarDays_Empty(t *testing.T) {
 	start := time.Date(2026, 3, 16, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 3, 22, 0, 0, 0, 0, time.UTC)
-	days := home.BuildCalendarDays(nil, nil, start, end, "2026-03-19")
+	days := home.BuildCalendarDays(nil, nil, nil, start, end, "2026-03-19")
 
 	if len(days) != 7 {
 		t.Fatalf("expected 7 days, got %d", len(days))
@@ -117,6 +117,7 @@ func setupCalendarEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracke
 
 	personalSvc := tracker.NewService(dir+"/personal.md", "Personal", tracker.NewStore(database, "personal"), time.UTC)
 	familySvc := tracker.NewService(dir+"/family.md", "Family", tracker.NewStore(database, "family"), time.UTC)
+	houseProjectsSvc := tracker.NewService(dir+"/house-projects.md", "House", tracker.NewStore(database, "house"), time.UTC)
 
 	funcMap := template.FuncMap{
 		"authEnabled":  func() bool { return false },
@@ -134,7 +135,7 @@ func setupCalendarEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracke
 	)
 	templates["calendar.html"] = tmpl
 
-	handler := home.CalendarPageSingle(personalSvc, familySvc, nil, templates, time.UTC)
+	handler := home.CalendarPageSingle(personalSvc, familySvc, houseProjectsSvc, nil, templates, time.UTC)
 	return handler, personalSvc, familySvc
 }
 

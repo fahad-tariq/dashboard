@@ -49,6 +49,17 @@ var migrations = []string{
 	`ALTER TABLE tracker_items ADD COLUMN deadline TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE tracker_items ADD COLUMN from_idea TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE tracker_items ADD COLUMN planned TEXT NOT NULL DEFAULT ''`,
+	`CREATE TABLE IF NOT EXISTS commentary (
+		item_slug  TEXT NOT NULL,
+		item_list  TEXT NOT NULL,
+		user_id    INTEGER NOT NULL DEFAULT 1,
+		content    TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		PRIMARY KEY (item_slug, item_list, user_id)
+	)`,
+	`ALTER TABLE tracker_items ADD COLUMN budget REAL NOT NULL DEFAULT 0`,
+	`ALTER TABLE tracker_items ADD COLUMN actual REAL NOT NULL DEFAULT 0`,
+	`ALTER TABLE tracker_items ADD COLUMN status TEXT NOT NULL DEFAULT ''`,
 }
 
 func Migrate(db *sql.DB) error {

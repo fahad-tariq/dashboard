@@ -237,6 +237,67 @@ func TestWriteTrackerPreservesBody(t *testing.T) {
 	}
 }
 
+func TestWriteTrackerBudgetStatusRoundTrip(t *testing.T) {
+	input := []tracker.Item{
+		{
+			Slug:   "solar-upgrade",
+			Title:  "Solar upgrade",
+			Type:   tracker.TaskType,
+			Tags:   []string{"energy"},
+			Budget: 15000,
+			Actual: 7700.50,
+			Status: "active",
+		},
+		{
+			Slug:   "paint-fence",
+			Title:  "Paint fence",
+			Type:   tracker.TaskType,
+			Budget: 0,
+			Status: "",
+		},
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "house.md")
+
+	if err := tracker.WriteTracker(path, "House", input); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	output, err := tracker.ParseTracker(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if len(output) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(output))
+	}
+
+	bySlug := map[string]tracker.Item{}
+	for _, it := range output {
+		bySlug[it.Slug] = it
+	}
+
+	solar := bySlug["solar-upgrade"]
+	if solar.Budget != 15000 {
+		t.Errorf("budget: got %f, want 15000", solar.Budget)
+	}
+	if solar.Actual != 7700.50 {
+		t.Errorf("actual: got %f, want 7700.50", solar.Actual)
+	}
+	if solar.Status != "active" {
+		t.Errorf("status: got %q, want %q", solar.Status, "active")
+	}
+	if !solar.HasTag("energy") {
+		t.Error("solar should have energy tag")
+	}
+
+	fence := bySlug["paint-fence"]
+	if fence.Budget != 0 || fence.Actual != 0 || fence.Status != "" {
+		t.Errorf("paint-fence should have zero budget/actual/status: %+v", fence)
+	}
+}
+
 func TestParseQuickAdd(t *testing.T) {
 	tests := []struct {
 		input    string

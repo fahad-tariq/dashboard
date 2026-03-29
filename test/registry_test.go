@@ -22,8 +22,10 @@ func TestEnsureUserDirsCreatesStructure(t *testing.T) {
 	userDataDir := filepath.Join(tmpDir, "users")
 	familyPath := filepath.Join(tmpDir, "family.md")
 	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	houseProjectsPath := filepath.Join(tmpDir, "house-projects.md")
+	os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644)
 
-	reg := services.NewRegistry(database, userDataDir, familyPath, time.UTC)
+	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
 
 	if err := reg.EnsureUserDirs(1); err != nil {
 		t.Fatalf("EnsureUserDirs: %v", err)
@@ -54,8 +56,10 @@ func TestEnsureUserDirsIdempotent(t *testing.T) {
 	userDataDir := filepath.Join(tmpDir, "users")
 	familyPath := filepath.Join(tmpDir, "family.md")
 	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	houseProjectsPath := filepath.Join(tmpDir, "house-projects.md")
+	os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644)
 
-	reg := services.NewRegistry(database, userDataDir, familyPath, time.UTC)
+	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
 
 	// Write some content to personal.md.
 	if err := reg.EnsureUserDirs(1); err != nil {
@@ -85,8 +89,10 @@ func TestForUserReturnsCachedInstances(t *testing.T) {
 	userDataDir := filepath.Join(tmpDir, "users")
 	familyPath := filepath.Join(tmpDir, "family.md")
 	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	houseProjectsPath := filepath.Join(tmpDir, "house-projects.md")
+	os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644)
 
-	reg := services.NewRegistry(database, userDataDir, familyPath, time.UTC)
+	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
 	reg.EnsureUserDirs(1)
 
 	svc1 := reg.ForUser(1)

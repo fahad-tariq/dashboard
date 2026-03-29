@@ -19,6 +19,7 @@ type CalendarDay struct {
 	IsToday   bool
 	Personal  []tracker.Item
 	Family    []tracker.Item
+	House     []tracker.Item
 	TaskCount int
 }
 
@@ -27,17 +28,18 @@ func (h *Handler) CalendarPage(w http.ResponseWriter, r *http.Request) {
 	uid := auth.UserID(r.Context())
 	userSvc := h.registry.ForUser(uid)
 	familySvc := h.registry.Family()
-	renderCalendarPage(w, r, userSvc.Personal, familySvc, h.templates, h.loc)
+	houseProjectsSvc := h.registry.HouseProjects()
+	renderCalendarPage(w, r, userSvc.Personal, familySvc, houseProjectsSvc, h.templates, h.loc)
 }
 
 // CalendarPageSingle returns a handler for GET /plan/calendar in single-user mode.
-func CalendarPageSingle(personalSvc, familySvc *tracker.Service, _ *ideas.Service, templates map[string]*template.Template, loc *time.Location) http.HandlerFunc {
+func CalendarPageSingle(personalSvc, familySvc, houseProjectsSvc *tracker.Service, _ *ideas.Service, templates map[string]*template.Template, loc *time.Location) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		renderCalendarPage(w, r, personalSvc, familySvc, templates, loc)
+		renderCalendarPage(w, r, personalSvc, familySvc, houseProjectsSvc, templates, loc)
 	}
 }
 
-func renderCalendarPage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc *tracker.Service, templates map[string]*template.Template, loc *time.Location) {
+func renderCalendarPage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc, houseProjectsSvc *tracker.Service, templates map[string]*template.Template, loc *time.Location) {
 	view := r.URL.Query().Get("view")
 	if view != "month" {
 		view = "week"
@@ -73,8 +75,9 @@ func renderCalendarPage(w http.ResponseWriter, r *http.Request, personalSvc, fam
 
 	personal := personalSvc.ListPlannedRange(startStr, endStr)
 	family := familySvc.ListPlannedRange(startStr, endStr)
+	houseProjects := houseProjectsSvc.ListPlannedRange(startStr, endStr)
 
-	days := BuildCalendarDays(personal, family, start, end, today)
+	days := BuildCalendarDays(personal, family, houseProjects, start, end, today)
 
 	// Navigation.
 	var prev, next time.Time
@@ -109,15 +112,17 @@ func renderCalendarPage(w http.ResponseWriter, r *http.Request, personalSvc, fam
 }
 
 // BuildCalendarDays groups planned items into day buckets across the date range.
-func BuildCalendarDays(personal, family []tracker.Item, start, end time.Time, today string) []CalendarDay {
+func BuildCalendarDays(personal, family, houseProjects []tracker.Item, start, end time.Time, today string) []CalendarDay {
 	personalByDate := groupByDate(personal)
 	familyByDate := groupByDate(family)
+	houseByDate := groupByDate(houseProjects)
 
 	var days []CalendarDay
 	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
 		ds := d.Format("2006-01-02")
 		p := personalByDate[ds]
 		f := familyByDate[ds]
+		h := houseByDate[ds]
 		days = append(days, CalendarDay{
 			Date:      ds,
 			Label:     d.Format("2"),
@@ -125,7 +130,8 @@ func BuildCalendarDays(personal, family []tracker.Item, start, end time.Time, to
 			IsToday:   ds == today,
 			Personal:  p,
 			Family:    f,
-			TaskCount: len(p) + len(f),
+			House:     h,
+			TaskCount: len(p) + len(f) + len(h),
 		})
 	}
 	return days

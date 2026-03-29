@@ -4,7 +4,7 @@
      hx-ext="sse" sse-connect="/events"
      hx-get="/{{.ListName}}" hx-select=".tracker-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
-<span class="htmx-indicator">updating&hellip;</span>
+<span class="htmx-indicator" role="status" aria-live="polite">updating&hellip;</span>
 
 <h1>{{.Title}}</h1>
 {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
@@ -97,14 +97,15 @@
             </div>
             {{end}}
             <form method="POST" action="/{{$.ListName}}/{{.Slug}}/substep/add" class="substep-add-form" hx-post="/{{$.ListName}}/{{.Slug}}/substep/add" hx-target="#item-{{.Slug}}" hx-select="#item-{{.Slug}}" hx-swap="outerHTML">
-                <input type="text" name="text" placeholder="Add a step..." class="form-input substep-add-input" required>
+                <input type="text" name="text" placeholder="Add a step..." class="form-input substep-add-input" required aria-label="Add a sub-step">
                 <button type="submit" class="action-btn">add</button>
             </form>
+            <div class="commentary-slot" data-commentary-url="/commentary/{{$.ListName}}/{{.Slug}}"></div>
             <details class="item-actions-menu" open>
                 <summary class="action-btn item-actions-toggle">more</summary>
                 <div class="tracker-item-actions item-actions-panel">
                     <form method="POST" action="/{{$.ListName}}/{{.Slug}}/priority" class="inline-triage">
-                        <select name="priority" class="form-select-sm">
+                        <select name="priority" class="form-select-sm" aria-label="Priority">
                             <option value="" {{if eq .Priority ""}}selected{{end}}>--</option>
                             <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
                             <option value="medium" {{if eq .Priority "medium"}}selected{{end}}>medium</option>
@@ -128,9 +129,9 @@
             <details class="tracker-notes-edit">
                 <summary>edit</summary>
                 <form method="POST" action="/{{$.ListName}}/{{.Slug}}/edit" class="tracker-notes-form">
-                    <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input">
-                    <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context...">{{.Body}}</textarea>
-                    <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
+                    <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input" aria-label="Title">
+                    <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context..." aria-label="Notes">{{.Body}}</textarea>
+                    <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input" aria-label="Tags">
                     <input type="hidden" name="images" value="{{range $i, $img := .Images}}{{if $i}},{{end}}{{$img}}{{end}}">
                     <button type="submit" class="form-btn form-btn-sm">save</button>
                 </form>
@@ -164,7 +165,7 @@
                 {{if .Body}}
                 <div class="tracker-item-body">{{linkify .Body}}</div>
                 {{end}}
-                {{if .Added}}<div class="tracker-item-date" class="mt-xs">added {{.Added}}</div>{{end}}
+                {{if .Added}}<div class="tracker-item-date mt-xs">added {{.Added}}</div>{{end}}
             </div>
         </div>
     </div>
@@ -221,7 +222,7 @@
     </form>
     <form method="POST" action="/{{.ListName}}/bulk/priority" id="bulk-priority-form" style="display:inline">
         <input type="hidden" name="slugs" value="">
-        <select name="priority" class="form-select-sm">
+        <select name="priority" class="form-select-sm" aria-label="Bulk priority">
             <option value="">--</option>
             <option value="high">high</option>
             <option value="medium">medium</option>
@@ -231,7 +232,7 @@
     </form>
     <form method="POST" action="/{{.ListName}}/bulk/tag" id="bulk-tag-form" style="display:inline">
         <input type="hidden" name="slugs" value="">
-        <input type="text" name="tag" placeholder="tag" class="form-input-sm">
+        <input type="text" name="tag" placeholder="tag" class="form-input-sm" aria-label="Tag to add">
         <button type="submit" class="action-btn" onclick="return submitBulkAction('bulk-tag-form')">add tag</button>
     </form>
     <form method="POST" action="/{{.ListName}}/bulk/plan" id="bulk-plan-form" style="display:inline">

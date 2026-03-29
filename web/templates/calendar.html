@@ -26,7 +26,7 @@
     <div class="calendar-day-row" role="row">
         {{range .Days}}
         <div class="calendar-cell{{if .IsToday}} calendar-cell-today{{end}}" role="gridcell"{{if .IsToday}} aria-current="date"{{end}} data-date="{{.Date}}">
-            <span class="calendar-day-num">{{.Label}}</span>
+            <span class="calendar-day-num" data-weekday="{{.Weekday}}">{{.Label}}</span>
             {{if gt .TaskCount 0}}
             <div class="calendar-tasks">
                 {{$count := 0}}
@@ -39,6 +39,12 @@
                 {{range .Family}}{{if lt $count 3}}
                 <div class="calendar-task" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="family" draggable="true">
                     <span class="calendar-task-list meta-dim">F</span>
+                    <span class="calendar-task-title{{if .Done}} calendar-task-done{{end}}">{{.Title}}</span>
+                </div>
+                {{$count = (subtract $count -1)}}{{end}}{{end}}
+                {{range .House}}{{if lt $count 3}}
+                <div class="calendar-task" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="house" draggable="true">
+                    <span class="calendar-task-list meta-dim">H</span>
                     <span class="calendar-task-title{{if .Done}} calendar-task-done{{end}}">{{.Title}}</span>
                 </div>
                 {{$count = (subtract $count -1)}}{{end}}{{end}}

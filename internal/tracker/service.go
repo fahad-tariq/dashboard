@@ -3,6 +3,7 @@ package tracker
 import (
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -160,6 +161,27 @@ func (s *Service) Uncomplete(slug string) error {
 	})
 }
 
+// UpdateStatus sets the status field of an item (house projects only).
+// Setting status to "done" also marks the item as completed; other statuses clear it.
+func (s *Service) UpdateStatus(slug, status string) error {
+	return s.mutate(slug, func(it *Item) error {
+		it.Status = status
+		if status == "done" {
+			it.Done = true
+			if it.Completed == "" {
+				it.Completed = time.Now().In(s.loc).Format("2006-01-02")
+			}
+		} else if status == "drop" {
+			it.Done = false
+			it.Completed = ""
+		} else {
+			it.Done = false
+			it.Completed = ""
+		}
+		return nil
+	})
+}
+
 // Delete soft-deletes an item by setting its DeletedAt timestamp.
 func (s *Service) Delete(slug string) error {
 	return s.mutate(slug, func(it *Item) error {
@@ -312,10 +334,8 @@ func (s *Service) BulkUpdatePriority(slugs []string, priority string) error {
 // Skips items that already have the tag.
 func (s *Service) BulkAddTag(slugs []string, tag string) error {
 	return s.mutateBatch(slugs, func(it *Item) error {
-		for _, t := range it.Tags {
-			if t == tag {
-				return nil
-			}
+		if slices.Contains(it.Tags, tag) {
+			return nil
 		}
 		it.Tags = append(it.Tags, tag)
 		return nil

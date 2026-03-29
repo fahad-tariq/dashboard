@@ -61,10 +61,7 @@ func AgeBadge(added string, now time.Time) (label string, level string) {
 	if err != nil || added == "" {
 		return "", ""
 	}
-	days := int(now.Sub(t).Hours() / 24)
-	if days < 0 {
-		days = 0
-	}
+	days := max(int(now.Sub(t).Hours()/24), 0)
 
 	switch {
 	case days < 7:
@@ -196,10 +193,7 @@ func GoalPace(current, target float64, added, deadline string, now time.Time) st
 		totalDays = 1
 	}
 
-	elapsed := int(now.Sub(addedTime).Hours()/24) + 1
-	if elapsed < 0 {
-		elapsed = 0
-	}
+	elapsed := max(int(now.Sub(addedTime).Hours()/24)+1, 0)
 
 	expectedPct := float64(elapsed) / float64(totalDays) * 100
 	actualPct := current / target * 100
@@ -341,8 +335,8 @@ func ParseDigestPeriod(s string) DigestPeriod {
 // DigestItem holds the minimal fields needed for digest computation.
 // Both tracker items and ideas can be converted to this type.
 type DigestItem struct {
-	Added     string   // YYYY-MM-DD
-	Completed string   // YYYY-MM-DD (empty for ideas)
+	Added     string // YYYY-MM-DD
+	Completed string // YYYY-MM-DD (empty for ideas)
 	Done      bool
 	Tags      []string
 	Type      string // "task", "goal", or "idea"
@@ -447,10 +441,7 @@ func Digest(items []DigestItem, period DigestPeriod, now time.Time) DigestResult
 	})
 
 	// Compute max value for bar width scaling.
-	result.MaxValue = result.CompletedTasks
-	if result.AddedTasks > result.MaxValue {
-		result.MaxValue = result.AddedTasks
-	}
+	result.MaxValue = max(result.AddedTasks, result.CompletedTasks)
 	if result.AddedIdeas > result.MaxValue {
 		result.MaxValue = result.AddedIdeas
 	}

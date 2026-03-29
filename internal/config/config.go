@@ -9,19 +9,21 @@ import (
 )
 
 type Config struct {
-	IdeasPath       string
-	UploadsDir      string
-	PersonalPath    string
-	FamilyPath      string
-	UserDataDir     string
-	DBPath          string
-	APIToken        string
-	Addr            string
-	PasswordHash    string
-	SessionLifetime time.Duration
-	SecureCookies   bool
-	HasUsers        bool // Set at startup after checking the users table.
-	Location        *time.Location
+	IdeasPath         string
+	UploadsDir        string
+	PersonalPath      string
+	FamilyPath        string
+	MaintenancePath   string
+	HouseProjectsPath string
+	UserDataDir       string
+	DBPath            string
+	APIToken          string
+	Addr              string
+	PasswordHash      string
+	SessionLifetime   time.Duration
+	SecureCookies     bool
+	HasUsers          bool // Set at startup after checking the users table.
+	Location          *time.Location
 }
 
 func Load() (*Config, error) {
@@ -57,12 +59,14 @@ func Load() (*Config, error) {
 	}
 
 	c := &Config{
-		IdeasPath:       ideasPath,
-		UploadsDir:      envOr("UPLOADS_DIR", "/data/uploads"),
-		PersonalPath:    envOr("PERSONAL_PATH", "/data/personal.md"),
-		FamilyPath:      envOr("FAMILY_PATH", "/data/family.md"),
-		UserDataDir:     envOr("USER_DATA_DIR", "/data/users"),
-		DBPath:          envOr("DB_PATH", "/data/db/dashboard.db"),
+		IdeasPath:         ideasPath,
+		UploadsDir:        envOr("UPLOADS_DIR", "/data/uploads"),
+		PersonalPath:      envOr("PERSONAL_PATH", "/data/personal.md"),
+		FamilyPath:        envOr("FAMILY_PATH", "/data/family.md"),
+		MaintenancePath:   envOr("MAINTENANCE_PATH", "/data/maintenance.md"),
+		HouseProjectsPath: envOr("HOUSE_PROJECTS_PATH", "/data/house-projects.md"),
+		UserDataDir:       envOr("USER_DATA_DIR", "/data/users"),
+		DBPath:            envOr("DB_PATH", "/data/db/dashboard.db"),
 		APIToken:        os.Getenv("DASHBOARD_API_TOKEN"),
 		Addr:            envOr("ADDR", ":8080"),
 		PasswordHash:    os.Getenv("DASHBOARD_PASSWORD_HASH"),
@@ -90,6 +94,8 @@ func (c *Config) validate() error {
 		{c.PersonalPath, "Personal"},
 		{c.FamilyPath, "Family"},
 		{c.IdeasPath, "Ideas"},
+		{c.MaintenancePath, "Maintenance"},
+		{c.HouseProjectsPath, "House"},
 	} {
 		if err := os.MkdirAll(filepath.Dir(entry.path), 0o755); err != nil {
 			return fmt.Errorf("creating directory for %s: %w", entry.path, err)

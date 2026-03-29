@@ -13,6 +13,7 @@ import (
 
 	"github.com/fahad/dashboard/internal/db"
 	"github.com/fahad/dashboard/internal/home"
+	"github.com/fahad/dashboard/internal/house"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/tracker"
 )
@@ -35,8 +36,11 @@ func setupHomeEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.Se
 
 	personalStore := tracker.NewStore(database, "personal")
 	familyStore := tracker.NewStore(database, "family")
+	houseStore := tracker.NewStore(database, "house")
 	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
 	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
+	houseProjectsSvc := tracker.NewService(filepath.Join(dir, "house-projects.md"), "House", houseStore, time.UTC)
+	maintenanceSvc := house.NewService(filepath.Join(dir, "maintenance.md"), time.UTC)
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
@@ -56,7 +60,7 @@ func setupHomeEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.Se
 	)
 	templates["homepage.html"] = tmpl
 
-	handler := home.HomePageSingle(personalSvc, familySvc, ideasSvc, templates, time.UTC)
+	handler := home.HomePageSingle(personalSvc, familySvc, houseProjectsSvc, maintenanceSvc, ideasSvc, templates, time.UTC)
 	return handler, personalSvc, familySvc, ideasSvc
 }
 
@@ -112,8 +116,11 @@ func TestHomePageShowsIdeaCounts(t *testing.T) {
 
 	personalStore := tracker.NewStore(database, "personal")
 	familyStore := tracker.NewStore(database, "family")
+	houseStore := tracker.NewStore(database, "house")
 	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
 	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
+	houseProjectsSvc := tracker.NewService(filepath.Join(dir, "house-projects.md"), "House", houseStore, time.UTC)
+	maintenanceSvc := house.NewService(filepath.Join(dir, "maintenance.md"), time.UTC)
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
@@ -133,7 +140,7 @@ func TestHomePageShowsIdeaCounts(t *testing.T) {
 	)
 	templates["homepage.html"] = tmpl
 
-	handler := home.HomePageSingle(personalSvc, familySvc, ideasSvc, templates, time.UTC)
+	handler := home.HomePageSingle(personalSvc, familySvc, houseProjectsSvc, maintenanceSvc, ideasSvc, templates, time.UTC)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
@@ -165,8 +172,11 @@ func TestHomePageEmpty(t *testing.T) {
 
 	personalStore := tracker.NewStore(database, "personal")
 	familyStore := tracker.NewStore(database, "family")
+	houseStore := tracker.NewStore(database, "house")
 	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
 	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
+	houseProjectsSvc := tracker.NewService(filepath.Join(dir, "house-projects.md"), "House", houseStore, time.UTC)
+	maintenanceSvc := house.NewService(filepath.Join(dir, "maintenance.md"), time.UTC)
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
@@ -186,7 +196,7 @@ func TestHomePageEmpty(t *testing.T) {
 	)
 	templates["homepage.html"] = tmpl
 
-	handler := home.HomePageSingle(personalSvc, familySvc, ideasSvc, templates, time.UTC)
+	handler := home.HomePageSingle(personalSvc, familySvc, houseProjectsSvc, maintenanceSvc, ideasSvc, templates, time.UTC)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()

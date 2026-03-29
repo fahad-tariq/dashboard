@@ -180,6 +180,7 @@ document.addEventListener('keydown', function(e) {
             case 't': window.location.href = '/todos'; break;
             case 'o': window.location.href = '/goals'; break;
             case 'i': window.location.href = '/ideas'; break;
+            case 'u': window.location.href = '/house'; break;
             case 'f': window.location.href = '/family'; break;
             case 'd': window.location.href = '/digest'; break;
             case 'c': window.location.href = '/plan/calendar'; break;

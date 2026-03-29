@@ -5,7 +5,7 @@ Go + chi + htmx server-rendered dashboard. Markdown files are the source of trut
 - Tracker (`internal/tracker/`): tasks and goals in `personal.md`/`family.md`. Drops blank lines in bodies. DB-backed via `Store` for summary counts. In-memory cache serves reads; invalidated by mutations and file watcher.
 - Ideas (`internal/ideas/`): ideas in `ideas.md`. Preserves blank lines in bodies (rich markdown with paragraphs). In-memory cache serves reads; no DB cache. Ideas have a `converted` status with `ConvertedTo` field linking to the resulting task slug.
 
-Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file, find by slug, apply callback, recompute `SubStepsDone`/`SubStepsTotal` from body, write back, update cache, release lock. Title edits re-slugify the item; the old slug becomes invalid after mutation. `mutateBatch(slugs, fn)` applies to multiple items atomically -- if any slug is missing, the entire batch fails with no changes written.
+All three follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file, find by slug, apply callback, recompute `SubStepsDone`/`SubStepsTotal` from body, write back, update cache, release lock. Title edits re-slugify the item; the old slug becomes invalid after mutation. `mutateBatch(slugs, fn)` applies to multiple items atomically -- if any slug is missing, the entire batch fails with no changes written.
 
 **Soft delete:** Deleting an item sets `[deleted: YYYY-MM-DD]` inline metadata instead of removing it. `List()` and `Search()` filter deleted items at read time. `s.cache` holds ALL items (including soft-deleted); `store.ReplaceAll()` receives only active items so `Summary()` counts stay correct. `Get(slug)` returns items regardless of deleted status (needed by restore/purge handlers). Hourly auto-purge goroutine removes items trashed more than `trashRetentionDays` (7) ago.
 
@@ -35,13 +35,17 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 
 **Sub-steps** (`internal/tracker/`): Tasks can have body checkboxes (`- [ ] Step` / `- [x] Step`) parsed as sub-steps. `SubStep` struct, `ParseSubSteps(body)`, `BodyWithoutSubSteps(body)` are exported helpers. `SubStepsDone`/`SubStepsTotal` are computed fields on `Item`, derived at parse time by `countSubSteps()` and recomputed in `mutate()`/`mutateBatch()` after callbacks. Service methods: `AddSubStep` (appends `- [ ] text` to body), `ToggleSubStep` (flips `[ ]`/`[x]` by index), `RemoveSubStep` (removes by index). `PromoteSubStep` handler marks the step done and creates a new standalone task with the same title. The parser treats indented checkbox lines (`  - [ ] ...`) as body content, not new items -- only non-indented checkboxes start new items. Template functions `substeps` and `bodyText` split body rendering. Sub-step forms use htmx targeted swap (`hx-target="#item-{slug}" hx-select="#item-{slug}" hx-swap="outerHTML"`) to update just the specific task item, avoiding full-page refresh. `trackerExpandedItems` (persistent JS object) tracks which items are expanded; `afterSwap` re-expands them. SSE swaps targeting `.tracker-page` are suppressed while any tracker item is expanded, matching the `planDetailExpanded` pattern on the homepage.
 
+**House** (`internal/house/`): Two backing files, one `/house` page. Maintenance items (recurring, never "done") in `maintenance.md` use `internal/house/` package with its own parser, service, and handler. House projects in `house-projects.md` use a standard `*tracker.Service` (extending `tracker.Item` with `Budget`, `Actual`, `Status` fields). Both files are shared (like family, not per-user). The house handler combines both services and renders a tabular layout with expandable detail rows. `house.NewService` follows the ideas pattern (mutex + in-memory cache, no DB). Maintenance cadence (`[cadence: Nd/Nw/Nm/Ny]`) computes overdue from most recent log entry + cadence vs `time.Now().In(loc)`. Maintenance log entries are body lines matching `- [x] YYYY-MM-DD - optional note`, stored newest-first. `ParseCadence` rejects N<1 and caps at reasonable maximums. `SanitiseStatus` allowlists `todo`, `active`, `done`, `drop`. `SanitiseBudget` rejects `Inf`/`NaN`.
+
+**Commentary** (`internal/commentary/`): Ironclaw AI commentary stored in SQLite. The commentary endpoint returns 200 with empty body when no data exists. The tracker template loads commentary lazily via XHR on item expand (not htmx `hx-trigger="revealed"` which caused page-wipe issues due to htmx processing empty responses during page load).
+
 **API scoping:** Bearer token API uses the service registry for user 1's data. Per-user API tokens are not implemented -- can be added by mapping tokens to user IDs.
 </ARCHITECTURE>
 
 <CONVENTIONS>
 - `tracker.NewUserStore` filters by `user_id`; `NewSharedStore` never does. Two constructors make intent explicit -- no conditional SQL.
 - `user_id DEFAULT 1` in `tracker_items` means existing rows auto-belong to the first user with no data migration.
-- Inline metadata tags (`[status: ...]`, `[tags: ...]`, `[deadline: ...]`, `[planned: ...]`, `[plan-order: N]`, `[from-idea: ...]`, `[converted-to: ...]`, `[deleted: YYYY-MM-DD]`) are parsed from checkbox lines only. Titles containing bracket patterns are a known limitation.
+- Inline metadata tags (`[status: ...]`, `[tags: ...]`, `[deadline: ...]`, `[planned: ...]`, `[plan-order: N]`, `[from-idea: ...]`, `[converted-to: ...]`, `[deleted: YYYY-MM-DD]`, `[budget: N]`, `[actual: N]`, `[cadence: Nd/Nw/Nm/Ny]`) are parsed from checkbox lines only. Titles containing bracket patterns are a known limitation.
 - Indented checkbox lines (`  - [ ] ...`) are body content (sub-steps), not new items. Only non-indented `- [ ]`/`- [x]` lines start new tracker items.
 - `auth.TemplateData(r)` returns a base `map[string]any` with `UserName` and `IsAdmin`. All handlers merge page-specific data into this map. Use comma-ok type assertions when reading `UserName`: `if name, ok := data["UserName"].(string); ok { ... }`.
 - Uploads are shared (not per-user). Random hex filenames with no ownership tracking.
@@ -66,9 +70,9 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 
 **Legacy password migration:** `DASHBOARD_PASSWORD_HASH` auto-creates `admin@localhost` on startup if no users exist. This collapses auth to a single code path instead of maintaining two.
 
-**ToTaskFunc signature:** `func(ctx, title, body string, tags []string, fromIdeaSlug string) (string, error)`. Returns the created task slug for provenance linking. All three closure implementations in `main.go` (auth-enabled, single-user, API) must match. Idea-to-task conversion marks the idea as "converted" (not deleted) and records bidirectional linkage.
+**ToTaskFunc signature:** `func(ctx, title, body string, tags []string, fromIdeaSlug, target string) (string, error)`. Returns the created task slug for provenance linking. `target` selects the destination: "personal", "family", or "house". All three closure implementations in `main.go` (auth-enabled, single-user, API) must match. Idea-to-task conversion marks the idea as "converted" (not deleted) and records bidirectional linkage. House target sets `Status = "todo"` on the created project.
 
-**Search locking order:** `search.Handler.SearchAPI` locks services sequentially: personal tracker, then family tracker, then ideas. Never hold multiple service locks simultaneously -- `ToTask` writes to both ideas and tracker services, so concurrent locking would deadlock.
+**Search locking order:** `search.Handler.SearchAPI` locks services sequentially: personal tracker, then family tracker, then house projects, then maintenance, then ideas. Never hold multiple service locks simultaneously -- `ToTask` writes to both ideas and tracker services, so concurrent locking would deadlock.
 
 **insights package avoids import cycles:** `TagAggregation` accepts `[]TagInfo` (a simple struct) instead of concrete `tracker.Item`/`ideas.Idea` types. The homepage handler converts items to `TagInfo` before passing them. `WeeklyVelocity` returns a `VelocityInsight` struct (not a string) so templates can style parts independently.
 
@@ -84,7 +88,15 @@ Both follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse file
 
 **Planner dual-mode handlers:** Plan routes need to work in both auth-enabled and single-user modes. Auth mode uses `home.Handler` methods (which resolve services per-request via the registry). Single-user mode uses `home.SingleUserPlanHandlers` closures over fixed service instances. Both are wired as `http.HandlerFunc` variables in `main.go` and passed to `mountAppRoutes`. The API plan handlers are similarly set in both branches.
 
-**Carried-over items merged per-list:** Overdue items are appended to `PersonalPlanned`/`FamilyPlanned` in the handler before sorting, keeping list-source information intact for form actions. The template detects carried-over items by comparing `.Planned` against `.Today`. `ClearCarriedOver` iterates both services' `ListOverdue` results and calls `ClearPlanned` on each.
+**Carried-over items merged per-list:** Overdue items are appended to `PersonalPlanned`/`FamilyPlanned`/`HousePlanned` in the handler before sorting, keeping list-source information intact for form actions. The template detects carried-over items by comparing `.Planned` against `.Today`. `ClearCarriedOver` iterates all three services' `ListOverdue` results and calls `ClearPlanned` on each.
+
+**House maintenance log entry ordering:** `ParseMaintenance` stores log entries in file order. The writer outputs newest first. `NextDue` uses `Log[0]` (most recent). If a user hand-edits the markdown with oldest entries first, `NextDue` computes from the wrong date. This is documented, not enforced.
+
+**House UpdateStatus side effects:** `UpdateStatus("done")` sets `Done=true` and `Completed` date (for digest counting). Changing away from "done" clears both. This ensures house projects appear in digest completion counts.
+
+**Commentary htmx pitfall:** Do NOT use `hx-trigger="revealed"` for lazy-loading content inside SSE-swapped containers. The `revealed` trigger fires during htmx node processing (not visual visibility), causing all items to fire GET requests simultaneously on page load. Use JS-based lazy loading (XHR on expand) instead. See `tracker.js` `loadCommentary()`.
+
+**House two-file architecture:** Maintenance and projects MUST be in separate files because two services cannot safely write the same markdown file (each writer overwrites the entire file content via read-modify-write).
 
 **Indented checkboxes are body content, not new items:** The tracker parser checks `line` (not `trimmed`) for leading whitespace before calling `parseCheckbox`. Lines starting with space or tab that match `- [ ]` are treated as body sub-steps, not new tracker items. This is critical for sub-step round-trips: `writeItem` indents body lines with 2 spaces, so `- [ ] Step` in the body becomes `  - [ ] Step` in the file. Without the indentation check, re-parsing would create spurious top-level items.
 

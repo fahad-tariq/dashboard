@@ -99,8 +99,25 @@ function toggleItem(btn) {
             delete trackerExpandedItems[slug];
         } else {
             trackerExpandedItems[slug] = true;
+            loadCommentary(item);
         }
     }
+}
+
+function loadCommentary(item) {
+    var slot = item.querySelector('.commentary-slot');
+    if (!slot || slot.getAttribute('data-loaded')) return;
+    var url = slot.getAttribute('data-commentary-url');
+    if (!url) return;
+    slot.setAttribute('data-loaded', '1');
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url);
+    xhr.onload = function() {
+        if (xhr.status === 200 && xhr.responseText.trim()) {
+            slot.innerHTML = xhr.responseText;
+        }
+    };
+    xhr.send();
 }
 
 function trackerToggleAll() {

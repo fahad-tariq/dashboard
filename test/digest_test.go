@@ -188,6 +188,8 @@ func setupDigestEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.
 	familyStore := tracker.NewStore(database, "family")
 	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
 	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
+	houseProjectsStore := tracker.NewStore(database, "house")
+	houseProjectsSvc := tracker.NewService(dir+"/house-projects.md", "House", houseProjectsStore, time.UTC)
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
@@ -207,7 +209,7 @@ func setupDigestEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.
 	)
 	templates["digest.html"] = tmpl
 
-	handler := home.DigestPageSingle(personalSvc, familySvc, ideasSvc, templates, time.UTC)
+	handler := home.DigestPageSingle(personalSvc, familySvc, houseProjectsSvc, ideasSvc, templates, time.UTC)
 	return handler, personalSvc, familySvc, ideasSvc
 }
 
@@ -291,6 +293,8 @@ func TestDigestPageEmptyState(t *testing.T) {
 	familyStore := tracker.NewStore(database, "family")
 	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
 	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
+	houseProjectsStore := tracker.NewStore(database, "house")
+	houseProjectsSvc := tracker.NewService(dir+"/house-projects.md", "House", houseProjectsStore, time.UTC)
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
@@ -310,7 +314,7 @@ func TestDigestPageEmptyState(t *testing.T) {
 	)
 	templates["digest.html"] = tmpl
 
-	handler := home.DigestPageSingle(personalSvc, familySvc, ideasSvc, templates, time.UTC)
+	handler := home.DigestPageSingle(personalSvc, familySvc, houseProjectsSvc, ideasSvc, templates, time.UTC)
 
 	req := httptest.NewRequest("GET", "/digest", nil)
 	rr := httptest.NewRecorder()

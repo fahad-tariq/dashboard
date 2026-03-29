@@ -26,6 +26,7 @@
             <a href="/todos">todos</a>
             <a href="/goals">goals</a>
             <a href="/ideas">ideas</a>
+            <a href="/house">house</a>
             <a href="/family">family</a>
             <a href="/digest">digest</a>
         </div>
@@ -88,6 +89,7 @@
                     if (resp.status === 401) {
                         var toast = document.createElement('div');
                         toast.className = 'flash-msg';
+                        toast.setAttribute('role', 'alert');
                         toast.textContent = 'Session expired. Redirecting to login...';
                         var container = document.querySelector('.container');
                         if (container) container.prepend(toast);
@@ -110,10 +112,10 @@
         </div>
     </div>
     <!-- Search overlay -->
-    <div id="search-overlay" class="modal-overlay" onclick="if(event.target===this)closeSearch()">
+    <div id="search-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Search" onclick="if(event.target===this)closeSearch()">
         <div class="modal-content">
             <div class="search-input-wrap">
-                <input type="text" id="search-input" class="search-input" placeholder="Search todos, family, ideas..." autocomplete="off">
+                <input type="text" id="search-input" class="search-input" placeholder="Search todos, family, ideas..." autocomplete="off" aria-label="Search tasks, ideas, and house items">
             </div>
             <div id="search-results" class="search-results"></div>
             <div class="search-hint">
@@ -124,16 +126,17 @@
         </div>
     </div>
     <!-- Shortcut help modal -->
-    <div id="shortcut-help" class="modal-overlay" onclick="if(event.target===this)closeShortcutHelp()">
+    <div id="shortcut-help" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="shortcut-help-heading" onclick="if(event.target===this)closeShortcutHelp()">
         <div class="modal-content">
             <div class="shortcut-help-body">
-                <div class="shortcut-help-title">Keyboard shortcuts</div>
+                <h2 class="shortcut-help-title" id="shortcut-help-heading">Keyboard shortcuts</h2>
                 <div class="shortcut-row"><span>Open search</span> <kbd>/</kbd> or <kbd>Ctrl+K</kbd></div>
                 <div class="shortcut-row"><span>Show shortcuts</span> <kbd>?</kbd></div>
                 <div class="shortcut-row"><span>Go to home</span> <kbd>g h</kbd></div>
                 <div class="shortcut-row"><span>Go to todos</span> <kbd>g t</kbd></div>
                 <div class="shortcut-row"><span>Go to goals</span> <kbd>g o</kbd></div>
                 <div class="shortcut-row"><span>Go to ideas</span> <kbd>g i</kbd></div>
+                <div class="shortcut-row"><span>Go to house</span> <kbd>g u</kbd></div>
                 <div class="shortcut-row"><span>Go to family</span> <kbd>g f</kbd></div>
                 <div class="shortcut-row"><span>Go to digest</span> <kbd>g d</kbd></div>
                 <div class="shortcut-row"><span>Go to calendar</span> <kbd>g c</kbd></div>

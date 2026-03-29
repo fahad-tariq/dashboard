@@ -19,36 +19,46 @@ type UserServices struct {
 	Ideas    *ideas.Service
 }
 
-// Registry manages per-user service instances and the shared family service.
+// Registry manages per-user service instances and the shared family/house services.
 type Registry struct {
-	db          *sql.DB
-	userDataDir string
-	familyPath  string
-	loc         *time.Location
-	familySvc   *tracker.Service
+	db               *sql.DB
+	userDataDir      string
+	familyPath       string
+	loc              *time.Location
+	familySvc        *tracker.Service
+	houseProjectsSvc *tracker.Service
 
 	mu    sync.RWMutex
 	cache map[int64]*UserServices
 }
 
 // NewRegistry creates a new service registry.
-func NewRegistry(db *sql.DB, userDataDir, familyPath string, loc *time.Location) *Registry {
+func NewRegistry(db *sql.DB, userDataDir, familyPath, houseProjectsPath string, loc *time.Location) *Registry {
 	familyStore := tracker.NewSharedStore(db, "family")
 	familySvc := tracker.NewService(familyPath, "Family", familyStore, loc)
 
+	houseStore := tracker.NewSharedStore(db, "house")
+	houseProjectsSvc := tracker.NewService(houseProjectsPath, "House", houseStore, loc)
+
 	return &Registry{
-		db:          db,
-		userDataDir: userDataDir,
-		familyPath:  familyPath,
-		loc:         loc,
-		familySvc:   familySvc,
-		cache:       make(map[int64]*UserServices),
+		db:               db,
+		userDataDir:      userDataDir,
+		familyPath:       familyPath,
+		loc:              loc,
+		familySvc:        familySvc,
+		houseProjectsSvc: houseProjectsSvc,
+		cache:            make(map[int64]*UserServices),
 	}
 }
 
 // Family returns the shared family service.
 func (r *Registry) Family() *tracker.Service {
 	return r.familySvc
+}
+
+// HouseProjects returns the shared house projects service.
+func (r *Registry) HouseProjects() *tracker.Service {
+	return r.houseProjectsSvc
 }
 
 // EnsureUserDirs creates per-user directories and skeleton files.

@@ -19,12 +19,14 @@ func tempPaths(t *testing.T) map[string]string {
 	t.Helper()
 	dir := t.TempDir()
 	return map[string]string{
-		"IDEAS_PATH":    filepath.Join(dir, "ideas.md"),
-		"UPLOADS_DIR":   filepath.Join(dir, "uploads"),
-		"PERSONAL_PATH": filepath.Join(dir, "personal.md"),
-		"FAMILY_PATH":   filepath.Join(dir, "family.md"),
-		"USER_DATA_DIR": filepath.Join(dir, "users"),
-		"DB_PATH":       filepath.Join(dir, "db", "dashboard.db"),
+		"IDEAS_PATH":         filepath.Join(dir, "ideas.md"),
+		"UPLOADS_DIR":        filepath.Join(dir, "uploads"),
+		"PERSONAL_PATH":      filepath.Join(dir, "personal.md"),
+		"FAMILY_PATH":        filepath.Join(dir, "family.md"),
+		"MAINTENANCE_PATH":   filepath.Join(dir, "maintenance.md"),
+		"HOUSE_PROJECTS_PATH": filepath.Join(dir, "house-projects.md"),
+		"USER_DATA_DIR":      filepath.Join(dir, "users"),
+		"DB_PATH":            filepath.Join(dir, "db", "dashboard.db"),
 	}
 }
 

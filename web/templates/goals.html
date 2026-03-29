@@ -4,7 +4,7 @@
      hx-ext="sse" sse-connect="/events"
      hx-get="/goals" hx-select=".tracker-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
-<span class="htmx-indicator">updating&hellip;</span>
+<span class="htmx-indicator" role="status" aria-live="polite">updating&hellip;</span>
 
 <h1>Goals</h1>
 {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
@@ -91,7 +91,7 @@
     {{if .Body}}
     <div class="tracker-item-body">{{linkify .Body}}</div>
     {{end}}
-    {{if .Added}}<div class="tracker-item-date" class="mt-xs">added {{.Added}}{{if .Deadline}} &middot; deadline {{.Deadline}}{{end}}</div>{{end}}
+    {{if .Added}}<div class="tracker-item-date mt-xs">added {{.Added}}{{if .Deadline}} &middot; deadline {{.Deadline}}{{end}}</div>{{end}}
     <div class="tracker-item-actions">
         {{if gt .Target 0.0}}
         <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage">

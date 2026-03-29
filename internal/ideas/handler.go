@@ -12,14 +12,16 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/auth"
+	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/markdown"
 )
 
 // ToTaskFunc converts an idea to a task. Accepts context for user resolution.
 // fromIdeaSlug is recorded on the task for provenance tracking.
+// target selects the destination list: "personal", "family", or "house".
 // Returns the slug of the created task and any error.
-type ToTaskFunc func(ctx context.Context, title, body string, tags []string, fromIdeaSlug string) (string, error)
+type ToTaskFunc func(ctx context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error)
 
 // ServiceResolver returns the ideas service for the current request.
 type ServiceResolver func(r *http.Request) *Service
@@ -28,7 +30,7 @@ var flashMessages = map[string]string{
 	"title-required": "A title is required.",
 	"idea-triaged":   "Status updated.",
 	"idea-edited":    "Changes saved.",
-	"idea-converted": "Idea converted to a task -- check your todos.",
+	"idea-converted": "Idea converted.",
 	"idea-deleted":   "Idea moved to trash.",
 	"idea-restored":  "Idea restored from trash.",
 	"idea-purged":    "Idea permanently deleted.",
@@ -55,10 +57,16 @@ var flashErrorKeys = map[string]bool{
 
 // Handler handles HTTP requests for ideas.
 type Handler struct {
-	resolve   ServiceResolver
-	toTask    ToTaskFunc
-	templates map[string]*template.Template
-	loc       *time.Location
+	resolve      ServiceResolver
+	toTask       ToTaskFunc
+	templates    map[string]*template.Template
+	loc          *time.Location
+	commentarySt *commentary.Store
+}
+
+// SetCommentaryStore injects a commentary store for displaying ironclaw commentary.
+func (h *Handler) SetCommentaryStore(store *commentary.Store) {
+	h.commentarySt = store
 }
 
 // NewHandler creates a handler with a static service reference.
@@ -163,6 +171,14 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 	data["BodyHTML"] = template.HTML(bodyHTML)
 	data["IsDeleted"] = idea.DeletedAt != ""
 
+	if h.commentarySt != nil {
+		if c, err := h.commentarySt.Get(slug, "ideas", 1); err == nil && c != "" {
+			if rendered, err := markdown.Render([]byte(c)); err == nil {
+				data["CommentaryHTML"] = template.HTML(rendered)
+			}
+		}
+	}
+
 	if err := h.templates["idea.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
 		httputil.ServerError(w, "rendering idea detail", err)
 	}
@@ -218,9 +234,14 @@ func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ideas?msg=idea-triaged", http.StatusSeeOther)
 }
 
-// ToTask converts an idea to a personal task and marks it as converted.
+// ToTask converts an idea to a task (personal, family, or house project) and marks it as converted.
 func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
+
+	target := r.FormValue("target")
+	if target == "" {
+		target = "personal"
+	}
 
 	svc := h.resolve(r)
 	idea, err := svc.Get(slug)
@@ -229,7 +250,7 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	taskSlug, err := h.toTask(r.Context(), idea.Title, idea.Body, idea.Tags, slug)
+	taskSlug, err := h.toTask(r.Context(), idea.Title, idea.Body, idea.Tags, slug, target)
 	if err != nil {
 		httputil.ServerError(w, "converting idea to task", err, "slug", slug)
 		return

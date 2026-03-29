@@ -38,6 +38,9 @@ type Item struct {
 	Tags      []string // tags for categorisation and filtering
 	Images    []string // uploaded image filenames
 	DeletedAt string   // soft-delete date, YYYY-MM-DD (empty means not deleted)
+	Budget    float64  // house projects only: estimated cost
+	Actual    float64  // house projects only: actual cost
+	Status    string   // house projects only: "todo", "active", "done", "drop"
 
 	// Computed at parse time from body checkboxes; not stored in the file.
 	SubStepsDone  int
@@ -71,6 +74,9 @@ var tagsRe = regexp.MustCompile(`\[tags:\s*(.*?)\]`)
 var imagesRe = regexp.MustCompile(`\[images:\s*(.*?)\]`)
 var planOrderRe = regexp.MustCompile(`\[plan-order:\s*(\d+)\]`)
 var deletedRe = regexp.MustCompile(`\[deleted:\s*(\d{4}-\d{2}-\d{2})\]`)
+var budgetRe = regexp.MustCompile(`\[budget:\s*([\d.]+)\]`)
+var actualRe = regexp.MustCompile(`\[actual:\s*([\d.]+)\]`)
+var statusRe = regexp.MustCompile(`\[status:\s*(\w+)\]`)
 
 // SubStep represents a single checkbox sub-step parsed from the task body.
 type SubStep struct {
@@ -295,6 +301,24 @@ func parseItemLine(raw string, done bool) *Item {
 		title = strings.TrimSpace(deletedRe.ReplaceAllString(title, ""))
 	}
 
+	// Extract budget: [budget: N]
+	if m := budgetRe.FindStringSubmatch(title); m != nil {
+		item.Budget, _ = strconv.ParseFloat(m[1], 64)
+		title = strings.TrimSpace(budgetRe.ReplaceAllString(title, ""))
+	}
+
+	// Extract actual cost: [actual: N]
+	if m := actualRe.FindStringSubmatch(title); m != nil {
+		item.Actual, _ = strconv.ParseFloat(m[1], 64)
+		title = strings.TrimSpace(actualRe.ReplaceAllString(title, ""))
+	}
+
+	// Extract status: [status: todo|active|done|drop]
+	if m := statusRe.FindStringSubmatch(title); m != nil {
+		item.Status = m[1]
+		title = strings.TrimSpace(statusRe.ReplaceAllString(title, ""))
+	}
+
 	item.Title = strings.TrimSpace(title)
 	item.Slug = Slugify(item.Title)
 
@@ -355,6 +379,15 @@ func writeItem(sb *strings.Builder, it Item) {
 	}
 	if len(it.Images) > 0 {
 		sb.WriteString(" [images: " + strings.Join(it.Images, ", ") + "]")
+	}
+	if it.Budget > 0 {
+		sb.WriteString(" [budget: " + formatNum(it.Budget) + "]")
+	}
+	if it.Actual > 0 {
+		sb.WriteString(" [actual: " + formatNum(it.Actual) + "]")
+	}
+	if it.Status != "" {
+		sb.WriteString(" [status: " + it.Status + "]")
 	}
 	if it.DeletedAt != "" {
 		sb.WriteString(" [deleted: " + it.DeletedAt + "]")

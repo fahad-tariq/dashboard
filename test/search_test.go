@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fahad/dashboard/internal/db"
+	"github.com/fahad/dashboard/internal/house"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/search"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -91,8 +92,8 @@ func TestSearchHandler(t *testing.T) {
 	os.WriteFile(ideasPath, []byte("# Ideas\n\n- [ ] Build a rocket [status: untriaged]\n"), 0o644)
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 
-	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
-		return personalSvc, familySvc, ideaSvc
+	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
+		return personalSvc, familySvc, nil, nil, ideaSvc
 	})
 
 	tests := []struct {
@@ -142,8 +143,8 @@ func TestSearchQueryTooLong(t *testing.T) {
 	os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644)
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 
-	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
-		return personalSvc, familySvc, ideaSvc
+	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
+		return personalSvc, familySvc, nil, nil, ideaSvc
 	})
 
 	longQuery := strings.Repeat("a", 201)
@@ -181,8 +182,8 @@ func TestSearchExcludesDeletedItems(t *testing.T) {
 	os.WriteFile(ideasPath, []byte("# Ideas\n\n- [ ] Active idea [status: untriaged]\n- [ ] Trashed idea [status: untriaged] [deleted: 2026-03-01]\n"), 0o644)
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 
-	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
-		return personalSvc, familySvc, ideaSvc
+	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
+		return personalSvc, familySvc, nil, nil, ideaSvc
 	})
 
 	// Search for "trashed" should return no results (both are soft-deleted).
@@ -233,8 +234,8 @@ func TestSearchSnippetInResults(t *testing.T) {
 	os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644)
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 
-	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
-		return personalSvc, familySvc, ideaSvc
+	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
+		return personalSvc, familySvc, nil, nil, ideaSvc
 	})
 
 	req := httptest.NewRequest("GET", "/search?q=fox", nil)

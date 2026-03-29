@@ -25,10 +25,12 @@ import (
 	"github.com/fahad/dashboard/internal/account"
 	"github.com/fahad/dashboard/internal/admin"
 	"github.com/fahad/dashboard/internal/auth"
+	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/db"
 	"github.com/fahad/dashboard/internal/home"
+	"github.com/fahad/dashboard/internal/house"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/insights"
 	"github.com/fahad/dashboard/internal/search"
@@ -148,6 +150,14 @@ func buildFuncMap(loc *time.Location) template.FuncMap {
 			b.WriteString(html.EscapeString(text[last:]))
 			return template.HTML(b.String())
 		},
+		"truncateBody": func(body string) string {
+			body = strings.ReplaceAll(body, "\n", " ")
+			body = strings.TrimSpace(body)
+			if len(body) > 60 {
+				return body[:60] + "..."
+			}
+			return body
+		},
 	}
 }
 
@@ -230,6 +240,7 @@ func main() {
 	var registry *services.Registry
 
 	var personalHandler, familyHandler *tracker.Handler
+	var houseHandler *house.Handler
 	var homePage http.HandlerFunc
 	var searchHandler *search.Handler
 	var purgeFunc func() // called hourly to purge expired trash items
@@ -239,11 +250,18 @@ func main() {
 	var planCompleteHandler, planReorderHandler http.HandlerFunc
 	// API plan handlers (use user 1's services).
 	var apiPlanListHandler, apiPlanSetHandler, apiPlanClearHandler http.HandlerFunc
+	// API todo handlers (use user 1's services).
+	var apiListTodos, apiGetTodo, apiAddTodo, apiUpdateTodo http.HandlerFunc
+	var apiCompleteTodo, apiUncompleteTodo, apiDeleteTodo http.HandlerFunc
+	var apiUpdatePriority, apiUpdateTags http.HandlerFunc
+	var apiAddSubStep, apiToggleSubStep, apiRemoveSubStep http.HandlerFunc
+	var apiReorderPlan, apiClearCarried http.HandlerFunc
+	commentaryStore := commentary.NewStore(database)
 
 	if cfg.AuthEnabled() {
 		// Per-user service registry: each user gets isolated personal and ideas
 		// services. Family is shared across all users.
-		registry = services.NewRegistry(database, cfg.UserDataDir, cfg.FamilyPath, cfg.Location)
+		registry = services.NewRegistry(database, cfg.UserDataDir, cfg.FamilyPath, cfg.HouseProjectsPath, cfg.Location)
 
 		// Provision directories for every existing user on startup.
 		allUsers, err := auth.AllUsers(database)
@@ -257,9 +275,15 @@ func main() {
 			}
 		}
 
-		// Initial resync for shared family service.
+		// Shared maintenance service (like family, not per-user).
+		maintenanceSvc := house.NewService(cfg.MaintenancePath, cfg.Location)
+
+		// Initial resync for shared services.
 		if err := registry.Family().Resync(); err != nil {
 			slog.Warn("initial family sync", "error", err)
+		}
+		if err := registry.HouseProjects().Resync(); err != nil {
+			slog.Warn("initial house projects sync", "error", err)
 		}
 		// Initial resync for every known user's personal list.
 		for _, u := range allUsers {
@@ -270,12 +294,24 @@ func main() {
 
 		// File watcher: shared family file + per-user data directory.
 		fileCategories := map[string]string{
-			cfg.FamilyPath: "family",
+			cfg.FamilyPath:        "family",
+			cfg.HouseProjectsPath: "house-projects",
+			cfg.MaintenancePath:   "maintenance",
 		}
 		callbacks := map[string]func(){
 			"family": func() {
 				if err := registry.Family().Resync(); err != nil {
 					slog.Error("family resync failed", "error", err)
+				}
+			},
+			"house-projects": func() {
+				if err := registry.HouseProjects().Resync(); err != nil {
+					slog.Error("house projects resync failed", "error", err)
+				}
+			},
+			"maintenance": func() {
+				if err := maintenanceSvc.Resync(); err != nil {
+					slog.Error("maintenance resync failed", "error", err)
 				}
 			},
 		}
@@ -309,9 +345,11 @@ func main() {
 			return registry.Family(), registry.ForUser(uid).Personal
 		}, templates, "family", cfg.Location)
 
+		houseHandler = house.NewHandler(maintenanceSvc, registry.HouseProjects(), templates, cfg.Location)
+
 		ideaHandler = ideas.NewHandlerWithResolver(func(r *http.Request) *ideas.Service {
 			return registry.ForUser(auth.UserID(r.Context())).Ideas
-		}, func(ctx context.Context, title, body string, tags []string, fromIdeaSlug string) (string, error) {
+		}, func(ctx context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error) {
 			item := tracker.Item{
 				Title:    title,
 				Type:     tracker.TaskType,
@@ -320,16 +358,24 @@ func main() {
 				FromIdea: fromIdeaSlug,
 			}
 			taskSlug := tracker.Slugify(title)
-			return taskSlug, registry.ForUser(auth.UserID(ctx)).Personal.AddItem(item)
+			switch target {
+			case "family":
+				return taskSlug, registry.Family().AddItem(item)
+			case "house":
+				item.Status = "todo"
+				return taskSlug, registry.HouseProjects().AddItem(item)
+			default:
+				return taskSlug, registry.ForUser(auth.UserID(ctx)).Personal.AddItem(item)
+			}
 		}, templates, cfg.Location)
 
-		searchHandler = search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
+		searchHandler = search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
 			uid := auth.UserID(r.Context())
 			svc := registry.ForUser(uid)
-			return svc.Personal, registry.Family(), svc.Ideas
+			return svc.Personal, registry.Family(), registry.HouseProjects(), maintenanceSvc, svc.Ideas
 		})
 
-		homeHandler := home.NewHandler(registry, templates, cfg.Location)
+		homeHandler := home.NewHandler(registry, maintenanceSvc, templates, cfg.Location)
 		homePage = homeHandler.HomePage
 		digestPage := homeHandler.DigestPage
 		calendarPage := homeHandler.CalendarPage
@@ -412,13 +458,24 @@ func main() {
 			r.Get("/account/password", http.RedirectHandler("/account", http.StatusMovedPermanently).ServeHTTP)
 			r.Post("/account/password", acctHandler.PasswordSubmit)
 
-			mountAppRoutes(r, homePage, digestPage, calendarPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler, planReorderHandler)
+			mountAppRoutes(r, homePage, digestPage, calendarPage, personalHandler, familyHandler, houseHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler, planReorderHandler)
+			r.Get("/commentary/{list}/{slug}", commentary.WebGetCommentary(commentaryStore))
 		})
+		personalHandler.SetCommentaryStore(commentaryStore)
+		familyHandler.SetCommentaryStore(commentaryStore)
+		ideaHandler.SetCommentaryStore(commentaryStore)
+		houseHandler.SetCommentaryStore(commentaryStore)
 
 		purgeFunc = func() {
-			// Purge family (shared) service.
+			// Purge shared services.
 			if err := registry.Family().PurgeExpired(trashRetentionDays); err != nil {
 				slog.Error("family purge failed", "error", err)
+			}
+			if err := registry.HouseProjects().PurgeExpired(trashRetentionDays); err != nil {
+				slog.Error("house projects purge failed", "error", err)
+			}
+			if err := maintenanceSvc.PurgeExpired(trashRetentionDays); err != nil {
+				slog.Error("maintenance purge failed", "error", err)
 			}
 			// Purge each user's personal and ideas services.
 			allUsers, err := auth.AllUsers(database)
@@ -443,6 +500,9 @@ func main() {
 		familyStore := tracker.NewStore(database, "family")
 		personalSvc := tracker.NewService(cfg.PersonalPath, "Personal", personalStore, cfg.Location)
 		familySvc := tracker.NewService(cfg.FamilyPath, "Family", familyStore, cfg.Location)
+		houseProjectsStore := tracker.NewStore(database, "house")
+		houseProjectsSvc := tracker.NewService(cfg.HouseProjectsPath, "House", houseProjectsStore, cfg.Location)
+		maintenanceSvc := house.NewService(cfg.MaintenancePath, cfg.Location)
 		if err := personalSvc.Resync(); err != nil {
 			slog.Warn("initial personal sync", "error", err)
 		}
@@ -451,9 +511,11 @@ func main() {
 		}
 
 		fileCategories := map[string]string{
-			cfg.PersonalPath: "personal",
-			cfg.FamilyPath:   "family",
-			cfg.IdeasPath:    "ideas",
+			cfg.PersonalPath:      "personal",
+			cfg.FamilyPath:        "family",
+			cfg.IdeasPath:         "ideas",
+			cfg.HouseProjectsPath: "house-projects",
+			cfg.MaintenancePath:   "maintenance",
 		}
 		callbacks := map[string]func(){
 			"personal": func() {
@@ -471,12 +533,22 @@ func main() {
 					slog.Error("ideas resync failed", "error", err)
 				}
 			},
+			"house-projects": func() {
+				if err := houseProjectsSvc.Resync(); err != nil {
+					slog.Error("house projects resync failed", "error", err)
+				}
+			},
+			"maintenance": func() {
+				if err := maintenanceSvc.Resync(); err != nil {
+					slog.Error("maintenance resync failed", "error", err)
+				}
+			},
 		}
 		if err := watcher.Watch(nil, fileCategories, broker, callbacks); err != nil {
 			slog.Warn("file watcher failed to start", "error", err)
 		}
 
-		ideaHandler = ideas.NewHandler(ideaSvc, func(_ context.Context, title, body string, tags []string, fromIdeaSlug string) (string, error) {
+		ideaHandler = ideas.NewHandler(ideaSvc, func(_ context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error) {
 			item := tracker.Item{
 				Title:    title,
 				Type:     tracker.TaskType,
@@ -485,18 +557,27 @@ func main() {
 				FromIdea: fromIdeaSlug,
 			}
 			taskSlug := tracker.Slugify(title)
-			return taskSlug, personalSvc.AddItem(item)
+			switch target {
+			case "family":
+				return taskSlug, familySvc.AddItem(item)
+			case "house":
+				item.Status = "todo"
+				return taskSlug, houseProjectsSvc.AddItem(item)
+			default:
+				return taskSlug, personalSvc.AddItem(item)
+			}
 		}, templates, cfg.Location)
 		personalHandler = tracker.NewHandler(personalSvc, familySvc, templates, "todos", cfg.Location)
 		familyHandler = tracker.NewHandler(familySvc, personalSvc, templates, "family", cfg.Location)
-		searchHandler = search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *ideas.Service) {
-			return personalSvc, familySvc, ideaSvc
+		houseHandler = house.NewHandler(maintenanceSvc, houseProjectsSvc, templates, cfg.Location)
+		searchHandler = search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
+			return personalSvc, familySvc, houseProjectsSvc, maintenanceSvc, ideaSvc
 		})
-		homePage = home.HomePageSingle(personalSvc, familySvc, ideaSvc, templates, cfg.Location)
-		digestPage := home.DigestPageSingle(personalSvc, familySvc, ideaSvc, templates, cfg.Location)
-		calendarPage := home.CalendarPageSingle(personalSvc, familySvc, ideaSvc, templates, cfg.Location)
+		homePage = home.HomePageSingle(personalSvc, familySvc, houseProjectsSvc, maintenanceSvc, ideaSvc, templates, cfg.Location)
+		digestPage := home.DigestPageSingle(personalSvc, familySvc, houseProjectsSvc, ideaSvc, templates, cfg.Location)
+		calendarPage := home.CalendarPageSingle(personalSvc, familySvc, houseProjectsSvc, ideaSvc, templates, cfg.Location)
 
-		singlePlan := home.NewSingleUserPlanHandlers(personalSvc, familySvc, cfg.Location)
+		singlePlan := home.NewSingleUserPlanHandlers(personalSvc, familySvc, houseProjectsSvc, cfg.Location)
 		planSetHandler = singlePlan.SetPlanned
 		planClearHandler = singlePlan.ClearPlanned
 		planCompleteHandler = singlePlan.CompletePlanned
@@ -504,12 +585,32 @@ func main() {
 		planClearCarriedHandler = singlePlan.ClearCarriedOver
 		planReorderHandler = singlePlan.ReorderPlanned
 
-		apiPlanListHandler = home.APIListPlan(personalSvc, familySvc, cfg.Location)
-		apiPlanSetHandler = home.APISetPlan(personalSvc, familySvc, cfg.Location)
-		apiPlanClearHandler = home.APIClearPlan(personalSvc, familySvc)
+		apiPlanListHandler = home.APIListPlan(personalSvc, familySvc, houseProjectsSvc, cfg.Location)
+		apiPlanSetHandler = home.APISetPlan(personalSvc, familySvc, houseProjectsSvc, cfg.Location)
+		apiPlanClearHandler = home.APIClearPlan(personalSvc, familySvc, houseProjectsSvc)
+
+		apiListTodos = tracker.APIListTodos(personalSvc, familySvc)
+		apiGetTodo = tracker.APIGetTodo(personalSvc, familySvc)
+		apiAddTodo = tracker.APIAddTodo(personalSvc, familySvc)
+		apiUpdateTodo = tracker.APIUpdateTodo(personalSvc, familySvc)
+		apiCompleteTodo = tracker.APICompleteTodo(personalSvc, familySvc)
+		apiUncompleteTodo = tracker.APIUncompleteTodo(personalSvc, familySvc)
+		apiDeleteTodo = tracker.APIDeleteTodo(personalSvc, familySvc)
+		apiUpdatePriority = tracker.APIUpdatePriority(personalSvc, familySvc)
+		apiUpdateTags = tracker.APIUpdateTags(personalSvc, familySvc)
+		apiAddSubStep = tracker.APIAddSubStep(personalSvc, familySvc)
+		apiToggleSubStep = tracker.APIToggleSubStep(personalSvc, familySvc)
+		apiRemoveSubStep = tracker.APIRemoveSubStep(personalSvc, familySvc)
+		apiReorderPlan = home.APIReorderPlan(personalSvc, familySvc, houseProjectsSvc, cfg.Location)
+		apiClearCarried = home.APIClearCarried(personalSvc, familySvc, houseProjectsSvc, cfg.Location)
 
 		r.Get("/events", broker.ServeHTTP)
-		mountAppRoutes(r, homePage, digestPage, calendarPage, personalHandler, familyHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler, planReorderHandler)
+		mountAppRoutes(r, homePage, digestPage, calendarPage, personalHandler, familyHandler, houseHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler, planReorderHandler)
+		r.Get("/commentary/{list}/{slug}", commentary.WebGetCommentary(commentaryStore))
+		personalHandler.SetCommentaryStore(commentaryStore)
+		familyHandler.SetCommentaryStore(commentaryStore)
+		ideaHandler.SetCommentaryStore(commentaryStore)
+		houseHandler.SetCommentaryStore(commentaryStore)
 
 		purgeFunc = func() {
 			if err := personalSvc.PurgeExpired(trashRetentionDays); err != nil {
@@ -520,6 +621,12 @@ func main() {
 			}
 			if err := ideaSvc.PurgeExpired(trashRetentionDays); err != nil {
 				slog.Error("ideas purge failed", "error", err)
+			}
+			if err := houseProjectsSvc.PurgeExpired(trashRetentionDays); err != nil {
+				slog.Error("house projects purge failed", "error", err)
+			}
+			if err := maintenanceSvc.PurgeExpired(trashRetentionDays); err != nil {
+				slog.Error("maintenance purge failed", "error", err)
 			}
 		}
 	}
@@ -546,7 +653,7 @@ func main() {
 		userSvc := registry.ForUser(1)
 		apiIdeaHandler = ideas.NewHandler(
 			userSvc.Ideas,
-			func(_ context.Context, title, body string, tags []string, fromIdeaSlug string) (string, error) {
+			func(_ context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error) {
 				item := tracker.Item{
 					Title:    title,
 					Type:     tracker.TaskType,
@@ -555,21 +662,47 @@ func main() {
 					FromIdea: fromIdeaSlug,
 				}
 				taskSlug := tracker.Slugify(title)
-				return taskSlug, userSvc.Personal.AddItem(item)
+				switch target {
+				case "family":
+					return taskSlug, registry.Family().AddItem(item)
+				case "house":
+					item.Status = "todo"
+					return taskSlug, registry.HouseProjects().AddItem(item)
+				default:
+					return taskSlug, userSvc.Personal.AddItem(item)
+				}
 			},
 			templates,
 			cfg.Location,
 		)
-		apiPlanListHandler = home.APIListPlan(userSvc.Personal, registry.Family(), cfg.Location)
-		apiPlanSetHandler = home.APISetPlan(userSvc.Personal, registry.Family(), cfg.Location)
-		apiPlanClearHandler = home.APIClearPlan(userSvc.Personal, registry.Family())
+		apiPlanListHandler = home.APIListPlan(userSvc.Personal, registry.Family(), registry.HouseProjects(), cfg.Location)
+		apiPlanSetHandler = home.APISetPlan(userSvc.Personal, registry.Family(), registry.HouseProjects(), cfg.Location)
+		apiPlanClearHandler = home.APIClearPlan(userSvc.Personal, registry.Family(), registry.HouseProjects())
+
+		apiListTodos = tracker.APIListTodos(userSvc.Personal, registry.Family())
+		apiGetTodo = tracker.APIGetTodo(userSvc.Personal, registry.Family())
+		apiAddTodo = tracker.APIAddTodo(userSvc.Personal, registry.Family())
+		apiUpdateTodo = tracker.APIUpdateTodo(userSvc.Personal, registry.Family())
+		apiCompleteTodo = tracker.APICompleteTodo(userSvc.Personal, registry.Family())
+		apiUncompleteTodo = tracker.APIUncompleteTodo(userSvc.Personal, registry.Family())
+		apiDeleteTodo = tracker.APIDeleteTodo(userSvc.Personal, registry.Family())
+		apiUpdatePriority = tracker.APIUpdatePriority(userSvc.Personal, registry.Family())
+		apiUpdateTags = tracker.APIUpdateTags(userSvc.Personal, registry.Family())
+		apiAddSubStep = tracker.APIAddSubStep(userSvc.Personal, registry.Family())
+		apiToggleSubStep = tracker.APIToggleSubStep(userSvc.Personal, registry.Family())
+		apiRemoveSubStep = tracker.APIRemoveSubStep(userSvc.Personal, registry.Family())
+		apiReorderPlan = home.APIReorderPlan(userSvc.Personal, registry.Family(), registry.HouseProjects(), cfg.Location)
+		apiClearCarried = home.APIClearCarried(userSvc.Personal, registry.Family(), registry.HouseProjects(), cfg.Location)
 	}
+	apiRateLimiter := httputil.NewRateLimiter(60, 60)
 	r.Route("/api/v1", func(r chi.Router) {
 		if cfg.APIToken != "" {
 			r.Use(bearerAuth(cfg.APIToken))
 		} else {
 			slog.Warn("API routes have no authentication -- set DASHBOARD_API_TOKEN")
 		}
+		r.Use(httputil.RateLimitMiddleware(apiRateLimiter))
+
 		r.Get("/ideas", apiIdeaHandler.APIListIdeas)
 		r.Post("/ideas", apiIdeaHandler.APIAddIdea)
 		r.Put("/ideas/{slug}/triage", apiIdeaHandler.APITriageIdea)
@@ -578,6 +711,25 @@ func main() {
 			r.Get("/plan", apiPlanListHandler)
 			r.Put("/plan/{slug}", apiPlanSetHandler)
 			r.Delete("/plan/{slug}", apiPlanClearHandler)
+			r.Post("/plan/reorder", apiReorderPlan)
+			r.Post("/plan/clear-carried", apiClearCarried)
+		}
+		r.Put("/commentary/{list}/{slug}", commentary.APISetCommentary(commentaryStore))
+		r.Get("/commentary/{list}/{slug}", commentary.APIGetCommentary(commentaryStore))
+		r.Delete("/commentary/{list}/{slug}", commentary.APIDeleteCommentary(commentaryStore))
+		if apiListTodos != nil {
+			r.Get("/todos", apiListTodos)
+			r.Post("/todos", apiAddTodo)
+			r.Get("/todos/{slug}", apiGetTodo)
+			r.Put("/todos/{slug}", apiUpdateTodo)
+			r.Post("/todos/{slug}/complete", apiCompleteTodo)
+			r.Post("/todos/{slug}/uncomplete", apiUncompleteTodo)
+			r.Delete("/todos/{slug}", apiDeleteTodo)
+			r.Put("/todos/{slug}/priority", apiUpdatePriority)
+			r.Put("/todos/{slug}/tags", apiUpdateTags)
+			r.Post("/todos/{slug}/substeps", apiAddSubStep)
+			r.Put("/todos/{slug}/substeps/{index}", apiToggleSubStep)
+			r.Delete("/todos/{slug}/substeps/{index}", apiRemoveSubStep)
 		}
 	})
 
@@ -622,7 +774,7 @@ func runUserAdd() {
 	fmt.Printf("created user %q with id %d\n", *email, id)
 }
 
-func mountAppRoutes(r chi.Router, homePage, digestPage, calendarPage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string, planSet, planClear, planComplete, planBulkSet, planClearCarried, planReorder http.HandlerFunc) {
+func mountAppRoutes(r chi.Router, homePage, digestPage, calendarPage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, houseHandler *house.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string, planSet, planClear, planComplete, planBulkSet, planClearCarried, planReorder http.HandlerFunc) {
 	r.Post("/upload", uploadHandler.Upload)
 	r.Handle("/uploads/*", cacheImmutable(http.StripPrefix("/uploads/", noDirectoryListing(http.Dir(uploadsDir)))))
 
@@ -644,6 +796,23 @@ func mountAppRoutes(r chi.Router, homePage, digestPage, calendarPage http.Handle
 	r.Get("/goals", personalHandler.GoalsPage)
 
 	mountTrackerRoutes(r, personalHandler, familyHandler)
+
+	// House page (combined maintenance + projects).
+	r.Get("/house", houseHandler.HousePage)
+	r.Post("/house/maintenance/add", houseHandler.AddMaintenance)
+	r.Post("/house/maintenance/{slug}/log", houseHandler.LogDone)
+	r.Post("/house/maintenance/{slug}/edit", houseHandler.EditMaintenance)
+	r.Post("/house/maintenance/{slug}/delete", houseHandler.DeleteMaintenance)
+	r.Post("/house/maintenance/{slug}/restore", houseHandler.RestoreMaintenance)
+	r.Post("/house/maintenance/{slug}/purge", houseHandler.PurgeMaintenance)
+	r.Post("/house/projects/add", houseHandler.AddProject)
+	r.Post("/house/projects/{slug}/edit", houseHandler.EditProject)
+	r.Post("/house/projects/{slug}/complete", houseHandler.CompleteProject)
+	r.Post("/house/projects/{slug}/uncomplete", houseHandler.UncompleteProject)
+	r.Post("/house/projects/{slug}/status", houseHandler.UpdateStatus)
+	r.Post("/house/projects/{slug}/delete", houseHandler.DeleteProject)
+	r.Post("/house/projects/{slug}/restore", houseHandler.RestoreProject)
+	r.Post("/house/projects/{slug}/purge", houseHandler.PurgeProject)
 
 	r.Get("/ideas", ideaHandler.IdeasPage)
 	r.Get("/ideas/{slug}", ideaHandler.IdeaDetail)
@@ -734,7 +903,7 @@ func parseTemplates(fm template.FuncMap) (map[string]*template.Template, error) 
 		return nil, fmt.Errorf("parsing layout: %w", err)
 	}
 
-	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "homepage.html", "digest.html", "calendar.html", "admin-users.html", "admin-user-form.html", "admin-password.html", "account.html"}
+	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "homepage.html", "digest.html", "calendar.html", "admin-users.html", "admin-user-form.html", "admin-password.html", "account.html", "house.html"}
 	templates := make(map[string]*template.Template, len(pages))
 
 	for _, page := range pages {

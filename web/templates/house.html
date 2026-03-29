@@ -1,0 +1,368 @@
+{{define "content"}}
+
+<div class="house-page"
+     hx-ext="sse" sse-connect="/events"
+     hx-get="/house" hx-select=".house-page" hx-target="this" hx-swap="outerHTML"
+     hx-trigger="sse:file-changed">
+<span class="htmx-indicator meta-dim" role="status" aria-live="polite">updating&hellip;</span>
+
+<h1>House</h1>
+
+{{if or .Maintenance .Projects}}
+<div class="house-filters">
+    <button class="filter-tag active" onclick="houseFilter('all')" data-filter="all">all</button>
+    <button class="filter-tag" onclick="houseFilter('overdue')" data-filter="overdue">overdue</button>
+    <button class="filter-tag" onclick="houseFilter('due-week')" data-filter="due-week">due this week</button>
+    <button class="filter-tag" onclick="houseFilter('due-month')" data-filter="due-month">due this month</button>
+    <button class="filter-tag" onclick="houseFilter('todo')" data-filter="todo">todo</button>
+    <button class="filter-tag" onclick="houseFilter('active')" data-filter="active">active</button>
+</div>
+<div class="house-table-wrap">
+<table class="house-table">
+    <thead>
+        <tr>
+            <th>Title</th>
+            <th>Status</th>
+            <th>Notes</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Maintenance}}
+        <tr class="house-row house-row-maint{{if .IsOverdue}} house-row-overdue{{end}}" id="{{.Slug}}" data-type="maintenance" data-days="{{.DaysUntilDue}}" data-status="{{if .IsOverdue}}overdue{{else}}due{{end}}" onclick="houseToggleDetail(this)" role="button" tabindex="0" aria-expanded="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();houseToggleDetail(this)}">
+            <td class="house-cell-title"><span class="house-row-toggle">&#x25B8;</span> {{.Title}}</td>
+            <td>{{if .IsOverdue}}<span class="badge badge-overdue">overdue</span>{{else}}<span class="badge badge-status-due">{{.DueLabel}}</span>{{end}}</td>
+            <td class="house-cell-notes meta-dim">{{if .Notes}}{{truncateBody .Notes}}{{end}}</td>
+            <td class="house-cell-actions" onclick="event.stopPropagation()">
+                <span class="house-note-popover">
+                    <button type="button" class="action-btn action-btn-sm" onclick="this.closest('.house-note-popover').classList.toggle('open')">done</button>
+                    <form method="POST" action="/house/maintenance/{{.Slug}}/log" class="house-note-dropdown">
+                        <input type="text" name="note" placeholder="optional note" class="form-input form-input-sm" aria-label="Completion note">
+                        <button type="submit" class="form-btn">log</button>
+                    </form>
+                </span>
+            </td>
+        </tr>
+        <tr class="house-detail-row house-detail-hidden">
+            <td colspan="4">
+                <div class="house-detail-panel">
+                    <div class="house-detail-grid">
+                        <div class="house-detail-field">
+                            <span class="house-detail-label">Schedule</span>
+                            <span>every {{.Cadence}}</span>
+                        </div>
+                        <div class="house-detail-field">
+                            <span class="house-detail-label">Tags</span>
+                            <span>{{if .Tags}}{{range .Tags}}<span class="badge badge-tag">{{.}}</span> {{end}}{{else}}<span class="meta-dim">none</span>{{end}}</span>
+                        </div>
+                        <div class="house-detail-field">
+                            <span class="house-detail-label">Logs</span>
+                            <span>{{if .Log}}{{len .Log}} {{if eq (len .Log) 1}}entry{{else}}entries{{end}}{{else}}<span class="meta-dim">never done</span>{{end}}</span>
+                        </div>
+                        <div class="house-detail-field">
+                            <span class="house-detail-label">Added</span>
+                            <span>{{if .Added}}{{.Added}}{{else}}<span class="meta-dim">unknown</span>{{end}}</span>
+                        </div>
+                    </div>
+                    {{if .Notes}}
+                    <div class="house-detail-body">
+                        <span class="house-detail-label">Notes</span>
+                        <div class="house-detail-body-text">{{linkify .Notes}}</div>
+                    </div>
+                    {{end}}
+                    {{if .Log}}
+                    <details class="house-log-section">
+                        <summary class="meta-dim">View log history</summary>
+                        <div class="house-log-entries">
+                            {{range .Log}}
+                            <div class="house-log-entry"><span class="house-log-date">{{.Date}}</span>{{if .Note}}<span class="house-log-note"> &mdash; {{.Note}}</span>{{end}}</div>
+                            {{end}}
+                        </div>
+                    </details>
+                    {{end}}
+                    <details class="house-edit-section" onclick="event.stopPropagation()">
+                        <summary class="action-btn action-btn-sm">edit</summary>
+                        <form method="POST" action="/house/maintenance/{{.Slug}}/edit" class="house-edit-form">
+                            <label class="house-edit-label" for="maint-edit-title-{{.Slug}}">Title</label>
+                            <input type="text" name="title" id="maint-edit-title-{{.Slug}}" value="{{.Title}}" class="form-input">
+                            <label class="house-edit-label" for="maint-edit-notes-{{.Slug}}">Notes</label>
+                            <textarea name="notes" id="maint-edit-notes-{{.Slug}}" rows="2" class="form-textarea" placeholder="Notes, links, context...">{{.Notes}}</textarea>
+                            <label class="house-edit-label" for="maint-edit-tags-{{.Slug}}">Tags</label>
+                            <input type="text" name="tags" id="maint-edit-tags-{{.Slug}}" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
+                            <button type="submit" class="form-btn form-btn-sm">save</button>
+                        </form>
+                    </details>
+                    <form method="POST" action="/house/maintenance/{{.Slug}}/delete" class="inline-form" onclick="event.stopPropagation()" onsubmit="return confirmAction(this, 'Move this item to trash?')">
+                        <button type="submit" class="action-btn action-btn-sm action-drop">trash</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {{end}}
+        {{range .Projects}}
+        <tr class="house-row house-row-proj" id="{{.Slug}}" data-type="project" data-status="{{.Status}}" onclick="houseToggleDetail(this)" role="button" tabindex="0" aria-expanded="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();houseToggleDetail(this)}">
+            <td class="house-cell-title"><span class="house-row-toggle">&#x25B8;</span> {{.Title}}</td>
+            <td>{{if .Status}}<span class="badge badge-status-{{.Status}}">{{.Status}}</span>{{end}}</td>
+            <td class="house-cell-notes meta-dim">{{if .Body}}{{truncateBody .Body}}{{end}}</td>
+            <td class="house-cell-actions" onclick="event.stopPropagation()">{{if .Status}}{{$itemStatus := .Status}}
+                <form method="POST" action="/house/projects/{{.Slug}}/status" class="inline-form">
+                    <select name="status" class="house-action-select" aria-label="Project status" onchange="this.form.submit()">
+                        {{range $.AllStatuses}}
+                        <option value="{{.}}"{{if eq . $itemStatus}} selected{{end}}>{{.}}</option>
+                        {{end}}
+                    </select>
+                </form>
+                {{end}}
+            </td>
+        </tr>
+        <tr class="house-detail-row house-detail-hidden">
+            <td colspan="4">
+                <div class="house-detail-panel">
+                    <div class="house-detail-grid">
+                        {{if .Budget}}<div class="house-detail-field">
+                            <span class="house-detail-label">Budget</span>
+                            <span>${{formatNum .Budget}}{{if .Actual}} / ${{formatNum .Actual}} spent{{end}}</span>
+                        </div>{{end}}
+                        <div class="house-detail-field">
+                            <span class="house-detail-label">Tags</span>
+                            <span>{{if .Tags}}{{range .Tags}}<span class="badge badge-tag">{{.}}</span> {{end}}{{else}}<span class="meta-dim">none</span>{{end}}</span>
+                        </div>
+                        {{if .SubStepsTotal}}<div class="house-detail-field">
+                            <span class="house-detail-label">Steps</span>
+                            <span>{{.SubStepsDone}}/{{.SubStepsTotal}} done</span>
+                        </div>{{end}}
+                        <div class="house-detail-field">
+                            <span class="house-detail-label">Added</span>
+                            <span>{{if .Added}}{{.Added}}{{else}}<span class="meta-dim">unknown</span>{{end}}</span>
+                        </div>
+                    </div>
+                    {{if .Body}}
+                    <div class="house-detail-body">
+                        <span class="house-detail-label">Notes</span>
+                        <div class="house-detail-body-text">{{linkify .Body}}</div>
+                    </div>
+                    {{end}}
+                    <details class="house-edit-section" onclick="event.stopPropagation()">
+                        <summary class="action-btn action-btn-sm">edit</summary>
+                        <form method="POST" action="/house/projects/{{.Slug}}/edit" class="house-edit-form">
+                            <label class="house-edit-label" for="proj-edit-title-{{.Slug}}">Title</label>
+                            <input type="text" name="title" id="proj-edit-title-{{.Slug}}" value="{{.Title}}" class="form-input">
+                            <label class="house-edit-label" for="proj-edit-body-{{.Slug}}">Notes</label>
+                            <textarea name="body" id="proj-edit-body-{{.Slug}}" rows="3" class="form-textarea" placeholder="Notes, links, context...">{{.Body}}</textarea>
+                            <label class="house-edit-label" for="proj-edit-tags-{{.Slug}}">Tags</label>
+                            <input type="text" name="tags" id="proj-edit-tags-{{.Slug}}" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
+                            <button type="submit" class="form-btn form-btn-sm">save</button>
+                        </form>
+                    </details>
+                    <form method="POST" action="/house/projects/{{.Slug}}/delete" class="inline-form" onclick="event.stopPropagation()" onsubmit="return confirmAction(this, 'Move this item to trash?')">
+                        <button type="submit" class="action-btn action-btn-sm action-drop">trash</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+</div>
+{{else}}
+<p class="empty">No house items yet. Add a maintenance task or project to get started.</p>
+{{end}}
+
+{{if .DoneProjects}}
+<details class="tracker-done-section">
+    <summary class="meta-dim">{{len .DoneProjects}} completed/dropped</summary>
+    <div class="house-table-wrap">
+    <table class="house-table house-table-done">
+        <tbody>
+            {{range .DoneProjects}}
+            <tr class="house-row house-row-done" id="{{.Slug}}" onclick="houseToggleDetail(this)" role="button" tabindex="0" aria-expanded="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();houseToggleDetail(this)}">
+                <td class="house-cell-title"><span class="house-row-toggle">&#x25B8;</span> {{.Title}}</td>
+                <td>{{if .Status}}<span class="badge badge-status-{{.Status}}">{{.Status}}</span>{{end}}</td>
+                <td>{{if .Budget}}${{formatNum .Budget}}{{end}}</td>
+                <td class="house-cell-actions" onclick="event.stopPropagation()">{{if .Status}}{{$itemStatus := .Status}}
+                    <form method="POST" action="/house/projects/{{.Slug}}/status" class="inline-form">
+                        <select name="status" class="house-action-select" aria-label="Project status" onchange="this.form.submit()">
+                            {{range $.AllStatuses}}
+                            <option value="{{.}}"{{if eq . $itemStatus}} selected{{end}}>{{.}}</option>
+                            {{end}}
+                        </select>
+                    </form>
+                    {{end}}
+                </td>
+            </tr>
+            <tr class="house-detail-row house-detail-hidden">
+                <td colspan="4">
+                    <div class="house-detail-panel">
+                        <div class="house-detail-grid">
+                            {{if .Budget}}<div class="house-detail-field">
+                                <span class="house-detail-label">Budget</span>
+                                <span>${{formatNum .Budget}}{{if .Actual}} / ${{formatNum .Actual}} spent{{end}}</span>
+                            </div>{{end}}
+                            <div class="house-detail-field">
+                                <span class="house-detail-label">Tags</span>
+                                <span>{{if .Tags}}{{range .Tags}}<span class="badge badge-tag">{{.}}</span> {{end}}{{else}}<span class="meta-dim">none</span>{{end}}</span>
+                            </div>
+                            {{if .Completed}}<div class="house-detail-field">
+                                <span class="house-detail-label">Completed</span>
+                                <span>{{.Completed}}</span>
+                            </div>{{end}}
+                        </div>
+                        {{if .Body}}
+                        <div class="house-detail-body">
+                            <span class="house-detail-label">Notes</span>
+                            <div class="house-detail-body-text">{{linkify .Body}}</div>
+                        </div>
+                        {{end}}
+                        <form method="POST" action="/house/projects/{{.Slug}}/delete" class="inline-form" onclick="event.stopPropagation()" onsubmit="return confirmAction(this, 'Move this item to trash?')">
+                            <button type="submit" class="action-btn action-btn-sm action-drop">trash</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    </div>
+</details>
+{{end}}
+
+{{if or .DeletedMaintenance .DeletedProjects}}
+<details class="tracker-done-section">
+    <summary class="meta-dim">Recently deleted</summary>
+    {{range .DeletedMaintenance}}
+    <div class="house-item-deleted">
+        <span class="house-item-title">{{.Title}}</span>
+        <span class="meta-dim">(maintenance)</span>
+        <form method="POST" action="/house/maintenance/{{.Slug}}/restore" class="inline-form">
+            <button type="submit" class="action-btn action-btn-sm">restore</button>
+        </form>
+        <form method="POST" action="/house/maintenance/{{.Slug}}/purge" class="inline-form" onsubmit="return confirmAction(this, 'Permanently delete this item?')">
+            <button type="submit" class="action-btn action-btn-sm action-drop">purge</button>
+        </form>
+    </div>
+    {{end}}
+    {{range .DeletedProjects}}
+    <div class="house-item-deleted">
+        <span class="house-item-title">{{.Title}}</span>
+        <span class="meta-dim">(project)</span>
+        <form method="POST" action="/house/projects/{{.Slug}}/restore" class="inline-form">
+            <button type="submit" class="action-btn action-btn-sm">restore</button>
+        </form>
+        <form method="POST" action="/house/projects/{{.Slug}}/purge" class="inline-form" onsubmit="return confirmAction(this, 'Permanently delete this item?')">
+            <button type="submit" class="action-btn action-btn-sm action-drop">purge</button>
+        </form>
+    </div>
+    {{end}}
+</details>
+{{end}}
+
+<div class="house-add-forms">
+    <details class="quick-add tracker-add-form">
+        <summary>Add maintenance item</summary>
+        <form method="POST" action="/house/maintenance/add" class="tracker-goal-form">
+            <label for="maint-title" class="sr-only">Item name</label>
+            <input type="text" name="title" id="maint-title" placeholder="Item name" required class="form-input">
+            <div class="goal-form-row">
+                <label for="maint-cadence" class="sr-only">Cadence</label>
+                <input type="text" name="cadence" id="maint-cadence" placeholder="Cadence (e.g. 3m, 2w, 90d)" required class="form-input">
+                <label for="maint-tags" class="sr-only">Tags</label>
+                <input type="text" name="tags" id="maint-tags" placeholder="Tags (comma-separated)" class="form-input">
+            </div>
+            <button type="submit" class="form-btn">add</button>
+        </form>
+    </details>
+    <details class="quick-add tracker-add-form">
+        <summary>Add project</summary>
+        <form method="POST" action="/house/projects/add" class="tracker-goal-form">
+            <label for="proj-title" class="sr-only">Project name</label>
+            <input type="text" name="title" id="proj-title" placeholder="Project name" required class="form-input">
+            <div class="goal-form-row">
+                <label for="proj-status" class="sr-only">Status</label>
+                <select name="status" id="proj-status" class="form-select">
+                    <option value="todo" selected>todo</option>
+                    <option value="active">active</option>
+                </select>
+                <label for="proj-budget" class="sr-only">Budget</label>
+                <input type="number" name="budget" id="proj-budget" placeholder="Budget ($)" step="0.01" class="form-input">
+                <label for="proj-tags" class="sr-only">Tags</label>
+                <input type="text" name="tags" id="proj-tags" placeholder="Tags (comma-separated)" class="form-input">
+            </div>
+            <label for="proj-body" class="sr-only">Notes</label>
+            <textarea name="body" id="proj-body" placeholder="Notes, links, or context" rows="2" class="form-textarea"></textarea>
+            <button type="submit" class="form-btn">add</button>
+        </form>
+    </details>
+</div>
+
+<script>
+// Toggle detail row visibility.
+function houseToggleDetail(row) {
+    var detail = row.nextElementSibling;
+    if (!detail || !detail.classList.contains("house-detail-row")) return;
+    var hidden = detail.classList.toggle("house-detail-hidden");
+    var toggle = row.querySelector(".house-row-toggle");
+    if (toggle) toggle.textContent = hidden ? "\u25B8" : "\u25BE";
+    row.setAttribute("aria-expanded", String(!hidden));
+}
+
+// House table filters.
+function houseFilter(filter) {
+    var btns = document.querySelectorAll(".house-filters .filter-tag");
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle("active", btns[i].getAttribute("data-filter") === filter);
+    }
+
+    var rows = document.querySelectorAll("tr.house-row");
+    for (var j = 0; j < rows.length; j++) {
+        var row = rows[j];
+        var detail = row.nextElementSibling;
+        var type = row.getAttribute("data-type");
+        var status = row.getAttribute("data-status");
+        var days = parseInt(row.getAttribute("data-days") || "9999", 10);
+        var show = false;
+
+        switch (filter) {
+            case "all":
+                show = true;
+                break;
+            case "overdue":
+                show = (type === "maintenance" && status === "overdue");
+                break;
+            case "due-week":
+                show = (type === "maintenance" && days <= 7);
+                break;
+            case "due-month":
+                show = (type === "maintenance" && days <= 30);
+                break;
+            case "todo":
+                show = (type === "project" && status === "todo");
+                break;
+            case "active":
+                show = (type === "project" && status === "active");
+                break;
+        }
+
+        row.style.display = show ? "" : "none";
+        if (detail && detail.classList.contains("house-detail-row")) {
+            if (!show) {
+                detail.style.display = "none";
+            } else {
+                detail.style.display = "";
+            }
+        }
+    }
+}
+
+// Close house note popovers when clicking outside.
+document.addEventListener("click", function(e) {
+    var pops = document.querySelectorAll(".house-note-popover.open");
+    for (var i = 0; i < pops.length; i++) {
+        if (!pops[i].contains(e.target)) {
+            pops[i].classList.remove("open");
+        }
+    }
+});
+</script>
+
+</div>
+{{end}}

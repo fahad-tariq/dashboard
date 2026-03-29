@@ -17,17 +17,18 @@ func (h *Handler) DigestPage(w http.ResponseWriter, r *http.Request) {
 	uid := auth.UserID(r.Context())
 	userSvc := h.registry.ForUser(uid)
 	familySvc := h.registry.Family()
-	renderDigestPage(w, r, userSvc.Personal, familySvc, userSvc.Ideas, h.templates, h.loc)
+	houseProjectsSvc := h.registry.HouseProjects()
+	renderDigestPage(w, r, userSvc.Personal, familySvc, houseProjectsSvc, userSvc.Ideas, h.templates, h.loc)
 }
 
 // DigestPageSingle returns a handler for GET /digest in single-user mode.
-func DigestPageSingle(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) http.HandlerFunc {
+func DigestPageSingle(personalSvc, familySvc, houseProjectsSvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		renderDigestPage(w, r, personalSvc, familySvc, ideaSvc, templates, loc)
+		renderDigestPage(w, r, personalSvc, familySvc, houseProjectsSvc, ideaSvc, templates, loc)
 	}
 }
 
-func renderDigestPage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) {
+func renderDigestPage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc, houseProjectsSvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) {
 	period := insights.ParseDigestPeriod(r.URL.Query().Get("period"))
 	now := time.Now().In(loc)
 
@@ -44,9 +45,14 @@ func renderDigestPage(w http.ResponseWriter, r *http.Request, personalSvc, famil
 		slog.Error("digest ideas list", "error", err)
 	}
 
-	// Merge personal and family tracker items into digest items.
-	digestItems := make([]insights.DigestItem, 0, len(personalItems)+len(familyItems)+len(allIdeas))
-	for _, it := range append(personalItems, familyItems...) {
+	houseItems, err := houseProjectsSvc.List()
+	if err != nil {
+		slog.Error("digest house projects list", "error", err)
+	}
+
+	// Merge personal, family, and house tracker items into digest items.
+	digestItems := make([]insights.DigestItem, 0, len(personalItems)+len(familyItems)+len(houseItems)+len(allIdeas))
+	for _, it := range append(append(personalItems, familyItems...), houseItems...) {
 		digestItems = append(digestItems, insights.DigestItem{
 			Added:     it.Added,
 			Completed: it.Completed,

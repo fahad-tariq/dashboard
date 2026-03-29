@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/fahad/dashboard/internal/house"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/tracker"
 	"github.com/fahad/dashboard/web"
@@ -15,13 +16,13 @@ import (
 type SearchResult struct {
 	Title    string
 	Slug     string
-	Category string // "todos", "family", "ideas"
+	Category string // "todos", "family", "house", "ideas"
 	URL      string
 	Snippet  string
 }
 
-// ServiceResolver returns the personal, family, and ideas services for the request.
-type ServiceResolver func(r *http.Request) (personal *tracker.Service, family *tracker.Service, ideaSvc *ideas.Service)
+// ServiceResolver returns services for search. Maintenance may be nil if not available.
+type ServiceResolver func(r *http.Request) (personal *tracker.Service, family *tracker.Service, houseProjects *tracker.Service, maintenanceSvc *house.Service, ideaSvc *ideas.Service)
 
 // Handler serves search requests.
 type Handler struct {
@@ -46,7 +47,7 @@ func (h *Handler) SearchAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	personal, family, ideaSvc := h.resolve(r)
+	personal, family, houseProjects, maintenanceSvc, ideaSvc := h.resolve(r)
 
 	var results []SearchResult
 
@@ -71,6 +72,32 @@ func (h *Handler) SearchAPI(w http.ResponseWriter, r *http.Request) {
 			URL:      "/family#" + it.Slug,
 			Snippet:  snippet(it.Body, query),
 		})
+	}
+
+	var houseProjectItems []tracker.Item
+	if houseProjects != nil {
+		houseProjectItems = houseProjects.Search(query)
+	}
+	for _, it := range houseProjectItems {
+		results = append(results, SearchResult{
+			Title:    it.Title,
+			Slug:     it.Slug,
+			Category: "house",
+			URL:      "/house#" + it.Slug,
+			Snippet:  snippet(it.Body, query),
+		})
+	}
+
+	if maintenanceSvc != nil {
+		maintItems := maintenanceSvc.Search(query)
+		for _, it := range maintItems {
+			results = append(results, SearchResult{
+				Title:    it.Title,
+				Slug:     it.Slug,
+				Category: "house",
+				URL:      "/house#" + it.Slug,
+			})
+		}
 	}
 
 	ideaItems := ideaSvc.Search(query)
@@ -113,14 +140,8 @@ func snippet(body, query string) string {
 		}
 		return body
 	}
-	start := idx - 30
-	if start < 0 {
-		start = 0
-	}
-	end := idx + len(query) + 50
-	if end > len(body) {
-		end = len(body)
-	}
+	start := max(idx-30, 0)
+	end := min(idx+len(query)+50, len(body))
 	s := body[start:end]
 	// Clean up newlines.
 	s = strings.ReplaceAll(s, "\n", " ")

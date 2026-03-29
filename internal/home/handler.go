@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/auth"
+	"github.com/fahad/dashboard/internal/house"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/insights"
@@ -21,16 +22,18 @@ import (
 )
 
 type Handler struct {
-	registry  *services.Registry
-	templates map[string]*template.Template
-	loc       *time.Location
+	registry       *services.Registry
+	maintenanceSvc *house.Service
+	templates      map[string]*template.Template
+	loc            *time.Location
 }
 
-func NewHandler(registry *services.Registry, templates map[string]*template.Template, loc *time.Location) *Handler {
+func NewHandler(registry *services.Registry, maintenanceSvc *house.Service, templates map[string]*template.Template, loc *time.Location) *Handler {
 	return &Handler{
-		registry:  registry,
-		templates: templates,
-		loc:       loc,
+		registry:       registry,
+		maintenanceSvc: maintenanceSvc,
+		templates:      templates,
+		loc:            loc,
 	}
 }
 
@@ -38,12 +41,13 @@ func (h *Handler) HomePage(w http.ResponseWriter, r *http.Request) {
 	uid := auth.UserID(r.Context())
 	userSvc := h.registry.ForUser(uid)
 	familySvc := h.registry.Family()
-	renderHomePage(w, r, userSvc.Personal, familySvc, userSvc.Ideas, h.templates, h.loc)
+	houseProjectsSvc := h.registry.HouseProjects()
+	renderHomePage(w, r, userSvc.Personal, familySvc, houseProjectsSvc, h.maintenanceSvc, userSvc.Ideas, h.templates, h.loc)
 }
 
-func HomePageSingle(personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) http.HandlerFunc {
+func HomePageSingle(personalSvc, familySvc, houseProjectsSvc *tracker.Service, maintenanceSvc *house.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		renderHomePage(w, r, personalSvc, familySvc, ideaSvc, templates, loc)
+		renderHomePage(w, r, personalSvc, familySvc, houseProjectsSvc, maintenanceSvc, ideaSvc, templates, loc)
 	}
 }
 
@@ -112,7 +116,7 @@ func PlanPrompt(now time.Time, openTaskCount int, streakDays int) string {
 	}
 }
 
-func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) {
+func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc, houseProjectsSvc *tracker.Service, maintenanceSvc *house.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) {
 	personalItems, err := personalSvc.List()
 	if err != nil {
 		slog.Error("homepage personal list", "error", err)
@@ -157,8 +161,13 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 	today := now.Format("2006-01-02")
 	personalPlanned := personalSvc.ListPlanned(today)
 	familyPlanned := familySvc.ListPlanned(today)
+	housePlanned := houseProjectsSvc.ListPlanned(today)
 	personalCarriedOver := personalSvc.ListOverdue(today)
 	familyCarriedOver := familySvc.ListOverdue(today)
+	houseCarriedOver := houseProjectsSvc.ListOverdue(today)
+
+	// Overdue maintenance for homepage card.
+	overdueMaintenance := maintenanceSvc.ListOverdue(now)
 
 	// Unplanned tasks for the picker (open, not done, not planned, not carried over).
 	personalExclude := make(map[string]bool)
@@ -189,25 +198,50 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 		}
 	}
 
+	// Unplanned house projects for the picker.
+	houseExclude := make(map[string]bool)
+	for _, it := range housePlanned {
+		houseExclude[it.Slug] = true
+	}
+	for _, it := range houseCarriedOver {
+		houseExclude[it.Slug] = true
+	}
+	houseProjectItems, _ := houseProjectsSvc.List()
+	var unplannedHouse []tracker.Item
+	for _, it := range houseProjectItems {
+		if it.Type == tracker.TaskType && !it.Done && !houseExclude[it.Slug] {
+			unplannedHouse = append(unplannedHouse, it)
+		}
+	}
+
 	// Auto-promote: merge carried-over items into planned lists.
 	personalCarriedCount := len(personalCarriedOver)
 	familyCarriedCount := len(familyCarriedOver)
+	houseCarriedCount := len(houseCarriedOver)
 	personalPlanned = append(personalPlanned, personalCarriedOver...)
 	familyPlanned = append(familyPlanned, familyCarriedOver...)
+	housePlanned = append(housePlanned, houseCarriedOver...)
 
 	sortPlanItems(personalPlanned)
 	sortPlanItems(familyPlanned)
+	sortPlanItems(housePlanned)
 	sortByPriority(unplannedPersonal)
 	sortByPriority(unplannedFamily)
+	sortByPriority(unplannedHouse)
 
 	planDone := 0
-	planTotal := len(personalPlanned) + len(familyPlanned)
+	planTotal := len(personalPlanned) + len(familyPlanned) + len(housePlanned)
 	for _, it := range personalPlanned {
 		if it.Done {
 			planDone++
 		}
 	}
 	for _, it := range familyPlanned {
+		if it.Done {
+			planDone++
+		}
+	}
+	for _, it := range housePlanned {
 		if it.Done {
 			planDone++
 		}
@@ -222,11 +256,16 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 	data["Today"] = today
 	data["PersonalPlanned"] = personalPlanned
 	data["FamilyPlanned"] = familyPlanned
+	data["HousePlanned"] = housePlanned
 	data["PersonalCarriedCount"] = personalCarriedCount
 	data["FamilyCarriedCount"] = familyCarriedCount
-	data["CarriedOverCount"] = personalCarriedCount + familyCarriedCount
+	data["HouseCarriedCount"] = houseCarriedCount
+	data["CarriedOverCount"] = personalCarriedCount + familyCarriedCount + houseCarriedCount
 	data["UnplannedPersonal"] = unplannedPersonal
 	data["UnplannedFamily"] = unplannedFamily
+	data["UnplannedHouse"] = unplannedHouse
+	data["OverdueMaintenance"] = overdueMaintenance
+	data["OverdueMaintenanceCount"] = len(overdueMaintenance)
 	data["PlanDoneCount"] = planDone
 	data["PlanTotalCount"] = planTotal
 	data["PlanAllDone"] = planAllDone
@@ -543,6 +582,7 @@ func (h *Handler) ClearCarriedOver(w http.ResponseWriter, r *http.Request) {
 	today := time.Now().In(h.loc).Format("2006-01-02")
 	clearOverdue(personal, today)
 	clearOverdue(family, today)
+	clearOverdue(h.registry.HouseProjects(), today)
 	http.Redirect(w, r, "/?msg=carried-cleared", http.StatusSeeOther)
 }
 
@@ -560,12 +600,14 @@ func (h *Handler) serviceForList(r *http.Request, list string) *tracker.Service 
 		return personal
 	case "family":
 		return family
+	case "house":
+		return h.registry.HouseProjects()
 	}
 	return nil
 }
 
 // APIListPlan handles GET /api/v1/plan?date=YYYY-MM-DD.
-func APIListPlan(personalSvc, familySvc *tracker.Service, loc *time.Location) http.HandlerFunc {
+func APIListPlan(personalSvc, familySvc, houseProjectsSvc *tracker.Service, loc *time.Location) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		date := r.URL.Query().Get("date")
 		if date == "" {
@@ -574,20 +616,23 @@ func APIListPlan(personalSvc, familySvc *tracker.Service, loc *time.Location) ht
 
 		personal := personalSvc.ListPlanned(date)
 		family := familySvc.ListPlanned(date)
+		housePlanned := houseProjectsSvc.ListPlanned(date)
 		overdue := personalSvc.ListOverdue(date)
 		overdue = append(overdue, familySvc.ListOverdue(date)...)
+		overdue = append(overdue, houseProjectsSvc.ListOverdue(date)...)
 
 		httputil.WriteJSON(w, http.StatusOK, map[string]any{
 			"date":     date,
 			"personal": planItemsToAPI(personal, "personal"),
 			"family":   planItemsToAPI(family, "family"),
+			"house":    planItemsToAPI(housePlanned, "house"),
 			"overdue":  planItemsToAPI(overdue, ""),
 		})
 	}
 }
 
 // APISetPlan handles PUT /api/v1/plan/{slug}.
-func APISetPlan(personalSvc, familySvc *tracker.Service, loc *time.Location) http.HandlerFunc {
+func APISetPlan(personalSvc, familySvc, houseProjectsSvc *tracker.Service, loc *time.Location) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slug := chi.URLParam(r, "slug")
 
@@ -609,6 +654,8 @@ func APISetPlan(personalSvc, familySvc *tracker.Service, loc *time.Location) htt
 			svc = personalSvc
 		case "family":
 			svc = familySvc
+		case "house":
+			svc = houseProjectsSvc
 		default:
 			http.Error(w, "Invalid list", http.StatusBadRequest)
 			return
@@ -624,7 +671,7 @@ func APISetPlan(personalSvc, familySvc *tracker.Service, loc *time.Location) htt
 }
 
 // APIClearPlan handles DELETE /api/v1/plan/{slug}.
-func APIClearPlan(personalSvc, familySvc *tracker.Service) http.HandlerFunc {
+func APIClearPlan(personalSvc, familySvc, houseProjectsSvc *tracker.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slug := chi.URLParam(r, "slug")
 
@@ -642,6 +689,8 @@ func APIClearPlan(personalSvc, familySvc *tracker.Service) http.HandlerFunc {
 			svc = personalSvc
 		case "family":
 			svc = familySvc
+		case "house":
+			svc = houseProjectsSvc
 		default:
 			http.Error(w, "Invalid list", http.StatusBadRequest)
 			return
@@ -658,13 +707,14 @@ func APIClearPlan(personalSvc, familySvc *tracker.Service) http.HandlerFunc {
 
 // SingleUserPlanHandlers holds plan handlers for single-user mode.
 type SingleUserPlanHandlers struct {
-	personalSvc *tracker.Service
-	familySvc   *tracker.Service
-	loc         *time.Location
+	personalSvc      *tracker.Service
+	familySvc        *tracker.Service
+	houseProjectsSvc *tracker.Service
+	loc              *time.Location
 }
 
-func NewSingleUserPlanHandlers(personalSvc, familySvc *tracker.Service, loc *time.Location) *SingleUserPlanHandlers {
-	return &SingleUserPlanHandlers{personalSvc: personalSvc, familySvc: familySvc, loc: loc}
+func NewSingleUserPlanHandlers(personalSvc, familySvc, houseProjectsSvc *tracker.Service, loc *time.Location) *SingleUserPlanHandlers {
+	return &SingleUserPlanHandlers{personalSvc: personalSvc, familySvc: familySvc, houseProjectsSvc: houseProjectsSvc, loc: loc}
 }
 
 func (h *SingleUserPlanHandlers) serviceForList(list string) *tracker.Service {
@@ -673,6 +723,8 @@ func (h *SingleUserPlanHandlers) serviceForList(list string) *tracker.Service {
 		return h.personalSvc
 	case "family":
 		return h.familySvc
+	case "house":
+		return h.houseProjectsSvc
 	}
 	return nil
 }
@@ -781,6 +833,7 @@ func (h *SingleUserPlanHandlers) ClearCarriedOver(w http.ResponseWriter, r *http
 	today := time.Now().In(h.loc).Format("2006-01-02")
 	clearOverdue(h.personalSvc, today)
 	clearOverdue(h.familySvc, today)
+	clearOverdue(h.houseProjectsSvc, today)
 	http.Redirect(w, r, "/?msg=carried-cleared", http.StatusSeeOther)
 }
 
