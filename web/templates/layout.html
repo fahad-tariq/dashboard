@@ -144,7 +144,7 @@
             </div>
         </div>
     </div>
-    <footer class="build-info">build {{buildVersion}}</footer>
+    <footer class="build-info">build {{buildVersion}} <span class="mcp-status" id="mcp-status" role="status" aria-live="polite" aria-label="MCP: checking">[mcp]</span></footer>
     <script src="/static/dialog.js"></script>
     <script src="/static/tracker.js"></script>
     <script src="/static/upload.js"></script>
@@ -162,5 +162,36 @@
         })();
     </script>
     <script src="/static/shortcuts.js"></script>
+    <script>
+        (function() {
+            var el = document.getElementById('mcp-status');
+            if (!el) return;
+            var lastCheck = 0;
+            function check() {
+                var now = Date.now();
+                if (now - lastCheck < 10000) return;
+                lastCheck = now;
+                fetch('/mcp/health', { method: 'GET' })
+                    .then(function(r) {
+                        if (r.ok) {
+                            el.className = 'mcp-status mcp-ok';
+                            el.title = 'MCP: healthy';
+                            el.setAttribute('aria-label', 'MCP: healthy');
+                        } else {
+                            el.className = 'mcp-status mcp-err';
+                            el.title = 'MCP: error (' + r.status + ')';
+                            el.setAttribute('aria-label', 'MCP: error');
+                        }
+                    })
+                    .catch(function() {
+                        el.className = 'mcp-status mcp-err';
+                        el.title = 'MCP: unreachable';
+                        el.setAttribute('aria-label', 'MCP: unreachable');
+                    });
+            }
+            check();
+            setInterval(check, 30000);
+        })();
+    </script>
 </body>
 </html>

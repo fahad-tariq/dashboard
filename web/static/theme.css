@@ -1760,6 +1760,16 @@ h2.homepage-card-title {
     opacity: 0.6;
     font-family: monospace;
 }
+.mcp-status {
+    margin-left: 0.5rem;
+    color: var(--fg-muted);
+}
+.mcp-ok {
+    color: var(--green);
+}
+.mcp-err {
+    color: var(--red);
+}
 
 .trash-banner {
     background: var(--bg-card);
