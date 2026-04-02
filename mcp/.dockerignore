@@ -1,0 +1,6 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+test_smoke.py
+requirements-dev.txt
+.gitignore

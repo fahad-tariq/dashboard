@@ -40,6 +40,8 @@ All three follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse
 **Commentary** (`internal/commentary/`): Ironclaw AI commentary stored in SQLite. The commentary endpoint returns 200 with empty body when no data exists. The tracker template loads commentary lazily via XHR on item expand (not htmx `hx-trigger="revealed"` which caused page-wipe issues due to htmx processing empty responses during page load).
 
 **API scoping:** Bearer token API uses the service registry for user 1's data. Per-user API tokens are not implemented -- can be added by mapping tokens to user IDs.
+
+**MCP server** (`mcp/`): Python sidecar that exposes the REST API as 24 MCP tools over Streamable HTTP transport. Uses `mcp` SDK v1.27+ with `FastMCP`, `stateless_http=True`, `json_response=True`. The server listens at `/` (Caddy `handle_path /mcp/*` strips the prefix). Auth: `DASHBOARD_API_TOKEN` validates inbound MCP requests via ASGI middleware and authenticates outbound calls to `http://dashboard:8080/api/v1`. Module-level `httpx.AsyncClient` singleton (not in FastMCP lifespan, which runs per-request under `stateless_http`). DNS rebinding protection is disabled (Caddy handles TLS/host validation). Docker image: `ghcr.io/fahad-tariq/dashboard-mcp`, port 9100 bound to loopback only. Tools: 12 todo, 4 ideas, 5 plan, 3 commentary. Slugs validated against `[a-z0-9][a-z0-9-]*` regex before forwarding. Tests: `cd mcp && pytest test_smoke.py -v` (30 tests, uses respx to mock dashboard API).
 </ARCHITECTURE>
 
 <CONVENTIONS>
@@ -103,8 +105,12 @@ All three follow read-modify-write with a `mutate(slug, fn)` helper: lock, parse
 **Sub-step index stability:** `ToggleSubStep`, `RemoveSubStep`, and `PromoteSubStep` address sub-steps by index within the body. The `mutate()` lock prevents concurrent modifications, so indices are stable between render and form submission. However, if a user has multiple browser tabs open on the same task and modifies sub-steps in one tab, the indices in the other tab become stale. This is an accepted limitation for a personal dashboard.
 
 **DnD listeners must delegate from document:** The homepage SSE trigger (`sse:file-changed`) replaces `.homepage-page` via htmx outerHTML, destroying all child elements and their listeners. Any JS that binds to elements inside `.homepage-page` (or any SSE-swapped container) will break after the first swap. `planner.js` delegates all events from `document` to avoid this. Do not bind DnD or other interactive listeners directly to elements inside swappable containers.
+
+**MCP `stateless_http=True` lifespan runs per-request:** Do NOT put the `httpx.AsyncClient` in a FastMCP lifespan context manager -- it would create/destroy the client (and TCP connection pool) on every MCP tool call. Keep it as a module-level singleton in `client.py`. The `StreamableHTTPSessionManager.run()` can only be called once per instance, which affects testing -- use a module-scoped `TestClient` fixture. MCP Streamable HTTP requires `Accept: application/json, text/event-stream` header on requests.
 </GOTCHAS>
 
 <TESTING>
 `go test ./...` from repo root. All tests are in `test/` directory. Integration tests use temp dirs and in-memory SQLite -- no external services needed.
+
+MCP server tests: `cd mcp && pip install -r requirements-dev.txt && pytest test_smoke.py -v`. Uses `respx` to mock the dashboard API. Requires `DASHBOARD_API_TOKEN` env var (any 32+ char string for tests).
 </TESTING>

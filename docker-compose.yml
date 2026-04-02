@@ -24,3 +24,14 @@ services:
       - DASHBOARD_SECURE_COOKIES=${DASHBOARD_SECURE_COOKIES:-true}
       - USER_DATA_DIR=/data/users
       - DASHBOARD_TIMEZONE=${DASHBOARD_TIMEZONE:-Australia/Sydney}
+
+  dashboard-mcp:
+    build:
+      context: ./mcp
+    ports:
+      - "127.0.0.1:9100:9100"
+    environment:
+      - DASHBOARD_API_URL=http://dashboard:8080/api/v1
+      - DASHBOARD_API_TOKEN=${DASHBOARD_API_TOKEN}
+    depends_on:
+      - dashboard
