@@ -1,4 +1,13 @@
-import { addTask, expandTrackerItem, expect, test, trackerItem, trackerSection, uniqueTitle } from './helpers';
+import {
+  addTask,
+  expandTrackerItem,
+  expect,
+  test,
+  trackerItem,
+  trackerSection,
+  uniqueTitle,
+  waitForSseSettle,
+} from './helpers';
 
 test('confirm modal cancels, closes on Escape and confirms a permanent delete', async ({ page }) => {
   const title = uniqueTitle('Cancel gym membership');
@@ -18,6 +27,7 @@ test('confirm modal cancels, closes on Escape and confirms a permanent delete', 
   await item.getByRole('button', { name: 'trash' }).click();
   await modal.getByRole('button', { name: 'Confirm' }).click();
   await expect(trackerItem(page, title)).toHaveCount(0);
+  await waitForSseSettle(page);
 
   const deleted = trackerSection(page, /^Recently Deleted \(\d+\)/);
   await deleted.locator('summary').click();

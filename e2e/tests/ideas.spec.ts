@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, test, uniqueTitle } from './helpers';
+import { expect, test, uniqueTitle, waitForSseSettle } from './helpers';
 
 function ideaSection(page: Page, heading: string) {
   return page.locator('.ideas-page section').filter({
@@ -11,6 +11,7 @@ test('add an idea and triage it', async ({ page }) => {
   const title = uniqueTitle('Compost bin sensor');
 
   await page.goto('/ideas');
+  await waitForSseSettle(page);
   await page.locator('details.tracker-add-form > summary', { hasText: 'Add idea' }).click();
   const form = page.locator('form[action="/ideas/add"]');
   await form.getByLabel('Idea title').fill(title);
@@ -21,6 +22,7 @@ test('add an idea and triage it', async ({ page }) => {
   // New ideas land in Untriaged.
   const untriagedCard = ideaSection(page, 'Untriaged').locator('.tracker-item', { hasText: title });
   await expect(untriagedCard).toBeVisible();
+  await waitForSseSettle(page);
 
   await untriagedCard.locator('.tracker-item-header').click();
   await expect(untriagedCard).not.toHaveClass(/\bminimised\b/);

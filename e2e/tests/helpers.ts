@@ -1,8 +1,29 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { test as base, expect, type Locator, type Page } from '@playwright/test';
 
-export { expect, test };
+/**
+ * Every page records the time of its last SSE message or htmx settle in
+ * window.__e2eLastActivity, so waitForSseSettle can wait for quiet instead of
+ * sleeping a fixed time.
+ */
+export const test = base.extend({
+  page: async ({ page }, use) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __e2eLastActivity: number };
+      const touch = (): void => {
+        w.__e2eLastActivity = Date.now();
+      };
+      touch();
+      document.addEventListener('htmx:sseMessage', touch);
+      document.addEventListener('htmx:beforeRequest', touch);
+      document.addEventListener('htmx:afterSettle', touch);
+    });
+    await use(page);
+  },
+});
+
+export { expect };
 
 /** Title with a per-run suffix so tests never collide on shared server state. */
 export function uniqueTitle(prefix: string): string {
@@ -34,12 +55,17 @@ export function appendLine(path: string, line: string): void {
 /**
  * Every write to a watched markdown file (including the app's own) triggers an
  * SSE `file-changed` event after a 500ms debounce, which outerHTML-swaps the
- * page container. The homepage and house page do not suppress that swap, so
- * transient UI state (an expanded row) is lost if the swap lands after we set
- * it. Waiting out the debounce plus a round trip avoids racing it.
+ * page container: open <details> close, rows collapse, and a form held by the
+ * confirm modal is detached so submitting it does nothing. Wait until the page
+ * has been quiet for longer than the debounce plus a round trip. Plan 1 Phase 3
+ * stops the app's own writes from broadcasting, after which this mostly no-ops.
  */
-export async function waitForSseSettle(page: Page): Promise<void> {
-  await page.waitForTimeout(1500);
+export async function waitForSseSettle(page: Page, quietMs = 1200): Promise<void> {
+  await page.waitForFunction(
+    (q) => Date.now() - (window as unknown as { __e2eLastActivity: number }).__e2eLastActivity > q,
+    quietMs,
+    { polling: 100 },
+  );
 }
 
 /** Resolves once the htmx SSE stream for the current page has connected. */
@@ -70,6 +96,7 @@ export async function addTask(
   opts: { body?: string; tags?: string } = {},
 ): Promise<Locator> {
   await page.goto('/todos');
+  await waitForSseSettle(page);
   await page.locator('details.tracker-add-form > summary', { hasText: 'Add task' }).click();
   const form = page.locator('form[action="/todos/add"]');
   await form.getByLabel('Task title').fill(title);
@@ -78,6 +105,7 @@ export async function addTask(
   await form.getByRole('button', { name: 'add task' }).click();
   const item = trackerItem(page, title);
   await expect(item).toBeVisible();
+  await waitForSseSettle(page);
   return item;
 }
 
@@ -90,6 +118,7 @@ export function planItem(page: Page, title: string): Locator {
 /** Plans a task for today via the homepage task picker. */
 export async function planFromPicker(page: Page, title: string): Promise<Locator> {
   await page.goto('/');
+  await waitForSseSettle(page);
   const picker = page.locator('details.plan-picker');
   if ((await picker.getAttribute('open')) === null) {
     await picker.locator('summary').click();
@@ -100,5 +129,6 @@ export async function planFromPicker(page: Page, title: string): Promise<Locator
   await pick.getByRole('button', { name: 'today' }).click();
   const item = planItem(page, title);
   await expect(item).toBeVisible();
+  await waitForSseSettle(page);
   return item;
 }

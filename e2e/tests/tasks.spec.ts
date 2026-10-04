@@ -6,6 +6,7 @@ import {
   trackerItem,
   trackerSection,
   uniqueTitle,
+  waitForSseSettle,
 } from './helpers';
 
 test('add, complete, move to trash and restore a task', async ({ page }) => {
@@ -15,6 +16,7 @@ test('add, complete, move to trash and restore a task', async ({ page }) => {
   // Complete: the item leaves the open list and appears under Done.
   await trackerItem(page, doneTitle).getByTitle('Complete').click();
   await expect(trackerItem(page, doneTitle)).toHaveCount(0);
+  await waitForSseSettle(page);
   const done = trackerSection(page, /^Done \(\d+\)/);
   await done.locator('summary').click();
   await expect(done.locator('.tracker-item', { hasText: doneTitle })).toBeVisible();
@@ -31,6 +33,7 @@ test('add, complete, move to trash and restore a task', async ({ page }) => {
 
   await expect(page).toHaveURL(/\/todos/);
   await expect(trackerItem(page, trashTitle)).toHaveCount(0);
+  await waitForSseSettle(page);
   const deleted = trackerSection(page, /^Recently Deleted \(\d+\)/);
   await deleted.locator('summary').click();
   const deletedItem = deleted.locator('.tracker-item', { hasText: trashTitle });
