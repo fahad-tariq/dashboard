@@ -81,6 +81,7 @@ type attempt struct {
 // RateLimiter tracks login attempts per client IP.
 type RateLimiter struct {
 	mu       sync.Mutex
+	limit    int
 	attempts *lru[attempt]
 }
 
@@ -90,7 +91,12 @@ func NewRateLimiter() *RateLimiter {
 
 // NewRateLimiterWithCapacity bounds the number of IPs tracked at once.
 func NewRateLimiterWithCapacity(capacity int) *RateLimiter {
-	return &RateLimiter{attempts: newLRU[attempt](capacity)}
+	return NewRateLimiterWithLimit(maxAttempts, capacity)
+}
+
+// NewRateLimiterWithLimit allows limit attempts per IP per minute.
+func NewRateLimiterWithLimit(limit, capacity int) *RateLimiter {
+	return &RateLimiter{limit: limit, attempts: newLRU[attempt](capacity)}
 }
 
 // Allow returns true if the IP has not exceeded the rate limit.
@@ -104,7 +110,7 @@ func (rl *RateLimiter) Allow(ip string) bool {
 		*a = attempt{windowAt: now.Add(window)}
 	}
 	a.count++
-	return a.count <= maxAttempts
+	return a.count <= rl.limit
 }
 
 // RetryAfter returns the duration until the rate limit resets for the given IP.
