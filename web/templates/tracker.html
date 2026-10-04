@@ -53,24 +53,24 @@
 
 {{range .Tasks}}
 <div class="tracker-item minimised" id="item-{{.Slug}}" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
-    <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
+    <div class="tracker-item-header" onclick="itemHeaderClick(event)">
         <input type="checkbox" class="bulk-checkbox" onclick="event.stopPropagation();bulkCheckboxChanged()" aria-label="Select {{.Title}}">
-        <button class="item-toggle" onclick="event.stopPropagation()" title="Minimise/expand">&#x25B8;</button>
+        <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand">&#x25B8;</button>
         <span class="tracker-item-title">{{linkify .Title}}</span>
         <div class="tracker-item-meta">
-            {{range .Tags}}<span class="badge badge-tag badge-clickable" role="button" tabindex="0" onclick="event.stopPropagation();trackerFilter('category','{{.}}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();trackerFilter('category','{{.}}')}">{{.}}</span>{{end}}
-            {{if .Priority}}<span class="badge badge-priority-{{.Priority}} badge-clickable" role="button" tabindex="0" onclick="event.stopPropagation();trackerFilter('priority','{{.Priority}}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();trackerFilter('priority','{{.Priority}}')}">{{.Priority}}</span>{{end}}
+            {{range .Tags}}<button type="button" class="badge badge-tag badge-clickable" onclick="event.stopPropagation();trackerFilter('category','{{.}}')">{{.}}</button>{{end}}
+            {{if .Priority}}<button type="button" class="badge badge-priority-{{.Priority}} badge-clickable" onclick="event.stopPropagation();trackerFilter('priority','{{.Priority}}')">{{.Priority}}</button>{{end}}
             {{if .SubStepsTotal}}<span class="badge badge-substeps">{{.SubStepsDone}}/{{.SubStepsTotal}}</span>{{end}}
             {{if .Added}}{{$age := ageBadge .Added}}{{if index $age 0}}<span class="badge badge-age badge-age-{{index $age 1}}">{{index $age 0}}</span>{{end}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
             {{if not .Planned}}<form method="POST" action="/{{$.ListName}}/{{.Slug}}/plan" class="item-complete-form" onclick="event.stopPropagation()">
-                <button type="submit" class="item-plan-btn" title="Do today">&#x2606;</button>
+                <button type="submit" class="item-plan-btn" aria-label="Do today: {{.Title}}" title="Do today">&#x2606;</button>
             </form>{{end}}
             <form method="POST" action="/{{$.ListName}}/{{.Slug}}/complete" class="item-complete-form" onclick="event.stopPropagation()" onsubmit="return celebrateComplete(this)">
-                <button type="submit" class="item-complete-btn" title="Complete">&#x2713;</button>
+                <button type="submit" class="item-complete-btn" aria-label="Complete {{.Title}}" title="Complete">&#x2713;</button>
             </form>
         </div>
     </div>
-    <div class="tracker-item-detail">
+    <div class="tracker-item-detail" id="item-{{.Slug}}-detail">
         <div>
             {{if .FromIdea}}<div class="converted-link">From idea: <a href="/ideas/{{.FromIdea}}">{{.FromIdea}}</a></div>{{end}}
             {{$text := bodyText .Body}}{{$steps := substeps .Body}}{{$slug := .Slug}}
@@ -81,16 +81,16 @@
                 <div class="substep-item {{if $s.Done}}substep-item-done{{end}}">
                     <form method="POST" action="/{{$.ListName}}/{{$slug}}/substep/toggle" class="substep-form" hx-post="/{{$.ListName}}/{{$slug}}/substep/toggle" hx-target="#item-{{$slug}}" hx-select="#item-{{$slug}}" hx-swap="outerHTML">
                         <input type="hidden" name="index" value="{{$i}}">
-                        <button type="submit" class="substep-check" title="Toggle">{{if $s.Done}}&#x2611;{{else}}&#x2610;{{end}}</button>
+                        <button type="submit" class="substep-check" id="item-{{$slug}}-substep-{{$i}}-toggle" aria-label="{{if $s.Done}}Mark step not done{{else}}Mark step done{{end}}: {{$s.Text}}" title="Toggle">{{if $s.Done}}&#x2611;{{else}}&#x2610;{{end}}</button>
                     </form>
                     <span class="substep-text">{{$s.Text}}</span>
                     <form method="POST" action="/{{$.ListName}}/{{$slug}}/substep/promote" class="substep-form" hx-post="/{{$.ListName}}/{{$slug}}/substep/promote" hx-target="#item-{{$slug}}" hx-select="#item-{{$slug}}" hx-swap="outerHTML">
                         <input type="hidden" name="index" value="{{$i}}">
-                        <button type="submit" class="substep-promote" title="Promote to task">&#x2197;</button>
+                        <button type="submit" class="substep-promote" id="item-{{$slug}}-substep-{{$i}}-promote" aria-label="Promote step to task: {{$s.Text}}" title="Promote to task">&#x2197;</button>
                     </form>
                     <form method="POST" action="/{{$.ListName}}/{{$slug}}/substep/remove" class="substep-form" hx-post="/{{$.ListName}}/{{$slug}}/substep/remove" hx-target="#item-{{$slug}}" hx-select="#item-{{$slug}}" hx-swap="outerHTML">
                         <input type="hidden" name="index" value="{{$i}}">
-                        <button type="submit" class="substep-remove" title="Remove">&#x2715;</button>
+                        <button type="submit" class="substep-remove" id="item-{{$slug}}-substep-{{$i}}-remove" aria-label="Remove step: {{$s.Text}}" title="Remove">&#x2715;</button>
                     </form>
                 </div>
                 {{end}}
@@ -145,9 +145,9 @@
 <details class="tracker-done-section">
     <summary class="tracker-done-summary">Done ({{len .DoneTasks}})</summary>
     {{range .DoneTasks}}
-    <div class="tracker-item tracker-item-done minimised" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
-        <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
-            <button class="item-toggle" onclick="event.stopPropagation()" title="Minimise/expand">&#x25B8;</button>
+    <div class="tracker-item tracker-item-done minimised" id="item-{{.Slug}}" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+        <div class="tracker-item-header" onclick="itemHeaderClick(event)">
+            <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand">&#x25B8;</button>
             <span class="tracker-item-title">{{linkify .Title}}</span>
             <div class="tracker-item-meta">
                 {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
@@ -160,7 +160,7 @@
                 </form>
             </div>
         </div>
-        <div class="tracker-item-detail">
+        <div class="tracker-item-detail" id="item-{{.Slug}}-detail">
             <div>
                 {{if .Body}}
                 <div class="tracker-item-body">{{linkify .Body}}</div>
@@ -177,9 +177,9 @@
 <details class="tracker-done-section">
     <summary class="tracker-done-summary">Recently Deleted ({{len .DeletedTasks}})</summary>
     {{range .DeletedTasks}}
-    <div class="tracker-item tracker-item-done minimised" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
-        <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
-            <button class="item-toggle" onclick="event.stopPropagation()" title="Minimise/expand">&#x25B8;</button>
+    <div class="tracker-item tracker-item-done minimised" id="item-{{.Slug}}" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+        <div class="tracker-item-header" onclick="itemHeaderClick(event)">
+            <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand">&#x25B8;</button>
             <span class="tracker-item-title">{{linkify .Title}}</span>
             <div class="tracker-item-meta">
                 {{if .DeletedAt}}<span class="tracker-item-date">deleted {{.DeletedAt}}</span>{{end}}
@@ -191,7 +191,7 @@
                 </form>
             </div>
         </div>
-        <div class="tracker-item-detail">
+        <div class="tracker-item-detail" id="item-{{.Slug}}-detail">
             <div>
                 {{if .Body}}
                 <div class="tracker-item-body">{{linkify .Body}}</div>

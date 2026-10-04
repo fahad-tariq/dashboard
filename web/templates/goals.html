@@ -73,8 +73,8 @@
         <input type="checkbox" class="bulk-checkbox" onclick="event.stopPropagation();bulkCheckboxChanged()" aria-label="Select {{.Title}}">
         <span class="tracker-item-title">{{linkify .Title}}</span>
         <div class="tracker-item-meta">
-            {{range .Tags}}<span class="badge badge-tag badge-clickable" role="button" tabindex="0" onclick="trackerFilter('category','{{.}}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();trackerFilter('category','{{.}}')}">{{.}}</span>{{end}}
-            {{if .Priority}}<span class="badge badge-priority-{{.Priority}} badge-clickable" role="button" tabindex="0" onclick="trackerFilter('priority','{{.Priority}}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();trackerFilter('priority','{{.Priority}}')}">{{.Priority}}</span>{{end}}
+            {{range .Tags}}<button type="button" class="badge badge-tag badge-clickable" onclick="trackerFilter('category','{{.}}')">{{.}}</button>{{end}}
+            {{if .Priority}}<button type="button" class="badge badge-priority-{{.Priority}} badge-clickable" onclick="trackerFilter('priority','{{.Priority}}')">{{.Priority}}</button>{{end}}
         </div>
     </div>
     {{if gt .Target 0.0}}
@@ -103,7 +103,7 @@
             <button type="submit" class="action-btn action-assign">+1</button>
         </form>
         <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage goal-set-form">
-            <input type="number" name="delta" step="any" placeholder="set" class="form-input goal-set-input" required>
+            <input type="number" name="delta" step="any" placeholder="set" class="form-input goal-set-input" required aria-label="Set progress for {{.Title}}">
             <input type="hidden" name="set" value="1">
             <button type="submit" class="action-btn">set</button>
         </form>
@@ -112,7 +112,7 @@
             <summary class="action-btn item-actions-toggle">more</summary>
             <div class="item-actions-panel">
                 <form method="POST" action="/todos/{{.Slug}}/priority" class="inline-triage">
-                    <select name="priority" class="form-select-sm">
+                    <select name="priority" class="form-select-sm" aria-label="Priority">
                         <option value="" {{if eq .Priority ""}}selected{{end}}>--</option>
                         <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
                         <option value="medium" {{if eq .Priority "medium"}}selected{{end}}>medium</option>
@@ -134,9 +134,9 @@
     <details class="tracker-notes-edit">
         <summary>edit</summary>
         <form method="POST" action="/todos/{{.Slug}}/edit" class="tracker-notes-form">
-            <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input">
-            <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context...">{{.Body}}</textarea>
-            <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
+            <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input" aria-label="Title">
+            <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context..." aria-label="Notes">{{.Body}}</textarea>
+            <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input" aria-label="Tags">
             <input type="hidden" name="images" value="{{range $i, $img := .Images}}{{if $i}},{{end}}{{$img}}{{end}}">
             <button type="submit" class="form-btn form-btn-sm">save</button>
         </form>
@@ -148,9 +148,9 @@
 <details class="tracker-done-section">
     <summary class="tracker-done-summary">Recently Deleted ({{len .DeletedGoals}})</summary>
     {{range .DeletedGoals}}
-    <div class="tracker-item tracker-item-done minimised">
-        <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
-            <button class="item-toggle" onclick="event.stopPropagation()" title="Minimise/expand">&#x25B8;</button>
+    <div class="tracker-item tracker-item-done minimised" id="item-{{.Slug}}" data-slug="{{.Slug}}">
+        <div class="tracker-item-header" onclick="itemHeaderClick(event)">
+            <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand">&#x25B8;</button>
             <span class="tracker-item-title">{{linkify .Title}}</span>
             <div class="tracker-item-meta">
                 {{if .DeletedAt}}<span class="tracker-item-date">deleted {{.DeletedAt}}</span>{{end}}
@@ -162,7 +162,7 @@
                 </form>
             </div>
         </div>
-        <div class="tracker-item-detail">
+        <div class="tracker-item-detail" id="item-{{.Slug}}-detail">
             <div>
                 {{if .Body}}
                 <div class="tracker-item-body">{{linkify .Body}}</div>
@@ -189,7 +189,7 @@
     </form>
     <form method="POST" action="/todos/bulk/priority" id="bulk-priority-form" style="display:inline">
         <input type="hidden" name="slugs" value="">
-        <select name="priority" class="form-select-sm">
+        <select name="priority" class="form-select-sm" aria-label="Bulk priority">
             <option value="">--</option>
             <option value="high">high</option>
             <option value="medium">medium</option>

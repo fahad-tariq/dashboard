@@ -85,14 +85,26 @@ function applyFilter() {
 // Persistent set of expanded item slugs -- survives SSE swaps.
 var trackerExpandedItems = {};
 
+// itemHeaderClick toggles a row when its header is clicked. The row's
+// .item-toggle button is the keyboard and screen reader control; clicks on
+// other controls in the header (badges, checkbox, forms, links) are theirs.
+function itemHeaderClick(e) {
+    var header = e.currentTarget;
+    var toggle = header.querySelector('.item-toggle');
+    if (!toggle) return;
+    if (e.target.closest('.item-toggle') || !e.target.closest('a, button, input, select, textarea, label, form')) {
+        toggleItem(toggle);
+    }
+}
+
 function toggleItem(btn) {
     if (!btn) return;
     var item = btn.closest('.tracker-item');
     item.classList.toggle('minimised');
     var minimised = item.classList.contains('minimised');
     btn.textContent = minimised ? '\u25B8' : '\u25BE';
-    var header = item.querySelector('.tracker-item-header');
-    if (header) header.setAttribute('aria-expanded', String(!minimised));
+    var toggle = item.querySelector('.item-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', String(!minimised));
     var slug = item.getAttribute('data-slug');
     if (slug) {
         if (minimised) {
@@ -135,8 +147,8 @@ function trackerToggleAll() {
         }
         var btn = el.querySelector('.item-toggle');
         if (btn) btn.textContent = shouldMinimise ? '\u25B8' : '\u25BE';
-        var header = el.querySelector('.tracker-item-header');
-        if (header) header.setAttribute('aria-expanded', String(!shouldMinimise));
+        var toggle = el.querySelector('.item-toggle');
+        if (toggle) toggle.setAttribute('aria-expanded', String(!shouldMinimise));
         var slug = el.getAttribute('data-slug');
         if (slug) {
             if (shouldMinimise) {
@@ -205,8 +217,8 @@ function triageAnimate(form) {
     el.classList.remove('minimised');
     var btn = el.querySelector('.item-toggle');
     if (btn) btn.textContent = '\u25BE';
-    var header = el.querySelector('.tracker-item-header');
-    if (header) header.setAttribute('aria-expanded', 'true');
+    var toggle = el.querySelector('.item-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', 'true');
     var slug = el.getAttribute('data-slug');
     if (slug) trackerExpandedItems[slug] = true;
     el.scrollIntoView({block: 'nearest'});
@@ -338,8 +350,8 @@ document.addEventListener('htmx:afterSettle', function() {
             el.classList.remove('minimised');
             var btn = el.querySelector('.item-toggle');
             if (btn) btn.textContent = '\u25BE';
-            var header = el.querySelector('.tracker-item-header');
-            if (header) header.setAttribute('aria-expanded', 'true');
+            var toggle = el.querySelector('.item-toggle');
+            if (toggle) toggle.setAttribute('aria-expanded', 'true');
         }
     });
 });

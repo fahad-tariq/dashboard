@@ -5,10 +5,8 @@
      hx-trigger="sse:file-changed">
 <span class="htmx-indicator meta-dim" role="status" aria-live="polite">updating&hellip;</span>
 
-{{if .Greeting}}<h1 class="homepage-greeting">{{.Greeting}}</h1>{{end}}
+<h1 class="homepage-greeting">{{or .Greeting "Today"}}</h1>
 {{if .DateLabel}}<p class="plan-date-label">{{.DateLabel}} &middot; <a href="/plan/calendar" class="meta-dim">calendar</a></p>{{end}}
-
-{{if .FlashMsg}}<div class="flash-msg">{{.FlashMsg}}</div>{{end}}
 
 {{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .TotalIdeaCount 0)}}
 <p class="empty">Nothing here yet. Add a task or capture an idea to get started.</p>
@@ -56,104 +54,17 @@
     <div class="plan-today-tasks">
         {{if .PersonalPlanned}}
         {{if or .FamilyPlanned .HousePlanned}}<span class="plan-list-label meta-dim">Personal</span>{{end}}
-        {{range .PersonalPlanned}}
-        <div class="plan-item minimised {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="todos" {{if not .Done}}draggable="true"{{end}} onclick="planItemClick(event)" role="button" tabindex="0" aria-expanded="false">
-            <span class="plan-item-toggle">&#x25B8;</span>
-            <span class="plan-item-title">{{.Title}}</span>
-            {{if ne .Planned $.Today}}<span class="plan-item-date meta-dim">from {{relativeDate .Planned}}</span>{{end}}
-            <div class="plan-item-actions" onclick="event.stopPropagation()">
-                {{if not .Done}}
-                <button type="button" class="plan-reorder-btn" onclick="planMoveUp(this)" title="Move up">&uarr;</button>
-                <button type="button" class="plan-reorder-btn" onclick="planMoveDown(this)" title="Move down">&darr;</button>
-                <form method="POST" action="/plan/{{.Slug}}/complete" class="inline-form" onsubmit="return celebrateComplete(this)">
-                    <input type="hidden" name="list" value="todos">
-                    <button type="submit" class="item-complete-btn" title="Complete">done</button>
-                </form>
-                {{end}}
-                <form method="POST" action="/plan/clear" class="inline-form">
-                    <input type="hidden" name="slug" value="{{.Slug}}">
-                    <input type="hidden" name="list" value="todos">
-                    <button type="submit" class="plan-remove-btn" title="Remove from plan">drop</button>
-                </form>
-            </div>
-            <div class="plan-item-detail">
-                <div>
-                    {{if .Body}}<div class="plan-item-body">{{linkify .Body}}</div>{{end}}
-                    {{if .Tags}}<div class="plan-item-tags">{{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}</div>{{end}}
-                    {{if .Added}}<span class="plan-item-added meta-dim">Added {{.Added}}</span>{{end}}
-                    <a href="/todos#item-{{.Slug}}" class="plan-item-link meta-dim" onclick="event.stopPropagation()">open in list</a>
-                </div>
-            </div>
-        </div>
-        {{end}}
+        {{range .PersonalPlanned}}{{template "plan-row" (dict "Item" . "List" "todos" "Today" $.Today)}}{{end}}
         {{end}}
 
         {{if .FamilyPlanned}}
         {{if .PersonalPlanned}}<span class="plan-list-label meta-dim">Family</span>{{end}}
-        {{range .FamilyPlanned}}
-        <div class="plan-item minimised {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="family" {{if not .Done}}draggable="true"{{end}} onclick="planItemClick(event)" role="button" tabindex="0" aria-expanded="false">
-            <span class="plan-item-toggle">&#x25B8;</span>
-            <span class="plan-item-title">{{.Title}}</span>
-            {{if ne .Planned $.Today}}<span class="plan-item-date meta-dim">from {{relativeDate .Planned}}</span>{{end}}
-            <div class="plan-item-actions" onclick="event.stopPropagation()">
-                {{if not .Done}}
-                <button type="button" class="plan-reorder-btn" onclick="planMoveUp(this)" title="Move up">&uarr;</button>
-                <button type="button" class="plan-reorder-btn" onclick="planMoveDown(this)" title="Move down">&darr;</button>
-                <form method="POST" action="/plan/{{.Slug}}/complete" class="inline-form" onsubmit="return celebrateComplete(this)">
-                    <input type="hidden" name="list" value="family">
-                    <button type="submit" class="item-complete-btn" title="Complete">done</button>
-                </form>
-                {{end}}
-                <form method="POST" action="/plan/clear" class="inline-form">
-                    <input type="hidden" name="slug" value="{{.Slug}}">
-                    <input type="hidden" name="list" value="family">
-                    <button type="submit" class="plan-remove-btn" title="Remove from plan">drop</button>
-                </form>
-            </div>
-            <div class="plan-item-detail">
-                <div>
-                    {{if .Body}}<div class="plan-item-body">{{linkify .Body}}</div>{{end}}
-                    {{if .Tags}}<div class="plan-item-tags">{{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}</div>{{end}}
-                    {{if .Added}}<span class="plan-item-added meta-dim">Added {{.Added}}</span>{{end}}
-                    <a href="/family#item-{{.Slug}}" class="plan-item-link meta-dim" onclick="event.stopPropagation()">open in list</a>
-                </div>
-            </div>
-        </div>
-        {{end}}
+        {{range .FamilyPlanned}}{{template "plan-row" (dict "Item" . "List" "family" "Today" $.Today)}}{{end}}
         {{end}}
 
         {{if .HousePlanned}}
         <span class="plan-list-label meta-dim">House</span>
-        {{range .HousePlanned}}
-        <div class="plan-item minimised {{if .Done}}plan-item-done{{end}} {{if ne .Planned $.Today}}plan-item-carried{{end}}" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="house" {{if not .Done}}draggable="true"{{end}} onclick="planItemClick(event)" role="button" tabindex="0" aria-expanded="false">
-            <span class="plan-item-toggle">&#x25B8;</span>
-            <span class="plan-item-title">{{.Title}}</span>
-            {{if ne .Planned $.Today}}<span class="plan-item-date meta-dim">from {{relativeDate .Planned}}</span>{{end}}
-            <div class="plan-item-actions" onclick="event.stopPropagation()">
-                {{if not .Done}}
-                <button type="button" class="plan-reorder-btn" onclick="planMoveUp(this)" title="Move up">&uarr;</button>
-                <button type="button" class="plan-reorder-btn" onclick="planMoveDown(this)" title="Move down">&darr;</button>
-                <form method="POST" action="/plan/{{.Slug}}/complete" class="inline-form" onsubmit="return celebrateComplete(this)">
-                    <input type="hidden" name="list" value="house">
-                    <button type="submit" class="item-complete-btn" title="Complete">done</button>
-                </form>
-                {{end}}
-                <form method="POST" action="/plan/clear" class="inline-form">
-                    <input type="hidden" name="slug" value="{{.Slug}}">
-                    <input type="hidden" name="list" value="house">
-                    <button type="submit" class="plan-remove-btn" title="Remove from plan">drop</button>
-                </form>
-            </div>
-            <div class="plan-item-detail">
-                <div>
-                    {{if .Body}}<div class="plan-item-body">{{linkify .Body}}</div>{{end}}
-                    {{if .Tags}}<div class="plan-item-tags">{{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}</div>{{end}}
-                    {{if .Added}}<span class="plan-item-added meta-dim">Added {{.Added}}</span>{{end}}
-                    <a href="/house#item-{{.Slug}}" class="plan-item-link meta-dim" onclick="event.stopPropagation()">open in list</a>
-                </div>
-            </div>
-        </div>
-        {{end}}
+        {{range .HousePlanned}}{{template "plan-row" (dict "Item" . "List" "house" "Today" $.Today)}}{{end}}
         {{end}}
     </div>
     {{end}}
@@ -270,7 +181,7 @@
     <div class="homepage-card-body">
         {{range .OverdueMaintenance}}
         <div class="homepage-task homepage-task-overdue">
-            <a href="/house#{{.Slug}}">{{.Title}}</a>
+            <a href="/house#maint-{{.Slug}}">{{.Title}}</a>
         </div>
         {{end}}
     </div>
@@ -341,4 +252,37 @@
 {{end}}
 </div>
 <script src="{{static "planner.js"}}"></script>
+{{end}}
+
+{{define "plan-row"}}{{$i := .Item}}{{$id := printf "plan-%s-%s" .List $i.Slug}}
+<div class="plan-item minimised{{if $i.Done}} plan-item-done{{end}}{{if ne $i.Planned .Today}} plan-item-carried{{end}}" id="{{$id}}" data-priority="{{$i.Priority}}" data-slug="{{$i.Slug}}" data-list="{{.List}}" {{if not $i.Done}}draggable="true"{{end}} onclick="planItemClick(event)">
+    <button type="button" class="plan-item-toggle" id="{{$id}}-toggle" aria-expanded="false" aria-controls="{{$id}}-detail">
+        <span class="plan-item-chevron" aria-hidden="true">&#x25B8;</span>
+        <span class="plan-item-title">{{$i.Title}}</span>
+    </button>
+    {{if ne $i.Planned .Today}}<span class="plan-item-date meta-dim">from {{relativeDate $i.Planned}}</span>{{end}}
+    <div class="plan-item-actions">
+        {{if not $i.Done}}
+        <button type="button" class="plan-reorder-btn" id="{{$id}}-up" aria-label="Move {{$i.Title}} up" title="Move up" onclick="planMoveUp(this)">&uarr;</button>
+        <button type="button" class="plan-reorder-btn" id="{{$id}}-down" aria-label="Move {{$i.Title}} down" title="Move down" onclick="planMoveDown(this)">&darr;</button>
+        <form method="POST" action="/plan/{{$i.Slug}}/complete" class="inline-form" onsubmit="return celebrateComplete(this)">
+            <input type="hidden" name="list" value="{{.List}}">
+            <button type="submit" class="item-complete-btn" id="{{$id}}-done" title="Complete">done<span class="sr-only"> {{$i.Title}}</span></button>
+        </form>
+        {{end}}
+        <form method="POST" action="/plan/clear" class="inline-form">
+            <input type="hidden" name="slug" value="{{$i.Slug}}">
+            <input type="hidden" name="list" value="{{.List}}">
+            <button type="submit" class="plan-remove-btn" id="{{$id}}-drop" title="Remove from plan">drop<span class="sr-only"> {{$i.Title}}</span></button>
+        </form>
+    </div>
+    <div class="plan-item-detail" id="{{$id}}-detail">
+        <div>
+            {{if $i.Body}}<div class="plan-item-body">{{linkify $i.Body}}</div>{{end}}
+            {{if $i.Tags}}<div class="plan-item-tags">{{range $i.Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}</div>{{end}}
+            {{if $i.Added}}<span class="plan-item-added meta-dim">Added {{$i.Added}}</span>{{end}}
+            <a href="/{{.List}}#item-{{$i.Slug}}" class="plan-item-link meta-dim">open in list</a>
+        </div>
+    </div>
+</div>
 {{end}}
