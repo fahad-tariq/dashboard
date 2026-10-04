@@ -56,6 +56,7 @@ jobs:
         env:
           DASHBOARD_API_TOKEN: test-token-that-is-at-least-thirty-two-characters-long
           DASHBOARD_API_URL: http://dashboard:8080/api/v1
+          MCP_TOKEN: test-mcp-token-that-is-at-least-thirty-two-characters
 
   e2e:
     runs-on: ubuntu-latest

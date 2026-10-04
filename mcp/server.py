@@ -1,7 +1,10 @@
 """Dashboard MCP server.
 
-Exposes all 25 dashboard REST API endpoints as MCP tools over
-Streamable HTTP transport with bearer token authentication.
+Exposes the dashboard REST API as MCP tools over Streamable HTTP transport.
+
+Inbound MCP requests authenticate with MCP_TOKEN; outbound calls to the
+dashboard API use DASHBOARD_API_TOKEN. Destructive tools are only registered
+when MCP_ALLOW_DESTRUCTIVE=true.
 """
 
 from __future__ import annotations
@@ -10,11 +13,17 @@ import hmac
 import json as json_mod
 import logging
 import os
+import sys
+import time
+from collections import OrderedDict
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Annotated, Literal
 
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 import client
@@ -22,18 +31,76 @@ import client
 log = logging.getLogger("dashboard-mcp")
 
 # ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Config:
+    mcp_token: str
+    allow_destructive: bool = False
+
+
+def load_config(env: Mapping[str, str] = os.environ) -> Config:
+    """Read and validate server configuration; raises client.ConfigError."""
+    mcp_token = client.require_token("MCP_TOKEN", env)
+    api_token = client.require_token("DASHBOARD_API_TOKEN", env)
+    if hmac.compare_digest(mcp_token, api_token):
+        raise client.ConfigError("MCP_TOKEN must differ from DASHBOARD_API_TOKEN")
+    allow = env.get("MCP_ALLOW_DESTRUCTIVE", "").strip().lower() == "true"
+    return Config(mcp_token=mcp_token, allow_destructive=allow)
+
+
+# ---------------------------------------------------------------------------
 # ASGI bearer token middleware
 # ---------------------------------------------------------------------------
 
-_AUTH_TOKEN = client.TOKEN
+
+class FailedAuthLimiter:
+    """Fixed-window counter of failed bearer attempts per client key.
+
+    Tracks at most max_clients keys, evicting the least recently failed.
+    """
+
+    def __init__(
+        self,
+        limit: int = 10,
+        window: float = 60.0,
+        max_clients: int = 1024,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self.limit = limit
+        self.window = window
+        self.max_clients = max_clients
+        self.clock = clock
+        self._windows: OrderedDict[str, tuple[float, int]] = OrderedDict()
+
+    def record_failure(self, key: str) -> bool:
+        """Record a failure; returns True once key has exceeded the limit."""
+        now = self.clock()
+        start, count = self._windows.pop(key, (now, 0))
+        if now - start >= self.window:
+            start, count = now, 0
+        count += 1
+        self._windows[key] = (start, count)
+        while len(self._windows) > self.max_clients:
+            self._windows.popitem(last=False)
+        return count > self.limit
 
 
 class BearerAuthMiddleware:
-    """ASGI middleware that validates Authorization: Bearer <token>."""
+    """ASGI middleware that validates Authorization: Bearer <token>.
 
-    def __init__(self, app, token: str) -> None:
+    A valid token is always accepted, even from a client that is currently
+    rate limited: behind Docker port publishing or a reverse proxy every
+    client can share one source address, and an attacker must not be able
+    to lock the real agent out.
+    """
+
+    def __init__(self, app, token: str, limiter: FailedAuthLimiter | None = None) -> None:
         self.app = app
-        self.token = token
+        self.token = token.encode()
+        self.limiter = limiter or FailedAuthLimiter()
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "lifespan":
@@ -53,7 +120,12 @@ class BearerAuthMiddleware:
         # Validate bearer token.
         token = _extract_bearer(scope)
         if not token or not hmac.compare_digest(token, self.token):
-            await _send_json(send, 401, {"error": "unauthorized"})
+            client_addr = scope.get("client")
+            key = client_addr[0] if client_addr else "unknown"
+            if self.limiter.record_failure(key):
+                await _send_json(send, 429, {"error": "too many failed attempts"})
+            else:
+                await _send_json(send, 401, {"error": "unauthorized"})
             return
 
         response_started = False
@@ -73,12 +145,11 @@ class BearerAuthMiddleware:
                 await _send_json(original_send, 500, {"error": "internal server error"})
 
 
-def _extract_bearer(scope) -> str | None:
+def _extract_bearer(scope) -> bytes | None:
     for name, value in scope.get("headers", []):
         if name == b"authorization":
-            header = value.decode("latin-1")
-            if header.startswith("Bearer "):
-                return header[7:]
+            if value.startswith(b"Bearer "):
+                return value[7:]
     return None
 
 
@@ -98,20 +169,8 @@ async def _send_json(send, status: int, body: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# FastMCP server
+# Tool definitions (registered in build_server)
 # ---------------------------------------------------------------------------
-
-server = FastMCP(
-    "Dashboard",
-    stateless_http=True,
-    json_response=True,
-    streamable_http_path="/",
-    host="0.0.0.0",
-    port=9100,
-    transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=False,
-    ),
-)
 
 # Type aliases for readability.
 TodoList = Annotated[
@@ -156,13 +215,11 @@ def _validate(slug: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-@server.tool()
 async def list_todos() -> str:
     """List all todos grouped by 'personal' and 'family' lists."""
     return await _call("GET", "/todos")
 
 
-@server.tool()
 async def get_todo(slug: Slug, list: TodoList) -> str:
     """Get a single todo by its slug."""
     if err := _validate(slug):
@@ -170,7 +227,6 @@ async def get_todo(slug: Slug, list: TodoList) -> str:
     return await _call("GET", f"/todos/{slug}", params={"list": list})
 
 
-@server.tool()
 async def add_todo(
     title: Annotated[str, Field(description="Task title")],
     list: TodoList,
@@ -189,7 +245,6 @@ async def add_todo(
     return await _call("POST", "/todos", json=payload)
 
 
-@server.tool()
 async def update_todo(
     slug: Slug,
     list: TodoList,
@@ -213,7 +268,6 @@ async def update_todo(
     return await _call("PUT", f"/todos/{slug}", json=payload)
 
 
-@server.tool()
 async def complete_todo(slug: Slug, list: TodoList) -> str:
     """Mark a todo as done."""
     if err := _validate(slug):
@@ -221,7 +275,6 @@ async def complete_todo(slug: Slug, list: TodoList) -> str:
     return await _call("POST", f"/todos/{slug}/complete", json={"list": list})
 
 
-@server.tool()
 async def uncomplete_todo(slug: Slug, list: TodoList) -> str:
     """Mark a todo as not done."""
     if err := _validate(slug):
@@ -229,7 +282,6 @@ async def uncomplete_todo(slug: Slug, list: TodoList) -> str:
     return await _call("POST", f"/todos/{slug}/uncomplete", json={"list": list})
 
 
-@server.tool()
 async def delete_todo(slug: Slug, list: TodoList) -> str:
     """Move a todo to trash (soft delete)."""
     if err := _validate(slug):
@@ -237,7 +289,6 @@ async def delete_todo(slug: Slug, list: TodoList) -> str:
     return await _call("DELETE", f"/todos/{slug}", json={"list": list})
 
 
-@server.tool()
 async def update_todo_priority(slug: Slug, list: TodoList, priority: Priority) -> str:
     """Set the priority on a todo."""
     if err := _validate(slug):
@@ -245,7 +296,6 @@ async def update_todo_priority(slug: Slug, list: TodoList, priority: Priority) -
     return await _call("PUT", f"/todos/{slug}/priority", json={"priority": priority, "list": list})
 
 
-@server.tool()
 async def update_todo_tags(
     slug: Slug,
     list: TodoList,
@@ -257,7 +307,6 @@ async def update_todo_tags(
     return await _call("PUT", f"/todos/{slug}/tags", json={"tags": tags, "list": list})
 
 
-@server.tool()
 async def add_substep(
     slug: Slug,
     list: TodoList,
@@ -269,7 +318,6 @@ async def add_substep(
     return await _call("POST", f"/todos/{slug}/substeps", json={"text": text, "list": list})
 
 
-@server.tool()
 async def toggle_substep(
     slug: Slug,
     list: TodoList,
@@ -281,7 +329,6 @@ async def toggle_substep(
     return await _call("PUT", f"/todos/{slug}/substeps/{index}", json={"list": list})
 
 
-@server.tool()
 async def remove_substep(
     slug: Slug,
     list: TodoList,
@@ -298,13 +345,11 @@ async def remove_substep(
 # ---------------------------------------------------------------------------
 
 
-@server.tool()
 async def list_ideas() -> str:
     """List all ideas."""
     return await _call("GET", "/ideas")
 
 
-@server.tool()
 async def add_idea(
     title: Annotated[str, Field(description="Idea title")],
     tags: Annotated[list[str] | None, Field(description="Tags for categorisation")] = None,
@@ -319,7 +364,6 @@ async def add_idea(
     return await _call("POST", "/ideas", json=payload)
 
 
-@server.tool()
 async def triage_idea(
     slug: Slug,
     action: Annotated[
@@ -333,7 +377,6 @@ async def triage_idea(
     return await _call("PUT", f"/ideas/{slug}/triage", json={"action": action})
 
 
-@server.tool()
 async def add_idea_research(
     slug: Slug,
     content: Annotated[str, Field(description="Research content to append to the idea body")],
@@ -349,7 +392,6 @@ async def add_idea_research(
 # ---------------------------------------------------------------------------
 
 
-@server.tool()
 async def get_plan(
     date: Annotated[str, Field(description="Date in YYYY-MM-DD format (empty for today)")] = "",
 ) -> str:
@@ -360,7 +402,6 @@ async def get_plan(
     return await _call("GET", "/plan", params=params or None)
 
 
-@server.tool()
 async def set_plan(
     slug: Slug,
     list: PlanList,
@@ -375,7 +416,6 @@ async def set_plan(
     return await _call("PUT", f"/plan/{slug}", json=payload)
 
 
-@server.tool()
 async def clear_plan(slug: Slug, list: PlanList) -> str:
     """Remove a todo from the daily plan."""
     if err := _validate(slug):
@@ -383,7 +423,6 @@ async def clear_plan(slug: Slug, list: PlanList) -> str:
     return await _call("DELETE", f"/plan/{slug}", json={"list": list})
 
 
-@server.tool()
 async def reorder_plan(
     slugs: Annotated[list[str], Field(description="Ordered list of todo slugs")],
     list: PlanList,
@@ -395,7 +434,6 @@ async def reorder_plan(
     return await _call("POST", "/plan/reorder", json={"slugs": slugs, "list": list})
 
 
-@server.tool()
 async def clear_carried_plan() -> str:
     """Clear all overdue carried-over items from all lists."""
     return await _call("POST", "/plan/clear-carried")
@@ -406,7 +444,6 @@ async def clear_carried_plan() -> str:
 # ---------------------------------------------------------------------------
 
 
-@server.tool()
 async def get_commentary(list: CommentaryList, slug: Slug) -> str:
     """Get AI commentary for an item."""
     if err := _validate(slug):
@@ -414,7 +451,6 @@ async def get_commentary(list: CommentaryList, slug: Slug) -> str:
     return await _call("GET", f"/commentary/{list}/{slug}")
 
 
-@server.tool()
 async def set_commentary(
     list: CommentaryList,
     slug: Slug,
@@ -426,7 +462,6 @@ async def set_commentary(
     return await _call("PUT", f"/commentary/{list}/{slug}", json={"content": content})
 
 
-@server.tool()
 async def delete_commentary(list: CommentaryList, slug: Slug) -> str:
     """Delete AI commentary from an item."""
     if err := _validate(slug):
@@ -435,12 +470,59 @@ async def delete_commentary(list: CommentaryList, slug: Slug) -> str:
 
 
 # ---------------------------------------------------------------------------
-# App assembly
+# Server and app assembly
 # ---------------------------------------------------------------------------
 
-app = server.streamable_http_app()
-if _AUTH_TOKEN:
-    app = BearerAuthMiddleware(app, _AUTH_TOKEN)
+_READ_ONLY = ToolAnnotations(readOnlyHint=True)
+_DESTRUCTIVE = ToolAnnotations(readOnlyHint=False, destructiveHint=True)
+
+READ_ONLY_TOOLS = [list_todos, get_todo, list_ideas, get_plan, get_commentary]
+WRITE_TOOLS = [
+    add_todo, update_todo, complete_todo, uncomplete_todo,
+    update_todo_priority, update_todo_tags, add_substep, toggle_substep,
+    add_idea, triage_idea, add_idea_research,
+    set_plan, clear_plan, reorder_plan,
+    set_commentary,
+]
+DESTRUCTIVE_TOOLS = [delete_todo, remove_substep, clear_carried_plan, delete_commentary]
+
+
+def build_server(allow_destructive: bool) -> FastMCP:
+    server = FastMCP(
+        "Dashboard",
+        stateless_http=True,
+        json_response=True,
+        streamable_http_path="/",
+        host="0.0.0.0",
+        port=9100,
+        transport_security=TransportSecuritySettings(
+            enable_dns_rebinding_protection=False,
+        ),
+    )
+    for fn in READ_ONLY_TOOLS:
+        server.add_tool(fn, annotations=_READ_ONLY)
+    for fn in WRITE_TOOLS:
+        server.add_tool(fn)
+    if allow_destructive:
+        for fn in DESTRUCTIVE_TOOLS:
+            server.add_tool(fn, annotations=_DESTRUCTIVE)
+    return server
+
+
+def create_app(config: Config):
+    """Build a fresh authenticated ASGI app.
+
+    Each call creates a new FastMCP instance, since its session manager can
+    only be run once.
+    """
+    server = build_server(config.allow_destructive)
+    return BearerAuthMiddleware(server.streamable_http_app(), config.mcp_token)
+
+
+try:
+    app = create_app(load_config())
+except client.ConfigError as exc:
+    sys.exit(str(exc))
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")

@@ -33,5 +33,7 @@ services:
     environment:
       - DASHBOARD_API_URL=http://dashboard:8080/api/v1
       - DASHBOARD_API_TOKEN=${DASHBOARD_API_TOKEN}
+      - MCP_TOKEN=${MCP_TOKEN}
+      - MCP_ALLOW_DESTRUCTIVE=${MCP_ALLOW_DESTRUCTIVE:-false}
     depends_on:
       - dashboard
