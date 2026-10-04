@@ -601,6 +601,10 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - the strict 44px check covers badges, filter tags and `summary` elements
   - the toast hides after 6s, so a slow scan can miss it
   - the keyboard test tabs up to 400 times, so it slows as the shared plan list grows
+- First CI run (PR #7): 70 of 74 passed, and the four failures were real:
+  - The idea breadcrumb link was told apart by colour alone (axe `link-in-text-block`). Breadcrumb and "From idea" links are now underlined.
+  - The search-hint `<kbd>` keys inherited `--fg-muted` onto `--surface0` (3.68:1 in light). The rule audit can't see inherited colours, so `TestThemeTextBackgroundsSetColour` now requires any rule with a text-bearing background to set its own colour.
+  - The homepage overflowed at 320px. Its phone one-column rule sat earlier in `theme.css` than the base grid rules with the same specificity, so phones never got one column. This bug predates Phase 4.
 - VoiceOver pass: not done. This environment cannot run a browser, so the owner needs to do it during the STOP review.
 
 - Follow-ups:
