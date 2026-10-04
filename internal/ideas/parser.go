@@ -63,8 +63,10 @@ func ParseIdeas(path string) ([]Idea, error) {
 			continue
 		}
 
-		// Checkbox line starts a new idea.
-		if title, ok := parseIdeaCheckbox(trimmed); ok {
+		// An unindented checkbox line starts a new idea; an indented one is a
+		// checklist inside the current idea's body.
+		indented := strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")
+		if title, ok := parseIdeaCheckbox(trimmed); ok && !indented {
 			if current != nil {
 				current.Body = strings.TrimSpace(current.Body)
 				ideas = append(ideas, *current)
