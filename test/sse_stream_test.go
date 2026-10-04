@@ -3,6 +3,7 @@ package test
 import (
 	"bufio"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +12,24 @@ import (
 
 	"github.com/fahad/dashboard/internal/sse"
 )
+
+// startServer serves h on loopback, skipping where the environment forbids
+// binding a port (the local sandbox); CI runs these tests for real.
+// httptest.NewUnstartedServer cannot be used: it binds while constructing.
+func startServer(t *testing.T, h http.Handler, timeout time.Duration) *httptest.Server {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("cannot listen on loopback here: %v", err)
+	}
+	srv := &httptest.Server{
+		Listener: ln,
+		Config:   &http.Server{Handler: h, ReadTimeout: timeout, WriteTimeout: timeout},
+	}
+	srv.Start()
+	t.Cleanup(srv.Close)
+	return srv
+}
 
 // openStream connects to the broker over real HTTP and returns a channel of
 // lines read from the stream, closed when the stream ends.
@@ -52,8 +71,7 @@ func waitForLine(t *testing.T, lines <-chan string, want string, within time.Dur
 
 func TestSSEHeartbeat(t *testing.T) {
 	b := sse.NewBrokerWithHeartbeat(50 * time.Millisecond)
-	srv := httptest.NewServer(b)
-	t.Cleanup(srv.Close)
+	srv := startServer(t, b, 0)
 
 	lines := openStream(t, srv)
 	waitForLine(t, lines, ": connected", time.Second)
@@ -63,11 +81,7 @@ func TestSSEHeartbeat(t *testing.T) {
 // The server's WriteTimeout must not cut long-lived event streams.
 func TestSSESurvivesServerWriteTimeout(t *testing.T) {
 	b := sse.NewBroker()
-	srv := httptest.NewUnstartedServer(b)
-	srv.Config.WriteTimeout = 100 * time.Millisecond
-	srv.Config.ReadTimeout = 100 * time.Millisecond
-	srv.Start()
-	t.Cleanup(srv.Close)
+	srv := startServer(t, b, 100*time.Millisecond)
 
 	lines := openStream(t, srv)
 	waitForLine(t, lines, ": connected", time.Second)
@@ -79,8 +93,7 @@ func TestSSESurvivesServerWriteTimeout(t *testing.T) {
 // Close ends every open stream so graceful shutdown is not held up by SSE.
 func TestSSECloseEndsStreams(t *testing.T) {
 	b := sse.NewBroker()
-	srv := httptest.NewServer(b)
-	t.Cleanup(srv.Close)
+	srv := startServer(t, b, 0)
 
 	lines := openStream(t, srv)
 	waitForLine(t, lines, ": connected", time.Second)

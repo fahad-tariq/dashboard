@@ -19,6 +19,10 @@ import (
 
 var version = "dev"
 
+// shutdownTimeout bounds how long in-flight requests get after SIGTERM;
+// Docker sends SIGKILL after 10s by default.
+const shutdownTimeout = 8 * time.Second
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
@@ -58,15 +62,34 @@ func main() {
 		os.Exit(1)
 	}
 
-	slog.Info("starting server", "addr", cfg.Addr)
+	// SSE streams clear their own deadlines, so WriteTimeout only bounds
+	// ordinary responses. ReadTimeout leaves room for a 10 MB upload.
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           router,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
-	if err := srv.ListenAndServe(); err != nil {
+	serveErr := make(chan error, 1)
+	go func() {
+		slog.Info("starting server", "addr", cfg.Addr)
+		serveErr <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serveErr:
 		slog.Error("server error", "error", err)
 		os.Exit(1)
+	case <-shutdownCtx.Done():
+	}
+
+	slog.Info("shutting down")
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		slog.Error("graceful shutdown", "error", err)
 	}
 }
 

@@ -53,6 +53,10 @@ const (
 	// per minute before getting 429s. A valid token is never blocked.
 	failedBearerLimit = 10
 
+	// sessionIdleTimeout logs out a session unused for a week, well inside
+	// the absolute SESSION_LIFETIME.
+	sessionIdleTimeout = 7 * 24 * time.Hour
+
 	contentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
 		"img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
 )
@@ -199,6 +203,9 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 	}
 
 	broker := sse.NewBroker()
+	// End open event streams as soon as shutdown starts, so http.Server.Shutdown
+	// is not left waiting on them.
+	context.AfterFunc(shutdownCtx, broker.Close)
 	uploadHandler := upload.NewHandler(cfg.UploadsDir)
 
 	root := chi.NewRouter()
@@ -370,6 +377,7 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 		sm := scs.New()
 		sm.Store = sessionStore
 		sm.Lifetime = cfg.SessionLifetime
+		sm.IdleTimeout = sessionIdleTimeout
 		sm.Cookie.HttpOnly = true
 		sm.Cookie.SameSite = http.SameSiteLaxMode
 		sm.Cookie.Secure = cfg.SecureCookies
