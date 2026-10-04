@@ -660,6 +660,7 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - CLAUDE.md still describes `SingleUserPlanHandlers`, "planner dual-mode handlers" and three `ToTaskFunc` closures. Phase 10 rewrites it; until then, these Phase 5 notes are the current description.
 - Verification: lint 0 issues; `INTEGRATION=1 go test -race ./...` green; Playwright runs in CI on the PR.
 - First CI run (PR #8): the other four jobs passed, including e2e; `test` failed in `TestCommentaryScopedToUser`. The test was flaky, not the fix: `authRouter` created users from a map, so in a random half of runs `two@test.com` got ID 1. Users are now an ordered slice; 50 repeated runs pass.
+- First `main` run after merge (`aaea9da`): e2e failed once on axe `color-contrast` for `#confirm-modal-title` (light theme, confirm modal open). It passed on the PR runs. The modal fades in from opacity 0 over 150ms and the scan started as soon as `.visible` was set, so axe measured a blended colour. The final colours pass. `expectNoSeriousViolations` now waits for every finite animation to finish before scanning. Not reproducible locally (no Chromium in the sandbox); the next CI run verifies it.
 
 - Follow-ups:
   - tighten CSP `script-src` after moving inline handlers

@@ -45,6 +45,17 @@ async function gotoInTheme(page: Page, path: string, theme: Theme): Promise<void
  * and the offending selectors.
  */
 async function expectNoSeriousViolations(page: Page, label: string): Promise<void> {
+  // Entry animations fade in from opacity 0, and a scan mid-fade measures
+  // blended colours (seen on the confirm modal title). Infinite animations,
+  // such as loading pulses, never finish and are skipped.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
   const { violations } = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
   const describe = (v: (typeof violations)[number]): string =>
     `[${v.impact ?? 'unknown'}] ${v.id}: ${v.help} -> ${v.nodes.map((n) => n.target.map(String).join(' ')).join(' | ')}`;
