@@ -21,15 +21,18 @@ import (
 func TestRouteGolden(t *testing.T) {
 	tests := map[string]struct {
 		passwordHash string
+		authMode     string
 	}{
 		"auth":   {passwordHash: "$2a$10$abcdefghijklmnopqrstuuJ5bW3pH0bQ0b9b7xg2y2Jm8m2pXq6m6"},
-		"noauth": {passwordHash: ""},
+		"noauth": {passwordHash: "", authMode: "disabled"},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			paths := tempPaths(t)
 			paths["DASHBOARD_API_TOKEN"] = strings.Repeat("x", 32)
 			paths["DASHBOARD_PASSWORD_HASH"] = tc.passwordHash
+			paths["DASHBOARD_AUTH"] = tc.authMode
+			paths["ADDR"] = "127.0.0.1:0"
 			setEnvForConfig(t, paths)
 
 			cfg, err := config.Load()

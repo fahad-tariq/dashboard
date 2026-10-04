@@ -174,6 +174,9 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 		count = 1
 	}
 	cfg.HasUsers = count > 0
+	if err := cfg.CheckAuthMode(); err != nil {
+		return nil, err
+	}
 
 	fm := buildFuncMap(cfg.Location, cfg.AuthEnabled(), version)
 	templates, err := parseTemplates(fm)
