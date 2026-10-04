@@ -231,7 +231,7 @@ Do not reopen these while executing this plan.
   - `immutable` caching applies only to versioned requests.
 
 **Verification:**
-- `make bench` shows `BenchmarkMutate200` at least 3x faster than the Phase 1 baseline (`benchstat`, same machine).
+- `make bench` shows `BenchmarkMutate200` at least 3x faster than the Phase 1 baseline (`benchstat`, same machine), measured excluding the atomic-write fsyncs (owner decision 2026-10-04; see Phase 3 notes).
 - Round-trip, fault-injection and event-count tests pass.
 - Playwright passes.
 
@@ -486,7 +486,7 @@ Modules receive one `module.Deps` struct: location, templates, change publisher,
 | Security | Spoofed forwarding headers ignored; no API without a token; auth cannot be off by accident or off-loopback; cross-origin POST rejected; CSP present; destructive MCP tools off by default |
 | Crash-safe writes | Fault-injection and concurrent-reader tests pass; round-trip fixtures byte-identical |
 | No self-triggered work | One mutation (web or API) produces one event and zero `Resync` calls |
-| Speed | `BenchmarkMutate200` at least 3x faster than the Phase 1 baseline |
+| Speed | `BenchmarkMutate200` work at least 3x faster than the Phase 1 baseline, excluding atomic-write fsyncs |
 | Accessibility | axe has zero serious or critical violations across pages, themes and interactive states; contrast holds every day of 2028 |
 | Extensibility | The fixture module passes the contract test; the Phase 7 evidence shows only registration lines outside module directories |
 | Simpler wiring | Single-user branch deleted; no `gocyclo` exclusions left on `main` or `renderHomePage`; one `toTask` |
@@ -566,6 +566,13 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 ### Phase 3 notes
 
 - Backup: fliptronic's cron `backup.sh` archived `data/tracker.md` (gone), the legacy `ideas/` dir and the compose file, with errors sent to `/dev/null`: 804-byte archives, no user data, no database, for months. A manual full snapshot was taken first (`backups/manual-full-20261004-105705.tar.gz`), then `scripts/backup.sh` replaced it (old script kept as `backup.sh.bak.<epoch>`; cron line now `cd`s into the dashboard dir). The script tars `data/` and `users/` and adds a DB snapshot from SQLite's online backup API (Python `sqlite3`, present on the host) with an integrity check, excluding the live `-wal`/`-shm`. `make backup` wraps it; README documents restore. Tests run the script against temp dirs.
+
+- SQLite pragmas moved into the DSN. Before, `foreign_keys` and `synchronous` reached only the connection that ran the `PRAGMA`, so `ON DELETE CASCADE` depended on which pooled connection a query used.
+- Static assets: `static "name"` emits `/static/name?v=<sha256 prefix>`; only a request with the current hash gets `immutable`, everything else `no-cache`. A test forbids hard-coded `/static/` URLs in templates. Uploads keep `immutable` (random names, never rewritten).
+- `MoveToList` now adds to the target before deleting from the source; a failed add used to lose the item (reproduced in `TestMoveToListKeepsItemWhenTargetWriteFails`).
+- Atomic writes: `internal/atomicfile` (temp `.<name>.atomic-*.tmp` at 0600, write, fsync, chmod to the target's mode, rename, fsync dir). Used by the tracker, ideas and house writers, skeleton creation in config and the registry, and `migrate-data`. `config.Load` removes stale temp files first. Fault-injection tests cover failure after write, at fsync and at rename; the concurrent-reader test is gated by `INTEGRATION=1`, which the CI test job sets.
+- SQLite mirror dropped: `Summary()` (only ever called by tests) counts from the cache; `tracker.NewService` lost its store parameter; `store.go` deleted with the registry store tests. `tracker_items` stays in the schema.
+- Speed (owner decision 2026-10-04: keep fsync, judge the work): `BenchmarkMutate200` is 8.93 ms with durable writes (`docs/plans/bench-phase3.txt`), 2.9x slower than the 3.07 ms baseline, because Go's `File.Sync` is `F_FULLFSYNC` on macOS and each write fsyncs the file and its directory. With both fsyncs disabled (measured once, not committed) it is 0.53 ms, 5.8x faster than baseline; allocations fell 51% and bytes 43%. Linux `fsync` is expected to be much cheaper.
 
 - Follow-ups:
   - tighten CSP `script-src` after moving inline handlers
