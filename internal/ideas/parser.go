@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/slug"
 )
 
@@ -204,7 +205,7 @@ func WriteIdeas(path string, heading string, ideas []Idea) error {
 		}
 	}
 
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return atomicfile.Write(path, []byte(b.String()), 0o644)
 }
 
 // Slugify exposes the shared slug generation for use by the handler.

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/slug"
 )
 
@@ -229,7 +230,7 @@ func WriteMaintenance(path, heading string, items []MaintenanceItem) error {
 		}
 	}
 
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return atomicfile.Write(path, []byte(b.String()), 0o644)
 }
 
 // Slugify exposes the shared slug generation.

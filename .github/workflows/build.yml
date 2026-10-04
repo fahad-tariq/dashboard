@@ -43,6 +43,9 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - run: make test
+        env:
+          # Runs the gated concurrent-reader test for atomic writes.
+          INTEGRATION: "1"
 
   test-mcp:
     runs-on: ubuntu-latest

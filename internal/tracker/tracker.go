@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/slug"
 )
 
@@ -335,7 +336,7 @@ func WriteTracker(path, heading string, items []Item) error {
 		writeItem(&sb, it)
 	}
 
-	return os.WriteFile(path, []byte(sb.String()), 0o644)
+	return atomicfile.Write(path, []byte(sb.String()), 0o644)
 }
 
 func writeItem(sb *strings.Builder, it Item) { //nolint:gocyclo // one branch per inline metadata tag

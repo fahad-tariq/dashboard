@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fahad/dashboard/internal/atomicfile"
+	"github.com/fahad/dashboard/internal/config"
 )
 
 func listDir(t *testing.T, dir string) []string {
@@ -181,5 +182,20 @@ func TestAtomicWriteConcurrentReadersNeverSeePartial(t *testing.T) {
 	wg.Wait()
 	if n := bad.Load(); n > 0 {
 		t.Errorf("readers saw %d partial or missing reads", n)
+	}
+}
+
+func TestConfigLoadRemovesStaleTempFiles(t *testing.T) {
+	paths := tempPaths(t)
+	stale := filepath.Join(filepath.Dir(paths["FAMILY_PATH"]), ".family.md.atomic-999.tmp")
+	if err := os.WriteFile(stale, []byte("half a write"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	setEnvForConfig(t, paths)
+	if _, err := config.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Error("config.Load left a stale temp file in place")
 	}
 }

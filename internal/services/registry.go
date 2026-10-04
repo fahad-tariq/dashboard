@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/tracker"
 )
@@ -74,7 +75,7 @@ func (r *Registry) EnsureUserDirs(userID int64) error {
 	personalPath := filepath.Join(base, "personal.md")
 	if _, err := os.Stat(personalPath); os.IsNotExist(err) {
 		skeleton := "# Personal\n\n"
-		if err := os.WriteFile(personalPath, []byte(skeleton), 0o644); err != nil {
+		if err := atomicfile.Write(personalPath, []byte(skeleton), 0o644); err != nil {
 			return fmt.Errorf("creating personal.md: %w", err)
 		}
 	}
@@ -83,7 +84,7 @@ func (r *Registry) EnsureUserDirs(userID int64) error {
 	ideasPath := filepath.Join(base, "ideas.md")
 	if _, err := os.Stat(ideasPath); os.IsNotExist(err) {
 		skeleton := "# Ideas\n\n"
-		if err := os.WriteFile(ideasPath, []byte(skeleton), 0o644); err != nil {
+		if err := atomicfile.Write(ideasPath, []byte(skeleton), 0o644); err != nil {
 			return fmt.Errorf("creating ideas.md: %w", err)
 		}
 	}
