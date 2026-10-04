@@ -84,14 +84,14 @@ Do not reopen these while executing this plan.
 **Purpose:** a trustworthy baseline. Later phases depend on lint, vuln checks, benchmarks and browser tests working.
 
 - [x] **Go version.** Use one Go version across `go.mod`, the Dockerfile builder and CI, the latest stable (verify it; locally 1.27.1 is installed). Run `go mod tidy`.
-- [ ] **Linting.** Rebuild `golangci-lint` for that Go version. Commit a `.golangci.yml` with the default linters plus `gosec`, `errorlint`, `bodyclose` and `gocyclo` at a threshold of 15. Mark existing offenders with a named `//nolint:gocyclo // reduced in Phase 5` comment; `main` is at 68 and `renderHomePage` at 38. `make lint` MUST pass.
+- [x] **Linting.** Rebuild `golangci-lint` for that Go version. Commit a `.golangci.yml` with the default linters plus `gosec`, `errorlint`, `bodyclose` and `gocyclo` at a threshold of 15. Mark existing offenders with a named `//nolint:gocyclo // reduced in Phase 5` comment; `main` is at 68 and `renderHomePage` at 38. `make lint` MUST pass.
 - [ ] **Dependencies.** Upgrade chi (5.3.x or later), goldmark (1.7.17 or later), modernc sqlite, `x/crypto`, `x/net` and fsnotify. `govulncheck ./...` MUST report no called vulnerabilities. The review's chi and goldmark findings were not reproduced because the sandbox blocked it.
 - [x] **Remove `goldmark-highlighting`.** bluemonday strips its inline styles, so it has no visible effect. Add a golden test of rendered markdown for a fenced code block before removing it, then update the golden.
 - [x] **htmx.** Upgrade the vendored `htmx.min.js` and `htmx-sse.js` to the latest 2.0.x. Vendor `idiomorph-ext.min.js`, unused until Phase 8.
 - [x] **Makefile targets.** Add `vuln`, `cover`, `e2e`, `bench` and `fmt`.
   - `bench` runs `BenchmarkMutate200` (a new benchmark: `UpdatePriority` on a 200-item tracker) with `-count=10`.
   - Record the baseline `benchstat` output in Working Notes.
-- [ ] **Playwright smoke suite in `e2e/`.** Bun or npm are both installed.
+- [x] **Playwright smoke suite in `e2e/`.** Bun or npm are both installed.
 
   Harness:
   - copy seed data from `e2e/fixtures/` into a temp dir
@@ -113,7 +113,7 @@ Do not reopen these while executing this plan.
   - confirm modal
   - SSE refresh after an external file edit
 - [x] **Route golden file.** Add a test that builds the full router via `chi.Walk` and compares the method and path pairs against `test/testdata/routes.golden`, for both auth modes. Extract router construction from `main()` into a function so the test can call it. Any later change to the golden MUST be explained in Working Notes.
-- [ ] **CI** (`.github/workflows/build.yml`):
+- [x] **CI** (`.github/workflows/build.yml`):
   - add a `pull_request` trigger
   - add jobs for lint, govulncheck, the race suite, MCP pytest and Playwright
   - image builds `needs:` all test jobs
@@ -520,9 +520,10 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - Route goldens: `test/testdata/routes_auth.golden` (149 lines) and `routes_noauth.golden` (134). The diff between them is exactly `/login`, `/logout`, `/account*` and `/admin/*`. `r.Handle` routes (`/static/*`, `/uploads/*`) appear once per HTTP method; that is how `chi.Walk` reports them.
 - CI: `pull_request` trigger; jobs lint, vuln, test (race), test-mcp, e2e; image builds need all five and run only on push. Actions pinned to SHAs of their latest releases (checkout v7.0.1, setup-go v7.0.0, setup-python v7.0.0, setup-node v7.0.0, upload-artifact v7.0.1, docker login v4.6.0, metadata v6.2.0, build-push v7.4.0, golangci-lint-action v9.3.0 running golangci-lint v2.14.0). govulncheck pinned at v1.8.0. Dependabot covers actions, gomod, pip (`/mcp`) and npm (`/e2e`). The e2e job has no npm cache until `e2e/package-lock.json` exists (it could not be generated in the sandbox); commit the lockfile from the first successful run, then switch the job to `npm ci` caching.
 - Benchmark baseline (Apple M5 Max, `make bench`, raw output in `docs/plans/bench-phase1.txt` for Phase 3's `benchstat` comparison): `BenchmarkMutate200` 3.070 ms ± 2%, 1.128 MiB/op, 9.486k allocs/op. Phase 3 target: 1.02 ms or less.
-- Playwright suite (`e2e/`): written but never executed. The sandbox blocks binding any local port, `~/.npm` is read-only, the ms-playwright cache dir is denied, and the proxy 403s scoped npm packages. Versions of `@axe-core/playwright` and `@types/node` are caret ranges because the registry metadata could not be read; `@playwright/test` 1.63.0 matches the reachable unscoped `playwright` release. User 1's personal and ideas files live under `USER_DATA_DIR/1/` in auth mode, so fixtures seed `users/1/`.
+- Playwright suite (`e2e/`): runs in CI only. Locally the sandbox blocks binding any local port, `~/.npm` is read-only, the ms-playwright cache dir is denied, and the proxy 403s scoped npm packages. Green twice in a row on PR #1 (16 passed, 1 fixme). Versions of `@axe-core/playwright` and `@types/node` are caret ranges because the registry metadata could not be read; `@playwright/test` 1.63.0 matches the reachable unscoped `playwright` release. User 1's personal and ideas files live under `USER_DATA_DIR/1/` in auth mode, so fixtures seed `users/1/`.
 - Existing bug found while writing the suite (not fixed; Phase 8 removes the flags): `tracker.js`'s `htmx:beforeSwap` guard only matches targets with `.tracker-page`, so `planDetailExpanded` and `planDragInProgress` never suppress SSE swaps on the homepage (`.homepage-page`) or house page. CLAUDE.md claims otherwise. The e2e test for it is `test.fixme`.
-- e2e flakiness risks to watch on the first real run: specs wait a fixed 1.5s (`waitForSseSettle`) before expanding rows on the homepage and house page, because the app's own writes trigger an unsuppressed SSE refresh about 500ms later (removed in Phase 8); the watcher broadcasts before it resyncs (reordered in Phase 3); the reorder test relies on `hasTouch` making Chromium report `pointer: coarse` and checks that first; the suite uses 3 of the 5 logins per minute the rate limiter allows, so other specs must reuse the stored session. `retries: 0` is deliberate.
+- e2e flakiness risks to watch on the first real run: specs wait for SSE quiet (`waitForSseSettle`, see below) before expanding rows on the homepage and house page, because the app's own writes trigger an unsuppressed SSE refresh about 500ms later (removed in Phase 8); the watcher broadcasts before it resyncs (reordered in Phase 3); the reorder test relies on `hasTouch` making Chromium report `pointer: coarse` and checks that first; the suite uses 3 of the 5 logins per minute the rate limiter allows, so other specs must reuse the stored session. `retries: 0` is deliberate.
+- `test/routes_test.go` builds the real router, which starts a file watcher with no stop hook; each subtest leaves one behind on a removed temp dir until the test binary exits. Harmless today; Phase 6 replaces the watcher and should give it a context.
 
 #### First CI run (PR #1)
 

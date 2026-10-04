@@ -34,7 +34,8 @@ function closeSearch() {
     // the next shortcut.
     if (document.activeElement === searchInput) searchInput.blur();
     if (searchReturnFocus && searchReturnFocus !== searchInput && document.body.contains(searchReturnFocus)) {
-        searchReturnFocus.focus();
+        // preventScroll: a same-page result link has just set the hash.
+        searchReturnFocus.focus({ preventScroll: true });
     }
     searchReturnFocus = null;
 }

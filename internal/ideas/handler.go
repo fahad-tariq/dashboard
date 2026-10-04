@@ -216,10 +216,10 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ideas?msg=idea-added", http.StatusSeeOther)
 }
 
-// TriageAction changes an idea's status (park/drop/untriage).
 // triageMaxBytes bounds a triage request body; it only carries an action name.
 const triageMaxBytes = 64 << 10
 
+// TriageAction changes an idea's status (park/drop/untriage).
 func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	// triageAnimate posts FormData (multipart); plain form posts are urlencoded.

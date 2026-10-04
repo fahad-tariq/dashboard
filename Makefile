@@ -29,7 +29,7 @@ cover:
 	go tool cover -func=coverage.out | tail -1
 
 bench:
-	go test -run='^$$' -bench=BenchmarkMutate200 -benchmem -count=10 ./test/ | tee bench.txt
+	bash -o pipefail -c "go test -run='^$$' -bench=BenchmarkMutate200 -benchmem -count=10 ./test/ | tee bench.txt"
 	$(GOBIN)/benchstat bench.txt
 
 e2e:
