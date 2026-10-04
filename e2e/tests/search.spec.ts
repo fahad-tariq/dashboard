@@ -34,6 +34,9 @@ test('search shows an empty state, and Escape and Ctrl+K toggle the overlay', as
 
   await input.press('Escape');
   await expect(overlay).not.toHaveClass(/\bvisible\b/);
+  // Focus must leave the hidden input, or the "/" shortcut below is swallowed
+  // by the typing guard until the browser's own focus fixup runs.
+  await expect(input).not.toBeFocused();
 
   // Results span lists: the seeded idea and family task are searchable too.
   await page.keyboard.press('/');
