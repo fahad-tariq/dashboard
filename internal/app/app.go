@@ -61,8 +61,9 @@ const (
 		"img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
 )
 
-func buildFuncMap(loc *time.Location, authEnabled bool, version string) template.FuncMap {
+func buildFuncMap(loc *time.Location, authEnabled bool, version string, static func(string) (string, error)) template.FuncMap {
 	return template.FuncMap{
+		"static":       static,
 		"authEnabled":  func() bool { return authEnabled },
 		"buildVersion": func() string { return version },
 		"percentage": func(current, target float64) int {
@@ -196,7 +197,16 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 		return nil, err
 	}
 
-	fm := buildFuncMap(cfg.Location, cfg.AuthEnabled(), version)
+	staticSub, err := fs.Sub(web.StaticFS, "static")
+	if err != nil {
+		return nil, fmt.Errorf("static assets: %w", err)
+	}
+	assets, err := newStaticAssets(staticSub)
+	if err != nil {
+		return nil, err
+	}
+
+	fm := buildFuncMap(cfg.Location, cfg.AuthEnabled(), version, assets.URL)
 	templates, err := parseTemplates(fm)
 	if err != nil {
 		return nil, fmt.Errorf("parsing templates: %w", err)
@@ -218,8 +228,7 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 	r := root.With(http.NewCrossOriginProtection().Handler)
 
 	// Static assets are always public.
-	staticSub, _ := fs.Sub(web.StaticFS, "static")
-	r.Handle("/static/*", cacheImmutable(http.StripPrefix("/static/", http.FileServerFS(staticSub))))
+	r.Handle("/static/*", assets.Handler())
 
 	// ideaHandler is declared here so the API routes (below both branches)
 	// can reference it regardless of which branch executes.
@@ -399,7 +408,7 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 			}
 		}()
 
-		loginTmpl, err := template.New("login.html").ParseFS(web.TemplateFS, "templates/login.html")
+		loginTmpl, err := template.New("login.html").Funcs(template.FuncMap{"static": assets.URL}).ParseFS(web.TemplateFS, "templates/login.html")
 		if err != nil {
 			return nil, fmt.Errorf("parsing login template: %w", err)
 		}
