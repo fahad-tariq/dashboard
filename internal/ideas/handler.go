@@ -217,10 +217,14 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 }
 
 // TriageAction changes an idea's status (park/drop/untriage).
+// triageMaxBytes bounds a triage request body; it only carries an action name.
+const triageMaxBytes = 64 << 10
+
 func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	// triageAnimate posts FormData (multipart); plain form posts are urlencoded.
-	if err := r.ParseMultipartForm(1 << 20); err != nil && !errors.Is(err, http.ErrNotMultipart) {
+	r.Body = http.MaxBytesReader(w, r.Body, triageMaxBytes)
+	if err := r.ParseMultipartForm(triageMaxBytes); err != nil && !errors.Is(err, http.ErrNotMultipart) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
