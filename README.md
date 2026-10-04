@@ -54,7 +54,11 @@ This reads old-format idea and exploration files, merges research notes into ide
 | `USER_DATA_DIR` | `/data/users` | Per-user data directory (auto-created) |
 | `DB_PATH` | `/data/db/dashboard.db` | SQLite database path |
 | `DASHBOARD_PASSWORD_HASH` | (empty) | Bcrypt hash for auto-creating first admin user |
-| `DASHBOARD_API_TOKEN` | (empty) | Bearer token for API auth (optional) |
+| `DASHBOARD_AUTH` | `enabled` | `disabled` turns auth off for local development; refused unless `ADDR` is loopback. With auth on and no users or hash, the server refuses to start |
+| `DASHBOARD_TRUSTED_PROXIES` | (empty) | CIDRs or IPs of reverse proxies whose `X-Forwarded-For` is used for login rate limiting |
+| `DASHBOARD_API_TOKEN` | (empty) | Bearer token for `/api/v1`; at least 32 characters, or the API is not mounted |
+| `MCP_TOKEN` | (empty) | MCP sidecar only: token MCP clients send; at least 32 characters, different from `DASHBOARD_API_TOKEN` |
+| `MCP_ALLOW_DESTRUCTIVE` | `false` | MCP sidecar only: `true` exposes delete and clear tools |
 | `SESSION_LIFETIME` | `720h` | Session cookie lifetime (30 days) |
 | `DASHBOARD_SECURE_COOKIES` | `true` | Set `false` for local HTTP development |
 | `ADDR` | `:8080` | Server listen address |
@@ -67,8 +71,9 @@ The build version (git SHA) is injected at compile time via `-ldflags` and displ
 # Development
 make run
 
-# Or directly
-IDEAS_PATH=./ideas.md PERSONAL_PATH=./data/personal.md FAMILY_PATH=./data/family.md go run ./cmd/dashboard
+# Or directly, without auth (loopback only)
+DASHBOARD_AUTH=disabled ADDR=127.0.0.1:8080 DASHBOARD_SECURE_COOKIES=false \
+  IDEAS_PATH=./ideas.md PERSONAL_PATH=./data/personal.md FAMILY_PATH=./data/family.md go run ./cmd/dashboard
 
 # Build binary
 make build
@@ -92,7 +97,27 @@ make build
 VERSION=$(git rev-parse HEAD) docker compose up --build
 ```
 
-The compose file mounts `./data` for the database and family tasks, and `./users` for per-user data (personal tasks, ideas).
+The compose file mounts `./data` for the database, shared lists and uploads, and `./users` for per-user data (personal tasks, ideas). Nothing else is writable: both containers run read-only, unprivileged, with all capabilities dropped.
+
+### Deploying behind a reverse proxy
+
+The reference `docker-compose.yml` assumes a proxy on the same host (here Caddy with `network_mode: host`) that terminates TLS:
+
+```caddyfile
+dash.example.net {
+    handle_path /mcp* {
+        reverse_proxy localhost:9100
+    }
+    handle {
+        reverse_proxy localhost:8081
+    }
+}
+```
+
+- Ports are published on `127.0.0.1` only. Docker-published ports bypass ufw, so a `0.0.0.0` binding would expose the plain-HTTP app to the LAN.
+- The compose network has a fixed subnet (`172.30.81.0/24`). Requests through the published port reach the container from its gateway, `172.30.81.1`, which is therefore `DASHBOARD_TRUSTED_PROXIES`. Caddy appends the real client address to `X-Forwarded-For`, and the app uses that rightmost entry for login rate limiting. Change both values together if the subnet clashes with another network.
+- Set `DASHBOARD_UID`/`DASHBOARD_GID` to the owner of `./data` and `./users`. Before switching an existing deployment, make sure that user owns everything (once, as root): `chown -R <uid>:<gid> data users`.
+- `DASHBOARD_SECURE_COOKIES` stays `true`: the browser talks HTTPS to the proxy.
 
 ## Features
 
