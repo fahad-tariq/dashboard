@@ -184,7 +184,7 @@ Do not reopen these while executing this plan.
 
 **Purpose:** crash-safe writes, no self-triggered work, correct SQLite configuration and cache-safe assets.
 
-- [ ] **Backup first.**
+- [x] **Backup first.**
   - Add a `make backup` target that copies every markdown file and the DB to a timestamped directory.
   - Run it and document restoring in the README.
 - [ ] **Round-trip fixtures.**
@@ -560,6 +560,10 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - Owner decision (2026-10-04): MCP is not used. The fliptronic deploy removes the `dashboard-mcp` service and Caddy's `/mcp*` route, and drops `DASHBOARD_API_TOKEN` so `/api/v1` is not mounted. Both stay in the repo and can be re-enabled. The footer MCP badge will then report MCP as unavailable; revisit it in Phase 9.
 - Deployed to fliptronic 2026-10-04 (image from merge `909b7cb`): compose and Caddyfile backed up (`.bak.1791110956`), MCP service and `/mcp*` route removed, API token dropped, hardening applied. Verified through Caddy: `/login` 200, `/api/v1/*` and `/mcp/*` 404, CSP/HSTS present, cross-site login POST 403, `172.16.61.9:8081` no longer reachable, `verify-stack.sh` all green (a first run failed two checks only because Caddy was still starting). Homelab docs updated (uncommitted in that repo for the owner).
 - Deploy actions for the owner: add `MCP_TOKEN` (`openssl rand -hex 32`) to the server `.env` and switch MCP clients to it; make sure `DASHBOARD_API_TOKEN` is at least 32 characters or the API disappears; set `DASHBOARD_TRUSTED_PROXIES` once the Caddy topology is known (until then every login behind Caddy shares one rate-limit bucket).
+
+### Phase 3 notes
+
+- Backup: fliptronic's cron `backup.sh` archived `data/tracker.md` (gone), the legacy `ideas/` dir and the compose file, with errors sent to `/dev/null`: 804-byte archives, no user data, no database, for months. A manual full snapshot was taken first (`backups/manual-full-20261004-105705.tar.gz`), then `scripts/backup.sh` replaced it (old script kept as `backup.sh.bak.<epoch>`; cron line now `cd`s into the dashboard dir). The script tars `data/` and `users/` and adds a DB snapshot from SQLite's online backup API (Python `sqlite3`, present on the host) with an integrity check, excluding the live `-wal`/`-shm`. `make backup` wraps it; README documents restore. Tests run the script against temp dirs.
 
 - Follow-ups:
   - tighten CSP `script-src` after moving inline handlers
