@@ -185,7 +185,7 @@ func (h *Handler) EditUserForm(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateUser handles the edit user form submission (POST /admin/users/{id}/edit).
-func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) { //nolint:gocyclo // admin is frozen (Plan 1 decisions)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		http.NotFound(w, r)

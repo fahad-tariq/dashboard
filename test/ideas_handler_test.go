@@ -21,10 +21,10 @@ import (
 )
 
 type ideasTestEnv struct {
-	handler    *ideas.Handler
-	ideasSvc   *ideas.Service
+	handler     *ideas.Handler
+	ideasSvc    *ideas.Service
 	personalSvc *tracker.Service
-	router     *chi.Mux
+	router      *chi.Mux
 }
 
 func setupIdeasEnv(t *testing.T) *ideasTestEnv {

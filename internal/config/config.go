@@ -67,12 +67,12 @@ func Load() (*Config, error) {
 		HouseProjectsPath: envOr("HOUSE_PROJECTS_PATH", "/data/house-projects.md"),
 		UserDataDir:       envOr("USER_DATA_DIR", "/data/users"),
 		DBPath:            envOr("DB_PATH", "/data/db/dashboard.db"),
-		APIToken:        os.Getenv("DASHBOARD_API_TOKEN"),
-		Addr:            envOr("ADDR", ":8080"),
-		PasswordHash:    os.Getenv("DASHBOARD_PASSWORD_HASH"),
-		SessionLifetime: sessionLifetime,
-		SecureCookies:   secureCookies,
-		Location:        loc,
+		APIToken:          os.Getenv("DASHBOARD_API_TOKEN"),
+		Addr:              envOr("ADDR", ":8080"),
+		PasswordHash:      os.Getenv("DASHBOARD_PASSWORD_HASH"),
+		SessionLifetime:   sessionLifetime,
+		SecureCookies:     secureCookies,
+		Location:          loc,
 	}
 
 	if err := c.validate(); err != nil {

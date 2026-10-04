@@ -45,13 +45,13 @@ func TestWeeklyVelocity(t *testing.T) {
 	now := time.Date(2026, 3, 18, 12, 0, 0, 0, time.UTC)
 
 	items := []insights.CompletedItem{
-		{Completed: "2026-03-18", Done: true}, // this week
-		{Completed: "2026-03-16", Done: true}, // this week (Monday)
-		{Completed: "2026-03-15", Done: true}, // last week (Sunday)
-		{Completed: "2026-03-10", Done: true}, // last week (Tuesday)
-		{Completed: "2026-03-08", Done: true}, // two weeks ago
+		{Completed: "2026-03-18", Done: true},  // this week
+		{Completed: "2026-03-16", Done: true},  // this week (Monday)
+		{Completed: "2026-03-15", Done: true},  // last week (Sunday)
+		{Completed: "2026-03-10", Done: true},  // last week (Tuesday)
+		{Completed: "2026-03-08", Done: true},  // two weeks ago
 		{Completed: "2026-03-17", Done: false}, // not done
-		{Completed: "", Done: true},             // no date
+		{Completed: "", Done: true},            // no date
 	}
 
 	v := insights.WeeklyVelocity(items, now)

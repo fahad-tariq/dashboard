@@ -24,8 +24,8 @@ func TestParseCadence(t *testing.T) {
 		{"", 0, 0, true},
 		{"x", 0, 0, true},
 		{"3x", 0, 0, true},
-		{"0d", 0, 0, true},  // must be >= 1
-		{"-1m", 0, 0, true}, // negative
+		{"0d", 0, 0, true},    // must be >= 1
+		{"-1m", 0, 0, true},   // negative
 		{"9999d", 0, 0, true}, // exceeds max
 		{"999y", 0, 0, true},  // exceeds max
 	}

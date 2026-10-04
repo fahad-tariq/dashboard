@@ -25,21 +25,21 @@ func TestDigest_PeriodBoundaries(t *testing.T) {
 	now := time.Date(2026, 3, 18, 12, 0, 0, 0, time.UTC)
 
 	items := []insights.DigestItem{
-		{Added: "2026-03-18", Completed: "2026-03-18", Done: true, Type: "task"},  // this week
-		{Added: "2026-03-16", Completed: "2026-03-16", Done: true, Type: "task"},  // this week (Monday)
-		{Added: "2026-03-15", Completed: "2026-03-15", Done: true, Type: "task"},  // last week (Sunday)
-		{Added: "2026-03-10", Completed: "2026-03-10", Done: true, Type: "task"},  // last week (Tuesday)
-		{Added: "2026-03-01", Completed: "2026-03-01", Done: true, Type: "task"},  // this month but earlier
-		{Added: "2026-02-28", Completed: "2026-02-28", Done: true, Type: "task"},  // last month
-		{Added: "2026-03-17", Type: "idea"},                                       // idea this week
+		{Added: "2026-03-18", Completed: "2026-03-18", Done: true, Type: "task"}, // this week
+		{Added: "2026-03-16", Completed: "2026-03-16", Done: true, Type: "task"}, // this week (Monday)
+		{Added: "2026-03-15", Completed: "2026-03-15", Done: true, Type: "task"}, // last week (Sunday)
+		{Added: "2026-03-10", Completed: "2026-03-10", Done: true, Type: "task"}, // last week (Tuesday)
+		{Added: "2026-03-01", Completed: "2026-03-01", Done: true, Type: "task"}, // this month but earlier
+		{Added: "2026-02-28", Completed: "2026-02-28", Done: true, Type: "task"}, // last month
+		{Added: "2026-03-17", Type: "idea"},                                      // idea this week
 	}
 
 	tests := []struct {
-		name            string
-		period          insights.DigestPeriod
-		wantCompleted   int
-		wantAddedTasks  int
-		wantAddedIdeas  int
+		name           string
+		period         insights.DigestPeriod
+		wantCompleted  int
+		wantAddedTasks int
+		wantAddedIdeas int
 	}{
 		{"this-week", insights.PeriodThisWeek, 2, 2, 1},
 		{"last-week", insights.PeriodLastWeek, 2, 2, 0},

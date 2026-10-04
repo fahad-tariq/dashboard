@@ -17,17 +17,17 @@ import (
 )
 
 var flashMessages = map[string]string{
-	"title-required":     "A title is required.",
-	"cadence-required":   "A cadence is required (e.g. 2w, 3m).",
-	"cadence-invalid":    "Invalid cadence format.",
-	"item-edited":        "Changes saved.",
-	"item-deleted":       "Item moved to trash.",
-	"item-restored":      "Item restored from trash.",
-	"item-purged":        "Item permanently deleted.",
-	"status-updated":     "Status updated.",
-	"maintenance-added":  "Added.",
-	"project-added":      "Added.",
-	"completion-logged":  "Logged.",
+	"title-required":    "A title is required.",
+	"cadence-required":  "A cadence is required (e.g. 2w, 3m).",
+	"cadence-invalid":   "Invalid cadence format.",
+	"item-edited":       "Changes saved.",
+	"item-deleted":      "Item moved to trash.",
+	"item-restored":     "Item restored from trash.",
+	"item-purged":       "Item permanently deleted.",
+	"status-updated":    "Status updated.",
+	"maintenance-added": "Added.",
+	"project-added":     "Added.",
+	"completion-logged": "Logged.",
 }
 
 var flashErrorKeys = map[string]bool{

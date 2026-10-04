@@ -13,7 +13,7 @@ import (
 
 // runMigrateData handles the "migrate-data" CLI subcommand.
 // Converts old directory-based ideas and explorations into a single ideas.md flat file.
-func runMigrateData() {
+func runMigrateData() { //nolint:gocyclo // one-off migration command, linear steps
 	fs := flag.NewFlagSet("migrate-data", flag.ExitOnError)
 	userID := fs.Int("user-id", 0, "target user ID")
 	oldIdeasDir := fs.String("ideas-dir", "", "old ideas directory (with untriaged/parked/dropped subdirs)")

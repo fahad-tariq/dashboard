@@ -202,10 +202,10 @@ func TestServiceCRUD(t *testing.T) {
 
 	// Add.
 	idea := &ideas.Idea{
-		Slug:   "my-idea",
-		Title:  "My Idea",
-		Tags:   []string{"test"},
-		Body:   "Some content.",
+		Slug:  "my-idea",
+		Title: "My Idea",
+		Tags:  []string{"test"},
+		Body:  "Some content.",
 	}
 	if err := svc.Add(idea); err != nil {
 		t.Fatalf("add: %v", err)
@@ -551,4 +551,3 @@ func TestServiceAddResearch(t *testing.T) {
 		t.Errorf("body should still contain initial content, got %q", idea.Body)
 	}
 }
-

@@ -96,11 +96,11 @@ func SanitiseBudget(f float64) float64 {
 type ServiceResolver func(r *http.Request) (svc *Service, otherSvc *Service)
 
 type Handler struct {
-	resolve        ServiceResolver
-	templates      map[string]*template.Template
-	listName       string
-	loc            *time.Location
-	commentarySt   *commentary.Store
+	resolve      ServiceResolver
+	templates    map[string]*template.Template
+	listName     string
+	loc          *time.Location
+	commentarySt *commentary.Store
 }
 
 // SetCommentaryStore injects a commentary store for displaying ironclaw commentary.

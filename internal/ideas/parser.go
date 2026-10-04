@@ -211,4 +211,3 @@ func WriteIdeas(path string, heading string, ideas []Idea) error {
 func Slugify(title string) string {
 	return slug.Slugify(title)
 }
-

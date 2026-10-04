@@ -97,4 +97,3 @@ func countIdeaStatus(allIdeas []ideas.Idea, status string) int {
 	}
 	return count
 }
-
