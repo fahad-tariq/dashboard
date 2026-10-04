@@ -3,16 +3,21 @@ package ideas
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/fahad/dashboard/internal/atomicfile"
+	"github.com/fahad/dashboard/internal/changes"
 	"github.com/fahad/dashboard/internal/httputil"
 )
 
 // Service manages ideas stored in a single flat-file (ideas.md).
 // Follows the tracker's read-modify-write pattern: parse, mutate, write back.
 type Service struct {
+	changes.Recorder
+
 	ideasPath string
 	loc       *time.Location
 	mu        sync.RWMutex
@@ -32,6 +37,7 @@ func (s *Service) loadCache() {
 		ideas = nil
 	}
 	s.cache = ideas
+	s.recordOnDisk()
 }
 
 // List returns all non-deleted ideas from the in-memory cache.
@@ -91,7 +97,7 @@ func (s *Service) Add(idea *Idea) error {
 	}
 
 	ideas = append(ideas, *idea)
-	if err := WriteIdeas(s.ideasPath, "Ideas", ideas); err != nil {
+	if err := s.write(ideas); err != nil {
 		return err
 	}
 	s.cache = ideas
@@ -112,7 +118,7 @@ func (s *Service) mutate(slug string, fn func(*Idea) error) error {
 			if err := fn(&ideas[i]); err != nil {
 				return err
 			}
-			if err := WriteIdeas(s.ideasPath, "Ideas", ideas); err != nil {
+			if err := s.write(ideas); err != nil {
 				return err
 			}
 			s.cache = ideas
@@ -190,7 +196,7 @@ func (s *Service) PermanentDelete(slug string) error {
 	for i := range ideas {
 		if ideas[i].Slug == slug {
 			ideas = append(ideas[:i], ideas[i+1:]...)
-			if err := WriteIdeas(s.ideasPath, "Ideas", ideas); err != nil {
+			if err := s.write(ideas); err != nil {
 				return err
 			}
 			s.cache = ideas
@@ -231,7 +237,7 @@ func (s *Service) PurgeExpired(days int) error {
 		return nil // nothing to purge
 	}
 
-	if err := WriteIdeas(s.ideasPath, "Ideas", kept); err != nil {
+	if err := s.write(kept); err != nil {
 		return err
 	}
 	s.cache = kept
@@ -268,7 +274,7 @@ func (s *Service) mutateBatch(slugs []string, fn func(*Idea) error) error {
 		return fmt.Errorf("one or more ideas not found")
 	}
 
-	if err := WriteIdeas(s.ideasPath, "Ideas", ideas); err != nil {
+	if err := s.write(ideas); err != nil {
 		return err
 	}
 	s.cache = ideas
@@ -352,6 +358,7 @@ func (s *Service) Resync() error {
 		return err
 	}
 	s.cache = ideas
+	s.recordOnDisk()
 	return nil
 }
 
@@ -363,4 +370,44 @@ func (s *Service) GetResearch(slug string) ([]byte, error) {
 		return nil, err
 	}
 	return []byte(idea.Body), nil
+}
+
+// write renders the file, replaces it atomically, then records and publishes
+// the change. Callers hold s.mu.
+func (s *Service) write(items []Idea) error {
+	data := RenderIdeas("Ideas", items)
+	if err := atomicfile.Write(s.ideasPath, data, 0o644); err != nil {
+		return err
+	}
+	s.Wrote(data)
+	return nil
+}
+
+// recordOnDisk notes the file's current content so a watcher event for it is
+// not mistaken for an external edit.
+func (s *Service) recordOnDisk() {
+	if data, err := os.ReadFile(s.ideasPath); err == nil {
+		s.Differs(data)
+	}
+}
+
+// ResyncIfChanged re-reads the file only if it differs from what this service
+// last wrote or read, and reports whether it did. The watcher calls it for
+// every event, so the service's own writes cost nothing.
+func (s *Service) ResyncIfChanged() (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, err := os.ReadFile(s.ideasPath)
+	if err != nil {
+		return false, err
+	}
+	if !s.Differs(data) {
+		return false, nil
+	}
+	parsed, err := ParseIdeas(s.ideasPath)
+	if err != nil {
+		return false, err
+	}
+	s.cache = parsed
+	return true, nil
 }

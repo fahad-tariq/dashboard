@@ -15,23 +15,26 @@ import (
 
 const debounceInterval = 500 * time.Millisecond
 
-// UserCallback receives file change events with user context.
+// UserCallback receives file change events with user context and reports
+// whether the file really changed (as opposed to echoing the app's own write).
 // userID=0 means the change is for a shared resource (e.g. family list).
-type UserCallback func(userID int64, category string)
+type UserCallback func(userID int64, category string) bool
 
-// Watch monitors directories for file changes and broadcasts SSE events.
+// Watch monitors directories for file changes and broadcasts an SSE event when
+// a callback reports a real change. Callbacks return false for the app's own
+// writes, which services have already published.
 // dirCategories maps absolute directory paths to category names
 // (e.g. {"/data/ideas": "ideas"}).
 // fileCategories maps absolute file paths to category names
 // (e.g. {"/data/personal.md": "personal"}).
-func Watch(dirCategories, fileCategories map[string]string, broker *sse.Broker, callbacks map[string]func()) error {
+func Watch(dirCategories, fileCategories map[string]string, broker *sse.Broker, callbacks map[string]func() bool) error {
 	return WatchWithUserCallbacks(dirCategories, fileCategories, "", broker, callbacks, nil)
 }
 
 // WatchWithUserCallbacks monitors directories for file changes, including
 // per-user directories under userDataDir. Broadcasts SSE events and calls
 // both legacy callbacks (for shared resources) and user callbacks (for per-user changes).
-func WatchWithUserCallbacks(dirCategories, fileCategories map[string]string, userDataDir string, broker *sse.Broker, callbacks map[string]func(), userCallback UserCallback) error {
+func WatchWithUserCallbacks(dirCategories, fileCategories map[string]string, userDataDir string, broker *sse.Broker, callbacks map[string]func() bool, userCallback UserCallback) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -68,7 +71,7 @@ type pendingEvent struct {
 	category string
 }
 
-func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, userDataDir string, broker *sse.Broker, callbacks map[string]func(), userCallback UserCallback) {
+func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, userDataDir string, broker *sse.Broker, callbacks map[string]func() bool, userCallback UserCallback) {
 	defer w.Close()
 
 	timer := time.NewTimer(0)
@@ -102,15 +105,9 @@ func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, u
 
 		case <-timer.C:
 			for pe := range pending {
-				slog.Info("file change detected", "type", pe.category, "user_id", pe.userID)
-				broker.Send("file-changed", pe.category)
-				if pe.userID == 0 {
-					if cb, ok := callbacks[pe.category]; ok {
-						cb()
-					}
-				}
-				if userCallback != nil {
-					userCallback(pe.userID, pe.category)
+				if handleEvent(pe, callbacks, userCallback) {
+					slog.Info("external file change", "type", pe.category, "user_id", pe.userID)
+					broker.Send("file-changed", pe.category)
 				}
 			}
 			pending = map[pendingEvent]bool{}
@@ -122,6 +119,24 @@ func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, u
 			slog.Error("watcher error", "error", err)
 		}
 	}
+}
+
+// handleEvent runs the callbacks for an event, before any broadcast, and
+// reports whether the file really changed. With no callback to ask, it
+// assumes a change so clients still refresh.
+func handleEvent(pe pendingEvent, callbacks map[string]func() bool, userCallback UserCallback) bool {
+	asked, changed := false, false
+	if pe.userID == 0 {
+		if cb, ok := callbacks[pe.category]; ok {
+			asked = true
+			changed = cb() || changed
+		}
+	}
+	if userCallback != nil && pe.userID != 0 {
+		asked = true
+		changed = userCallback(pe.userID, pe.category) || changed
+	}
+	return changed || !asked
 }
 
 // ClassifyEventWithUser determines the category and user ID from a file path.

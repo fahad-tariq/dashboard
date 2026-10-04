@@ -3,15 +3,20 @@ package house
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/fahad/dashboard/internal/atomicfile"
+	"github.com/fahad/dashboard/internal/changes"
 	"github.com/fahad/dashboard/internal/httputil"
 )
 
 // Service manages maintenance items stored in a single flat-file.
 type Service struct {
+	changes.Recorder
+
 	maintPath string
 	loc       *time.Location
 	mu        sync.RWMutex
@@ -31,6 +36,7 @@ func (s *Service) loadCache() {
 		items = nil
 	}
 	s.cache = items
+	s.recordOnDisk()
 }
 
 // List returns all non-deleted maintenance items from cache.
@@ -101,7 +107,7 @@ func (s *Service) Add(item *MaintenanceItem) error {
 	}
 
 	items = append(items, *item)
-	if err := WriteMaintenance(s.maintPath, "Maintenance", items); err != nil {
+	if err := s.write(items); err != nil {
 		return err
 	}
 	s.cache = items
@@ -122,7 +128,7 @@ func (s *Service) mutate(slug string, fn func(*MaintenanceItem) error) error {
 			if err := fn(&items[i]); err != nil {
 				return err
 			}
-			if err := WriteMaintenance(s.maintPath, "Maintenance", items); err != nil {
+			if err := s.write(items); err != nil {
 				return err
 			}
 			s.cache = items
@@ -203,7 +209,7 @@ func (s *Service) PermanentDelete(slug string) error {
 	for i := range items {
 		if items[i].Slug == slug {
 			items = append(items[:i], items[i+1:]...)
-			if err := WriteMaintenance(s.maintPath, "Maintenance", items); err != nil {
+			if err := s.write(items); err != nil {
 				return err
 			}
 			s.cache = items
@@ -244,7 +250,7 @@ func (s *Service) PurgeExpired(days int) error {
 		return nil
 	}
 
-	if err := WriteMaintenance(s.maintPath, "Maintenance", kept); err != nil {
+	if err := s.write(kept); err != nil {
 		return err
 	}
 	s.cache = kept
@@ -278,5 +284,46 @@ func (s *Service) Resync() error {
 		return err
 	}
 	s.cache = items
+	s.recordOnDisk()
 	return nil
+}
+
+// write renders the file, replaces it atomically, then records and publishes
+// the change. Callers hold s.mu.
+func (s *Service) write(items []MaintenanceItem) error {
+	data := RenderMaintenance("Maintenance", items)
+	if err := atomicfile.Write(s.maintPath, data, 0o644); err != nil {
+		return err
+	}
+	s.Wrote(data)
+	return nil
+}
+
+// recordOnDisk notes the file's current content so a watcher event for it is
+// not mistaken for an external edit.
+func (s *Service) recordOnDisk() {
+	if data, err := os.ReadFile(s.maintPath); err == nil {
+		s.Differs(data)
+	}
+}
+
+// ResyncIfChanged re-reads the file only if it differs from what this service
+// last wrote or read, and reports whether it did. The watcher calls it for
+// every event, so the service's own writes cost nothing.
+func (s *Service) ResyncIfChanged() (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, err := os.ReadFile(s.maintPath)
+	if err != nil {
+		return false, err
+	}
+	if !s.Differs(data) {
+		return false, nil
+	}
+	parsed, err := ParseMaintenance(s.maintPath)
+	if err != nil {
+		return false, err
+	}
+	s.cache = parsed
+	return true, nil
 }

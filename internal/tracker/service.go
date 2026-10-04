@@ -3,15 +3,20 @@ package tracker
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/fahad/dashboard/internal/atomicfile"
+	"github.com/fahad/dashboard/internal/changes"
 	"github.com/fahad/dashboard/internal/httputil"
 )
 
 type Service struct {
+	changes.Recorder
+
 	trackerPath string
 	heading     string
 	loc         *time.Location
@@ -31,6 +36,7 @@ func (s *Service) loadCache() {
 		items = nil
 	}
 	s.cache = items
+	s.recordOnDisk()
 }
 
 func (s *Service) mutate(slug string, fn func(*Item) error) error {
@@ -57,7 +63,7 @@ func (s *Service) mutate(slug string, fn func(*Item) error) error {
 		return fmt.Errorf("tracker item %q not found", slug)
 	}
 
-	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
+	if err := s.write(items); err != nil {
 		return err
 	}
 	s.cache = items
@@ -119,7 +125,7 @@ func (s *Service) AddItem(item Item) error {
 	}
 
 	items = append(items, item)
-	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
+	if err := s.write(items); err != nil {
 		return err
 	}
 	s.cache = items
@@ -205,7 +211,7 @@ func (s *Service) PermanentDelete(slug string) error {
 	}
 
 	items = append(items[:idx], items[idx+1:]...)
-	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
+	if err := s.write(items); err != nil {
 		return err
 	}
 	s.cache = items
@@ -243,7 +249,7 @@ func (s *Service) PurgeExpired(days int) error {
 		return nil // nothing to purge
 	}
 
-	if err := WriteTracker(s.trackerPath, s.heading, kept); err != nil {
+	if err := s.write(kept); err != nil {
 		return err
 	}
 	s.cache = kept
@@ -281,7 +287,7 @@ func (s *Service) mutateBatch(slugs []string, fn func(*Item) error) error {
 		return fmt.Errorf("one or more tracker items not found")
 	}
 
-	if err := WriteTracker(s.trackerPath, s.heading, items); err != nil {
+	if err := s.write(items); err != nil {
 		return err
 	}
 	s.cache = items
@@ -388,6 +394,7 @@ func (s *Service) Resync() error {
 		return err
 	}
 	s.cache = items
+	s.recordOnDisk()
 	return nil
 }
 
@@ -564,4 +571,44 @@ func (s *Service) Summary() (Summary, error) {
 		}
 	}
 	return sum, nil
+}
+
+// write renders the file, replaces it atomically, then records and publishes
+// the change. Callers hold s.mu.
+func (s *Service) write(items []Item) error {
+	data := RenderTracker(s.heading, items)
+	if err := atomicfile.Write(s.trackerPath, data, 0o644); err != nil {
+		return err
+	}
+	s.Wrote(data)
+	return nil
+}
+
+// recordOnDisk notes the file's current content so a watcher event for it is
+// not mistaken for an external edit.
+func (s *Service) recordOnDisk() {
+	if data, err := os.ReadFile(s.trackerPath); err == nil {
+		s.Differs(data)
+	}
+}
+
+// ResyncIfChanged re-reads the file only if it differs from what this service
+// last wrote or read, and reports whether it did. The watcher calls it for
+// every event, so the service's own writes cost nothing.
+func (s *Service) ResyncIfChanged() (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, err := os.ReadFile(s.trackerPath)
+	if err != nil {
+		return false, err
+	}
+	if !s.Differs(data) {
+		return false, nil
+	}
+	parsed, err := ParseTracker(s.trackerPath)
+	if err != nil {
+		return false, err
+	}
+	s.cache = parsed
+	return true, nil
 }

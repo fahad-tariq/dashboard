@@ -29,8 +29,32 @@ type Registry struct {
 	familySvc        *tracker.Service
 	houseProjectsSvc *tracker.Service
 
-	mu    sync.RWMutex
-	cache map[int64]*UserServices
+	mu      sync.RWMutex
+	cache   map[int64]*UserServices
+	publish func(category string)
+}
+
+// SetPublisher makes every service, shared and per-user, call publish with
+// its watcher category after each of its own writes.
+func (r *Registry) SetPublisher(publish func(category string)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.publish = publish
+	r.familySvc.OnChange(func() { publish("family") })
+	r.houseProjectsSvc.OnChange(func() { publish("house-projects") })
+	for _, svc := range r.cache {
+		r.wireUser(svc)
+	}
+}
+
+// wireUser connects a user's services to the publisher. Callers hold r.mu.
+func (r *Registry) wireUser(svc *UserServices) {
+	if r.publish == nil {
+		return
+	}
+	publish := r.publish
+	svc.Personal.OnChange(func() { publish("personal") })
+	svc.Ideas.OnChange(func() { publish("ideas") })
 }
 
 // NewRegistry creates a new service registry.
@@ -122,6 +146,7 @@ func (r *Registry) ForUser(userID int64) *UserServices {
 		Personal: personalSvc,
 		Ideas:    ideaSvc,
 	}
+	r.wireUser(svc)
 	r.cache[userID] = svc
 	return svc
 }

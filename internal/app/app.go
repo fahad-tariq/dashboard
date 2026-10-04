@@ -293,38 +293,26 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 			cfg.HouseProjectsPath: "house-projects",
 			cfg.MaintenancePath:   "maintenance",
 		}
-		callbacks := map[string]func(){
-			"family": func() {
-				if err := registry.Family().Resync(); err != nil {
-					slog.Error("family resync failed", "error", err)
-				}
-			},
-			"house-projects": func() {
-				if err := registry.HouseProjects().Resync(); err != nil {
-					slog.Error("house projects resync failed", "error", err)
-				}
-			},
-			"maintenance": func() {
-				if err := maintenanceSvc.Resync(); err != nil {
-					slog.Error("maintenance resync failed", "error", err)
-				}
-			},
+		publish := func(category string) { broker.Send("file-changed", category) }
+		registry.SetPublisher(publish)
+		maintenanceSvc.OnChange(func() { publish("maintenance") })
+		callbacks := map[string]func() bool{
+			"family":         resyncCallback("family", registry.Family()),
+			"house-projects": resyncCallback("house projects", registry.HouseProjects()),
+			"maintenance":    resyncCallback("maintenance", maintenanceSvc),
 		}
-		userCallback := func(userID int64, category string) {
+		userCallback := func(userID int64, category string) bool {
 			if userID == 0 {
-				return
+				return false
 			}
 			svc := registry.ForUser(userID)
 			switch category {
 			case "personal":
-				if err := svc.Personal.Resync(); err != nil {
-					slog.Error("per-user personal resync failed", "user_id", userID, "error", err)
-				}
+				return resyncCallback("personal", svc.Personal)()
 			case "ideas":
-				if err := svc.Ideas.Resync(); err != nil {
-					slog.Error("per-user ideas resync failed", "user_id", userID, "error", err)
-				}
+				return resyncCallback("ideas", svc.Ideas)()
 			}
+			return false
 		}
 		if err := watcher.WatchWithUserCallbacks(nil, fileCategories, cfg.UserDataDir, broker, callbacks, userCallback); err != nil {
 			slog.Warn("file watcher failed to start", "error", err)
@@ -509,32 +497,18 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 			cfg.HouseProjectsPath: "house-projects",
 			cfg.MaintenancePath:   "maintenance",
 		}
-		callbacks := map[string]func(){
-			"personal": func() {
-				if err := personalSvc.Resync(); err != nil {
-					slog.Error("personal resync failed", "error", err)
-				}
-			},
-			"family": func() {
-				if err := familySvc.Resync(); err != nil {
-					slog.Error("family resync failed", "error", err)
-				}
-			},
-			"ideas": func() {
-				if err := ideaSvc.Resync(); err != nil {
-					slog.Error("ideas resync failed", "error", err)
-				}
-			},
-			"house-projects": func() {
-				if err := houseProjectsSvc.Resync(); err != nil {
-					slog.Error("house projects resync failed", "error", err)
-				}
-			},
-			"maintenance": func() {
-				if err := maintenanceSvc.Resync(); err != nil {
-					slog.Error("maintenance resync failed", "error", err)
-				}
-			},
+		publish := func(category string) func() { return func() { broker.Send("file-changed", category) } }
+		personalSvc.OnChange(publish("personal"))
+		familySvc.OnChange(publish("family"))
+		ideaSvc.OnChange(publish("ideas"))
+		houseProjectsSvc.OnChange(publish("house-projects"))
+		maintenanceSvc.OnChange(publish("maintenance"))
+		callbacks := map[string]func() bool{
+			"personal":       resyncCallback("personal", personalSvc),
+			"family":         resyncCallback("family", familySvc),
+			"ideas":          resyncCallback("ideas", ideaSvc),
+			"house-projects": resyncCallback("house projects", houseProjectsSvc),
+			"maintenance":    resyncCallback("maintenance", maintenanceSvc),
 		}
 		if err := watcher.Watch(nil, fileCategories, broker, callbacks); err != nil {
 			slog.Warn("file watcher failed to start", "error", err)
@@ -854,6 +828,19 @@ func bearerAuth(token string, failures *auth.RateLimiter, trusted []netip.Prefix
 			w.WriteHeader(status)
 			_, _ = w.Write([]byte(body))
 		})
+	}
+}
+
+// resyncCallback adapts a service to the watcher: it re-reads the file only if
+// it differs from the service's own last write and reports whether it did.
+func resyncCallback(name string, svc interface{ ResyncIfChanged() (bool, error) }) func() bool {
+	return func() bool {
+		changed, err := svc.ResyncIfChanged()
+		if err != nil {
+			slog.Error("resync failed", "list", name, "error", err)
+			return false
+		}
+		return changed
 	}
 }
 

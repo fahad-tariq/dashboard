@@ -111,12 +111,14 @@ func TestOneEventPerChangeAndNoSelfResync(t *testing.T) {
 	personal.OnChange(func() { broker.Send("file-changed", "personal") })
 	family.OnChange(func() { broker.Send("file-changed", "family") })
 
-	var resyncs atomic.Int32
+	// The watcher has no stop hook and outlives the test, so callbacks must
+	// not touch t: count errors and assert on them while the test runs.
+	var resyncs, resyncErrs atomic.Int32
 	callback := func(svc *tracker.Service) func() bool {
 		return func() bool {
 			changed, err := svc.ResyncIfChanged()
 			if err != nil {
-				t.Errorf("resync: %v", err)
+				resyncErrs.Add(1)
 			}
 			if changed {
 				resyncs.Add(1)
@@ -188,5 +190,8 @@ func TestOneEventPerChangeAndNoSelfResync(t *testing.T) {
 		if n := resyncs.Load() - before; n != step.resyncs {
 			t.Errorf("%s: %d resyncs, want %d", step.name, n, step.resyncs)
 		}
+	}
+	if n := resyncErrs.Load(); n != 0 {
+		t.Errorf("%d resync errors", n)
 	}
 }

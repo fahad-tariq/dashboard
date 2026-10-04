@@ -157,7 +157,13 @@ func parseIdeaLine(raw string) *Idea {
 }
 
 // WriteIdeas writes all ideas to a flat-file ideas.md.
+// WriteIdeas atomically replaces path with the rendered ideas file.
 func WriteIdeas(path string, heading string, ideas []Idea) error {
+	return atomicfile.Write(path, RenderIdeas(heading, ideas), 0o644)
+}
+
+// RenderIdeas returns the markdown for an ideas file.
+func RenderIdeas(heading string, ideas []Idea) []byte {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n\n", heading)
 
@@ -205,7 +211,7 @@ func WriteIdeas(path string, heading string, ideas []Idea) error {
 		}
 	}
 
-	return atomicfile.Write(path, []byte(b.String()), 0o644)
+	return []byte(b.String())
 }
 
 // Slugify exposes the shared slug generation for use by the handler.
