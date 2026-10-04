@@ -224,7 +224,7 @@ func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	// triageAnimate posts FormData (multipart); plain form posts are urlencoded.
 	r.Body = http.MaxBytesReader(w, r.Body, triageMaxBytes)
-	if err := r.ParseMultipartForm(triageMaxBytes); err != nil && !errors.Is(err, http.ErrNotMultipart) {
+	if err := r.ParseMultipartForm(triageMaxBytes); err != nil && !errors.Is(err, http.ErrNotMultipart) { //nolint:gosec // G120: body capped by MaxBytesReader above
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
