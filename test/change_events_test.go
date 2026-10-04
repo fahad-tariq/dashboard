@@ -40,7 +40,8 @@ func TestServicesPublishOwnWritesAndSkipOwnResync(t *testing.T) {
 			file: "personal.md", initial: "# Personal\n\n",
 			build: func(p string) changeSource { return tracker.NewService(p, "Personal", time.UTC) },
 			mutate: func(s changeSource) error {
-				return s.(*tracker.Service).AddItem(tracker.Item{Title: "Mow", Type: tracker.TaskType})
+				_, err := s.(*tracker.Service).AddItem(tracker.Item{Title: "Mow", Type: tracker.TaskType})
+				return err
 			},
 			edited: "# Personal\n\n- [ ] Edited by hand\n",
 		},
@@ -154,7 +155,7 @@ func TestOneEventPerChangeAndNoSelfResync(t *testing.T) {
 	h := tracker.NewHandler(personal, family, map[string]*template.Template{}, "todos", time.UTC)
 	r := chi.NewRouter()
 	r.Post("/todos/add", h.QuickAdd)
-	r.Post("/api/v1/todos", tracker.APIAddTodo(personal, family))
+	r.Post("/api/v1/todos", tracker.APIAddTodo(func(*http.Request) (*tracker.Service, *tracker.Service) { return personal, family }))
 
 	steps := []struct {
 		name            string

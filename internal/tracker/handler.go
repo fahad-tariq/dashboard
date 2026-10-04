@@ -320,7 +320,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	svc, _ := h.resolve(r)
-	if err := svc.AddItem(item); err != nil {
+	if _, err := svc.AddItem(item); err != nil {
 		httputil.ServerError(w, "adding task", err)
 		return
 	}
@@ -357,7 +357,7 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	svc, _ := h.resolve(r)
-	if err := svc.AddItem(item); err != nil {
+	if _, err := svc.AddItem(item); err != nil {
 		httputil.ServerError(w, "adding goal", err)
 		return
 	}
@@ -727,7 +727,7 @@ func (h *Handler) PromoteSubStep(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := svc.AddItem(Item{Title: text, Type: TaskType}); err != nil {
+	if _, err := svc.AddItem(Item{Title: text, Type: TaskType}); err != nil {
 		httputil.ServerError(w, "promoting sub-step to task", err)
 		return
 	}
@@ -752,7 +752,7 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 
 	// Add before deleting: a failed add leaves the item where it was, and a
 	// failed delete leaves a recoverable duplicate rather than losing it.
-	if err := otherSvc.AddItem(movedItem); err != nil {
+	if _, err := otherSvc.AddItem(movedItem); err != nil {
 		httputil.ServerError(w, "adding item to target list", err, "slug", slug)
 		return
 	}

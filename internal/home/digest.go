@@ -12,20 +12,10 @@ import (
 	"github.com/fahad/dashboard/internal/tracker"
 )
 
-// DigestPage handles GET /digest in auth-enabled mode.
+// DigestPage handles GET /digest.
 func (h *Handler) DigestPage(w http.ResponseWriter, r *http.Request) {
-	uid := auth.UserID(r.Context())
-	userSvc := h.registry.ForUser(uid)
-	familySvc := h.registry.Family()
-	houseProjectsSvc := h.registry.HouseProjects()
-	renderDigestPage(w, r, userSvc.Personal, familySvc, houseProjectsSvc, userSvc.Ideas, h.templates, h.loc)
-}
-
-// DigestPageSingle returns a handler for GET /digest in single-user mode.
-func DigestPageSingle(personalSvc, familySvc, houseProjectsSvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		renderDigestPage(w, r, personalSvc, familySvc, houseProjectsSvc, ideaSvc, templates, loc)
-	}
+	l := h.resolve(r)
+	renderDigestPage(w, r, l.Personal, l.Family, l.HouseProjects, l.Ideas, h.templates, h.loc)
 }
 
 func renderDigestPage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc, houseProjectsSvc *tracker.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) {

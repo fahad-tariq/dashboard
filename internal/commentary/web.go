@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/fahad/dashboard/internal/auth"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/markdown"
 )
@@ -24,7 +25,7 @@ func WebGetCommentary(store *Store) http.HandlerFunc {
 		}
 		list = httputil.NormaliseList(list)
 
-		content, err := store.Get(slug, list, 1)
+		content, err := store.Get(slug, list, int(auth.UserID(r.Context())))
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return

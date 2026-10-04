@@ -42,20 +42,21 @@ func setupAPIEnv(t *testing.T) *apiTestEnv {
 	t.Cleanup(func() { database.Close() })
 	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
 	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
+	fixed := func(*http.Request) (*tracker.Service, *tracker.Service) { return personalSvc, familySvc }
 
 	r := chi.NewRouter()
-	r.Get("/api/v1/todos", tracker.APIListTodos(personalSvc, familySvc))
-	r.Post("/api/v1/todos", tracker.APIAddTodo(personalSvc, familySvc))
-	r.Get("/api/v1/todos/{slug}", tracker.APIGetTodo(personalSvc, familySvc))
-	r.Put("/api/v1/todos/{slug}", tracker.APIUpdateTodo(personalSvc, familySvc))
-	r.Post("/api/v1/todos/{slug}/complete", tracker.APICompleteTodo(personalSvc, familySvc))
-	r.Post("/api/v1/todos/{slug}/uncomplete", tracker.APIUncompleteTodo(personalSvc, familySvc))
-	r.Delete("/api/v1/todos/{slug}", tracker.APIDeleteTodo(personalSvc, familySvc))
-	r.Put("/api/v1/todos/{slug}/priority", tracker.APIUpdatePriority(personalSvc, familySvc))
-	r.Put("/api/v1/todos/{slug}/tags", tracker.APIUpdateTags(personalSvc, familySvc))
-	r.Post("/api/v1/todos/{slug}/substeps", tracker.APIAddSubStep(personalSvc, familySvc))
-	r.Put("/api/v1/todos/{slug}/substeps/{index}", tracker.APIToggleSubStep(personalSvc, familySvc))
-	r.Delete("/api/v1/todos/{slug}/substeps/{index}", tracker.APIRemoveSubStep(personalSvc, familySvc))
+	r.Get("/api/v1/todos", tracker.APIListTodos(fixed))
+	r.Post("/api/v1/todos", tracker.APIAddTodo(fixed))
+	r.Get("/api/v1/todos/{slug}", tracker.APIGetTodo(fixed))
+	r.Put("/api/v1/todos/{slug}", tracker.APIUpdateTodo(fixed))
+	r.Post("/api/v1/todos/{slug}/complete", tracker.APICompleteTodo(fixed))
+	r.Post("/api/v1/todos/{slug}/uncomplete", tracker.APIUncompleteTodo(fixed))
+	r.Delete("/api/v1/todos/{slug}", tracker.APIDeleteTodo(fixed))
+	r.Put("/api/v1/todos/{slug}/priority", tracker.APIUpdatePriority(fixed))
+	r.Put("/api/v1/todos/{slug}/tags", tracker.APIUpdateTags(fixed))
+	r.Post("/api/v1/todos/{slug}/substeps", tracker.APIAddSubStep(fixed))
+	r.Put("/api/v1/todos/{slug}/substeps/{index}", tracker.APIToggleSubStep(fixed))
+	r.Delete("/api/v1/todos/{slug}/substeps/{index}", tracker.APIRemoveSubStep(fixed))
 
 	return &apiTestEnv{personalSvc: personalSvc, familySvc: familySvc, router: r}
 }

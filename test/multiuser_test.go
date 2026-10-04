@@ -57,12 +57,12 @@ func TestPersonalDataIsolation(t *testing.T) {
 	}
 
 	// Add a task for user 1.
-	if err := user1.Personal.AddItem(tracker.Item{Title: "User 1 task", Type: tracker.TaskType}); err != nil {
+	if _, err := user1.Personal.AddItem(tracker.Item{Title: "User 1 task", Type: tracker.TaskType}); err != nil {
 		t.Fatalf("adding task for user 1: %v", err)
 	}
 
 	// Add a task for user 2.
-	if err := user2.Personal.AddItem(tracker.Item{Title: "User 2 task", Type: tracker.TaskType}); err != nil {
+	if _, err := user2.Personal.AddItem(tracker.Item{Title: "User 2 task", Type: tracker.TaskType}); err != nil {
 		t.Fatalf("adding task for user 2: %v", err)
 	}
 
@@ -94,7 +94,7 @@ func TestFamilyListSharedAcrossUsers(t *testing.T) {
 	}
 
 	// Add a task to family.
-	if err := familySvc.AddItem(tracker.Item{Title: "Shared task", Type: tracker.TaskType}); err != nil {
+	if _, err := familySvc.AddItem(tracker.Item{Title: "Shared task", Type: tracker.TaskType}); err != nil {
 		t.Fatalf("adding family task: %v", err)
 	}
 
@@ -128,7 +128,7 @@ func TestMoveFromPersonalToFamily(t *testing.T) {
 	}
 
 	// Add a task to personal.
-	if err := user1.Personal.AddItem(tracker.Item{Title: "Move me", Type: tracker.TaskType}); err != nil {
+	if _, err := user1.Personal.AddItem(tracker.Item{Title: "Move me", Type: tracker.TaskType}); err != nil {
 		t.Fatalf("adding personal task: %v", err)
 	}
 
@@ -137,7 +137,7 @@ func TestMoveFromPersonalToFamily(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getting item: %v", err)
 	}
-	if err := familySvc.AddItem(*item); err != nil {
+	if _, err := familySvc.AddItem(*item); err != nil {
 		t.Fatalf("adding to family: %v", err)
 	}
 	if err := user1.Personal.Delete("move-me"); err != nil {
@@ -187,7 +187,8 @@ func TestToTaskFromIdeasCreatesInUserPersonal(t *testing.T) {
 			Body:  body,
 			Tags:  tags,
 		}
-		return user1.Personal.AddItem(item)
+		_, err := user1.Personal.AddItem(item)
+		return err
 	}
 
 	if err := toTask(context.Background(), "Test Idea", "Some description.", []string{"feature"}); err != nil {

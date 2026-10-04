@@ -80,8 +80,9 @@ func jsonError(w http.ResponseWriter, msg string, status int) {
 }
 
 // APIListTodos returns all non-deleted items grouped by list.
-func APIListTodos(personalSvc, familySvc *Service) http.HandlerFunc {
+func APIListTodos(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		personalSvc, familySvc := resolve(r)
 		personal, err := personalSvc.List()
 		if err != nil {
 			jsonError(w, "failed to list personal items", http.StatusInternalServerError)
@@ -100,8 +101,9 @@ func APIListTodos(personalSvc, familySvc *Service) http.HandlerFunc {
 }
 
 // APIGetTodo returns a single item by slug.
-func APIGetTodo(personalSvc, familySvc *Service) http.HandlerFunc {
+func APIGetTodo(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		personalSvc, familySvc := resolve(r)
 		slug := chi.URLParam(r, "slug")
 		list := r.URL.Query().Get("list")
 		if !httputil.ValidateList(list) {
@@ -125,8 +127,9 @@ func APIGetTodo(personalSvc, familySvc *Service) http.HandlerFunc {
 }
 
 // APIAddTodo creates a new task.
-func APIAddTodo(personalSvc, familySvc *Service) http.HandlerFunc {
+func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		var req struct {
 			Title    string   `json:"title"`
@@ -166,19 +169,21 @@ func APIAddTodo(personalSvc, familySvc *Service) http.HandlerFunc {
 		}
 
 		svc := resolveListService(req.List, personalSvc, familySvc)
-		if err := svc.AddItem(item); err != nil {
+		slug, err := svc.AddItem(item)
+		if err != nil {
 			jsonError(w, "failed to create item", http.StatusInternalServerError)
 			return
 		}
 
-		item.Slug = Slugify(req.Title)
+		item.Slug = slug
 		httputil.WriteJSON(w, http.StatusCreated, itemToAPI(item, httputil.NormaliseList(req.List)))
 	}
 }
 
 // APIUpdateTodo updates a task's title, body, tags, and images.
-func APIUpdateTodo(personalSvc, familySvc *Service) http.HandlerFunc {
+func APIUpdateTodo(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		slug := chi.URLParam(r, "slug")
 		var req struct {
@@ -218,29 +223,30 @@ func APIUpdateTodo(personalSvc, familySvc *Service) http.HandlerFunc {
 }
 
 // APICompleteTodo marks a task as done.
-func APICompleteTodo(personalSvc, familySvc *Service) http.HandlerFunc {
-	return statusMutation(personalSvc, familySvc, func(svc *Service, slug string) error {
+func APICompleteTodo(resolve ServiceResolver) http.HandlerFunc {
+	return statusMutation(resolve, func(svc *Service, slug string) error {
 		return svc.Complete(slug)
 	})
 }
 
 // APIUncompleteTodo marks a task as not done.
-func APIUncompleteTodo(personalSvc, familySvc *Service) http.HandlerFunc {
-	return statusMutation(personalSvc, familySvc, func(svc *Service, slug string) error {
+func APIUncompleteTodo(resolve ServiceResolver) http.HandlerFunc {
+	return statusMutation(resolve, func(svc *Service, slug string) error {
 		return svc.Uncomplete(slug)
 	})
 }
 
 // APIDeleteTodo soft-deletes a task.
-func APIDeleteTodo(personalSvc, familySvc *Service) http.HandlerFunc {
-	return statusMutation(personalSvc, familySvc, func(svc *Service, slug string) error {
+func APIDeleteTodo(resolve ServiceResolver) http.HandlerFunc {
+	return statusMutation(resolve, func(svc *Service, slug string) error {
 		return svc.Delete(slug)
 	})
 }
 
 // APIUpdatePriority sets the priority on a task.
-func APIUpdatePriority(personalSvc, familySvc *Service) http.HandlerFunc {
+func APIUpdatePriority(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		slug := chi.URLParam(r, "slug")
 		var req struct {
@@ -271,8 +277,9 @@ func APIUpdatePriority(personalSvc, familySvc *Service) http.HandlerFunc {
 }
 
 // APIUpdateTags sets the tags on a task.
-func APIUpdateTags(personalSvc, familySvc *Service) http.HandlerFunc {
+func APIUpdateTags(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		slug := chi.URLParam(r, "slug")
 		var req struct {
@@ -306,8 +313,9 @@ func APIUpdateTags(personalSvc, familySvc *Service) http.HandlerFunc {
 }
 
 // APIAddSubStep adds a sub-step to a task.
-func APIAddSubStep(personalSvc, familySvc *Service) http.HandlerFunc {
+func APIAddSubStep(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		slug := chi.URLParam(r, "slug")
 		var req struct {
@@ -347,22 +355,23 @@ func APIAddSubStep(personalSvc, familySvc *Service) http.HandlerFunc {
 }
 
 // APIToggleSubStep toggles a sub-step's done state.
-func APIToggleSubStep(personalSvc, familySvc *Service) http.HandlerFunc {
-	return subStepIndexMutation(personalSvc, familySvc, func(svc *Service, slug string, index int) error {
+func APIToggleSubStep(resolve ServiceResolver) http.HandlerFunc {
+	return subStepIndexMutation(resolve, func(svc *Service, slug string, index int) error {
 		return svc.ToggleSubStep(slug, index)
 	})
 }
 
 // APIRemoveSubStep removes a sub-step by index.
-func APIRemoveSubStep(personalSvc, familySvc *Service) http.HandlerFunc {
-	return subStepIndexMutation(personalSvc, familySvc, func(svc *Service, slug string, index int) error {
+func APIRemoveSubStep(resolve ServiceResolver) http.HandlerFunc {
+	return subStepIndexMutation(resolve, func(svc *Service, slug string, index int) error {
 		return svc.RemoveSubStep(slug, index)
 	})
 }
 
 // statusMutation is a helper for simple slug+list mutation endpoints.
-func statusMutation(personalSvc, familySvc *Service, fn func(svc *Service, slug string) error) http.HandlerFunc {
+func statusMutation(resolve ServiceResolver, fn func(svc *Service, slug string) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		slug := chi.URLParam(r, "slug")
 		var req struct {
@@ -391,8 +400,9 @@ func statusMutation(personalSvc, familySvc *Service, fn func(svc *Service, slug 
 }
 
 // subStepIndexMutation is a helper for sub-step operations that take an index from the URL.
-func subStepIndexMutation(personalSvc, familySvc *Service, fn func(svc *Service, slug string, index int) error) http.HandlerFunc {
+func subStepIndexMutation(resolve ServiceResolver, fn func(svc *Service, slug string, index int) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		slug := chi.URLParam(r, "slug")
 		indexStr := chi.URLParam(r, "index")

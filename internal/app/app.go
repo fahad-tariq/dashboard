@@ -4,18 +4,11 @@ package app
 
 import (
 	"context"
-	"crypto/subtle"
 	"database/sql"
 	"fmt"
-	"html"
 	"html/template"
-	"io/fs"
 	"log/slog"
 	"net/http"
-	"net/netip"
-	"net/url"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
@@ -29,22 +22,20 @@ import (
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/home"
 	"github.com/fahad/dashboard/internal/house"
-	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
-	"github.com/fahad/dashboard/internal/insights"
 	"github.com/fahad/dashboard/internal/search"
-	"github.com/fahad/dashboard/internal/seasonal"
 	"github.com/fahad/dashboard/internal/services"
 	"github.com/fahad/dashboard/internal/sse"
-	"github.com/fahad/dashboard/internal/theme"
 	"github.com/fahad/dashboard/internal/tracker"
 	"github.com/fahad/dashboard/internal/upload"
 	"github.com/fahad/dashboard/internal/watcher"
-	"github.com/fahad/dashboard/web"
 )
 
 const (
 	trashRetentionDays = 7
+
+	// ownerID is the user that no-auth mode serves and the API token acts as.
+	ownerID int64 = 1
 
 	// minAPITokenLength is the shortest DASHBOARD_API_TOKEN accepted; with a
 	// shorter or missing token the API is not mounted at all.
@@ -66,168 +57,31 @@ const (
 		"img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
 )
 
-// seasonalAccentCSS is the accent the layout injects for each theme.
-type seasonalAccentCSS struct{ Light, Dark string }
-
-func buildFuncMap(loc *time.Location, authEnabled bool, version string, static func(string) (string, error), tokens theme.Tokens) template.FuncMap {
-	return template.FuncMap{
-		"static":       static,
-		"authEnabled":  func() bool { return authEnabled },
-		"buildVersion": func() string { return version },
-		"percentage": func(current, target float64) int {
-			if target == 0 {
-				return 0
-			}
-			p := int(current / target * 100)
-			return max(0, min(p, 100))
-		},
-		"formatNum": func(f float64) string {
-			if f == float64(int(f)) {
-				return fmt.Sprintf("%d", int(f))
-			}
-			return fmt.Sprintf("%g", f)
-		},
-		"dict": templateDict,
-		"subtract": func(a, b int) int {
-			return a - b
-		},
-		"ageBadge": func(added string) []string {
-			label, level := insights.AgeBadge(added, time.Now().In(loc))
-			return []string{label, level}
-		},
-		"progressColour": func(current, target float64, added, deadline string) string {
-			return insights.ProgressColour(current, target, added, deadline, time.Now().In(loc))
-		},
-		"goalPace": func(current, target float64, added, deadline string) string {
-			return insights.GoalPace(current, target, added, deadline, time.Now().In(loc))
-		},
-		"splitImageCaption": func(entry string) []string {
-			file, caption := httputil.SplitImageCaption(entry)
-			return []string{file, caption}
-		},
-		"relativeDate": func(date string) string {
-			t, err := time.Parse("2006-01-02", date)
-			if err != nil {
-				return date
-			}
-			days := int(time.Now().In(loc).Sub(t).Hours() / 24)
-			switch {
-			case days == 0:
-				return "today"
-			case days == 1:
-				return "yesterday"
-			case days < 7:
-				return fmt.Sprintf("%d days ago", days)
-			case days < 14:
-				return "1 week ago"
-			default:
-				return fmt.Sprintf("%d weeks ago", days/7)
-			}
-		},
-		"planPercent": func(done, total int) int {
-			if total == 0 {
-				return 0
-			}
-			return min(done*100/total, 100)
-		},
-		"formatDateLabel": func() string {
-			return time.Now().In(loc).Format("Monday, 2 January")
-		},
-		"seasonalAccent": seasonalAccentFunc(loc, tokens),
-		"planDoneMessage": func() string {
-			return httputil.RotatingFlash("plan-done", []string{
-				"All done for the day.",
-				"That's the lot.",
-				"Nothing left.",
-				"Clear plate.",
-			}, time.Now().In(loc))
-		},
-		"substeps": func(body string) []tracker.SubStep {
-			return tracker.ParseSubSteps(body)
-		},
-		"bodyText": func(body string) string {
-			return tracker.BodyWithoutSubSteps(body)
-		},
-		"linkify": func(text string) template.HTML {
-			var b strings.Builder
-			last := 0
-			for _, m := range urlRe.FindAllStringIndex(text, -1) {
-				b.WriteString(html.EscapeString(text[last:m[0]]))
-				rawURL := text[m[0]:m[1]]
-				parsed, err := url.Parse(rawURL)
-				if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || strings.Contains(rawURL, "'") {
-					b.WriteString(html.EscapeString(rawURL))
-				} else {
-					b.WriteString(`<a href="`)
-					b.WriteString(html.EscapeString(parsed.String()))
-					b.WriteString(`" target="_blank" rel="noopener">`)
-					b.WriteString(html.EscapeString(rawURL))
-					b.WriteString(`</a>`)
-				}
-				last = m[1]
-			}
-			b.WriteString(html.EscapeString(text[last:]))
-			return template.HTML(b.String()) //nolint:gosec // G203: every segment is html.EscapeString-ed above
-		},
-		"truncateBody": func(body string) string {
-			body = strings.ReplaceAll(body, "\n", " ")
-			body = strings.TrimSpace(body)
-			if len(body) > 60 {
-				return body[:60] + "..."
-			}
-			return body
-		},
-	}
-}
-
-var urlRe = regexp.MustCompile(`https?://[^\s<>"` + "`" + `]+`)
-
 // NewRouter wires services, handlers and routes for cfg. Background goroutines
 // it starts stop when shutdownCtx is cancelled; the file watcher runs for the
 // life of the process.
-func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB, version string) (*chi.Mux, error) { //nolint:gocyclo // reduced in Phase 5
-	// Legacy password migration: auto-create admin user if DASHBOARD_PASSWORD_HASH
-	// is set and no users exist in the DB.
-	count, err := auth.UserCount(database)
-	if err != nil {
-		return nil, fmt.Errorf("counting users: %w", err)
-	}
-	if count == 0 && cfg.PasswordHash != "" {
-		if _, err := auth.CreateUserWithHash(database, "admin@localhost", "", cfg.PasswordHash); err != nil {
-			return nil, fmt.Errorf("creating legacy admin user: %w", err)
-		}
-		slog.Info("auto-created admin@localhost from DASHBOARD_PASSWORD_HASH -- update your email with a new user")
-		count = 1
-	}
-	cfg.HasUsers = count > 0
-	if err := cfg.CheckAuthMode(); err != nil {
+func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB, version string) (*chi.Mux, error) {
+	if err := prepareUsers(cfg, database); err != nil {
 		return nil, err
 	}
-
-	staticSub, err := fs.Sub(web.StaticFS, "static")
-	if err != nil {
-		return nil, fmt.Errorf("static assets: %w", err)
-	}
-	assets, err := newStaticAssets(staticSub)
+	assets, templates, loginTmpl, err := loadTemplates(cfg, version)
 	if err != nil {
 		return nil, err
-	}
-
-	tokens, err := loadThemeTokens(staticSub)
-	if err != nil {
-		return nil, err
-	}
-	fm := buildFuncMap(cfg.Location, cfg.AuthEnabled(), version, assets.URL, tokens)
-	templates, err := parseTemplates(fm)
-	if err != nil {
-		return nil, fmt.Errorf("parsing templates: %w", err)
 	}
 
 	broker := sse.NewBroker()
 	// End open event streams as soon as shutdown starts, so http.Server.Shutdown
 	// is not left waiting on them.
 	context.AfterFunc(shutdownCtx, broker.Close)
-	uploadHandler := upload.NewHandler(cfg.UploadsDir)
+
+	svcs, err := startServices(cfg, database, broker)
+	if err != nil {
+		return nil, err
+	}
+	go runHourly(shutdownCtx, func() { svcs.purgeExpired(database) })
+
+	sm := newSessionManager(shutdownCtx, cfg, database)
+	h := svcs.handlers(cfg, database, sm, broker, templates, loginTmpl)
 
 	root := chi.NewRouter()
 	root.Use(securityHeaders)
@@ -235,611 +89,257 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 	root.Use(middleware.Compress(5))
 
 	// Every browser-facing route sits behind cross-origin protection; the
-	// bearer-token API is registered on root below, outside it.
+	// bearer-token API is registered on root, outside it.
 	r := root.With(http.NewCrossOriginProtection().Handler)
-
-	// Static assets are always public.
 	r.Handle("/static/*", assets.Handler())
-
-	// ideaHandler is declared here so the API routes (below both branches)
-	// can reference it regardless of which branch executes.
-	var ideaHandler *ideas.Handler
-	var registry *services.Registry
-
-	var personalHandler, familyHandler *tracker.Handler
-	var houseHandler *house.Handler
-	var homePage http.HandlerFunc
-	var searchHandler *search.Handler
-	var purgeFunc func() // called hourly to purge expired trash items
-
-	// Plan handler funcs -- set by either auth or single-user branch.
-	var planSetHandler, planClearHandler, planBulkSetHandler, planClearCarriedHandler http.HandlerFunc
-	var planCompleteHandler, planReorderHandler http.HandlerFunc
-	// API plan handlers (use user 1's services).
-	var apiPlanListHandler, apiPlanSetHandler, apiPlanClearHandler http.HandlerFunc
-	// API todo handlers (use user 1's services).
-	var apiListTodos, apiGetTodo, apiAddTodo, apiUpdateTodo http.HandlerFunc
-	var apiCompleteTodo, apiUncompleteTodo, apiDeleteTodo http.HandlerFunc
-	var apiUpdatePriority, apiUpdateTags http.HandlerFunc
-	var apiAddSubStep, apiToggleSubStep, apiRemoveSubStep http.HandlerFunc
-	var apiReorderPlan, apiClearCarried http.HandlerFunc
-	commentaryStore := commentary.NewStore(database)
-
-	if cfg.AuthEnabled() {
-		// Per-user service registry: each user gets isolated personal and ideas
-		// services. Family is shared across all users.
-		registry = services.NewRegistry(database, cfg.UserDataDir, cfg.FamilyPath, cfg.HouseProjectsPath, cfg.Location)
-
-		// Provision directories for every existing user on startup.
-		allUsers, err := auth.AllUsers(database)
-		if err != nil {
-			return nil, fmt.Errorf("loading users for directory provisioning: %w", err)
-		}
-		for _, u := range allUsers {
-			if err := registry.EnsureUserDirs(u.ID); err != nil {
-				slog.Error("provisioning user dirs", "user_id", u.ID, "error", err)
-			}
-		}
-
-		// Shared maintenance service (like family, not per-user).
-		maintenanceSvc := house.NewService(cfg.MaintenancePath, cfg.Location)
-
-		// Initial resync for shared services.
-		if err := registry.Family().Resync(); err != nil {
-			slog.Warn("initial family sync", "error", err)
-		}
-		if err := registry.HouseProjects().Resync(); err != nil {
-			slog.Warn("initial house projects sync", "error", err)
-		}
-		// Initial resync for every known user's personal list.
-		for _, u := range allUsers {
-			if err := registry.ForUser(u.ID).Personal.Resync(); err != nil {
-				slog.Warn("initial personal sync", "user_id", u.ID, "error", err)
-			}
-		}
-
-		// File watcher: shared family file + per-user data directory.
-		fileCategories := map[string]string{
-			cfg.FamilyPath:        "family",
-			cfg.HouseProjectsPath: "house-projects",
-			cfg.MaintenancePath:   "maintenance",
-		}
-		publish := broker.Debounced(publishDebounce)
-		registry.SetPublisher(publish)
-		maintenanceSvc.OnChange(func() { publish("maintenance") })
-		callbacks := map[string]func() bool{
-			"family":         resyncCallback("family", registry.Family()),
-			"house-projects": resyncCallback("house projects", registry.HouseProjects()),
-			"maintenance":    resyncCallback("maintenance", maintenanceSvc),
-		}
-		userCallback := func(userID int64, category string) bool {
-			if userID == 0 {
-				return false
-			}
-			svc := registry.ForUser(userID)
-			switch category {
-			case "personal":
-				return resyncCallback("personal", svc.Personal)()
-			case "ideas":
-				return resyncCallback("ideas", svc.Ideas)()
-			}
-			return false
-		}
-		if err := watcher.WatchWithUserCallbacks(nil, fileCategories, cfg.UserDataDir, broker, callbacks, userCallback); err != nil {
-			slog.Warn("file watcher failed to start", "error", err)
-		}
-
-		personalHandler = tracker.NewHandlerWithResolver(func(r *http.Request) (*tracker.Service, *tracker.Service) {
-			uid := auth.UserID(r.Context())
-			return registry.ForUser(uid).Personal, registry.Family()
-		}, templates, "todos", cfg.Location)
-
-		familyHandler = tracker.NewHandlerWithResolver(func(r *http.Request) (*tracker.Service, *tracker.Service) {
-			uid := auth.UserID(r.Context())
-			return registry.Family(), registry.ForUser(uid).Personal
-		}, templates, "family", cfg.Location)
-
-		houseHandler = house.NewHandler(maintenanceSvc, registry.HouseProjects(), templates, cfg.Location)
-
-		ideaHandler = ideas.NewHandlerWithResolver(func(r *http.Request) *ideas.Service {
-			return registry.ForUser(auth.UserID(r.Context())).Ideas
-		}, func(ctx context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error) {
-			item := tracker.Item{
-				Title:    title,
-				Type:     tracker.TaskType,
-				Body:     body,
-				Tags:     tags,
-				FromIdea: fromIdeaSlug,
-			}
-			taskSlug := tracker.Slugify(title)
-			switch target {
-			case "family":
-				return taskSlug, registry.Family().AddItem(item)
-			case "house":
-				item.Status = "todo"
-				return taskSlug, registry.HouseProjects().AddItem(item)
-			default:
-				return taskSlug, registry.ForUser(auth.UserID(ctx)).Personal.AddItem(item)
-			}
-		}, templates, cfg.Location)
-
-		searchHandler = search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
-			uid := auth.UserID(r.Context())
-			svc := registry.ForUser(uid)
-			return svc.Personal, registry.Family(), registry.HouseProjects(), maintenanceSvc, svc.Ideas
-		})
-
-		homeHandler := home.NewHandler(registry, maintenanceSvc, templates, cfg.Location)
-		homePage = homeHandler.HomePage
-		digestPage := homeHandler.DigestPage
-		calendarPage := homeHandler.CalendarPage
-		planSetHandler = homeHandler.SetPlanned
-		planClearHandler = homeHandler.ClearPlanned
-		planCompleteHandler = homeHandler.CompletePlanned
-		planBulkSetHandler = homeHandler.BulkSetPlanned
-		planClearCarriedHandler = homeHandler.ClearCarriedOver
-		planReorderHandler = homeHandler.ReorderPlanned
-
-		sessionStore := auth.NewSQLiteStore(database)
-
-		sm := scs.New()
-		sm.Store = sessionStore
-		sm.Lifetime = cfg.SessionLifetime
-		sm.IdleTimeout = sessionIdleTimeout
-		sm.Cookie.HttpOnly = true
-		sm.Cookie.SameSite = http.SameSiteLaxMode
-		sm.Cookie.Secure = cfg.SecureCookies
-		sm.Cookie.Name = "session"
-
-		// Periodic cleanup of expired sessions.
-		go func() {
-			ticker := time.NewTicker(time.Hour)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					if err := sessionStore.CleanupExpired(); err != nil {
-						slog.Error("session cleanup failed", "error", err)
-					}
-				case <-shutdownCtx.Done():
-					return
-				}
-			}
-		}()
-
-		loginTmpl, err := template.New("login.html").Funcs(template.FuncMap{"static": assets.URL}).ParseFS(web.TemplateFS, "templates/login.html")
-		if err != nil {
-			return nil, fmt.Errorf("parsing login template: %w", err)
-		}
-
-		limiter := auth.NewRateLimiter()
-		authHandler := auth.NewHandler(sm, database, limiter, loginTmpl, auth.WithTrustedProxies(cfg.TrustedProxies))
-
-		// Public routes (no auth).
-		r.Get("/login", authHandler.LoginPage)
-		r.Post("/login", sm.LoadAndSave(http.HandlerFunc(authHandler.LoginSubmit)).ServeHTTP)
-
-		// SSE: return 401 instead of redirect for unauthenticated requests.
-		r.Get("/events", sm.LoadAndSave(auth.RequireAuthAPI(sm)(http.HandlerFunc(broker.ServeHTTP))).ServeHTTP)
-
-		// Admin routes: protected by session auth + admin role.
-		adminHandler := admin.NewHandler(database, registry, cfg.UserDataDir, templates)
-		r.Group(func(r chi.Router) {
-			r.Use(sm.LoadAndSave)
-			r.Use(auth.RequireAuth(sm))
-			r.Use(auth.RequireAdmin(sm))
-
-			r.Get("/admin/users", adminHandler.ListUsers)
-			r.Get("/admin/users/new", adminHandler.NewUserForm)
-			r.Post("/admin/users/new", adminHandler.CreateUser)
-			r.Get("/admin/users/{id}/edit", adminHandler.EditUserForm)
-			r.Post("/admin/users/{id}/edit", adminHandler.UpdateUser)
-			r.Get("/admin/users/{id}/password", adminHandler.ResetPasswordForm)
-			r.Post("/admin/users/{id}/password", adminHandler.ResetPassword)
-			r.Post("/admin/users/{id}/delete", adminHandler.DeleteUser)
-		})
-
-		// All authenticated routes (including shared app routes).
-		r.Group(func(r chi.Router) {
-			r.Use(sm.LoadAndSave)
-			r.Use(auth.RequireAuth(sm))
-
-			r.Post("/logout", authHandler.Logout)
-
-			acctHandler := account.NewHandler(database, sm, templates)
-			r.Get("/account", acctHandler.AccountPage)
-			r.Post("/account/name", acctHandler.NameSubmit)
-			r.Get("/account/password", http.RedirectHandler("/account", http.StatusMovedPermanently).ServeHTTP)
-			r.Post("/account/password", acctHandler.PasswordSubmit)
-
-			mountAppRoutes(r, homePage, digestPage, calendarPage, personalHandler, familyHandler, houseHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler, planReorderHandler)
-			r.Get("/commentary/{list}/{slug}", commentary.WebGetCommentary(commentaryStore))
-		})
-		personalHandler.SetCommentaryStore(commentaryStore)
-		familyHandler.SetCommentaryStore(commentaryStore)
-		ideaHandler.SetCommentaryStore(commentaryStore)
-		houseHandler.SetCommentaryStore(commentaryStore)
-
-		purgeFunc = func() {
-			// Purge shared services.
-			if err := registry.Family().PurgeExpired(trashRetentionDays); err != nil {
-				slog.Error("family purge failed", "error", err)
-			}
-			if err := registry.HouseProjects().PurgeExpired(trashRetentionDays); err != nil {
-				slog.Error("house projects purge failed", "error", err)
-			}
-			if err := maintenanceSvc.PurgeExpired(trashRetentionDays); err != nil {
-				slog.Error("maintenance purge failed", "error", err)
-			}
-			// Purge each user's personal and ideas services.
-			allUsers, err := auth.AllUsers(database)
-			if err != nil {
-				slog.Error("listing users for purge", "error", err)
-				return
-			}
-			for _, u := range allUsers {
-				svc := registry.ForUser(u.ID)
-				if err := svc.Personal.PurgeExpired(trashRetentionDays); err != nil {
-					slog.Error("personal purge failed", "user_id", u.ID, "error", err)
-				}
-				if err := svc.Ideas.PurgeExpired(trashRetentionDays); err != nil {
-					slog.Error("ideas purge failed", "user_id", u.ID, "error", err)
-				}
-			}
-		}
-	} else {
-		// Auth disabled: singleton services are fine for single-user mode.
-		ideaSvc := ideas.NewService(cfg.IdeasPath, cfg.Location)
-		personalSvc := tracker.NewService(cfg.PersonalPath, "Personal", cfg.Location)
-		familySvc := tracker.NewService(cfg.FamilyPath, "Family", cfg.Location)
-		houseProjectsSvc := tracker.NewService(cfg.HouseProjectsPath, "House", cfg.Location)
-		maintenanceSvc := house.NewService(cfg.MaintenancePath, cfg.Location)
-		if err := personalSvc.Resync(); err != nil {
-			slog.Warn("initial personal sync", "error", err)
-		}
-		if err := familySvc.Resync(); err != nil {
-			slog.Warn("initial family sync", "error", err)
-		}
-
-		fileCategories := map[string]string{
-			cfg.PersonalPath:      "personal",
-			cfg.FamilyPath:        "family",
-			cfg.IdeasPath:         "ideas",
-			cfg.HouseProjectsPath: "house-projects",
-			cfg.MaintenancePath:   "maintenance",
-		}
-		debounced := broker.Debounced(publishDebounce)
-		publish := func(category string) func() { return func() { debounced(category) } }
-		personalSvc.OnChange(publish("personal"))
-		familySvc.OnChange(publish("family"))
-		ideaSvc.OnChange(publish("ideas"))
-		houseProjectsSvc.OnChange(publish("house-projects"))
-		maintenanceSvc.OnChange(publish("maintenance"))
-		callbacks := map[string]func() bool{
-			"personal":       resyncCallback("personal", personalSvc),
-			"family":         resyncCallback("family", familySvc),
-			"ideas":          resyncCallback("ideas", ideaSvc),
-			"house-projects": resyncCallback("house projects", houseProjectsSvc),
-			"maintenance":    resyncCallback("maintenance", maintenanceSvc),
-		}
-		if err := watcher.Watch(nil, fileCategories, broker, callbacks); err != nil {
-			slog.Warn("file watcher failed to start", "error", err)
-		}
-
-		ideaHandler = ideas.NewHandler(ideaSvc, func(_ context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error) {
-			item := tracker.Item{
-				Title:    title,
-				Type:     tracker.TaskType,
-				Body:     body,
-				Tags:     tags,
-				FromIdea: fromIdeaSlug,
-			}
-			taskSlug := tracker.Slugify(title)
-			switch target {
-			case "family":
-				return taskSlug, familySvc.AddItem(item)
-			case "house":
-				item.Status = "todo"
-				return taskSlug, houseProjectsSvc.AddItem(item)
-			default:
-				return taskSlug, personalSvc.AddItem(item)
-			}
-		}, templates, cfg.Location)
-		personalHandler = tracker.NewHandler(personalSvc, familySvc, templates, "todos", cfg.Location)
-		familyHandler = tracker.NewHandler(familySvc, personalSvc, templates, "family", cfg.Location)
-		houseHandler = house.NewHandler(maintenanceSvc, houseProjectsSvc, templates, cfg.Location)
-		searchHandler = search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
-			return personalSvc, familySvc, houseProjectsSvc, maintenanceSvc, ideaSvc
-		})
-		homePage = home.HomePageSingle(personalSvc, familySvc, houseProjectsSvc, maintenanceSvc, ideaSvc, templates, cfg.Location)
-		digestPage := home.DigestPageSingle(personalSvc, familySvc, houseProjectsSvc, ideaSvc, templates, cfg.Location)
-		calendarPage := home.CalendarPageSingle(personalSvc, familySvc, houseProjectsSvc, ideaSvc, templates, cfg.Location)
-
-		singlePlan := home.NewSingleUserPlanHandlers(personalSvc, familySvc, houseProjectsSvc, cfg.Location)
-		planSetHandler = singlePlan.SetPlanned
-		planClearHandler = singlePlan.ClearPlanned
-		planCompleteHandler = singlePlan.CompletePlanned
-		planBulkSetHandler = singlePlan.BulkSetPlanned
-		planClearCarriedHandler = singlePlan.ClearCarriedOver
-		planReorderHandler = singlePlan.ReorderPlanned
-
-		apiPlanListHandler = home.APIListPlan(personalSvc, familySvc, houseProjectsSvc, cfg.Location)
-		apiPlanSetHandler = home.APISetPlan(personalSvc, familySvc, houseProjectsSvc, cfg.Location)
-		apiPlanClearHandler = home.APIClearPlan(personalSvc, familySvc, houseProjectsSvc)
-
-		apiListTodos = tracker.APIListTodos(personalSvc, familySvc)
-		apiGetTodo = tracker.APIGetTodo(personalSvc, familySvc)
-		apiAddTodo = tracker.APIAddTodo(personalSvc, familySvc)
-		apiUpdateTodo = tracker.APIUpdateTodo(personalSvc, familySvc)
-		apiCompleteTodo = tracker.APICompleteTodo(personalSvc, familySvc)
-		apiUncompleteTodo = tracker.APIUncompleteTodo(personalSvc, familySvc)
-		apiDeleteTodo = tracker.APIDeleteTodo(personalSvc, familySvc)
-		apiUpdatePriority = tracker.APIUpdatePriority(personalSvc, familySvc)
-		apiUpdateTags = tracker.APIUpdateTags(personalSvc, familySvc)
-		apiAddSubStep = tracker.APIAddSubStep(personalSvc, familySvc)
-		apiToggleSubStep = tracker.APIToggleSubStep(personalSvc, familySvc)
-		apiRemoveSubStep = tracker.APIRemoveSubStep(personalSvc, familySvc)
-		apiReorderPlan = home.APIReorderPlan(personalSvc, familySvc, houseProjectsSvc, cfg.Location)
-		apiClearCarried = home.APIClearCarried(personalSvc, familySvc, houseProjectsSvc, cfg.Location)
-
-		r.Get("/events", broker.ServeHTTP)
-		mountAppRoutes(r, homePage, digestPage, calendarPage, personalHandler, familyHandler, houseHandler, ideaHandler, searchHandler, uploadHandler, cfg.UploadsDir, planSetHandler, planClearHandler, planCompleteHandler, planBulkSetHandler, planClearCarriedHandler, planReorderHandler)
-		r.Get("/commentary/{list}/{slug}", commentary.WebGetCommentary(commentaryStore))
-		personalHandler.SetCommentaryStore(commentaryStore)
-		familyHandler.SetCommentaryStore(commentaryStore)
-		ideaHandler.SetCommentaryStore(commentaryStore)
-		houseHandler.SetCommentaryStore(commentaryStore)
-
-		purgeFunc = func() {
-			if err := personalSvc.PurgeExpired(trashRetentionDays); err != nil {
-				slog.Error("personal purge failed", "error", err)
-			}
-			if err := familySvc.PurgeExpired(trashRetentionDays); err != nil {
-				slog.Error("family purge failed", "error", err)
-			}
-			if err := ideaSvc.PurgeExpired(trashRetentionDays); err != nil {
-				slog.Error("ideas purge failed", "error", err)
-			}
-			if err := houseProjectsSvc.PurgeExpired(trashRetentionDays); err != nil {
-				slog.Error("house projects purge failed", "error", err)
-			}
-			if err := maintenanceSvc.PurgeExpired(trashRetentionDays); err != nil {
-				slog.Error("maintenance purge failed", "error", err)
-			}
-		}
-	}
-
-	// Auto-purge: remove items from trash that are older than 7 days.
-	go func() {
-		ticker := time.NewTicker(time.Hour)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				purgeFunc()
-			case <-shutdownCtx.Done():
-				return
-			}
-		}
-	}()
-
-	// API routes: always use bearer token auth (separate from session auth).
-	// In auth-enabled mode, API routes need a dedicated handler that doesn't
-	// depend on session context for user resolution.
-	apiIdeaHandler := ideaHandler
-	if cfg.AuthEnabled() && apiIdeaHandler != nil {
-		userSvc := registry.ForUser(1)
-		apiIdeaHandler = ideas.NewHandler(
-			userSvc.Ideas,
-			func(_ context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error) {
-				item := tracker.Item{
-					Title:    title,
-					Type:     tracker.TaskType,
-					Body:     body,
-					Tags:     tags,
-					FromIdea: fromIdeaSlug,
-				}
-				taskSlug := tracker.Slugify(title)
-				switch target {
-				case "family":
-					return taskSlug, registry.Family().AddItem(item)
-				case "house":
-					item.Status = "todo"
-					return taskSlug, registry.HouseProjects().AddItem(item)
-				default:
-					return taskSlug, userSvc.Personal.AddItem(item)
-				}
-			},
-			templates,
-			cfg.Location,
-		)
-		apiPlanListHandler = home.APIListPlan(userSvc.Personal, registry.Family(), registry.HouseProjects(), cfg.Location)
-		apiPlanSetHandler = home.APISetPlan(userSvc.Personal, registry.Family(), registry.HouseProjects(), cfg.Location)
-		apiPlanClearHandler = home.APIClearPlan(userSvc.Personal, registry.Family(), registry.HouseProjects())
-
-		apiListTodos = tracker.APIListTodos(userSvc.Personal, registry.Family())
-		apiGetTodo = tracker.APIGetTodo(userSvc.Personal, registry.Family())
-		apiAddTodo = tracker.APIAddTodo(userSvc.Personal, registry.Family())
-		apiUpdateTodo = tracker.APIUpdateTodo(userSvc.Personal, registry.Family())
-		apiCompleteTodo = tracker.APICompleteTodo(userSvc.Personal, registry.Family())
-		apiUncompleteTodo = tracker.APIUncompleteTodo(userSvc.Personal, registry.Family())
-		apiDeleteTodo = tracker.APIDeleteTodo(userSvc.Personal, registry.Family())
-		apiUpdatePriority = tracker.APIUpdatePriority(userSvc.Personal, registry.Family())
-		apiUpdateTags = tracker.APIUpdateTags(userSvc.Personal, registry.Family())
-		apiAddSubStep = tracker.APIAddSubStep(userSvc.Personal, registry.Family())
-		apiToggleSubStep = tracker.APIToggleSubStep(userSvc.Personal, registry.Family())
-		apiRemoveSubStep = tracker.APIRemoveSubStep(userSvc.Personal, registry.Family())
-		apiReorderPlan = home.APIReorderPlan(userSvc.Personal, registry.Family(), registry.HouseProjects(), cfg.Location)
-		apiClearCarried = home.APIClearCarried(userSvc.Personal, registry.Family(), registry.HouseProjects(), cfg.Location)
-	}
-	if len(cfg.APIToken) < minAPITokenLength {
-		slog.Error("API not mounted: DASHBOARD_API_TOKEN must be set and at least 32 characters")
-		return root, nil
-	}
-	apiRateLimiter := httputil.NewRateLimiter(60, 60)
-	failedBearer := auth.NewRateLimiterWithLimit(failedBearerLimit, 4096)
-	root.Route("/api/v1", func(r chi.Router) {
-		r.Use(bearerAuth(cfg.APIToken, failedBearer, cfg.TrustedProxies))
-		r.Use(httputil.RateLimitMiddleware(apiRateLimiter))
-
-		r.Get("/ideas", apiIdeaHandler.APIListIdeas)
-		r.Post("/ideas", apiIdeaHandler.APIAddIdea)
-		r.Put("/ideas/{slug}/triage", apiIdeaHandler.APITriageIdea)
-		r.Post("/ideas/{slug}/research", apiIdeaHandler.APIAddResearch)
-		if apiPlanListHandler != nil {
-			r.Get("/plan", apiPlanListHandler)
-			r.Put("/plan/{slug}", apiPlanSetHandler)
-			r.Delete("/plan/{slug}", apiPlanClearHandler)
-			r.Post("/plan/reorder", apiReorderPlan)
-			r.Post("/plan/clear-carried", apiClearCarried)
-		}
-		r.Put("/commentary/{list}/{slug}", commentary.APISetCommentary(commentaryStore))
-		r.Get("/commentary/{list}/{slug}", commentary.APIGetCommentary(commentaryStore))
-		r.Delete("/commentary/{list}/{slug}", commentary.APIDeleteCommentary(commentaryStore))
-		if apiListTodos != nil {
-			r.Get("/todos", apiListTodos)
-			r.Post("/todos", apiAddTodo)
-			r.Get("/todos/{slug}", apiGetTodo)
-			r.Put("/todos/{slug}", apiUpdateTodo)
-			r.Post("/todos/{slug}/complete", apiCompleteTodo)
-			r.Post("/todos/{slug}/uncomplete", apiUncompleteTodo)
-			r.Delete("/todos/{slug}", apiDeleteTodo)
-			r.Put("/todos/{slug}/priority", apiUpdatePriority)
-			r.Put("/todos/{slug}/tags", apiUpdateTags)
-			r.Post("/todos/{slug}/substeps", apiAddSubStep)
-			r.Put("/todos/{slug}/substeps/{index}", apiToggleSubStep)
-			r.Delete("/todos/{slug}/substeps/{index}", apiRemoveSubStep)
-		}
-	})
+	mountBrowserRoutes(r, cfg, database, sm, h)
+	mountAPIRoutes(root, cfg, h)
 	return root, nil
 }
 
-func mountAppRoutes(r chi.Router, homePage, digestPage, calendarPage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, houseHandler *house.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string, planSet, planClear, planComplete, planBulkSet, planClearCarried, planReorder http.HandlerFunc) {
-	r.Post("/upload", uploadHandler.Upload)
-	r.Handle("/uploads/*", cacheImmutable(http.StripPrefix("/uploads/", noDirectoryListing(http.Dir(uploadsDir)))))
-
-	r.Get("/search", searchHandler.SearchAPI)
-	r.Get("/", homePage)
-	r.Get("/digest", digestPage)
-	r.Get("/plan/calendar", calendarPage)
-
-	// Daily planner routes.
-	r.Post("/plan/set", planSet)
-	r.Post("/plan/clear", planClear)
-	r.Post("/plan/{slug}/complete", planComplete)
-	r.Post("/plan/bulk/set", planBulkSet)
-	r.Post("/plan/bulk/clear-carried", planClearCarried)
-	r.Post("/plan/reorder", planReorder)
-	r.Get("/todos", personalHandler.TrackerPage)
-	r.Get("/personal", http.RedirectHandler("/todos", http.StatusMovedPermanently).ServeHTTP)
-	r.Get("/family", familyHandler.TrackerPage)
-	r.Get("/goals", personalHandler.GoalsPage)
-
-	mountTrackerRoutes(r, personalHandler, familyHandler)
-
-	// House page (combined maintenance + projects).
-	r.Get("/house", houseHandler.HousePage)
-	r.Post("/house/maintenance/add", houseHandler.AddMaintenance)
-	r.Post("/house/maintenance/{slug}/log", houseHandler.LogDone)
-	r.Post("/house/maintenance/{slug}/edit", houseHandler.EditMaintenance)
-	r.Post("/house/maintenance/{slug}/delete", houseHandler.DeleteMaintenance)
-	r.Post("/house/maintenance/{slug}/restore", houseHandler.RestoreMaintenance)
-	r.Post("/house/maintenance/{slug}/purge", houseHandler.PurgeMaintenance)
-	r.Post("/house/projects/add", houseHandler.AddProject)
-	r.Post("/house/projects/{slug}/edit", houseHandler.EditProject)
-	r.Post("/house/projects/{slug}/complete", houseHandler.CompleteProject)
-	r.Post("/house/projects/{slug}/uncomplete", houseHandler.UncompleteProject)
-	r.Post("/house/projects/{slug}/status", houseHandler.UpdateStatus)
-	r.Post("/house/projects/{slug}/delete", houseHandler.DeleteProject)
-	r.Post("/house/projects/{slug}/restore", houseHandler.RestoreProject)
-	r.Post("/house/projects/{slug}/purge", houseHandler.PurgeProject)
-
-	r.Get("/ideas", ideaHandler.IdeasPage)
-	r.Get("/ideas/{slug}", ideaHandler.IdeaDetail)
-	r.Post("/ideas/add", ideaHandler.QuickAdd)
-	r.Post("/ideas/{slug}/triage", ideaHandler.TriageAction)
-	r.Post("/ideas/{slug}/to-task", ideaHandler.ToTask)
-	r.Post("/ideas/{slug}/edit", ideaHandler.Edit)
-	r.Post("/ideas/{slug}/delete", ideaHandler.DeleteIdea)
-	r.Post("/ideas/{slug}/restore", ideaHandler.RestoreIdea)
-	r.Post("/ideas/{slug}/purge", ideaHandler.PermanentDeleteIdea)
-	r.Post("/ideas/bulk/delete", ideaHandler.BulkDeleteIdeas)
-	r.Post("/ideas/bulk/triage", ideaHandler.BulkTriageIdeas)
-
-	r.Get("/exploration", http.RedirectHandler("/ideas", http.StatusMovedPermanently).ServeHTTP)
-	r.Get("/exploration/{slug}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/ideas/"+chi.URLParam(r, "slug"), http.StatusMovedPermanently) //nolint:gosec // G710: chi params cannot contain "/", so the target stays under /ideas/
-	})
-}
-
-func mountTrackerRoutes(r chi.Router, personalHandler, familyHandler *tracker.Handler) {
-	for prefix, h := range map[string]*tracker.Handler{
-		"/todos":  personalHandler,
-		"/family": familyHandler,
-	} {
-		r.Post(prefix+"/add", h.QuickAdd)
-		r.Post(prefix+"/{slug}/complete", h.Complete)
-		r.Post(prefix+"/{slug}/uncomplete", h.Uncomplete)
-		r.Post(prefix+"/{slug}/progress", h.UpdateProgress)
-		r.Post(prefix+"/{slug}/notes", h.UpdateNotes)
-		r.Post(prefix+"/{slug}/delete", h.Delete)
-		r.Post(prefix+"/{slug}/priority", h.UpdatePriority)
-		r.Post(prefix+"/{slug}/tags", h.UpdateTags)
-		r.Post(prefix+"/{slug}/edit", h.UpdateEdit)
-		r.Post(prefix+"/{slug}/move", h.MoveToList)
-		r.Post(prefix+"/{slug}/restore", h.Restore)
-		r.Post(prefix+"/{slug}/purge", h.Purge)
-		r.Post(prefix+"/bulk/complete", h.BulkComplete)
-		r.Post(prefix+"/bulk/delete", h.BulkDelete)
-		r.Post(prefix+"/bulk/priority", h.BulkPriority)
-		r.Post(prefix+"/bulk/tag", h.BulkAddTag)
-		r.Post(prefix+"/{slug}/plan", h.PlanForToday)
-		r.Post(prefix+"/{slug}/substep/add", h.AddSubStep)
-		r.Post(prefix+"/{slug}/substep/toggle", h.ToggleSubStep)
-		r.Post(prefix+"/{slug}/substep/remove", h.RemoveSubStep)
-		r.Post(prefix+"/{slug}/substep/promote", h.PromoteSubStep)
-		r.Post(prefix+"/bulk/plan", h.BulkPlanForToday)
+// prepareUsers creates the users start-up needs and refuses unsafe auth
+// configurations.
+func prepareUsers(cfg *config.Config, database *sql.DB) error {
+	// Legacy password migration: auto-create admin user if DASHBOARD_PASSWORD_HASH
+	// is set and nobody can log in. The no-auth placeholder user does not count,
+	// so a database first used locally cannot start in auth mode locked.
+	count, err := auth.LoginUserCount(database)
+	if err != nil {
+		return fmt.Errorf("counting users: %w", err)
 	}
-	r.Post("/todos/add-goal", personalHandler.AddGoal)
+	if count == 0 && cfg.PasswordHash != "" {
+		if _, err := auth.CreateUserWithHash(database, "admin@localhost", "", cfg.PasswordHash); err != nil {
+			return fmt.Errorf("creating legacy admin user: %w", err)
+		}
+		slog.Info("auto-created admin@localhost from DASHBOARD_PASSWORD_HASH -- update your email with a new user")
+		count = 1
+	}
+	cfg.HasUsers = count > 0
+	if err := cfg.CheckAuthMode(); err != nil {
+		return err
+	}
+	if cfg.AuthDisabled {
+		// No-auth mode serves the owner, and the trash purge iterates users.
+		return auth.EnsureUser(database, ownerID, "local@localhost")
+	}
+	return nil
 }
 
-func noDirectoryListing(root http.FileSystem) http.Handler {
-	fs := http.FileServer(root)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/") || r.URL.Path == "" {
-			http.Error(w, "Forbidden", http.StatusForbidden)
+// appServices are the long-lived services behind every handler.
+type appServices struct {
+	registry    *services.Registry
+	maintenance *house.Service
+}
+
+// startServices builds the services, loads every known user's lists and
+// starts the file watcher.
+func startServices(cfg *config.Config, database *sql.DB, broker *sse.Broker) (appServices, error) {
+	registry := services.NewRegistry(database, cfg.UserDataDir, cfg.FamilyPath, cfg.HouseProjectsPath, cfg.Location)
+	if cfg.AuthDisabled {
+		// Local development keeps PERSONAL_PATH and IDEAS_PATH.
+		registry.SetUserPaths(ownerID, cfg.PersonalPath, cfg.IdeasPath)
+	}
+	svcs := appServices{registry: registry, maintenance: house.NewService(cfg.MaintenancePath, cfg.Location)}
+
+	users, err := auth.AllUsers(database)
+	if err != nil {
+		return svcs, fmt.Errorf("loading users for directory provisioning: %w", err)
+	}
+	for _, u := range users {
+		if err := registry.EnsureUserDirs(u.ID); err != nil {
+			slog.Error("provisioning user dirs", "user_id", u.ID, "error", err)
+		}
+	}
+	if err := registry.Family().Resync(); err != nil {
+		slog.Warn("initial family sync", "error", err)
+	}
+	if err := registry.HouseProjects().Resync(); err != nil {
+		slog.Warn("initial house projects sync", "error", err)
+	}
+	for _, u := range users {
+		if err := registry.ForUser(u.ID).Personal.Resync(); err != nil {
+			slog.Warn("initial personal sync", "user_id", u.ID, "error", err)
+		}
+	}
+
+	publish := broker.Debounced(publishDebounce)
+	registry.SetPublisher(publish)
+	svcs.maintenance.OnChange(func() { publish("maintenance") })
+	svcs.watch(cfg, broker)
+	return svcs, nil
+}
+
+// watch starts the file watcher over the shared files and USER_DATA_DIR,
+// plus the owner's own files when they live outside it.
+func (s appServices) watch(cfg *config.Config, broker *sse.Broker) {
+	fileCategories := map[string]string{
+		cfg.FamilyPath:        "family",
+		cfg.HouseProjectsPath: "house-projects",
+		cfg.MaintenancePath:   "maintenance",
+	}
+	callbacks := map[string]func() bool{
+		"family":         resyncCallback("family", s.registry.Family()),
+		"house-projects": resyncCallback("house projects", s.registry.HouseProjects()),
+		"maintenance":    resyncCallback("maintenance", s.maintenance),
+	}
+	if cfg.AuthDisabled {
+		owner := s.registry.ForUser(ownerID)
+		fileCategories[cfg.PersonalPath] = "personal"
+		fileCategories[cfg.IdeasPath] = "ideas"
+		callbacks["personal"] = resyncCallback("personal", owner.Personal)
+		callbacks["ideas"] = resyncCallback("ideas", owner.Ideas)
+	}
+	userCallback := func(userID int64, category string) bool {
+		if userID == 0 {
+			return false
+		}
+		svc := s.registry.ForUser(userID)
+		switch category {
+		case "personal":
+			return resyncCallback("personal", svc.Personal)()
+		case "ideas":
+			return resyncCallback("ideas", svc.Ideas)()
+		}
+		return false
+	}
+	if err := watcher.WatchWithUserCallbacks(nil, fileCategories, cfg.UserDataDir, broker, callbacks, userCallback); err != nil {
+		slog.Warn("file watcher failed to start", "error", err)
+	}
+}
+
+// lists resolves the request user's services.
+func (s appServices) lists(r *http.Request) home.Lists {
+	u := s.registry.ForUser(auth.UserID(r.Context()))
+	return home.Lists{
+		Personal:      u.Personal,
+		Family:        s.registry.Family(),
+		HouseProjects: s.registry.HouseProjects(),
+		Maintenance:   s.maintenance,
+		Ideas:         u.Ideas,
+	}
+}
+
+func (s appServices) personalAndFamily(r *http.Request) (*tracker.Service, *tracker.Service) {
+	return s.registry.ForUser(auth.UserID(r.Context())).Personal, s.registry.Family()
+}
+
+func (s appServices) familyAndPersonal(r *http.Request) (*tracker.Service, *tracker.Service) {
+	personal, family := s.personalAndFamily(r)
+	return family, personal
+}
+
+// toTask adds a task converted from an idea to the target list ("personal",
+// "family" or "house") and returns its slug.
+func (s appServices) toTask(ctx context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error) {
+	item := tracker.Item{
+		Title:    title,
+		Type:     tracker.TaskType,
+		Body:     body,
+		Tags:     tags,
+		FromIdea: fromIdeaSlug,
+	}
+	switch target {
+	case "family":
+		return s.registry.Family().AddItem(item)
+	case "house":
+		item.Status = "todo"
+		return s.registry.HouseProjects().AddItem(item)
+	default:
+		return s.registry.ForUser(auth.UserID(ctx)).Personal.AddItem(item)
+	}
+}
+
+func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.SessionManager, broker *sse.Broker, templates map[string]*template.Template, loginTmpl *template.Template) *handlers {
+	commentaryStore := commentary.NewStore(database)
+	h := &handlers{
+		home:     home.NewHandler(s.lists, templates, cfg.Location),
+		personal: tracker.NewHandlerWithResolver(s.personalAndFamily, templates, "todos", cfg.Location),
+		family:   tracker.NewHandlerWithResolver(s.familyAndPersonal, templates, "family", cfg.Location),
+		house:    house.NewHandler(s.maintenance, s.registry.HouseProjects(), templates, cfg.Location),
+		ideas: ideas.NewHandlerWithResolver(func(r *http.Request) *ideas.Service {
+			return s.registry.ForUser(auth.UserID(r.Context())).Ideas
+		}, s.toTask, templates, cfg.Location),
+		search: search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
+			l := s.lists(r)
+			return l.Personal, l.Family, l.HouseProjects, l.Maintenance, l.Ideas
+		}),
+		upload:     upload.NewHandler(cfg.UploadsDir),
+		account:    account.NewHandler(database, sm, templates),
+		admin:      admin.NewHandler(database, s.registry, cfg.UserDataDir, templates),
+		auth:       auth.NewHandler(sm, database, auth.NewRateLimiter(), loginTmpl, auth.WithTrustedProxies(cfg.TrustedProxies)),
+		events:     broker,
+		commentary: commentaryStore,
+		uploadsDir: cfg.UploadsDir,
+		todosAPI:   s.personalAndFamily,
+	}
+	h.personal.SetCommentaryStore(commentaryStore)
+	h.family.SetCommentaryStore(commentaryStore)
+	h.ideas.SetCommentaryStore(commentaryStore)
+	h.house.SetCommentaryStore(commentaryStore)
+	return h
+}
+
+// purgeExpired removes items trashed more than trashRetentionDays ago from
+// the shared lists and every user's lists.
+func (s appServices) purgeExpired(database *sql.DB) {
+	type purger interface{ PurgeExpired(days int) error }
+	shared := map[string]purger{
+		"family":         s.registry.Family(),
+		"house projects": s.registry.HouseProjects(),
+		"maintenance":    s.maintenance,
+	}
+	for name, svc := range shared {
+		if err := svc.PurgeExpired(trashRetentionDays); err != nil {
+			slog.Error("purge failed", "list", name, "error", err)
+		}
+	}
+	users, err := auth.AllUsers(database)
+	if err != nil {
+		slog.Error("listing users for purge", "error", err)
+		return
+	}
+	for _, u := range users {
+		svc := s.registry.ForUser(u.ID)
+		if err := svc.Personal.PurgeExpired(trashRetentionDays); err != nil {
+			slog.Error("personal purge failed", "user_id", u.ID, "error", err)
+		}
+		if err := svc.Ideas.PurgeExpired(trashRetentionDays); err != nil {
+			slog.Error("ideas purge failed", "user_id", u.ID, "error", err)
+		}
+	}
+}
+
+// newSessionManager builds the session manager and starts hourly cleanup of
+// expired sessions.
+func newSessionManager(shutdownCtx context.Context, cfg *config.Config, database *sql.DB) *scs.SessionManager {
+	store := auth.NewSQLiteStore(database)
+	sm := scs.New()
+	sm.Store = store
+	sm.Lifetime = cfg.SessionLifetime
+	sm.IdleTimeout = sessionIdleTimeout
+	sm.Cookie.HttpOnly = true
+	sm.Cookie.SameSite = http.SameSiteLaxMode
+	sm.Cookie.Secure = cfg.SecureCookies
+	sm.Cookie.Name = "session"
+	go runHourly(shutdownCtx, func() {
+		if err := store.CleanupExpired(); err != nil {
+			slog.Error("session cleanup failed", "error", err)
+		}
+	})
+	return sm
+}
+
+// runHourly calls fn every hour until ctx is cancelled.
+func runHourly(ctx context.Context, fn func()) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			fn()
+		case <-ctx.Done():
 			return
 		}
-		fs.ServeHTTP(w, r)
-	})
-}
-
-func cacheImmutable(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		h.ServeHTTP(w, r)
-	})
-}
-
-// bearerAuth checks the API token. Failed attempts are counted per client IP
-// and answered with 429 past the limit; a valid token always gets through, so
-// bad guesses cannot lock out a real client behind the same address.
-func bearerAuth(token string, failures *auth.RateLimiter, trusted []netip.Prefix) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			provided, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-			if ok && subtle.ConstantTimeCompare([]byte(provided), []byte(token)) == 1 {
-				next.ServeHTTP(w, r)
-				return
-			}
-			status, body := http.StatusUnauthorized, `{"error":"unauthorized"}`
-			if !failures.Allow(httputil.ClientIP(r, trusted)) {
-				status, body = http.StatusTooManyRequests, `{"error":"too many failed attempts"}`
-			}
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(status)
-			_, _ = w.Write([]byte(body))
-		})
 	}
 }
 
@@ -854,84 +354,4 @@ func resyncCallback(name string, svc interface{ ResyncIfChanged() (bool, error) 
 		}
 		return changed
 	}
-}
-
-func securityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h := w.Header()
-		h.Set("Content-Security-Policy", contentSecurityPolicy)
-		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Referrer-Policy", "same-origin")
-		next.ServeHTTP(w, r)
-	})
-}
-
-func parseTemplates(fm template.FuncMap) (map[string]*template.Template, error) {
-	layout, err := template.New("layout.html").Funcs(fm).ParseFS(web.TemplateFS, "templates/layout.html")
-	if err != nil {
-		return nil, fmt.Errorf("parsing layout: %w", err)
-	}
-
-	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "homepage.html", "digest.html", "calendar.html", "admin-users.html", "admin-user-form.html", "admin-password.html", "account.html", "house.html"}
-	templates := make(map[string]*template.Template, len(pages))
-
-	for _, page := range pages {
-		t, err := template.Must(layout.Clone()).ParseFS(web.TemplateFS, "templates/"+page)
-		if err != nil {
-			return nil, fmt.Errorf("parsing %s: %w", page, err)
-		}
-		templates[page] = t
-	}
-
-	return templates, nil
-}
-
-// templateDict passes several values to a sub-template:
-// {{template "x" (dict "Item" . "List" "todos")}}.
-func templateDict(kv ...any) (map[string]any, error) {
-	if len(kv)%2 != 0 {
-		return nil, fmt.Errorf("dict: odd number of arguments")
-	}
-	m := make(map[string]any, len(kv)/2)
-	for i := 0; i < len(kv); i += 2 {
-		k, ok := kv[i].(string)
-		if !ok {
-			return nil, fmt.Errorf("dict: key %v is not a string", kv[i])
-		}
-		m[k] = kv[i+1]
-	}
-	return m, nil
-}
-
-func seasonalAccentFunc(loc *time.Location, tokens theme.Tokens) func() seasonalAccentCSS {
-	return func() seasonalAccentCSS {
-		acc, err := seasonal.AccentFor(time.Now().In(loc), tokens)
-		if err != nil {
-			// Validated for a whole year at startup, so this is unreachable;
-			// the layout then keeps theme.css's fallback accent.
-			slog.Error("seasonal accent", "error", err)
-			return seasonalAccentCSS{}
-		}
-		return seasonalAccentCSS{Light: acc.Light.Hex(), Dark: acc.Dark.Hex()}
-	}
-}
-
-// loadThemeTokens parses theme.css and checks that a seasonal accent exists
-// for every day of a leap year, so a token edit that breaks contrast fails
-// at startup rather than on some later date.
-func loadThemeTokens(static fs.FS) (theme.Tokens, error) {
-	css, err := fs.ReadFile(static, "theme.css")
-	if err != nil {
-		return nil, fmt.Errorf("theme tokens: %w", err)
-	}
-	tokens, err := theme.ParseTokens(string(css))
-	if err != nil {
-		return nil, err
-	}
-	for day := time.Date(2028, 1, 1, 12, 0, 0, 0, time.UTC); day.Year() == 2028; day = day.AddDate(0, 0, 1) {
-		if _, err := seasonal.AccentFor(day, tokens); err != nil {
-			return nil, err
-		}
-	}
-	return tokens, nil
 }

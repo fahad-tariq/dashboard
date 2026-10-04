@@ -109,12 +109,13 @@ func (s *Service) Get(slug string) (*Item, error) {
 	return nil, fmt.Errorf("tracker item %q not found", slug)
 }
 
-func (s *Service) AddItem(item Item) error {
+// AddItem appends item and returns the slug it was given.
+func (s *Service) AddItem(item Item) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if item.Title == "" {
-		return fmt.Errorf("empty title")
+		return "", fmt.Errorf("empty title")
 	}
 	item.Slug = Slugify(item.Title)
 	if item.Added == "" {
@@ -123,15 +124,15 @@ func (s *Service) AddItem(item Item) error {
 
 	items, err := ParseTracker(s.trackerPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	items = append(items, item)
 	if err := s.write(items); err != nil {
-		return err
+		return "", err
 	}
 	s.cache = items
-	return nil
+	return item.Slug, nil
 }
 
 func (s *Service) UpdateNotes(slug, body string) error {

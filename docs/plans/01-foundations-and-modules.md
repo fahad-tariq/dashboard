@@ -8,7 +8,7 @@ This is the first of three plans:
 
 | Plan | Scope | Status |
 |---|---|---|
-| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework | Ready |
+| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | In progress: Phases 1-4 merged and deployed |
 | 2 | Exercise module on the framework, plus the SQLite migration hook it needs. Exercise scope is not yet decided | Not written |
 | 3 | Product features: quick capture, stable item IDs (which also fix slug collisions), due dates, recurring tasks merged with maintenance cadence, agent-proposed daily plan, reminders, weekly review, MCP tooling and possibly a Go MCP server | Not written; write after Phase 7 lands |
 
@@ -70,7 +70,7 @@ Do not reopen these while executing this plan.
 
 - Exercise, the SQLite migration hook, and new product features (Plans 2 and 3).
 - Generalising the daily planner beyond tracker items.
-- A design-token overhaul (spacing scale, type scale, `.btn` base, `@layer`).
+- A design-token overhaul (spacing scale, type scale, `.btn` base, `@layer`) before Phase 9. It is part of Phase 9, not earlier phases.
 - Removing multi-user or admin code.
 - **Known WCAG gaps, accepted for a single keyboard-shortcut user and recorded in the backlog:**
   - single-key shortcut opt-out (2.1.4)
@@ -293,24 +293,24 @@ Do not reopen these while executing this plan.
 
 **Purpose:** remove the duplicated wiring before building the framework. The route golden from Phase 1 guards this phase.
 
-- [ ] **Collapse no-auth mode.**
+- [x] **Collapse no-auth mode.**
   - With `DASHBOARD_AUTH=disabled`, a middleware injects user 1 into the context, including the name and admin fields that `auth.TemplateData` reads. It wraps every route, including `/events`.
   - Delete `SingleUserPlanHandlers`, `HomePageSingle`, `DigestPageSingle`, `CalendarPageSingle` and the single-user branch.
   - The expected route-golden diff (no-auth mode gains `/login`, `/account` and `/admin/*`, or they are excluded deliberately) is explained in Working Notes.
-- [ ] **Local-dev data paths.**
+- [x] **Local-dev data paths.**
   - Verify how no-auth mode resolves files today (`PERSONAL_PATH` and `IDEAS_PATH`, versus `USER_DATA_DIR/1/`).
   - If they differ, a registry override for user 1 MUST cover service paths, the watcher's watch spec and skeleton creation.
   - Ensure a user-1 row exists, so the purge loop, which iterates `auth.AllUsers`, still runs.
-- [ ] **Commentary scoping.**
+- [x] **Commentary scoping.**
   - Web commentary and the ideas handler use `auth.UserID(r.Context())` instead of a hard-coded `1`.
   - This is safe only after the previous task, because no-auth requests currently carry user 0.
-- [ ] **One `toTask` factory.**
+- [x] **One `toTask` factory.**
   - Replace the three `ToTaskFunc` closures with one function over the personal, family and house services.
   - `AddItem` returns the slug it assigned; callers, including `APIAddTodo`, stop recomputing it.
   - No de-duplication (see Decisions).
-- [ ] **API through the resolver.** The API resolves services through the same registry and resolver as the web handlers, with the API token mapped to user 1. Delete the duplicated API handler construction.
-- [ ] **Route mounting.** Replace the positional parameters of `mountAppRoutes` with a struct, and move API registration into a function next to it.
-- [ ] **Remove the Phase 1 `//nolint:gocyclo` markers** on `main` and `renderHomePage` by splitting them up.
+- [x] **API through the resolver.** The API resolves services through the same registry and resolver as the web handlers, with the API token mapped to user 1. Delete the duplicated API handler construction.
+- [x] **Route mounting.** Replace the positional parameters of `mountAppRoutes` with a struct, and move API registration into a function next to it.
+- [x] **Remove the Phase 1 `//nolint:gocyclo` markers** on `main` and `renderHomePage` by splitting them up.
 
 **Verification:**
 - The route golden matches, with the documented diff.
@@ -454,7 +454,41 @@ Modules receive one `module.Deps` struct: location, templates, change publisher,
 
 ---
 
-## Phase 9: Documentation
+## Phase 9: Design uplift
+
+**Purpose:** one coherent visual design, applied once to the Phase 6 shared components and the Phase 7 module templates, after Phase 8 has settled the interaction patterns (toasts, inline updates, native dialogs). Requested by the owner after Phase 4. Doing it earlier would mean restyling templates that Phases 6 and 7 rewrite.
+
+- [ ] **Review and direction.**
+  - Capture a baseline screenshot set: every main page in both themes at 1280px and 375px, plus the key states (item expanded, select mode, dialog open, toast). Generate it with a Playwright job whose screenshots CI uploads as an artefact, because browsers cannot run in the local sandbox.
+  - Run a design review (Design Reviewer agent) over the screenshots and templates covering hierarchy, density, typography, spacing rhythm, consistency between pages, the mobile layouts, and the homepage as a daily planning hub.
+  - Write a short direction proposal for the owner: what changes and what stays, with mockups or a styled prototype page.
+  - **Owner decision required:** keep and refine the monospace, terminal-style Catppuccin identity, or allow a broader visual change.
+  - **STOP for the owner to approve the direction** before implementing.
+- [ ] **Design tokens.**
+  - Spacing scale, type scale (sizes, weights, line heights), radii, borders, elevation, and motion durations.
+  - A `.btn` base with variants (primary, secondary, quiet, danger, icon) that replaces the per-feature button classes.
+  - Organise `theme.css` with `@layer` (reset, tokens, base, components, pages, utilities). Split it into files if that helps; the static asset hashing already handles several files.
+  - Replace hard-coded sizes and colours with tokens.
+  - Phase 4's colour tokens and contrast tests stay authoritative. New colours are added as tokens and pass `TestThemeRuleTextContrast`.
+- [ ] **Components.** Restyle the shared partials and core UI to the direction:
+  - page header, item row, card, quick-add, empty state, error banner, toast, dialogs, nav (including the "more" disclosure), filters, bulk bar, badges and forms
+  - keep the Phase 4 id scheme and the Phase 8 morph behaviour intact
+- [ ] **Pages.**
+  - Homepage hierarchy, with the plan as the primary section and the widgets below it.
+  - List density on todos, family, goals and ideas, the house table, the calendar and the digest.
+  - Mobile layouts, including tracker row height under the 44px touch targets (the owner flagged taller rows in Phase 4).
+- [ ] **Clean-up.** Remove CSS that no template uses, and record the size of `theme.css` before and after in Working Notes.
+
+**Verification:**
+- axe, contrast, reflow, target-size, reduced-motion and keyboard tests all pass in both themes.
+- The PR includes the before and after screenshot sets.
+- No behaviour changes: the route golden is unchanged and Playwright passes.
+
+**Self-review. STOP and wait for human review.** The owner uses the redesigned app before the documentation is written.
+
+---
+
+## Phase 10: Documentation
 
 - [ ] Update `CLAUDE.md` using the `claude-md-authoring` skill. Cover:
   - the module contract and how to add a module
@@ -473,7 +507,7 @@ Modules receive one `module.Deps` struct: location, templates, change publisher,
   - an "Adding a module" section
 - [ ] Update `docs/backlog.md`: remove completed items (CSRF, focus traps, ServiceMap refactor) and add the follow-ups from Working Notes.
 
-**Final self-review against the success criteria. STOP and wait for human review**, including a manual VoiceOver pass.
+**Final self-review against the success criteria. STOP and wait for human review.**
 
 ---
 
@@ -492,6 +526,7 @@ Modules receive one `module.Deps` struct: location, templates, change publisher,
 | Simpler wiring | Single-user branch deleted; no `gocyclo` exclusions left on `main` or `renderHomePage`; one `toTask` |
 | No stale UI | An external edit while an item is expanded appears without collapsing it |
 | Behaviour preserved | Route golden diffs are all explained in Working Notes |
+| Design | Direction approved by the owner; tokens and `@layer` in place; before and after screenshots in the Phase 9 PR; accessibility gates still green |
 
 ## Risks
 
@@ -538,7 +573,7 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - Second CI run: 46 more lint findings. The first run was truncated by golangci-lint's default caps (50 issues per linter, 3 identical issues). `.golangci.yml` now sets both caps to 0. About 180 unchecked errors in tests were wrapped in `if err := ...; err != nil { t.Fatal(err) }` by an AST-based rewrite, checked by standalone `errcheck` (zero remaining) and the race suite. gosec G104 is excluded (it duplicates errcheck), and gosec is off for `_test.go` files (template-func stubs and temp-dir fixtures).
 - Idea triage buttons never worked (fixed, test-first in `TestIdeasTriageActionMultipart`): `triageAnimate` posts `new FormData(form)` (multipart), but `TriageAction` called `r.ParseForm()`, which ignores multipart bodies, and `FormValue` then skips multipart parsing because `r.Form` is already set. The action arrived empty, the handler returned 400, and the JS reloaded the page regardless, hiding the failure. Found by the e2e suite on its first real run. Phase 8's "idea triage surfaces errors" item covers the swallowed error.
 - e2e timing: the app's own writes broadcast `file-changed` about 500ms later, and the resulting container swap closes open `<details>`, collapses rows and detaches any form the confirm modal is holding (so Confirm silently does nothing). The last one is a real user-facing bug whenever any write lands while the modal is open, including one from the API or MCP. Phase 3 does not remove it (services still publish every write, debounced); Phase 8 (morph swaps, native dialogs) does. `waitForSseSettle` now waits for 1.2s of quiet, tracked through `htmx:sseMessage`, `htmx:beforeRequest` and `htmx:afterSettle`, instead of sleeping a fixed 1.5s, and the add/plan helpers call it after every navigation that follows a write.
-- Sub-step actions collapsed the expanded task (fixed; the failing e2e spec `add, toggle and remove a sub-step` is the test). Diagnosed from the CI trace: the item was `minimised` 20ms after the targeted sub-step swap, before any SSE request. The server renders every item `minimised`; `tracker.js` re-expanded in `htmx:afterSwap`, but htmx's settle step then re-applies the new element's `class` attribute. Re-expansion now runs in `htmx:afterSettle`. CLAUDE.md's "afterSwap re-expands them" is out of date; Phase 9 rewrites that section. A brief collapsed flash remains until Phase 8's morph swaps.
+- Sub-step actions collapsed the expanded task (fixed; the failing e2e spec `add, toggle and remove a sub-step` is the test). Diagnosed from the CI trace: the item was `minimised` 20ms after the targeted sub-step swap, before any SSE request. The server renders every item `minimised`; `tracker.js` re-expanded in `htmx:afterSwap`, but htmx's settle step then re-applies the new element's `class` attribute. Re-expansion now runs in `htmx:afterSettle`. CLAUDE.md's "afterSwap re-expands them" is out of date; Phase 10 rewrites that section. A brief collapsed flash remains until Phase 8's morph swaps.
 - gosec G120 does not recognise `r.Body = http.MaxBytesReader(...)`, so the triage handler's `ParseMultipartForm` carries a `nolint` noting the cap.
 - Search shortcut swallowed after Escape (fixed, test-first: `search.spec.ts` now asserts the input loses focus). `closeSearch()` hid the overlay but left focus on the hidden `#search-input`, so `isInputFocused()` ignored the next `/` until Chrome's focus fixup ran; intermittent in CI for that reason. `closeSearch()` now blurs the input and returns focus to the element focused before search opened. Phase 8's native `<dialog>` handles this itself.
 - Open redirects (fixed, test-first in `test/redirect_test.go`): `tracker.redirectBack` used the `Referer` path unchecked, so a path like `//evil.example/x` became a protocol-relative redirect. The login `next` check rejected `//` but accepted `/\evil.example` and `/<tab>/evil.example`, which browsers normalise to `//`. Both now use `httputil.IsLocalPath`, which rejects `//`, any backslash and any control character. Impact was low: the tracker redirect needs a POST that `SameSite=Lax` blocks cross-site, and login needs a victim to follow a crafted link.
@@ -559,7 +594,7 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - Compose smoke run (local, real data copy): passed after two findings. (1) With `-wal`/`-shm` present SQLite opened a non-writable database read-only; the server started and failed on the first save. `db.Open` now does a no-op write after migrations and refuses to start with a message naming the owner mismatch (test-first, `TestOpenRefusesReadOnlyDatabase`). (2) The owner's local Docker runtime shares `~` read-only into its VM (`touch` gave "Read-only file system"), so the smoke run used Docker volumes; production bind mounts are native and unaffected.
 - Self-review fixes: account-delay eviction (above), IPv6 /64 buckets, IPv4-mapped trusted proxies normalised, `Retry-After` and 429 on rate-limited logins, the DB write probe only blames ownership for read-only errors, a second signal during shutdown kills the process, MCP write tools carry `destructiveHint=False` and MCP tokens must be ASCII (compared as bytes).
 - Accepted limits: the failed-bearer limiter cannot slow guessing, because a valid token is never blocked (a deliberate trade-off; the 32-character minimum is the real protection, and the API is unmounted in production). The account delay is a per-request sleep, so parallel requests from many IPs wait concurrently. `sm.IdleTimeout` makes scs rewrite the session row and send Set-Cookie on every authenticated request; negligible for one user, watch it in Phase 3. `main` does not wait for background goroutines at shutdown; Phase 3 atomic writes make an interrupted write harmless.
-- Owner decision (2026-10-04): MCP is not used. The fliptronic deploy removes the `dashboard-mcp` service and Caddy's `/mcp*` route, and drops `DASHBOARD_API_TOKEN` so `/api/v1` is not mounted. Both stay in the repo and can be re-enabled. The footer MCP badge will then report MCP as unavailable; revisit it in Phase 9.
+- Owner decision (2026-10-04): MCP is not used. The fliptronic deploy removes the `dashboard-mcp` service and Caddy's `/mcp*` route, and drops `DASHBOARD_API_TOKEN` so `/api/v1` is not mounted. Both stay in the repo and can be re-enabled. The footer MCP badge will then report MCP as unavailable; revisit it in Phase 9 (design) or Phase 10.
 - Deployed to fliptronic 2026-10-04 (image from merge `909b7cb`): compose and Caddyfile backed up (`.bak.1791110956`), MCP service and `/mcp*` route removed, API token dropped, hardening applied. Verified through Caddy: `/login` 200, `/api/v1/*` and `/mcp/*` 404, CSP/HSTS present, cross-site login POST 403, `172.16.61.9:8081` no longer reachable, `verify-stack.sh` all green (a first run failed two checks only because Caddy was still starting). Homelab docs updated (uncommitted in that repo for the owner).
 - Deploy actions (superseded by the owner decision above): with MCP and the API removed on fliptronic, no token work was needed; `DASHBOARD_TRUSTED_PROXIES=172.30.81.1` is set in the production compose.
 
@@ -585,7 +620,7 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - Two guards in `test/contrast_test.go` go beyond the plan. `TestThemeRuleTextContrast` checks every `color:` rule in `theme.css` against the rule's own background, or against `--base` and `--mantle` if it sets none, in both themes; it covers about 300 pairs. `TestThemeNoOpacityDimming` forbids `opacity` below 1 except on the drag ghost and the loading pulse, because opacity blends text below its token's contrast. Done rows now dim with `--fg-muted`.
 - Id scheme (Phase 8 morph swaps depend on it): tracker rows and house projects `item-{slug}`, ideas `idea-{slug}`, maintenance `maint-{slug}`, plan rows `plan-{list}-{slug}` (list is `todos`, `family` or `house`). Suffixes: `-toggle`, `-detail`, `-up`, `-down`, `-done`, `-drop`, and `-substep-{n}-{toggle|promote|remove}`. Done and deleted tracker rows gained ids. `TestPagesHaveNoRoleButtonAndUniqueIDs` asserts unique ids on every main page. House rows used the bare slug before, so the plan row's `/house#item-{slug}` link never matched; search and the homepage maintenance card now link to `#item-` and `#maint-`.
 - Toggles: the plan says plan rows, but tracker, goal and idea headers and house `<tr>`s had the same `role="button"` pattern with checkboxes, badges and forms inside, which axe reports as `nested-interactive` (serious). All of them now use a `<button>` toggle with `aria-expanded` and `aria-controls`; tracker toggles are named by the item title. A row click still toggles (`planItemClick`, `itemHeaderClick`, `houseRowClick`), except on the row's other controls. Clickable badges are `<button>`s. The three plan-row copies became one `plan-row` template (with a new `dict` template func).
-- Reorder buttons render on every pointer (CLAUDE.md's "mobile fallback, coarse pointer only" is stale; Phase 9). After a move, focus returns to the pressed button and `#announcer` says "Moved X to position N of M", or "X is already first/last".
+- Reorder buttons render on every pointer (CLAUDE.md's "mobile fallback, coarse pointer only" is stale; Phase 10). After a move, focus returns to the pressed button and `#announcer` says "Moved X to position N of M", or "X is already first/last".
 - Live regions: `#announcer` (polite) plus the server flash (`role="status"`, or `role="alert"` for `flashErrorKeys`). The per-page "updating…" indicators were also polite live regions, so every SSE refresh was announced; they are now `aria-hidden`. The MCP badge carries its state as sr-only text instead of a live region. `showToast(msg)` sets text via `textContent` and announces through `#announcer`; the toast is not itself a live region. It hides after 6s; Phase 8 adds the undo button, the 10s minimum and pause on hover or focus.
 - Target size: global minimums of 24px for `button`, `select`, `summary`, clickable badges and checkboxes, and 44px under `pointer: coarse`. On phones the tracker header's badge buttons are 44px tall, which makes rows taller; check this during the owner's review.
 - Theme: the first visit follows `prefers-color-scheme`, which also means Playwright, whose default is light, now runs light unless a spec sets the theme. `color-scheme` is declared per theme block plus a `<meta>`. `html` no longer hard-codes `data-theme="dark"`. The login page gets the same treatment, plus `<main>`, `<h1>` and a keyboard-reachable "Change" button (it was an `<a>` without `href`).
@@ -605,7 +640,26 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - The idea breadcrumb link was told apart by colour alone (axe `link-in-text-block`). Breadcrumb and "From idea" links are now underlined.
   - The search-hint `<kbd>` keys inherited `--fg-muted` onto `--surface0` (3.68:1 in light). The rule audit can't see inherited colours, so `TestThemeTextBackgroundsSetColour` now requires any rule with a text-bearing background to set its own colour.
   - The homepage overflowed at 320px. Its phone one-column rule sat earlier in `theme.css` than the base grid rules with the same specificity, so phones never got one column. This bug predates Phase 4.
-- VoiceOver pass: not done. This environment cannot run a browser, so the owner needs to do it during the STOP review.
+- VoiceOver pass: waived. The owner does not use a screen reader (owner decision 2026-10-05). The automated checks (axe, keyboard, contrast, target size) remain the accessibility gate, here and in Phase 10.
+- Deployed to fliptronic 2026-10-04 14:22 UTC after PR #7 merged. A backup was taken first (`backups/dashboard-backup-20261004-141739.tar.gz`). The live `/login` serves the Phase 4 markup. The owner saw little change in dark mode on desktop, which is expected: dark already passed contrast.
+- Owner decision (2026-10-05): a visual design uplift goes into this plan as Phase 9, between interaction rework and documentation, so it is done once on the Phase 6 shared components and after Phase 8 settles the interaction patterns. Documentation becomes Phase 10.
+- Phase 4 STOP review: the owner tried the deployed app on 2026-10-05 and is moving on. Next is Phase 5.
+
+### Phase 5 notes
+
+- No-auth mode is now a middleware, not a branch: `auth.InjectUser(db, 1)` replaces `RequireAuth` and `RequireAuthAPI` when `DASHBOARD_AUTH=disabled`, reading user 1's row on every request so name and admin come from the database. `prepareUsers` runs `auth.EnsureUser(db, 1, "local@localhost")` in no-auth mode, so the purge loop and `/account` have a row. That row is an admin with the password hash `!`, which matches no password. Start-up and the first-user-is-admin rule count only users who can log in (`auth.LoginUserCount`), so a database first used in no-auth mode starts in auth mode just as an empty one would: it bootstraps an admin from `DASHBOARD_PASSWORD_HASH` or refuses to start (test-first, `TestAuthModeIgnoresLocalPlaceholderUser`; found in self-review, where it started with nobody able to log in). bcrypt rejects `!` without hashing, so a login attempt as `local@localhost` returns faster than for other accounts. It only exists in local databases, so this is accepted.
+- Route golden diff: `routes_noauth.golden` gained exactly the 15 `/login`, `/logout`, `/account*` and `/admin/*` lines and is now identical to `routes_auth.golden`. They were kept rather than excluded so that both modes register one route tree. The nav still hides logout and the user link in no-auth mode (`authEnabled` is false).
+- Data paths differed as the plan suspected: no-auth read `PERSONAL_PATH`/`IDEAS_PATH`, auth read `USER_DATA_DIR/1/`. `Registry.SetUserPaths(1, ...)` covers service paths and skeleton creation (`EnsureUserDirs` now creates the files at the override paths). The watcher watches the two files as file categories whose callbacks resync user 1's services. `TestNoAuthUsesLegacyPaths` guards this.
+- Commentary (test-first, `TestCommentaryScopedToUser`): the web commentary endpoint and idea detail used user 1 for everyone, so user 2 saw user 1's notes. Both now use `auth.UserID`. The API commentary handlers still use user 1, which is correct because the token acts as user 1. As a result, commentary on the shared family and house lists, which the API always writes as user 1, is no longer shown to other users. Moot for a single owner; revisit if multi-user returns.
+- One `appServices.toTask` replaces the three closures. `tracker.Service.AddItem` returns the slug it assigned; `APIAddTodo` and the ideas test helper stop recomputing it.
+- API: `bearerAuth` puts user 1 in the request context, so the API uses the web handlers' resolvers. Deleted: the separate API ideas handler and its `toTask`, and both sets of tracker and plan API construction. The plan API functions are now `home.Handler` methods. The tracker API functions take a `tracker.ServiceResolver` returning (personal, family).
+- `home.Handler` takes a `home.Resolver` returning `home.Lists` instead of the registry, so tests pass a closure over their own services instead of using the deleted `HomePageSingle`/`DigestPageSingle`/`CalendarPageSingle`. `search.ServiceResolver` keeps its 5-tuple for Phase 6.
+- `internal/app` is split into `app.go` (start-up: users, services, watcher, sessions, purge), `routes.go` (a `handlers` struct replaces `mountAppRoutes`' 17 positional parameters; `mountBrowserRoutes`, `mountAPIRoutes`, middleware) and `templates.go` (func map and parsing, moved unchanged). `renderHomePage` is split by plan section. `gocyclo -over 15` reports only the six accepted Phase 1 exclusions.
+- Behaviour changes in no-auth mode only: it now resyncs house projects at start-up and also watches `USER_DATA_DIR`, as auth mode already did. Both are harmless.
+- `tracker.NewHandler` and `ideas.NewHandler` (static services) are now used only by tests. They were kept to avoid churning six test files ahead of Phase 6's handler changes.
+- CLAUDE.md still describes `SingleUserPlanHandlers`, "planner dual-mode handlers" and three `ToTaskFunc` closures. Phase 10 rewrites it; until then, these Phase 5 notes are the current description.
+- Verification: lint 0 issues; `INTEGRATION=1 go test -race ./...` green; Playwright runs in CI on the PR.
+- First CI run (PR #8): the other four jobs passed, including e2e; `test` failed in `TestCommentaryScopedToUser`. The test was flaky, not the fix: `authRouter` created users from a map, so in a random half of runs `two@test.com` got ID 1. Users are now an ordered slice; 50 repeated runs pass.
 
 - Follow-ups:
   - tighten CSP `script-src` after moving inline handlers
@@ -618,3 +672,4 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - per-user SSE routing if multi-user returns
   - admin user deletion: the watcher recreates the deleted user's directory (admin frozen)
   - MoveToList slug collisions (dead `-<unix>` suffix) until Plan 3 stable IDs
+  - remove the test-only static `tracker.NewHandler`/`ideas.NewHandler` constructors (Phase 6)

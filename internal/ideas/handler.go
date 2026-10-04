@@ -173,7 +173,7 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 	data["IsDeleted"] = idea.DeletedAt != ""
 
 	if h.commentarySt != nil {
-		if c, err := h.commentarySt.Get(slug, "ideas", 1); err == nil && c != "" {
+		if c, err := h.commentarySt.Get(slug, "ideas", int(auth.UserID(r.Context()))); err == nil && c != "" {
 			if rendered, err := markdown.Render([]byte(c)); err == nil {
 				data["CommentaryHTML"] = template.HTML(rendered) //nolint:gosec // G203: markdown.Render output is bluemonday-sanitised
 			}

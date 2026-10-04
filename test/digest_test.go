@@ -211,7 +211,9 @@ func setupDigestEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.
 	)
 	templates["digest.html"] = tmpl
 
-	handler := home.DigestPageSingle(personalSvc, familySvc, houseProjectsSvc, ideasSvc, templates, time.UTC)
+	handler := http.HandlerFunc(home.NewHandler(func(*http.Request) home.Lists {
+		return home.Lists{Personal: personalSvc, Family: familySvc, HouseProjects: houseProjectsSvc, Ideas: ideasSvc}
+	}, templates, time.UTC).DigestPage)
 	return handler, personalSvc, familySvc, ideasSvc
 }
 
@@ -318,7 +320,9 @@ func TestDigestPageEmptyState(t *testing.T) {
 	)
 	templates["digest.html"] = tmpl
 
-	handler := home.DigestPageSingle(personalSvc, familySvc, houseProjectsSvc, ideasSvc, templates, time.UTC)
+	handler := http.HandlerFunc(home.NewHandler(func(*http.Request) home.Lists {
+		return home.Lists{Personal: personalSvc, Family: familySvc, HouseProjects: houseProjectsSvc, Ideas: ideasSvc}
+	}, templates, time.UTC).DigestPage)
 
 	req := httptest.NewRequest("GET", "/digest", nil)
 	rr := httptest.NewRecorder()

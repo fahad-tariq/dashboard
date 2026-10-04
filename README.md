@@ -46,15 +46,15 @@ This reads old-format idea and exploration files, merges research notes into ide
 
 | Variable | Default | Description |
 |---|---|---|
-| `IDEAS_PATH` | `/data/ideas.md` | Ideas flat file (single-user mode) |
+| `IDEAS_PATH` | `/data/ideas.md` | User 1's ideas file when `DASHBOARD_AUTH=disabled`; ignored with auth on |
 | `IDEAS_DIR` | (empty) | Legacy: if set, derives `IDEAS_PATH` from parent directory |
 | `UPLOADS_DIR` | `/data/uploads` | Directory for uploaded images (shared, auto-created) |
-| `PERSONAL_PATH` | `/data/personal.md` | Legacy personal tasks file (pre-multi-user) |
+| `PERSONAL_PATH` | `/data/personal.md` | User 1's personal tasks file when `DASHBOARD_AUTH=disabled`, and the source file for `migrate-data` |
 | `FAMILY_PATH` | `/data/family.md` | Shared family tasks file |
 | `USER_DATA_DIR` | `/data/users` | Per-user data directory (auto-created) |
 | `DB_PATH` | `/data/db/dashboard.db` | SQLite database path |
 | `DASHBOARD_PASSWORD_HASH` | (empty) | Bcrypt hash for auto-creating first admin user |
-| `DASHBOARD_AUTH` | `enabled` | `disabled` turns auth off for local development; refused unless `ADDR` is loopback. With auth on and no users or hash, the server refuses to start |
+| `DASHBOARD_AUTH` | `enabled` | `disabled` turns auth off for local development: every request is served as user 1 (created as `local@localhost` if missing); refused unless `ADDR` is loopback. With auth on and no users or hash, the server refuses to start |
 | `DASHBOARD_TRUSTED_PROXIES` | (empty) | CIDRs or IPs of reverse proxies whose `X-Forwarded-For` is used for login rate limiting |
 | `DASHBOARD_API_TOKEN` | (empty) | Bearer token for `/api/v1`; at least 32 characters, or the API is not mounted |
 | `MCP_TOKEN` | (empty) | MCP sidecar only: token MCP clients send; at least 32 characters, different from `DASHBOARD_API_TOKEN` |
