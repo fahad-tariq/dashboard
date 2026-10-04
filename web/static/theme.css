@@ -9,6 +9,7 @@
 
 /* --- Catppuccin Latte (light) --- */
 :root, [data-theme="light"] {
+    color-scheme: light;
     --base: #eff1f5;
     --mantle: #e6e9ef;
     --crust: #dce0e8;
@@ -35,17 +36,30 @@
     --fg: var(--text);
     --fg-dim: var(--subtext1);
     --fg-muted: #626580;
-    --accent: var(--blue);
+    /* Fallback for pages cached without the seasonal accent style block. */
+    --accent: #214fab;
+    --on-accent: var(--base);
     --row-hover: var(--mantle);
 
+    /* Text versions of the Catppuccin hues, which stay for borders and
+       fills. Latte's hues are too pale for text on --base and --mantle;
+       these are the same hues darkened to at least 4.5:1. */
+    --success-fg: #2f7620;
+    --warning-fg: #905c13;
+    --attention-fg: #b44201;
+    --danger-fg: #cd0f38;
+    --tag-fg: #127278;
+
     /* Light-mode priority overrides for contrast */
-    --priority-high: #d20f39;
+    --priority-high: #cd0f38;
     --priority-medium: #c77d0a;
-    --priority-low: #6e7183;
+    --priority-medium-fg: #925b07;
+    --priority-low: #646677;
 }
 
 /* --- Catppuccin Mocha (dark) --- */
 [data-theme="dark"] {
+    color-scheme: dark;
     --base: #1e1e2e;
     --mantle: #181825;
     --crust: #11111b;
@@ -73,10 +87,18 @@
     --fg-dim: var(--subtext0);
     --fg-muted: #9ea2b8;
     --accent: var(--blue);
+    --on-accent: var(--crust);
     --row-hover: var(--surface0);
+
+    --success-fg: var(--green);
+    --warning-fg: var(--yellow);
+    --attention-fg: var(--peach);
+    --danger-fg: var(--red);
+    --tag-fg: var(--teal);
 
     --priority-high: var(--red);
     --priority-medium: var(--peach);
+    --priority-medium-fg: var(--priority-medium);
     --priority-low: var(--overlay0);
 }
 
@@ -218,6 +240,11 @@ h1 {
     color: var(--fg-dim);
     margin-bottom: 1rem;
 }
+/* Links inside running text are underlined, not told apart by colour alone. */
+.breadcrumb a,
+.converted-link a {
+    text-decoration: underline;
+}
 
 /* --- Markdown body --- */
 .markdown-body {
@@ -240,6 +267,7 @@ h1 {
 }
 .markdown-body code {
     background: var(--surface0);
+    color: var(--fg);
     padding: 0.1rem 0.3rem;
     border-radius: 2px;
     font-size: 0.9em;
@@ -288,7 +316,7 @@ section h2 {
 }
 
 .badge-priority-high { color: var(--priority-high); border-color: var(--priority-high); }
-.badge-priority-medium { color: var(--priority-medium); border-color: var(--priority-medium); }
+.badge-priority-medium { color: var(--priority-medium-fg); border-color: var(--priority-medium); }
 .badge-priority-low { color: var(--priority-low); border-color: var(--priority-low); }
 
 /* --- Ideas --- */
@@ -314,7 +342,6 @@ section h2 {
     border-radius: 4px;
 }
 .form-input:focus-visible, .form-select:focus-visible, .form-textarea:focus-visible {
-    outline: none;
     border-color: var(--accent);
 }
 .form-textarea {
@@ -324,7 +351,7 @@ section h2 {
 .form-btn {
     align-self: flex-start;
     background: var(--accent);
-    color: var(--base);
+    color: var(--on-accent);
     border: none;
     font-family: inherit;
     font-size: 0.85rem;
@@ -334,7 +361,7 @@ section h2 {
     font-weight: 600;
 }
 .form-btn:hover {
-    opacity: 0.9;
+    text-decoration: underline;
 }
 .form-btn:active {
     transform: scale(0.97);
@@ -363,11 +390,11 @@ section h2 {
     transform: scale(0.95);
 }
 .action-drop:hover {
-    color: var(--red);
+    color: var(--danger-fg);
     border-color: var(--red);
 }
 .action-assign:hover {
-    color: var(--green);
+    color: var(--success-fg);
     border-color: var(--green);
 }
 .form-select-sm {
@@ -379,9 +406,9 @@ section h2 {
     padding: 0.1rem 0.25rem;
     border-radius: 3px;
 }
-.badge-untriaged { color: var(--priority-medium); border-color: var(--priority-medium); }
+.badge-untriaged { color: var(--priority-medium-fg); border-color: var(--priority-medium); }
 .badge-parked { color: var(--fg-muted); border-color: var(--surface1); }
-.badge-dropped { color: var(--overlay0); border-color: var(--surface1); }
+.badge-dropped { color: var(--fg-muted); border-color: var(--surface1); }
 .idea-meta-detail {
     display: flex;
     align-items: center;
@@ -550,12 +577,12 @@ section h2 {
     transition: all 0.1s;
 }
 .item-complete-btn:hover {
-    color: var(--green);
+    color: var(--success-fg);
     border-color: var(--green);
     background: var(--row-hover);
 }
 .item-undo-btn:hover {
-    color: var(--priority-medium);
+    color: var(--priority-medium-fg);
     border-color: var(--priority-medium);
     background: var(--row-hover);
 }
@@ -620,7 +647,7 @@ section h2 {
 
 /* Tracker badges */
 .badge-tag {
-    color: var(--teal);
+    color: var(--tag-fg);
     border-color: var(--teal);
 }
 .badge-substeps {
@@ -665,7 +692,7 @@ section h2 {
     cursor: pointer;
     font-size: 0.7rem;
     padding: 0.1rem;
-    color: var(--overlay0);
+    color: var(--fg-muted);
     visibility: hidden;
 }
 .substep-item:hover .substep-promote,
@@ -676,7 +703,7 @@ section h2 {
     color: var(--accent);
 }
 .substep-remove:hover {
-    color: var(--red);
+    color: var(--danger-fg);
 }
 .substep-add-form {
     display: flex;
@@ -688,6 +715,13 @@ section h2 {
     font-size: 0.8rem;
     padding: 0.2rem 0.4rem;
 }
+button.badge {
+    background: none;
+    font-family: inherit;
+    line-height: inherit;
+    display: inline-flex;
+    align-items: center;
+}
 .badge-clickable {
     cursor: pointer;
     transition: background 0.1s, color 0.1s;
@@ -696,7 +730,7 @@ section h2 {
     filter: brightness(1.15);
 }
 .badge-tag.badge-clickable:hover {
-    background: var(--teal);
+    background: var(--tag-fg);
     color: var(--base);
 }
 /* Tracker filter bar */
@@ -729,13 +763,13 @@ section h2 {
 }
 .filter-tag.active {
     background: var(--accent);
-    color: var(--base);
+    color: var(--on-accent);
     border-color: var(--accent);
 }
 .filter-pri-high { border-color: var(--priority-high); color: var(--priority-high); }
 .filter-pri-high.active { background: var(--priority-high); color: var(--base); border-color: var(--priority-high); }
-.filter-pri-medium { border-color: var(--priority-medium); color: var(--priority-medium); }
-.filter-pri-medium.active { background: var(--priority-medium); color: var(--base); border-color: var(--priority-medium); }
+.filter-pri-medium { border-color: var(--priority-medium); color: var(--priority-medium-fg); }
+.filter-pri-medium.active { background: var(--priority-medium-fg); color: var(--base); border-color: var(--priority-medium); }
 .filter-pri-low { border-color: var(--priority-low); color: var(--priority-low); }
 .filter-pri-low.active { background: var(--priority-low); color: var(--base); border-color: var(--priority-low); }
 .filter-sep {
@@ -764,10 +798,7 @@ section h2 {
 .tracker-item-done {
     border-left-color: transparent;
     padding: 0.25rem 0.75rem;
-    opacity: 0.7;
-}
-.tracker-item-done:hover {
-    opacity: 1;
+    color: var(--fg-muted);
 }
 
 /* Goal add form */
@@ -863,7 +894,7 @@ section h2 {
 .image-caption {
     display: block;
     font-size: 0.7rem;
-    color: var(--subtext0);
+    color: var(--fg-dim);
     text-align: center;
     max-width: 80px;
     overflow: hidden;
@@ -886,7 +917,7 @@ section h2 {
     position: absolute;
     top: -4px;
     right: -4px;
-    background: var(--red);
+    background: var(--danger-fg);
     color: var(--base);
     border: none;
     border-radius: 50%;
@@ -916,7 +947,7 @@ section h2 {
 
 /* --- Form error / info (shared across login, admin) --- */
 .form-error {
-    color: var(--red);
+    color: var(--danger-fg);
     font-size: 0.85rem;
 }
 .form-info {
@@ -926,14 +957,14 @@ section h2 {
 }
 
 /* --- Required field indicator --- */
-.required-indicator { color: var(--red); margin-left: 0.25rem; }
+.required-indicator { color: var(--danger-fg); margin-left: 0.25rem; }
 .required-note { font-size: 0.75rem; color: var(--fg-dim); margin-bottom: 0.5rem; }
 
 /* --- Flash messages --- */
 .flash-msg {
     background: var(--bg-card);
     border: 1px solid var(--green);
-    color: var(--green);
+    color: var(--success-fg);
     padding: 0.5rem 1rem;
     border-radius: 4px;
     margin-bottom: 1rem;
@@ -941,7 +972,7 @@ section h2 {
 }
 .flash-msg-error {
     border-color: var(--red);
-    color: var(--red);
+    color: var(--danger-fg);
 }
 
 /* --- Animations --- */
@@ -1001,7 +1032,7 @@ section h2 {
     padding: 0.1rem 0.4rem;
     border-radius: 3px;
     background: var(--accent);
-    color: var(--base);
+    color: var(--on-accent);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1040,7 +1071,7 @@ section h2 {
     border: none;
 }
 .confirm-warning {
-    color: var(--red);
+    color: var(--danger-fg);
     font-size: 0.85rem;
     margin-bottom: 1rem;
 }
@@ -1054,12 +1085,12 @@ section h2 {
     font-size: 0.85rem;
 }
 .confirm-actions .confirm-btn-danger {
-    background: var(--red);
+    background: var(--danger-fg);
     color: var(--base);
     border-color: var(--red);
 }
 .confirm-actions .confirm-btn-danger:hover {
-    opacity: 0.9;
+    text-decoration: underline;
 }
 
 /* --- Reduced motion --- */
@@ -1153,10 +1184,10 @@ section h2 {
     align-items: center;
     flex-shrink: 0;
 }
-.badge-admin { color: var(--mauve); border-color: var(--mauve); }
+.badge-admin { color: var(--fg); border-color: var(--mauve); }
 .badge-user { color: var(--fg-dim); border-color: var(--surface1); }
 .action-delete:hover {
-    color: var(--red);
+    color: var(--danger-fg);
     border-color: var(--red);
 }
 
@@ -1217,19 +1248,11 @@ section h2 {
     color: var(--fg);
 }
 .status-legend-sep {
-    color: var(--surface2);
+    color: var(--fg-muted);
 }
 
 /* --- Mobile --- */
 @media (max-width: 768px) {
-    .homepage-grid {
-        grid-template-columns: 1fr;
-    }
-    .homepage-col-left,
-    .homepage-col-right {
-        grid-column: 1;
-    }
-
     .container {
         padding: 0.75rem 0.5rem;
     }
@@ -1375,6 +1398,13 @@ section h2 {
 .homepage-col-right {
     grid-column: 2;
 }
+/* Must follow the base rules above: an earlier max-width block with the
+   same selectors lost to them, so phones never got one column. */
+@media (max-width: 768px) {
+    .homepage-grid { grid-template-columns: minmax(0, 1fr); }
+    .homepage-col-left,
+    .homepage-col-right { grid-column: 1; }
+}
 
 /* --- Homepage cards --- */
 .homepage-card {
@@ -1427,7 +1457,7 @@ h2.homepage-card-title {
 .homepage-task[data-priority="high"] { border-left-color: var(--priority-high); }
 .homepage-task[data-priority="medium"] { border-left-color: var(--priority-medium); }
 .homepage-task[data-priority="low"] { border-left-color: var(--priority-low); }
-.homepage-task-overdue a { color: var(--red); }
+.homepage-task-overdue a { color: var(--danger-fg); }
 
 .homepage-goal {
     padding: 0.25rem 0;
@@ -1481,7 +1511,7 @@ h2.homepage-card-title {
     font-size: 0.7rem;
     padding: 0.1rem 0.4rem;
     border-radius: 3px;
-    background: var(--green);
+    background: var(--success-fg);
     color: var(--base);
     font-weight: 600;
     letter-spacing: 0.3px;
@@ -1520,10 +1550,10 @@ h2.homepage-card-title {
     letter-spacing: 0.3px;
     border: 1px solid;
 }
-.badge-age-fresh { color: var(--green); border-color: var(--green); }
-.badge-age-ageing { color: var(--yellow); border-color: var(--yellow); }
-.badge-age-stale { color: var(--peach); border-color: var(--peach); }
-.badge-age-old { color: var(--red); border-color: var(--red); }
+.badge-age-fresh { color: var(--success-fg); border-color: var(--green); }
+.badge-age-ageing { color: var(--warning-fg); border-color: var(--yellow); }
+.badge-age-stale { color: var(--attention-fg); border-color: var(--peach); }
+.badge-age-old { color: var(--danger-fg); border-color: var(--red); }
 
 /* --- Progress bar colour variants --- */
 .progress-fill-green { background: var(--green); }
@@ -1539,7 +1569,7 @@ h2.homepage-card-title {
 }
 
 /* --- Converted ideas section --- */
-.badge-converted { color: var(--green); border-color: var(--green); }
+.badge-converted { color: var(--success-fg); border-color: var(--green); }
 .converted-link {
     font-size: 0.8rem;
     color: var(--fg-dim);
@@ -1573,7 +1603,6 @@ h2.homepage-card-title {
     border-radius: 4px;
 }
 .search-input:focus-visible {
-    outline: none;
     border-color: var(--accent);
 }
 .search-results {
@@ -1629,6 +1658,7 @@ h2.homepage-card-title {
 }
 .search-hint kbd {
     background: var(--surface0);
+    color: var(--fg);
     border: 1px solid var(--border);
     border-radius: 3px;
     padding: 0.1rem 0.35rem;
@@ -1657,6 +1687,7 @@ h2.homepage-card-title {
 }
 .shortcut-row kbd {
     background: var(--surface0);
+    color: var(--fg);
     border: 1px solid var(--border);
     border-radius: 3px;
     padding: 0.15rem 0.5rem;
@@ -1757,7 +1788,6 @@ h2.homepage-card-title {
     padding: 1.5rem 0 0.75rem;
     font-size: 0.75rem;
     color: var(--fg-muted);
-    opacity: 0.6;
     font-family: monospace;
 }
 .mcp-status {
@@ -1765,10 +1795,10 @@ h2.homepage-card-title {
     color: var(--fg-muted);
 }
 .mcp-ok {
-    color: var(--green);
+    color: var(--success-fg);
 }
 .mcp-err {
-    color: var(--red);
+    color: var(--danger-fg);
 }
 
 .trash-banner {
@@ -1824,7 +1854,7 @@ h2.homepage-card-title {
 }
 .select-toggle-btn.active {
     background: var(--accent);
-    color: var(--base);
+    color: var(--on-accent);
     border-color: var(--accent);
 }
 .bulk-bar {
@@ -1921,7 +1951,7 @@ h2.homepage-card-title {
 .plan-done-state {
     text-align: center;
     padding: 1rem;
-    color: var(--green);
+    color: var(--success-fg);
     font-weight: bold;
     font-size: 1.1rem;
     animation: plan-done-appear 500ms ease-out;
@@ -1959,13 +1989,29 @@ h2.homepage-card-title {
     flex-wrap: wrap;
 }
 .plan-item:last-child { border-bottom: none; }
-.plan-item-done { opacity: 0.5; }
-.plan-item-done .plan-item-title { text-decoration: line-through; }
+.plan-item-done { color: var(--fg-muted); }
+.plan-item-done .plan-item-title { text-decoration: line-through; color: var(--fg-muted); }
 
-.plan-item[role="button"] { cursor: pointer; }
-.plan-item[role="button"]:hover { background: var(--row-hover); }
+.plan-item { cursor: pointer; }
+.plan-item:hover { background: var(--row-hover); }
 
+/* The toggle is a real button holding the chevron and title, styled as
+   plain text; the row click is only a mouse convenience. */
 .plan-item-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.plan-item-chevron {
     color: var(--fg-muted);
     font-size: 0.8rem;
     line-height: 1;
@@ -2045,7 +2091,7 @@ h2.homepage-card-title {
     padding: 0.15rem 0.35rem;
     border-radius: 3px;
 }
-.plan-remove-btn:hover { color: var(--red); background: var(--row-hover); }
+.plan-remove-btn:hover { color: var(--danger-fg); background: var(--row-hover); }
 
 /* Drag-and-drop reorder */
 .plan-item-dragging { opacity: 0.4; }
@@ -2057,7 +2103,6 @@ h2.homepage-card-title {
 .calendar-task[draggable="true"] { cursor: grab; }
 
 .plan-reorder-btn {
-    display: none;
     background: none;
     border: 1px solid var(--border);
     color: var(--fg-dim);
@@ -2067,9 +2112,8 @@ h2.homepage-card-title {
     border-radius: 3px;
     line-height: 1;
 }
-.plan-reorder-btn:hover { color: var(--teal); border-color: var(--teal); }
+.plan-reorder-btn:hover { color: var(--tag-fg); border-color: var(--teal); }
 @media (pointer: coarse) {
-    .plan-reorder-btn { display: inline-block; }
     .plan-item[draggable="true"] { cursor: default; }
 }
 
@@ -2132,7 +2176,7 @@ h2.homepage-card-title {
 
 /* Green complete button in plan section */
 .plan-section .item-complete-btn {
-    color: var(--green);
+    color: var(--success-fg);
     border-color: var(--green);
     width: auto;
     padding: 0.15rem 0.4rem;
@@ -2150,7 +2194,7 @@ h2.homepage-card-title {
     line-height: 1;
 }
 .item-plan-btn:hover {
-    color: var(--teal);
+    color: var(--tag-fg);
     border-color: var(--teal);
 }
 
@@ -2266,7 +2310,7 @@ h2.homepage-card-title {
 }
 .calendar-task-done {
     text-decoration: line-through;
-    opacity: 0.5;
+    color: var(--fg-muted);
 }
 .calendar-task[data-priority="high"] { border-left: 2px solid var(--priority-high); padding-left: 0.2rem; }
 .calendar-task[data-priority="medium"] { border-left: 2px solid var(--priority-medium); padding-left: 0.2rem; }
@@ -2283,7 +2327,7 @@ h2.homepage-card-title {
     height: 1.3rem;
     border-radius: 50%;
     background: var(--accent);
-    color: var(--base);
+    color: var(--on-accent);
     font-size: 0.7rem;
     font-weight: 700;
 }
@@ -2296,7 +2340,7 @@ h2.homepage-card-title {
     color: inherit;
 }
 .calendar-day-link:hover .calendar-count-badge {
-    opacity: 0.8;
+    text-decoration: underline;
 }
 
 @media (max-width: 768px) {
@@ -2410,7 +2454,7 @@ h2.homepage-card-title {
 .house-row-maint > td:first-child { border-left: 3px solid var(--teal); padding-left: calc(1.25rem - 3px); }
 .house-row-proj > td:first-child { border-left: 3px solid var(--lavender); padding-left: calc(1.25rem - 3px); }
 .house-row-overdue > td:first-child { border-left: 3px solid var(--red); padding-left: calc(1.25rem - 3px); }
-.house-row-done { opacity: 0.55; }
+.house-row-done { color: var(--fg-muted); }
 .house-table-done { margin-top: 0.5rem; }
 .house-cell-title {
     font-weight: 600;
@@ -2456,6 +2500,16 @@ h2.homepage-card-title {
 }
 .house-row { cursor: pointer; }
 .house-row-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-weight: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.house-row-chevron {
     display: inline-block;
     width: 1em;
     text-align: center;
@@ -2537,12 +2591,70 @@ h2.homepage-card-title {
     align-items: center;
     gap: 0.5rem;
     padding: 0.35rem 0;
-    opacity: 0.6;
+    color: var(--fg-muted);
 }
 .house-item-title { font-weight: 600; }
 .badge-status-due { background: var(--surface0); color: var(--text); }
-.badge-status-todo { background: var(--surface1); color: var(--text); }
-.badge-status-active { background: var(--accent); color: var(--base); }
-.badge-status-done { background: var(--green); color: var(--base); }
-.badge-status-drop { background: var(--red); opacity: 0.7; color: var(--base); }
-.badge-overdue { background: var(--red); color: var(--base); }
+.badge-status-todo { background: var(--surface0); color: var(--text); }
+.badge-status-active { background: var(--accent); color: var(--on-accent); }
+.badge-status-done { background: var(--success-fg); color: var(--base); }
+.badge-status-drop { background: var(--danger-fg); color: var(--base); }
+.badge-overdue { background: var(--danger-fg); color: var(--base); }
+
+/* --- Skip link, announcer toast, target size --- */
+.skip-link {
+    position: absolute;
+    left: 0.5rem;
+    top: -3rem;
+    z-index: 300;
+    padding: 0.5rem 0.75rem;
+    background: var(--accent);
+    color: var(--on-accent);
+    border-radius: 4px;
+}
+.skip-link:focus {
+    top: 0.5rem;
+}
+main:focus { outline: none; }
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 1.5rem;
+    transform: translateX(-50%);
+    z-index: 250;
+    max-width: calc(100vw - 2rem);
+    padding: 0.6rem 1rem;
+    background: var(--bg-card);
+    color: var(--fg);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.toast[hidden] { display: none; }
+
+/* Keep focused elements clear of the sticky nav and the select-mode bulk bar. */
+html {
+    scroll-padding-top: 4.5rem;
+    scroll-padding-bottom: 4.5rem;
+}
+
+/* WCAG 2.5.8: at least 24x24 CSS px everywhere, 44 on touch screens. */
+button, select, summary, .badge-clickable {
+    min-height: 24px;
+    min-width: 24px;
+}
+input[type="checkbox"] {
+    width: 24px;
+    height: 24px;
+}
+@media (pointer: coarse) {
+    button, select, summary, .badge-clickable, .form-input, .search-input {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    input[type="checkbox"] {
+        width: 44px;
+        height: 44px;
+    }
+}

@@ -1,25 +1,30 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="htmx-config" content='{"allowEval":false}'>
+    <meta name="color-scheme" content="light dark">
     <title>{{.Title}} - dash</title>
     <link rel="stylesheet" href="{{static "theme.css"}}">
-    <style>
-        :root, [data-theme="light"] { --accent: hsl({{seasonalAccent}}, 68%, 40%); }
-        [data-theme="dark"] { --accent: hsl({{seasonalAccent}}, 78%, 74%); }
-    </style>
+    {{with seasonalAccent}}{{if .Light}}<style>
+        :root, [data-theme="light"] { --accent: {{.Light}}; }
+        [data-theme="dark"] { --accent: {{.Dark}}; }
+    </style>{{end}}{{end}}
     <script>
         (function() {
             var t = localStorage.getItem('theme');
-            if (t) document.documentElement.setAttribute('data-theme', t);
+            if (t !== 'light' && t !== 'dark') {
+                t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', t);
         })();
     </script>
     <script defer src="{{static "htmx.min.js"}}"></script>
     <script defer src="{{static "htmx-sse.js"}}"></script>
 </head>
 <body>
+    <a class="skip-link" href="#main">Skip to content</a>
     <nav class="nav" aria-label="Main navigation">
         <a href="/" class="nav-brand">dash&gt;_</a>
         <div class="nav-links" id="nav-links">
@@ -37,8 +42,8 @@
             <button class="nav-hamburger" id="nav-hamburger" onclick="toggleNav()" title="Menu" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-links">&#9776;</button>
         </div>
     </nav>
-    <main class="container">
-        {{if .FlashMsg}}<div class="flash-msg{{if .FlashError}} flash-msg-error{{end}}" role="alert">{{.FlashMsg}}</div>{{end}}
+    <main id="main" class="container" tabindex="-1">
+        {{if .FlashMsg}}<div class="flash-msg{{if .FlashError}} flash-msg-error{{end}}" role="{{if .FlashError}}alert{{else}}status{{end}}">{{.FlashMsg}}</div>{{end}}
         {{template "content" .}}
     </main>
     <script>
@@ -145,7 +150,10 @@
             </div>
         </div>
     </div>
-    <footer class="build-info">build {{buildVersion}} <span class="mcp-status" id="mcp-status" role="status" aria-live="polite" aria-label="MCP: checking">[mcp]</span></footer>
+    <footer class="build-info">build {{buildVersion}} <span class="mcp-status" id="mcp-status" title="MCP: checking">[mcp]<span class="sr-only" id="mcp-status-text">: checking</span></span></footer>
+    <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
+    <div id="toast" class="toast" hidden><span class="toast-text"></span></div>
+    <script src="{{static "announce.js"}}"></script>
     <script src="{{static "dialog.js"}}"></script>
     <script src="{{static "tracker.js"}}"></script>
     <script src="{{static "upload.js"}}"></script>
@@ -166,7 +174,13 @@
     <script>
         (function() {
             var el = document.getElementById('mcp-status');
-            if (!el) return;
+            var text = document.getElementById('mcp-status-text');
+            if (!el || !text) return;
+            function show(cls, title, status) {
+                el.className = 'mcp-status ' + cls;
+                el.title = title;
+                text.textContent = ': ' + status;
+            }
             var lastCheck = 0;
             function check() {
                 var now = Date.now();
@@ -175,19 +189,13 @@
                 fetch('/mcp/health', { method: 'GET' })
                     .then(function(r) {
                         if (r.ok) {
-                            el.className = 'mcp-status mcp-ok';
-                            el.title = 'MCP: healthy';
-                            el.setAttribute('aria-label', 'MCP: healthy');
+                            show('mcp-ok', 'MCP: healthy', 'healthy');
                         } else {
-                            el.className = 'mcp-status mcp-err';
-                            el.title = 'MCP: error (' + r.status + ')';
-                            el.setAttribute('aria-label', 'MCP: error');
+                            show('mcp-err', 'MCP: error (' + r.status + ')', 'error');
                         }
                     })
                     .catch(function() {
-                        el.className = 'mcp-status mcp-err';
-                        el.title = 'MCP: unreachable';
-                        el.setAttribute('aria-label', 'MCP: unreachable');
+                        show('mcp-err', 'MCP: unreachable', 'unreachable');
                     });
             }
             check();

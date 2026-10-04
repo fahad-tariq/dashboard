@@ -14,7 +14,7 @@ test('add, complete, move to trash and restore a task', async ({ page }) => {
   await addTask(page, doneTitle, { tags: 'garden' });
 
   // Complete: the item leaves the open list and appears under Done.
-  await trackerItem(page, doneTitle).getByTitle('Complete').click();
+  await trackerItem(page, doneTitle).getByRole('button', { name: `Complete ${doneTitle}` }).click();
   await expect(trackerItem(page, doneTitle)).toHaveCount(0);
   await waitForSseSettle(page);
   const done = trackerSection(page, /^Done \(\d+\)/);
@@ -62,11 +62,13 @@ test('add, toggle and remove a sub-step', async ({ page }) => {
   await expect(step).not.toHaveClass(/substep-item-done/);
   await expect(item.locator('.badge-substeps')).toHaveText('0/1');
 
-  await step.getByTitle('Toggle').click();
+  await step.getByRole('button', { name: 'Mark step done: Pump the tyres' }).click();
   await expect(item.locator('.substep-item', { hasText: 'Pump the tyres' })).toHaveClass(/substep-item-done/);
   await expect(item.locator('.badge-substeps')).toHaveText('1/1');
 
-  await item.locator('.substep-item', { hasText: 'Pump the tyres' }).getByTitle('Remove').click();
+  const doneStep = item.locator('.substep-item', { hasText: 'Pump the tyres' });
+  await expect(doneStep.getByRole('button', { name: 'Mark step not done: Pump the tyres' })).toBeVisible();
+  await doneStep.getByRole('button', { name: 'Remove step: Pump the tyres' }).click();
   await expect(item.locator('.substep-item')).toHaveCount(0);
   await expect(item.locator('.badge-substeps')).toHaveCount(0);
 

@@ -85,14 +85,26 @@ function applyFilter() {
 // Persistent set of expanded item slugs -- survives SSE swaps.
 var trackerExpandedItems = {};
 
+// itemHeaderClick toggles a row when its header is clicked. The row's
+// .item-toggle button is the keyboard and screen reader control; clicks on
+// other controls in the header (badges, checkbox, forms, links) are theirs.
+function itemHeaderClick(e) {
+    var header = e.currentTarget;
+    var toggle = header.querySelector('.item-toggle');
+    if (!toggle) return;
+    if (e.target.closest('.item-toggle') || !e.target.closest('a, button, input, select, textarea, label, form')) {
+        toggleItem(toggle);
+    }
+}
+
 function toggleItem(btn) {
     if (!btn) return;
     var item = btn.closest('.tracker-item');
     item.classList.toggle('minimised');
     var minimised = item.classList.contains('minimised');
     btn.textContent = minimised ? '\u25B8' : '\u25BE';
-    var header = item.querySelector('.tracker-item-header');
-    if (header) header.setAttribute('aria-expanded', String(!minimised));
+    var toggle = item.querySelector('.item-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', String(!minimised));
     var slug = item.getAttribute('data-slug');
     if (slug) {
         if (minimised) {
@@ -135,8 +147,8 @@ function trackerToggleAll() {
         }
         var btn = el.querySelector('.item-toggle');
         if (btn) btn.textContent = shouldMinimise ? '\u25B8' : '\u25BE';
-        var header = el.querySelector('.tracker-item-header');
-        if (header) header.setAttribute('aria-expanded', String(!shouldMinimise));
+        var toggle = el.querySelector('.item-toggle');
+        if (toggle) toggle.setAttribute('aria-expanded', String(!shouldMinimise));
         var slug = el.getAttribute('data-slug');
         if (slug) {
             if (shouldMinimise) {
@@ -205,8 +217,8 @@ function triageAnimate(form) {
     el.classList.remove('minimised');
     var btn = el.querySelector('.item-toggle');
     if (btn) btn.textContent = '\u25BE';
-    var header = el.querySelector('.tracker-item-header');
-    if (header) header.setAttribute('aria-expanded', 'true');
+    var toggle = el.querySelector('.item-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', 'true');
     var slug = el.getAttribute('data-slug');
     if (slug) trackerExpandedItems[slug] = true;
     el.scrollIntoView({block: 'nearest'});
@@ -338,10 +350,30 @@ document.addEventListener('htmx:afterSettle', function() {
             el.classList.remove('minimised');
             var btn = el.querySelector('.item-toggle');
             if (btn) btn.textContent = '\u25BE';
-            var header = el.querySelector('.tracker-item-header');
-            if (header) header.setAttribute('aria-expanded', 'true');
+            var toggle = el.querySelector('.item-toggle');
+            if (toggle) toggle.setAttribute('aria-expanded', 'true');
         }
     });
+});
+
+// A refresh replaces the focused control with a fresh copy. Remember its id
+// (see the id scheme in the plan) so focus can move to the new copy instead
+// of falling back to <body>.
+var focusBeforeRefresh = null;
+
+function rememberFocus(target) {
+    var active = document.activeElement;
+    focusBeforeRefresh = active && active.id && target.contains(active) ? active.id : null;
+}
+
+document.addEventListener('htmx:afterSettle', function() {
+    if (!focusBeforeRefresh) return;
+    var id = focusBeforeRefresh;
+    focusBeforeRefresh = null;
+    var active = document.activeElement;
+    if (active && active !== document.body) return;
+    var el = document.getElementById(id);
+    if (el) el.focus();
 });
 
 function isSSERefresh(evt) {
@@ -369,13 +401,21 @@ document.addEventListener('htmx:beforeSwap', function(evt) {
     var target = evt.detail.target;
     if (!target) return;
 
-    // Suppress SSE swaps (targeting .tracker-page) while select mode, drag,
-    // plan detail, or any tracker item is expanded.
-    var isSSESwap = target.classList && target.classList.contains('tracker-page');
-    if (isSSESwap && (bulkSelectActive || window.planDragInProgress || window.planDetailExpanded || Object.keys(trackerExpandedItems).length > 0)) {
+    // Suppress SSE swaps of a list page while select mode, drag, plan
+    // detail, or any tracker item is expanded, and of the homepage while a
+    // plan item is expanded or dragged.
+    var cls = target.classList;
+    var isTrackerSwap = cls && cls.contains('tracker-page');
+    var isHomeSwap = cls && cls.contains('homepage-page');
+    if (isTrackerSwap && (bulkSelectActive || window.planDragInProgress || window.planDetailExpanded || Object.keys(trackerExpandedItems).length > 0)) {
         evt.detail.shouldSwap = false;
         return;
     }
+    if (isHomeSwap && (window.planDragInProgress || window.planDetailExpanded)) {
+        evt.detail.shouldSwap = false;
+        return;
+    }
+    if (isSSERefresh(evt)) rememberFocus(target);
 
     // On any SSE-refreshed page, never replace a form the user is filling in.
     if (isSSERefresh(evt) && userIsEditing(target)) {

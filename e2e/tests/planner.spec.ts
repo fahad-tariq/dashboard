@@ -1,5 +1,6 @@
 import {
   addTask,
+  expandPlanItem,
   expect,
   planFromPicker,
   planItem,
@@ -18,9 +19,9 @@ test('plan a task from the picker and complete it on the homepage', async ({ pag
   await expect(item).not.toHaveClass(/plan-item-done/);
   await expect(page.locator('.plan-progress-text')).toHaveText(/^\d+\/\d+ done$/);
 
-  await item.getByRole('button', { name: 'done' }).click();
+  await item.getByRole('button', { name: `done ${title}` }).click();
   await expect(planItem(page, title)).toHaveClass(/plan-item-done/);
-  await expect(planItem(page, title).getByRole('button', { name: 'done' })).toHaveCount(0);
+  await expect(planItem(page, title).getByRole('button', { name: `done ${title}` })).toHaveCount(0);
 
   // Completion is written through to the underlying task list.
   await page.goto('/todos');
@@ -44,67 +45,66 @@ test('expand and collapse a plan item planned from the todo list', async ({ page
   await expect(item.locator('.plan-item-body')).toBeHidden();
   await waitForSseSettle(page);
 
-  await item.locator('.plan-item-title').click();
-  await expect(item).not.toHaveClass(/\bminimised\b/);
-  await expect(item).toHaveAttribute('aria-expanded', 'true');
+  const toggle = item.getByRole('button', { name: title, exact: true });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expandPlanItem(item);
   await expect(item).toHaveAttribute('draggable', 'false');
+  const detail = page.locator(`[id="${await toggle.getAttribute('aria-controls')}"]`);
+  await expect(detail).toBeVisible();
   await expect(item.locator('.plan-item-body')).toHaveText('Ask about the hot water system');
   await expect(item.locator('.plan-item-tags .badge-tag')).toHaveText('house');
   const link = item.getByRole('link', { name: 'open in list' });
   await expect(link).toBeVisible();
   await expect(link).toHaveAttribute('href', /^\/todos#item-call-the-plumber-/);
 
-  await item.locator('.plan-item-title').click();
+  await toggle.click();
   await expect(item).toHaveClass(/\bminimised\b/);
-  await expect(item).toHaveAttribute('aria-expanded', 'false');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(item).toHaveAttribute('draggable', 'true');
 });
 
-test.describe('reorder buttons', () => {
-  // The up/down buttons are only shown under `@media (pointer: coarse)`.
-  // Chromium reports a coarse pointer when touch emulation is on.
-  test.use({ hasTouch: true });
+test('reorder plan items with the arrow buttons', async ({ page }) => {
+  const first = uniqueTitle('Reorder first');
+  const second = uniqueTitle('Reorder second');
+  await addTask(page, first);
+  await addTask(page, second);
+  await planFromPicker(page, first);
+  await planFromPicker(page, second);
 
-  test('reorder plan items with the arrow buttons', async ({ page }) => {
-    const first = uniqueTitle('Reorder first');
-    const second = uniqueTitle('Reorder second');
-    await addTask(page, first);
-    await addTask(page, second);
-    await planFromPicker(page, first);
-    await planFromPicker(page, second);
+  const personalTitles = () =>
+    page.locator('.plan-today-tasks .plan-item[data-list="todos"] .plan-item-title').allTextContents();
+  const moveUp = () => planItem(page, second).getByRole('button', { name: `Move ${second} up` });
+  const moveDown = () => planItem(page, second).getByRole('button', { name: `Move ${second} down` });
 
-    const personalTitles = () =>
-      page.locator('.plan-today-tasks .plan-item[data-list="todos"] .plan-item-title').allTextContents();
+  // The arrows are rendered on every pointer type, not only coarse ones.
+  await page.goto('/');
+  await waitForSseSettle(page);
+  await expect(moveUp()).toBeVisible();
 
-    await page.goto('/');
-    expect(await page.evaluate(() => window.matchMedia('(pointer: coarse)').matches)).toBe(true);
-    await waitForSseSettle(page);
-    const moveUp = planItem(page, second).getByTitle('Move up');
-    await expect(moveUp).toBeVisible();
-
-    // Bubble `second` to the top of the personal list, one POST per click.
-    for (let i = 0; i < 20; i++) {
-      const titles = await personalTitles();
-      if (titles[0] === second) break;
-      await Promise.all([
-        page.waitForResponse((r) => new URL(r.url()).pathname === '/plan/reorder' && r.ok()),
-        planItem(page, second).getByTitle('Move up').click(),
-      ]);
-      await waitForSseSettle(page);
-    }
-
-    // Order is persisted via [plan-order: N], so it survives a reload.
-    await page.reload();
-    expect((await personalTitles())[0]).toBe(second);
-
+  // Bubble `second` to the top of the personal list, one POST per click.
+  for (let i = 0; i < 20; i++) {
+    const titles = await personalTitles();
+    if (titles[0] === second) break;
     await Promise.all([
       page.waitForResponse((r) => new URL(r.url()).pathname === '/plan/reorder' && r.ok()),
-      planItem(page, second).getByTitle('Move down').click(),
+      moveUp().click(),
     ]);
+    await expect(page.locator('#announcer')).toContainText(`Moved ${second} to position`);
     await waitForSseSettle(page);
-    await page.reload();
-    const titles = await personalTitles();
-    expect(titles[1]).toBe(second);
-    expect(titles[0]).not.toBe(second);
-  });
+  }
+
+  // Order is persisted via [plan-order: N], so it survives a reload.
+  await page.reload();
+  expect((await personalTitles())[0]).toBe(second);
+
+  await Promise.all([
+    page.waitForResponse((r) => new URL(r.url()).pathname === '/plan/reorder' && r.ok()),
+    moveDown().click(),
+  ]);
+  await expect(page.locator('#announcer')).toContainText(`Moved ${second} to position 2 of`);
+  await waitForSseSettle(page);
+  await page.reload();
+  const titles = await personalTitles();
+  expect(titles[1]).toBe(second);
+  expect(titles[0]).not.toBe(second);
 });

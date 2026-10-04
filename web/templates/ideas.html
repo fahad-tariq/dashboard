@@ -1,8 +1,8 @@
 {{define "idea-card"}}
 <div class="tracker-item minimised" id="idea-{{.Slug}}" data-slug="{{.Slug}}" data-tags="{{range .Tags}}{{.}} {{end}}">
-    <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
+    <div class="tracker-item-header" onclick="itemHeaderClick(event)">
         <input type="checkbox" class="bulk-checkbox" onclick="event.stopPropagation();bulkCheckboxChanged()" aria-label="Select {{.Title}}">
-        <button class="item-toggle" onclick="event.stopPropagation()" title="Expand/collapse">&#x25B8;</button>
+        <button type="button" class="item-toggle" id="idea-{{.Slug}}-toggle" aria-expanded="false" aria-controls="idea-{{.Slug}}-detail" aria-label="{{.Title}}" title="Expand/collapse">&#x25B8;</button>
         <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
         <div class="tracker-item-meta">
             {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
@@ -10,7 +10,7 @@
             {{if .Added}}{{$age := ageBadge .Added}}{{if index $age 0}}<span class="badge badge-age badge-age-{{index $age 1}}">{{index $age 0}}</span>{{end}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
         </div>
     </div>
-    <div class="tracker-item-detail">
+    <div class="tracker-item-detail" id="idea-{{.Slug}}-detail">
         <div>
             {{if .Body}}
             <div class="tracker-item-body">{{.Body}}</div>
@@ -71,7 +71,7 @@
      hx-ext="sse" sse-connect="/events"
      hx-get="/ideas" hx-select=".ideas-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
-<span class="htmx-indicator" role="status" aria-live="polite">updating&hellip;</span>
+<span class="htmx-indicator" aria-hidden="true">updating&hellip;</span>
 
 <h1>Ideas</h1>
 {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
@@ -150,8 +150,8 @@
     <summary class="tracker-done-summary">Converted ({{len .Converted}})</summary>
     {{range .Converted}}
     <div class="tracker-item tracker-item-done minimised" id="idea-{{.Slug}}">
-        <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
-            <button class="item-toggle" onclick="event.stopPropagation()" title="Expand/collapse">&#x25B8;</button>
+        <div class="tracker-item-header" onclick="itemHeaderClick(event)">
+            <button type="button" class="item-toggle" id="idea-{{.Slug}}-toggle" aria-expanded="false" aria-controls="idea-{{.Slug}}-detail" aria-label="{{.Title}}" title="Expand/collapse">&#x25B8;</button>
             <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
             <div class="tracker-item-meta">
                 <span class="badge badge-converted">converted</span>
@@ -159,7 +159,7 @@
                 {{if .Added}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
             </div>
         </div>
-        <div class="tracker-item-detail">
+        <div class="tracker-item-detail" id="idea-{{.Slug}}-detail">
             <div>
                 {{if .Body}}
                 <div class="tracker-item-body">{{.Body}}</div>
@@ -176,8 +176,8 @@
     <summary class="tracker-done-summary">Recently Deleted ({{len .DeletedIdeas}})</summary>
     {{range .DeletedIdeas}}
     <div class="tracker-item tracker-item-done minimised" id="idea-{{.Slug}}">
-        <div class="tracker-item-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleItem(this.querySelector('.item-toggle'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleItem(this.querySelector('.item-toggle'))}">
-            <button class="item-toggle" onclick="event.stopPropagation()" title="Expand/collapse">&#x25B8;</button>
+        <div class="tracker-item-header" onclick="itemHeaderClick(event)">
+            <button type="button" class="item-toggle" id="idea-{{.Slug}}-toggle" aria-expanded="false" aria-controls="idea-{{.Slug}}-detail" aria-label="{{.Title}}" title="Expand/collapse">&#x25B8;</button>
             <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
             <div class="tracker-item-meta">
                 {{if .DeletedAt}}<span class="tracker-item-date">deleted {{.DeletedAt}}</span>{{end}}
@@ -189,7 +189,7 @@
                 </form>
             </div>
         </div>
-        <div class="tracker-item-detail">
+        <div class="tracker-item-detail" id="idea-{{.Slug}}-detail">
             <div>
                 {{if .Body}}
                 <div class="tracker-item-body">{{.Body}}</div>

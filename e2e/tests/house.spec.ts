@@ -25,8 +25,10 @@ test('add a maintenance item and log a completion', async ({ page }) => {
   await expect(loggedRow.locator('.badge-status-due')).toBeVisible();
 
   await waitForSseSettle(page);
-  await loggedRow.click();
-  await expect(loggedRow).toHaveAttribute('aria-expanded', 'true');
+  const toggle = loggedRow.locator('button.house-row-toggle');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   const detail = loggedRow.locator('xpath=following-sibling::tr[1]');
   await expect(detail).not.toHaveClass(/house-detail-hidden/);
   await expect(detail).toContainText('every 2w');
@@ -39,7 +41,9 @@ test('seeded maintenance item shows its log and cadence', async ({ page }) => {
   await page.goto('/house');
   const row = page.locator('tr.house-row-maint', { hasText: 'Clean gutters' });
   await expect(row).toBeVisible();
-  await row.click();
+  // A click anywhere on the row still toggles it, as a mouse convenience.
+  await row.locator('td').nth(1).click();
+  await expect(row.locator('button.house-row-toggle')).toHaveAttribute('aria-expanded', 'true');
   const detail = row.locator('xpath=following-sibling::tr[1]');
   await expect(detail).toContainText('every 6m');
   await expect(detail).toContainText('1 entry');

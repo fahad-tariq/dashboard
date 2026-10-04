@@ -1,19 +1,24 @@
 /* planner.js -- client-side picker filter + drag-and-drop (ES5 compatible) */
 /* All DnD events are delegated from document so they survive SSE outerHTML swaps. */
 
-/* global window, document, fetch, htmx */
+/* global window, document, fetch, htmx, announce */
 
 window.planDragInProgress = false;
 window.planDetailExpanded = false;
 
+// planItemClick toggles a plan row. The row's toggle button is the
+// keyboard and screen reader control; a click anywhere else on the row (but
+// not on another control) toggles too, as a mouse convenience.
 function planItemClick(e) {
     var item = e.currentTarget;
     if (!item || !item.classList.contains('plan-item')) return;
+    if (!e.target.closest('.plan-item-toggle') && e.target.closest('a, button, input, select, textarea, label, form')) return;
     var wasMinimised = item.classList.contains('minimised');
     item.classList.toggle('minimised');
-    var chevron = item.querySelector('.plan-item-toggle');
+    var chevron = item.querySelector('.plan-item-chevron');
     if (chevron) chevron.innerHTML = wasMinimised ? '\u25BE' : '\u25B8';
-    item.setAttribute('aria-expanded', String(wasMinimised));
+    var toggle = item.querySelector('.plan-item-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', String(wasMinimised));
     // Disable drag on expanded item to prevent accidental drag.
     if (wasMinimised) {
         item.setAttribute('draggable', 'false');
@@ -207,30 +212,42 @@ document.addEventListener('dragleave', function(e) {
     if (cell) cell.classList.remove('calendar-cell-drop-target');
 });
 
-// --- Mobile fallback: up/down arrow buttons ---
+// --- Reorder buttons (keyboard, touch and screen reader alternative to drag) ---
 
-function planMoveUp(btn) {
-    var item = btn.closest('.plan-item');
-    if (!item) return;
-    var prev = item.previousElementSibling;
-    while (prev && !prev.classList.contains('plan-item')) {
-        prev = prev.previousElementSibling;
+function siblingPlanItem(item, step) {
+    var el = step < 0 ? item.previousElementSibling : item.nextElementSibling;
+    while (el && !el.classList.contains('plan-item')) {
+        el = step < 0 ? el.previousElementSibling : el.nextElementSibling;
     }
-    if (!prev) return;
-    if (prev.getAttribute('data-list') !== item.getAttribute('data-list')) return;
-    item.parentNode.insertBefore(item, prev);
-    postReorder(item.getAttribute('data-list'));
+    if (!el || el.getAttribute('data-list') !== item.getAttribute('data-list')) return null;
+    return el;
 }
 
-function planMoveDown(btn) {
+// announceMove reports the item's new position within its list. Moving a
+// focused element through the DOM drops focus, so it is restored to btn.
+function announceMove(item, btn) {
+    btn.focus();
+    var list = item.getAttribute('data-list');
+    var items = document.querySelectorAll('.plan-today-tasks .plan-item[data-list="' + list + '"]');
+    var pos = Array.prototype.indexOf.call(items, item) + 1;
+    var title = item.querySelector('.plan-item-title');
+    announce('Moved ' + (title ? title.textContent : 'task') + ' to position ' + pos + ' of ' + items.length);
+}
+
+function planMove(btn, step) {
     var item = btn.closest('.plan-item');
     if (!item) return;
-    var next = item.nextElementSibling;
-    while (next && !next.classList.contains('plan-item')) {
-        next = next.nextElementSibling;
+    var other = siblingPlanItem(item, step);
+    if (!other) {
+        var title = item.querySelector('.plan-item-title');
+        announce((title ? title.textContent : 'Task') + ' is already ' + (step < 0 ? 'first' : 'last'));
+        return;
     }
-    if (!next) return;
-    if (next.getAttribute('data-list') !== item.getAttribute('data-list')) return;
-    item.parentNode.insertBefore(item, next.nextSibling);
+    item.parentNode.insertBefore(item, step < 0 ? other : other.nextSibling);
     postReorder(item.getAttribute('data-list'));
+    announceMove(item, btn);
 }
+
+function planMoveUp(btn) { planMove(btn, -1); }
+
+function planMoveDown(btn) { planMove(btn, 1); }

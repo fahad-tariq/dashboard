@@ -83,7 +83,7 @@ func (h *Handler) SearchAPI(w http.ResponseWriter, r *http.Request) {
 			Title:    it.Title,
 			Slug:     it.Slug,
 			Category: "house",
-			URL:      "/house#" + it.Slug,
+			URL:      "/house#item-" + it.Slug,
 			Snippet:  snippet(it.Body, query),
 		})
 	}
@@ -95,7 +95,7 @@ func (h *Handler) SearchAPI(w http.ResponseWriter, r *http.Request) {
 				Title:    it.Title,
 				Slug:     it.Slug,
 				Category: "house",
-				URL:      "/house#" + it.Slug,
+				URL:      "/house#maint-" + it.Slug,
 			})
 		}
 	}

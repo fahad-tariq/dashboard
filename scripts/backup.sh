@@ -74,7 +74,7 @@ PY
         rm -f "$archive"
         die "tar failed with status $rc"
     fi
-    log "created $archive ($(du -h "$archive" | cut -f1))"
+    log "created $archive ($(wc -c < "$archive" | tr -d " ") bytes)"
 
     find "$BACKUP_DIR" -maxdepth 1 -name 'dashboard-backup-*.tar.gz' -mtime "+$RETENTION_DAYS" -print -delete |
         while read -r old; do log "pruned $old"; done
