@@ -1,0 +1,16 @@
+{
+  "name": "dashboard-e2e",
+  "private": true,
+  "description": "Playwright smoke suite for the dashboard. Run via e2e/run.sh.",
+  "scripts": {
+    "test": "bash run.sh"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "@playwright/test": "1.63.0",
+    "@types/node": "^24.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
