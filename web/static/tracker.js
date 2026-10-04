@@ -314,7 +314,7 @@ function confirmBulkDelete(form) {
     return confirmAction(form, 'Delete ' + slugs.length + ' items? This cannot be undone.');
 }
 
-// Re-apply filter, badge, and expand state after HTMX SSE swap.
+// Re-apply filter, badge, and select state after HTMX SSE swap.
 document.addEventListener('htmx:afterSwap', function() {
     if (activeFilterType) {
         applyFilter();
@@ -324,7 +324,14 @@ document.addEventListener('htmx:afterSwap', function() {
     if (bulkSelectActive) {
         exitSelectMode();
     }
-    // Re-expand items from the persistent tracker.
+    // Reset plan detail flag after swap (expanded state is ephemeral).
+    window.planDetailExpanded = false;
+});
+
+// Re-expand items from the persistent tracker. This must run after settle:
+// htmx re-applies the swapped-in element's class attribute ("minimised")
+// during the settle step, which would undo an expansion done in afterSwap.
+document.addEventListener('htmx:afterSettle', function() {
     Object.keys(trackerExpandedItems).forEach(function(slug) {
         var el = document.getElementById('item-' + slug);
         if (el && el.classList.contains('minimised')) {
@@ -335,8 +342,6 @@ document.addEventListener('htmx:afterSwap', function() {
             if (header) header.setAttribute('aria-expanded', 'true');
         }
     });
-    // Reset plan detail flag after swap (expanded state is ephemeral).
-    window.planDetailExpanded = false;
 });
 
 // Delay SSE swap when a completion celebration is in progress so the
