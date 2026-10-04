@@ -165,3 +165,21 @@ func TestThemeRuleTextContrast(t *testing.T) {
 		t.Fatalf("checked only %d colour pairs; is the CSS parser still matching rules?", checked)
 	}
 }
+
+// TestThemeNoOpacityDimming keeps text dimming on colour tokens. Opacity
+// blends text into its background, so a token that passes contrast on its
+// own fails once dimmed.
+func TestThemeNoOpacityDimming(t *testing.T) {
+	allowed := map[string]bool{
+		".plan-item-dragging": true, // drag ghost, not read
+		"0%, 100%":            true, // loading pulse keyframe
+	}
+	opacityRe := regexp.MustCompile(`(?:^|[;\s])opacity\s*:\s*(0?\.\d+)`)
+	css := cssCommentRe.ReplaceAllString(loadThemeCSS(t), "")
+	for _, m := range cssRuleRe.FindAllStringSubmatch(css, -1) {
+		selector := strings.Join(strings.Fields(m[1]), " ")
+		if om := opacityRe.FindStringSubmatch(m[2]); om != nil && !allowed[selector] {
+			t.Errorf("%s: opacity %s dims text; use --fg-muted or --fg-dim instead", selector, om[1])
+		}
+	}
+}

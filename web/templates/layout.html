@@ -6,10 +6,10 @@
     <meta name="htmx-config" content='{"allowEval":false}'>
     <title>{{.Title}} - dash</title>
     <link rel="stylesheet" href="{{static "theme.css"}}">
-    <style>
-        :root, [data-theme="light"] { --accent: hsl({{seasonalAccent}}, 68%, 40%); }
-        [data-theme="dark"] { --accent: hsl({{seasonalAccent}}, 78%, 74%); }
-    </style>
+    {{with seasonalAccent}}{{if .Light}}<style>
+        :root, [data-theme="light"] { --accent: {{.Light}}; }
+        [data-theme="dark"] { --accent: {{.Dark}}; }
+    </style>{{end}}{{end}}
     <script>
         (function() {
             var t = localStorage.getItem('theme');
