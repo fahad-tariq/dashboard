@@ -150,6 +150,9 @@ func TestPagesHaveNoRoleButtonAndUniqueIDs(t *testing.T) {
 		if strings.Contains(body, `role="button"`) {
 			t.Errorf("%s: uses role=\"button\"; use a <button>", path)
 		}
+		if regexp.MustCompile(`class="htmx-indicator[^"]*"[^>]*aria-live`).MatchString(body) {
+			t.Errorf("%s: the refresh indicator is a live region; #announcer is the only one", path)
+		}
 		seen := map[string]bool{}
 		for _, m := range idRe.FindAllStringSubmatch(body, -1) {
 			if seen[m[1]] {
