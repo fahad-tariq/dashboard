@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -99,6 +100,16 @@ func TestBackupScriptCapturesEverything(t *testing.T) {
 	if err != nil || len(archives) != 1 {
 		t.Fatalf("want one archive, got %v (%v)\n%s", archives, err, out)
 	}
+	// The logged size must be the file's byte count: du reports allocated
+	// blocks, which delayed allocation leaves near zero right after a write.
+	info, err := os.Stat(archives[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := fmt.Sprintf("(%d bytes)", info.Size()); !strings.Contains(string(out), want) {
+		t.Errorf("log does not report %s:\n%s", want, out)
+	}
+
 	files := readTarGz(t, archives[0])
 	var names []string
 	for n := range files {
