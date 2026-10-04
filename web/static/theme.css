@@ -240,6 +240,11 @@ h1 {
     color: var(--fg-dim);
     margin-bottom: 1rem;
 }
+/* Links inside running text are underlined, not told apart by colour alone. */
+.breadcrumb a,
+.converted-link a {
+    text-decoration: underline;
+}
 
 /* --- Markdown body --- */
 .markdown-body {
@@ -262,6 +267,7 @@ h1 {
 }
 .markdown-body code {
     background: var(--surface0);
+    color: var(--fg);
     padding: 0.1rem 0.3rem;
     border-radius: 2px;
     font-size: 0.9em;
@@ -1247,14 +1253,6 @@ button.badge {
 
 /* --- Mobile --- */
 @media (max-width: 768px) {
-    .homepage-grid {
-        grid-template-columns: 1fr;
-    }
-    .homepage-col-left,
-    .homepage-col-right {
-        grid-column: 1;
-    }
-
     .container {
         padding: 0.75rem 0.5rem;
     }
@@ -1399,6 +1397,13 @@ button.badge {
 }
 .homepage-col-right {
     grid-column: 2;
+}
+/* Must follow the base rules above: an earlier max-width block with the
+   same selectors lost to them, so phones never got one column. */
+@media (max-width: 768px) {
+    .homepage-grid { grid-template-columns: minmax(0, 1fr); }
+    .homepage-col-left,
+    .homepage-col-right { grid-column: 1; }
 }
 
 /* --- Homepage cards --- */
@@ -1653,6 +1658,7 @@ h2.homepage-card-title {
 }
 .search-hint kbd {
     background: var(--surface0);
+    color: var(--fg);
     border: 1px solid var(--border);
     border-radius: 3px;
     padding: 0.1rem 0.35rem;
@@ -1681,6 +1687,7 @@ h2.homepage-card-title {
 }
 .shortcut-row kbd {
     background: var(--surface0);
+    color: var(--fg);
     border: 1px solid var(--border);
     border-radius: 3px;
     padding: 0.15rem 0.5rem;
