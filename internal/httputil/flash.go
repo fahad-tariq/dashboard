@@ -14,7 +14,7 @@ func RotatingFlash(key string, variants []string, now time.Time) string {
 		return ""
 	}
 	h := fnv.New32a()
-	h.Write([]byte(key))
+	_, _ = h.Write([]byte(key)) // hash.Hash.Write never returns an error
 	idx := (now.YearDay() + int(h.Sum32())) % len(variants)
 	if idx < 0 {
 		idx += len(variants)

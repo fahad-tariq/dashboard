@@ -13,12 +13,12 @@ import (
 
 // runMigrateData handles the "migrate-data" CLI subcommand.
 // Converts old directory-based ideas and explorations into a single ideas.md flat file.
-func runMigrateData() {
+func runMigrateData() { //nolint:gocyclo // one-off migration command, linear steps
 	fs := flag.NewFlagSet("migrate-data", flag.ExitOnError)
 	userID := fs.Int("user-id", 0, "target user ID")
 	oldIdeasDir := fs.String("ideas-dir", "", "old ideas directory (with untriaged/parked/dropped subdirs)")
 	oldExpDir := fs.String("explorations-dir", "", "old explorations directory")
-	fs.Parse(os.Args[2:])
+	_ = fs.Parse(os.Args[2:]) // ExitOnError: Parse exits on failure
 
 	if *userID <= 0 {
 		fmt.Fprintln(os.Stderr, "usage: dashboard migrate-data --user-id <N> [--ideas-dir <path>] [--explorations-dir <path>]")
@@ -237,7 +237,7 @@ func migrateFile(src, dst string) {
 		fmt.Printf("  error reading %s: %v\n", src, err)
 		return
 	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
+	if err := os.WriteFile(dst, data, 0o644); err != nil { //nolint:gosec // G703: operator-run CLI; paths come from its own flags
 		fmt.Printf("  error writing %s: %v\n", dst, err)
 		return
 	}

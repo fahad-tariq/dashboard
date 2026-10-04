@@ -3,6 +3,7 @@ package house
 import (
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,17 +18,17 @@ import (
 )
 
 var flashMessages = map[string]string{
-	"title-required":     "A title is required.",
-	"cadence-required":   "A cadence is required (e.g. 2w, 3m).",
-	"cadence-invalid":    "Invalid cadence format.",
-	"item-edited":        "Changes saved.",
-	"item-deleted":       "Item moved to trash.",
-	"item-restored":      "Item restored from trash.",
-	"item-purged":        "Item permanently deleted.",
-	"status-updated":     "Status updated.",
-	"maintenance-added":  "Added.",
-	"project-added":      "Added.",
-	"completion-logged":  "Logged.",
+	"title-required":    "A title is required.",
+	"cadence-required":  "A cadence is required (e.g. 2w, 3m).",
+	"cadence-invalid":   "Invalid cadence format.",
+	"item-edited":       "Changes saved.",
+	"item-deleted":      "Item moved to trash.",
+	"item-restored":     "Item restored from trash.",
+	"item-purged":       "Item permanently deleted.",
+	"status-updated":    "Status updated.",
+	"maintenance-added": "Added.",
+	"project-added":     "Added.",
+	"completion-logged": "Logged.",
 }
 
 var flashErrorKeys = map[string]bool{
@@ -129,7 +130,9 @@ func (h *Handler) HousePage(w http.ResponseWriter, r *http.Request) {
 		data["FlashError"] = flashErrorKeys[msg]
 	}
 
-	h.templates["house.html"].ExecuteTemplate(w, "layout.html", data)
+	if err := h.templates["house.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
+		slog.Error("rendering house page", "error", err)
+	}
 }
 
 // --- Maintenance handlers ---
@@ -193,7 +196,7 @@ func (h *Handler) LogDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/house?msg=completion-logged#"+slug, http.StatusSeeOther)
+	http.Redirect(w, r, "/house?msg=completion-logged#"+slug, http.StatusSeeOther) //nolint:gosec // G710: fixed local path; slug only lands in the fragment
 }
 
 // EditMaintenance handles POST /house/maintenance/{slug}/edit.

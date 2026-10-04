@@ -91,13 +91,13 @@ func isStreakMilestone(days int) bool {
 }
 
 var defaultPlanPrompts = []string{
-	"Anything for today?",        // Sunday
-	"What needs doing?",          // Monday
-	"What matters today?",        // Tuesday
-	"Three things?",              // Wednesday
+	"Anything for today?",         // Sunday
+	"What needs doing?",           // Monday
+	"What matters today?",         // Tuesday
+	"Three things?",               // Wednesday
 	"What would make today good?", // Thursday
-	"Last stretch of the week",   // Friday
-	"Anything for today?",        // Saturday
+	"Last stretch of the week",    // Friday
+	"Anything for today?",         // Saturday
 }
 
 // PlanPrompt returns a context-aware prompt for the empty plan state.
@@ -116,7 +116,7 @@ func PlanPrompt(now time.Time, openTaskCount int, streakDays int) string {
 	}
 }
 
-func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc, houseProjectsSvc *tracker.Service, maintenanceSvc *house.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) {
+func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc, houseProjectsSvc *tracker.Service, maintenanceSvc *house.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) { //nolint:gocyclo // reduced in Phase 5
 	personalItems, err := personalSvc.List()
 	if err != nil {
 		slog.Error("homepage personal list", "error", err)

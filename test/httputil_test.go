@@ -147,7 +147,9 @@ func TestReconstructImages(t *testing.T) {
 	form := strings.NewReader("images=abc.png%2Cdef.jpg&caption-0=First+caption&caption-1=Second+caption")
 	r, _ := http.NewRequest("POST", "/", form)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	r.ParseForm()
+	if err := r.ParseForm(); err != nil {
+		t.Fatal(err)
+	}
 
 	got := httputil.ReconstructImages(r)
 	if len(got) != 2 {
@@ -165,7 +167,9 @@ func TestReconstructImagesNoCaptions(t *testing.T) {
 	form := strings.NewReader("images=abc.png%2Cdef.jpg")
 	r, _ := http.NewRequest("POST", "/", form)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	r.ParseForm()
+	if err := r.ParseForm(); err != nil {
+		t.Fatal(err)
+	}
 
 	got := httputil.ReconstructImages(r)
 	if len(got) != 2 {
@@ -183,7 +187,9 @@ func TestReconstructImagesPipesStrippedFromImagesField(t *testing.T) {
 	form := strings.NewReader("images=abc.png%7Cinjected")
 	r, _ := http.NewRequest("POST", "/", form)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	r.ParseForm()
+	if err := r.ParseForm(); err != nil {
+		t.Fatal(err)
+	}
 
 	got := httputil.ReconstructImages(r)
 	if len(got) != 1 {

@@ -1,9 +1,11 @@
 package test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"html/template"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -21,10 +23,10 @@ import (
 )
 
 type ideasTestEnv struct {
-	handler    *ideas.Handler
-	ideasSvc   *ideas.Service
+	handler     *ideas.Handler
+	ideasSvc    *ideas.Service
 	personalSvc *tracker.Service
-	router     *chi.Mux
+	router      *chi.Mux
 }
 
 func setupIdeasEnv(t *testing.T) *ideasTestEnv {
@@ -32,8 +34,12 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 	dir := t.TempDir()
 	ideasPath := filepath.Join(dir, "ideas.md")
 	personalPath := filepath.Join(dir, "personal.md")
-	os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644)
-	os.WriteFile(personalPath, []byte("# Personal\n\n"), 0o644)
+	if err := os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	database, err := db.Open(filepath.Join(dir, "test.db"))
 	if err != nil {
@@ -234,6 +240,37 @@ func TestIdeasTriageAction(t *testing.T) {
 	}
 
 	// Verify status changed.
+	idea, err := env.ideasSvc.Get(slug)
+	if err != nil {
+		t.Fatalf("idea not found: %v", err)
+	}
+	if idea.Status != "parked" {
+		t.Errorf("expected status 'parked', got %q", idea.Status)
+	}
+}
+
+// triageAnimate in tracker.js posts `new FormData(form)`, which browsers send
+// as multipart/form-data, not urlencoded.
+func TestIdeasTriageActionMultipart(t *testing.T) {
+	env := setupIdeasEnv(t)
+	slug := addTestIdea(t, env.ideasSvc, "Triage via fetch")
+
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	if err := mw.WriteField("action", "park"); err != nil {
+		t.Fatal(err)
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest("POST", "/ideas/"+slug+"/triage", &body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	rr := httptest.NewRecorder()
+	env.router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Errorf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
+	}
 	idea, err := env.ideasSvc.Get(slug)
 	if err != nil {
 		t.Fatalf("idea not found: %v", err)

@@ -5,7 +5,6 @@ import (
 
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
-	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/extension"
 )
 
@@ -16,9 +15,6 @@ func init() {
 	md = goldmark.New(
 		goldmark.WithExtensions(
 			extension.GFM,
-			highlighting.NewHighlighting(
-				highlighting.WithStyle("monokai"),
-			),
 		),
 	)
 	sanitiser = bluemonday.UGCPolicy()

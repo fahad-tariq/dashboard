@@ -16,7 +16,7 @@ import (
 type MaintenanceItem struct {
 	Slug      string
 	Title     string
-	Cadence   string   // raw cadence string: "3m", "2w", "90d", "1y"
+	Cadence   string // raw cadence string: "3m", "2w", "90d", "1y"
 	Tags      []string
 	Images    []string
 	Added     string // YYYY-MM-DD
@@ -44,7 +44,7 @@ var (
 // ParseMaintenance reads a maintenance.md file and returns all items.
 // Log entries are stored in file order -- the writer outputs newest first,
 // and NextDue relies on Log[0] being the most recent completion.
-func ParseMaintenance(path string) ([]MaintenanceItem, error) {
+func ParseMaintenance(path string) ([]MaintenanceItem, error) { //nolint:gocyclo // line-oriented parser, flat
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

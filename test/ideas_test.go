@@ -23,7 +23,9 @@ func TestParseIdeas_Basic(t *testing.T) {
 - [ ] Dashboard mobile PWA [status: untriaged] [tags: dashboard] [added: 2026-03-16] [images: pwa-sketch.png]
   Add a manifest.json and service worker.
 `
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	parsed, err := ideas.ParseIdeas(path)
 	if err != nil {
@@ -65,7 +67,9 @@ func TestParseIdeas_Basic(t *testing.T) {
 func TestParseIdeas_EmptyFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	parsed, err := ideas.ParseIdeas(path)
 	if err != nil {
@@ -90,7 +94,9 @@ func TestParseIdeas_DefaultStatus(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
 	content := "# Ideas\n\n- [ ] No status idea [added: 2026-03-16]\n"
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	parsed, err := ideas.ParseIdeas(path)
 	if err != nil {
@@ -196,16 +202,18 @@ func TestRoundTrip_MultipleIdeas(t *testing.T) {
 func TestServiceCRUD(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
 
 	// Add.
 	idea := &ideas.Idea{
-		Slug:   "my-idea",
-		Title:  "My Idea",
-		Tags:   []string{"test"},
-		Body:   "Some content.",
+		Slug:  "my-idea",
+		Title: "My Idea",
+		Tags:  []string{"test"},
+		Body:  "Some content.",
 	}
 	if err := svc.Add(idea); err != nil {
 		t.Fatalf("add: %v", err)
@@ -286,14 +294,18 @@ func TestServiceCRUD(t *testing.T) {
 func TestServiceTriage(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{
+	if err := svc.Add(&ideas.Idea{
 		Slug:  "park-me",
 		Title: "Park Me",
 		Body:  "To be parked.",
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := svc.Triage("park-me", "park"); err != nil {
 		t.Fatalf("triage park: %v", err)
@@ -407,14 +419,18 @@ func TestConvertedToPreservesBlankLines(t *testing.T) {
 func TestServiceMarkConverted(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{
+	if err := svc.Add(&ideas.Idea{
 		Slug:  "convert-me",
 		Title: "Convert Me",
 		Body:  "To be converted.",
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := svc.MarkConverted("convert-me", "convert-me"); err != nil {
 		t.Fatalf("mark converted: %v", err)
@@ -442,16 +458,22 @@ func TestConversionFlowWithLinkage(t *testing.T) {
 	dir := t.TempDir()
 	ideasPath := filepath.Join(dir, "ideas.md")
 	trackerPath := filepath.Join(dir, "tracker.md")
-	os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644)
-	os.WriteFile(trackerPath, []byte("# Personal\n\n"), 0o644)
+	if err := os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(trackerPath, []byte("# Personal\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
-	ideaSvc.Add(&ideas.Idea{
+	if err := ideaSvc.Add(&ideas.Idea{
 		Slug:  "my-feature",
 		Title: "My Feature",
 		Tags:  []string{"tech"},
 		Body:  "Build a new feature.",
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	// Simulate the full conversion flow.
 	idea, _ := ideaSvc.Get("my-feature")
@@ -527,14 +549,18 @@ func TestIdeasCaptionedImagesRoundTrip(t *testing.T) {
 func TestServiceAddResearch(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{
+	if err := svc.Add(&ideas.Idea{
 		Slug:  "research-me",
 		Title: "Research Me",
 		Body:  "Initial content.",
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := svc.AddResearch("research-me", "Some research findings."); err != nil {
 		t.Fatalf("add research: %v", err)
@@ -551,4 +577,3 @@ func TestServiceAddResearch(t *testing.T) {
 		t.Errorf("body should still contain initial content, got %q", idea.Body)
 	}
 }
-

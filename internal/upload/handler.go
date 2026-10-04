@@ -3,6 +3,7 @@ package upload
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -44,7 +45,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	// Read first 512 bytes for MIME detection.
 	header := make([]byte, 512)
 	n, err := io.ReadFull(file, header)
-	if err != nil && err != io.ErrUnexpectedEOF {
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		slog.Error("reading upload header", "error", err)
 		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read file"})
 		return

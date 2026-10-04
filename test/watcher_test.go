@@ -11,10 +11,14 @@ import (
 func TestClassifyEventPerUserPersonal(t *testing.T) {
 	tmpDir := t.TempDir()
 	userDataDir := filepath.Join(tmpDir, "users")
-	os.MkdirAll(filepath.Join(userDataDir, "3"), 0o755)
+	if err := os.MkdirAll(filepath.Join(userDataDir, "3"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	path := filepath.Join(userDataDir, "3", "personal.md")
-	os.WriteFile(path, []byte("# Personal\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Personal\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	uid, category := watcher.ClassifyEventWithUser(path, nil, nil, userDataDir)
 	if uid != 3 {
@@ -28,10 +32,14 @@ func TestClassifyEventPerUserPersonal(t *testing.T) {
 func TestClassifyEventPerUserIdeas(t *testing.T) {
 	tmpDir := t.TempDir()
 	userDataDir := filepath.Join(tmpDir, "users")
-	os.MkdirAll(filepath.Join(userDataDir, "2", "ideas", "untriaged"), 0o755)
+	if err := os.MkdirAll(filepath.Join(userDataDir, "2", "ideas", "untriaged"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	path := filepath.Join(userDataDir, "2", "ideas", "untriaged", "test-idea.md")
-	os.WriteFile(path, []byte("# Test\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	uid, category := watcher.ClassifyEventWithUser(path, nil, nil, userDataDir)
 	if uid != 2 {
@@ -45,10 +53,14 @@ func TestClassifyEventPerUserIdeas(t *testing.T) {
 func TestClassifyEventPerUserIdeasFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	userDataDir := filepath.Join(tmpDir, "users")
-	os.MkdirAll(filepath.Join(userDataDir, "5"), 0o755)
+	if err := os.MkdirAll(filepath.Join(userDataDir, "5"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	path := filepath.Join(userDataDir, "5", "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	uid, category := watcher.ClassifyEventWithUser(path, nil, nil, userDataDir)
 	if uid != 5 {
@@ -62,7 +74,9 @@ func TestClassifyEventPerUserIdeasFile(t *testing.T) {
 func TestClassifyEventFamilyWithUserID0(t *testing.T) {
 	tmpDir := t.TempDir()
 	familyPath := filepath.Join(tmpDir, "family.md")
-	os.WriteFile(familyPath, []byte("# Family\n"), 0o644)
+	if err := os.WriteFile(familyPath, []byte("# Family\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	fileCategories := map[string]string{
 		familyPath: "family",
@@ -80,7 +94,9 @@ func TestClassifyEventFamilyWithUserID0(t *testing.T) {
 func TestClassifyEventNonMarkdownIgnored(t *testing.T) {
 	tmpDir := t.TempDir()
 	userDataDir := filepath.Join(tmpDir, "users")
-	os.MkdirAll(filepath.Join(userDataDir, "1"), 0o755)
+	if err := os.MkdirAll(filepath.Join(userDataDir, "1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	path := filepath.Join(userDataDir, "1", "something.txt")
 	uid, category := watcher.ClassifyEventWithUser(path, nil, nil, userDataDir)
@@ -94,13 +110,21 @@ func TestDataMigrationIdempotent(t *testing.T) {
 
 	// Set up source files.
 	srcDir := filepath.Join(tmpDir, "src")
-	os.MkdirAll(filepath.Join(srcDir, "ideas", "untriaged"), 0o755)
-	os.WriteFile(filepath.Join(srcDir, "personal.md"), []byte("# Personal\n"), 0o644)
-	os.WriteFile(filepath.Join(srcDir, "ideas", "untriaged", "test.md"), []byte("# Test\n"), 0o644)
+	if err := os.MkdirAll(filepath.Join(srcDir, "ideas", "untriaged"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "personal.md"), []byte("# Personal\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "ideas", "untriaged", "test.md"), []byte("# Test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Set up destination.
 	dstDir := filepath.Join(tmpDir, "dst")
-	os.MkdirAll(filepath.Join(dstDir, "ideas", "untriaged"), 0o755)
+	if err := os.MkdirAll(filepath.Join(dstDir, "ideas", "untriaged"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	// First copy.
 	copyFile(t, filepath.Join(srcDir, "personal.md"), filepath.Join(dstDir, "personal.md"))
@@ -112,7 +136,9 @@ func TestDataMigrationIdempotent(t *testing.T) {
 	}
 
 	// Modify destination file.
-	os.WriteFile(filepath.Join(dstDir, "personal.md"), []byte("# Modified\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(dstDir, "personal.md"), []byte("# Modified\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Second copy should not overwrite (idempotent).
 	// The migrate logic skips if destination exists -- we just verify the file
@@ -129,7 +155,9 @@ func copyFile(t *testing.T, src, dst string) {
 	if err != nil {
 		t.Fatalf("reading %s: %v", src, err)
 	}
-	os.MkdirAll(filepath.Dir(dst), 0o755)
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(dst, data, 0o644); err != nil {
 		t.Fatalf("writing %s: %v", dst, err)
 	}

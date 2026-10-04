@@ -9,6 +9,8 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/fahad/dashboard/internal/httputil"
 )
 
 type Handler struct {
@@ -83,10 +85,10 @@ func (h *Handler) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 	slog.Info("login successful", "ip", ip, "email", email)
 
 	dest := "/"
-	if isLocalPath(next) {
+	if httputil.IsLocalPath(next) {
 		dest = next
 	}
-	http.Redirect(w, r, dest, http.StatusSeeOther)
+	http.Redirect(w, r, dest, http.StatusSeeOther) //nolint:gosec // G710: dest checked by httputil.IsLocalPath
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {

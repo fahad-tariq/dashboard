@@ -12,14 +12,18 @@ import (
 func TestIdeasServiceEdit_TitleOnly(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{
+	if err := svc.Add(&ideas.Idea{
 		Slug:  "original-title",
 		Title: "Original Title",
 		Body:  "Some body text.",
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := svc.Edit("original-title", "", "# New Title\n\nSome body text.", nil, nil)
 	if err != nil {
@@ -54,14 +58,18 @@ func TestIdeasServiceEdit_TitleOnly(t *testing.T) {
 func TestIdeasServiceEdit_BodyOnly(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{
+	if err := svc.Add(&ideas.Idea{
 		Slug:  "keep-slug",
 		Title: "Keep Slug",
 		Body:  "Old body.",
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := svc.Edit("keep-slug", "", "Updated body content.", nil, nil)
 	if err != nil {
@@ -86,11 +94,17 @@ func TestIdeasServiceEdit_BodyOnly(t *testing.T) {
 func TestIdeasServiceEdit_TitleCollision(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."})
-	svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."})
+	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := svc.Edit("beta", "", "# Alpha\n\nNew body for beta.", nil, nil)
 	if err != nil {
@@ -114,10 +128,14 @@ func TestIdeasServiceEdit_TitleCollision(t *testing.T) {
 func TestIdeasServiceEdit_BlankTitle(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{Slug: "has-title", Title: "Has Title", Body: "Content."})
+	if err := svc.Add(&ideas.Idea{Slug: "has-title", Title: "Has Title", Body: "Content."}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := svc.Edit("has-title", "", "# \n\nBody without title.", nil, nil)
 
@@ -132,10 +150,14 @@ func TestIdeasServiceEdit_BlankTitle(t *testing.T) {
 func TestIdeasServiceEdit_ExplicitTitle(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{Slug: "old-idea", Title: "Old Idea", Body: "Body."})
+	if err := svc.Add(&ideas.Idea{Slug: "old-idea", Title: "Old Idea", Body: "Body."}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := svc.Edit("old-idea", "Renamed Idea", "Body.", nil, nil)
 	if err != nil {
@@ -161,10 +183,14 @@ func TestIdeasServiceEdit_ExplicitTitle(t *testing.T) {
 func TestIdeasServiceEdit_ExplicitTitleOverridesBodyHeading(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{Slug: "test", Title: "Test", Body: "Body."})
+	if err := svc.Add(&ideas.Idea{Slug: "test", Title: "Test", Body: "Body."}); err != nil {
+		t.Fatal(err)
+	}
 
 	// Explicit title should win over body heading.
 	err := svc.Edit("test", "Explicit Title", "# Body Heading\n\nContent.", nil, nil)
@@ -184,10 +210,14 @@ func TestIdeasServiceEdit_ExplicitTitleOverridesBodyHeading(t *testing.T) {
 func TestIdeasServiceEdit_NonExistentSlug(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{Slug: "exists", Title: "Exists", Body: "Here."})
+	if err := svc.Add(&ideas.Idea{Slug: "exists", Title: "Exists", Body: "Here."}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := svc.Edit("does-not-exist", "", "New body.", nil, nil)
 	if err == nil {
@@ -198,11 +228,17 @@ func TestIdeasServiceEdit_NonExistentSlug(t *testing.T) {
 func TestIdeasServiceSoftDeleteAndRestore(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."})
-	svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."})
+	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."}); err != nil {
+		t.Fatal(err)
+	}
 
 	// Soft delete Alpha.
 	if err := svc.Delete("alpha"); err != nil {
@@ -246,10 +282,14 @@ func TestIdeasServiceSoftDeleteAndRestore(t *testing.T) {
 func TestIdeasServicePermanentDelete(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."})
+	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."}); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := svc.PermanentDelete("alpha"); err != nil {
 		t.Fatalf("PermanentDelete: %v", err)
@@ -277,7 +317,9 @@ func TestIdeasServicePurgeExpired(t *testing.T) {
 - [ ] Recent trash [status: untriaged] [added: 2026-03-01] [deleted: 2099-12-31]
   Recent body.
 `
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	svc := ideas.NewService(path, time.UTC)
 
 	if err := svc.PurgeExpired(7); err != nil {
@@ -303,7 +345,9 @@ func TestIdeasServicePurgeExpiredMalformedDate(t *testing.T) {
 	path := filepath.Join(dir, "ideas.md")
 	// Use a date that matches the regex pattern but is invalid for time.Parse.
 	content := "# Ideas\n\n- [ ] Bad date [status: untriaged] [deleted: 2026-13-45]\n"
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	svc := ideas.NewService(path, time.UTC)
 
 	if err := svc.PurgeExpired(7); err != nil {
@@ -319,12 +363,20 @@ func TestIdeasServicePurgeExpiredMalformedDate(t *testing.T) {
 func TestIdeasServiceBulkDelete(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."})
-	svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."})
-	svc.Add(&ideas.Idea{Slug: "gamma", Title: "Gamma", Body: "Third."})
+	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Add(&ideas.Idea{Slug: "gamma", Title: "Gamma", Body: "Third."}); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := svc.BulkDelete([]string{"alpha", "gamma"}); err != nil {
 		t.Fatalf("BulkDelete: %v", err)
@@ -347,11 +399,17 @@ func TestIdeasServiceBulkDelete(t *testing.T) {
 func TestIdeasServiceBulkTriage(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."})
-	svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."})
+	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."}); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := svc.BulkTriage([]string{"alpha", "beta"}, "park"); err != nil {
 		t.Fatalf("BulkTriage: %v", err)
@@ -370,10 +428,14 @@ func TestIdeasServiceBulkTriage(t *testing.T) {
 func TestIdeasServiceBulkTriageDrop(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha"})
+	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha"}); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := svc.BulkTriage([]string{"alpha"}, "drop"); err != nil {
 		t.Fatalf("BulkTriage drop: %v", err)
@@ -388,10 +450,14 @@ func TestIdeasServiceBulkTriageDrop(t *testing.T) {
 func TestIdeasServiceBulkTriageInvalidAction(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha"})
+	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha"}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := svc.BulkTriage([]string{"alpha"}, "invalid")
 	if err == nil {
@@ -402,10 +468,14 @@ func TestIdeasServiceBulkTriageInvalidAction(t *testing.T) {
 func TestIdeasServiceBulkInvalidSlugRollsBack(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(path, time.UTC)
-	svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha"})
+	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha"}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := svc.BulkDelete([]string{"alpha", "nonexistent"})
 	if err == nil {

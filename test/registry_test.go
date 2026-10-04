@@ -21,9 +21,13 @@ func TestEnsureUserDirsCreatesStructure(t *testing.T) {
 
 	userDataDir := filepath.Join(tmpDir, "users")
 	familyPath := filepath.Join(tmpDir, "family.md")
-	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	houseProjectsPath := filepath.Join(tmpDir, "house-projects.md")
-	os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644)
+	if err := os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
 
@@ -55,9 +59,13 @@ func TestEnsureUserDirsIdempotent(t *testing.T) {
 
 	userDataDir := filepath.Join(tmpDir, "users")
 	familyPath := filepath.Join(tmpDir, "family.md")
-	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	houseProjectsPath := filepath.Join(tmpDir, "house-projects.md")
-	os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644)
+	if err := os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
 
@@ -66,7 +74,9 @@ func TestEnsureUserDirsIdempotent(t *testing.T) {
 		t.Fatalf("first EnsureUserDirs: %v", err)
 	}
 	personalPath := filepath.Join(userDataDir, "1", "personal.md")
-	os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] My task\n"), 0o644)
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] My task\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Call again -- should not overwrite existing personal.md.
 	if err := reg.EnsureUserDirs(1); err != nil {
@@ -88,12 +98,18 @@ func TestForUserReturnsCachedInstances(t *testing.T) {
 
 	userDataDir := filepath.Join(tmpDir, "users")
 	familyPath := filepath.Join(tmpDir, "family.md")
-	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	houseProjectsPath := filepath.Join(tmpDir, "house-projects.md")
-	os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644)
+	if err := os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
-	reg.EnsureUserDirs(1)
+	if err := reg.EnsureUserDirs(1); err != nil {
+		t.Fatal(err)
+	}
 
 	svc1 := reg.ForUser(1)
 	svc2 := reg.ForUser(1)
@@ -205,11 +221,17 @@ func TestTwoUserStoresDontInterfere(t *testing.T) {
 		{Slug: "task-3", Title: "Task 3", Type: tracker.TaskType},
 	}
 
-	store1.ReplaceAll(items1)
-	store2.ReplaceAll(items2)
+	if err := store1.ReplaceAll(items1); err != nil {
+		t.Fatal(err)
+	}
+	if err := store2.ReplaceAll(items2); err != nil {
+		t.Fatal(err)
+	}
 
 	// Now replace store1 with a single item -- should not affect store2.
-	store1.ReplaceAll([]tracker.Item{{Slug: "task-4", Title: "Task 4", Type: tracker.TaskType}})
+	if err := store1.ReplaceAll([]tracker.Item{{Slug: "task-4", Title: "Task 4", Type: tracker.TaskType}}); err != nil {
+		t.Fatal(err)
+	}
 
 	sum1, _ := store1.Summary()
 	sum2, _ := store2.Summary()

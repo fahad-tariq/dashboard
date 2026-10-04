@@ -198,7 +198,9 @@ func TestRequireAuthPassesAuthenticated(t *testing.T) {
 
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		if _, err := w.Write([]byte("ok")); err != nil {
+			t.Fatal(err)
+		}
 	})
 
 	// Set up an authenticated session with user_id.
@@ -514,7 +516,9 @@ func TestCreateUserDuplicateEmail(t *testing.T) {
 
 func TestFindByEmail(t *testing.T) {
 	database := newTestDB(t)
-	auth.CreateUser(database, "alice@test.com", "", "secretpw")
+	if _, err := auth.CreateUser(database, "alice@test.com", "", "secretpw"); err != nil {
+		t.Fatal(err)
+	}
 
 	user, err := auth.FindByEmail(database, "alice@test.com")
 	if err != nil {
@@ -553,8 +557,12 @@ func TestUserCount(t *testing.T) {
 		t.Errorf("expected 0, got %d", count)
 	}
 
-	auth.CreateUser(database, "a@test.com", "", "password")
-	auth.CreateUser(database, "b@test.com", "", "password")
+	if _, err := auth.CreateUser(database, "a@test.com", "", "password"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := auth.CreateUser(database, "b@test.com", "", "password"); err != nil {
+		t.Fatal(err)
+	}
 
 	count, err = auth.UserCount(database)
 	if err != nil {

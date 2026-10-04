@@ -36,7 +36,9 @@ func uploadFile(t *testing.T, handler http.Handler, filename string, content []b
 	if err != nil {
 		t.Fatalf("creating form file: %v", err)
 	}
-	part.Write(content)
+	if _, err := part.Write(content); err != nil {
+		t.Fatal(err)
+	}
 	writer.Close()
 
 	req := httptest.NewRequest(http.MethodPost, "/upload", &body)
@@ -99,7 +101,9 @@ func TestUploadSpoofedExtension(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.NewDecoder(rr.Body).Decode(&resp)
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
 
 	// Should use canonical .png extension, not .php.
 	if !strings.HasSuffix(resp["filename"], ".png") {

@@ -1,0 +1,43 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gocyclo
+    - gosec
+  settings:
+    gocyclo:
+      min-complexity: 15
+    gosec:
+      excludes:
+        # Every file path comes from config or the per-user registry, never
+        # from request input.
+        - G304
+        # Data files and directories are deliberately readable by the owner's
+        # tooling on the host; the container runs single-user.
+        - G301
+        - G306
+        # Duplicates errcheck, which applies the std-error-handling preset.
+        - G104
+  exclusions:
+    presets:
+      # Unchecked Close, Flush, os.Remove and fmt.Fprint* calls.
+      - std-error-handling
+    rules:
+      # Table-driven tests are long by design.
+      - path: _test\.go
+        linters: [gocyclo]
+      # Tests stub template funcs and write fixtures to temp dirs.
+      - path: _test\.go
+        linters: [gosec]
+
+issues:
+  # Report everything; the defaults (50 per linter, 3 identical) hid findings.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt

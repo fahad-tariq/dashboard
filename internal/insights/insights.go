@@ -392,7 +392,7 @@ func periodLabel(period DigestPeriod) string {
 }
 
 // Digest computes activity counts for the given period from tracker items and ideas.
-func Digest(items []DigestItem, period DigestPeriod, now time.Time) DigestResult {
+func Digest(items []DigestItem, period DigestPeriod, now time.Time) DigestResult { //nolint:gocyclo // per-category counting, flat
 	start, end := periodBounds(period, now)
 
 	result := DigestResult{

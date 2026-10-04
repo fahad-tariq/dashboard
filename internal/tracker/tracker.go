@@ -23,12 +23,12 @@ type Item struct {
 	Slug      string
 	Title     string
 	Type      ItemType
-	Priority  string   // "high", "medium", "low", or ""
-	Current   float64  // goals only
-	Target    float64  // goals only
-	Unit      string   // goals only (e.g. "kg", "books")
-	Done bool
-	Body string
+	Priority  string  // "high", "medium", "low", or ""
+	Current   float64 // goals only
+	Target    float64 // goals only
+	Unit      string  // goals only (e.g. "kg", "books")
+	Done      bool
+	Body      string
 	Added     string   // date added, YYYY-MM-DD
 	Completed string   // date completed, YYYY-MM-DD
 	Deadline  string   // goals only, YYYY-MM-DD
@@ -210,7 +210,7 @@ func parseCheckbox(line string) (title string, done bool) {
 }
 
 // parseItemLine builds an Item from the title text after the checkbox.
-func parseItemLine(raw string, done bool) *Item {
+func parseItemLine(raw string, done bool) *Item { //nolint:gocyclo // one branch per inline metadata tag
 	item := &Item{
 		Type: TaskType,
 		Done: done,
@@ -338,7 +338,7 @@ func WriteTracker(path, heading string, items []Item) error {
 	return os.WriteFile(path, []byte(sb.String()), 0o644)
 }
 
-func writeItem(sb *strings.Builder, it Item) {
+func writeItem(sb *strings.Builder, it Item) { //nolint:gocyclo // one branch per inline metadata tag
 	check := "[ ]"
 	if it.Done {
 		check = "[x]"

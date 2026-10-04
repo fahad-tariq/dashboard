@@ -13,7 +13,9 @@ func setupMaintenanceSvc(t *testing.T) (*house.Service, string) {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "maintenance.md")
-	os.WriteFile(path, []byte("# Maintenance\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Maintenance\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	svc := house.NewService(path, time.UTC)
 	return svc, path
 }
@@ -51,7 +53,9 @@ func TestMaintenanceServiceAddAndList(t *testing.T) {
 func TestMaintenanceServiceLogCompletion(t *testing.T) {
 	svc, _ := setupMaintenanceSvc(t)
 
-	svc.Add(&house.MaintenanceItem{Title: "Mow lawn", Cadence: "2w"})
+	if err := svc.Add(&house.MaintenanceItem{Title: "Mow lawn", Cadence: "2w"}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := svc.LogCompletion("mow-lawn", "used new mower")
 	if err != nil {
@@ -79,14 +83,16 @@ func TestMaintenanceServiceLogCompletion(t *testing.T) {
 		t.Fatalf("expected 2 log entries, got %d", len(item.Log))
 	}
 	// First entry should be the newest.
-	if item.Log[0].Date > item.Log[1].Date {
-		// Both are today, so dates are equal -- that's fine.
+	if item.Log[0].Date < item.Log[1].Date {
+		t.Errorf("log not newest-first: %+v", item.Log)
 	}
 }
 
 func TestMaintenanceServiceLogCompletionStripsNewlines(t *testing.T) {
 	svc, _ := setupMaintenanceSvc(t)
-	svc.Add(&house.MaintenanceItem{Title: "Test item", Cadence: "1m"})
+	if err := svc.Add(&house.MaintenanceItem{Title: "Test item", Cadence: "1m"}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := svc.LogCompletion("test-item", "line1\n- [ ] injected\r\nline2")
 	if err != nil {
@@ -117,8 +123,12 @@ func TestMaintenanceServiceListOverdue(t *testing.T) {
 
 - [ ] Check smoke alarms [cadence: 6m] [added: 2025-01-01]
 `
-	os.WriteFile(path, []byte(content), 0o644)
-	svc.Resync()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Resync(); err != nil {
+		t.Fatal(err)
+	}
 
 	now := time.Date(2026, 3, 29, 12, 0, 0, 0, time.UTC)
 	overdue := svc.ListOverdue(now)
@@ -141,7 +151,9 @@ func TestMaintenanceServiceListOverdue(t *testing.T) {
 
 func TestMaintenanceServiceDeleteRestore(t *testing.T) {
 	svc, _ := setupMaintenanceSvc(t)
-	svc.Add(&house.MaintenanceItem{Title: "Test item", Cadence: "1m"})
+	if err := svc.Add(&house.MaintenanceItem{Title: "Test item", Cadence: "1m"}); err != nil {
+		t.Fatal(err)
+	}
 
 	// Delete.
 	if err := svc.Delete("test-item"); err != nil {
@@ -164,8 +176,12 @@ func TestMaintenanceServiceDeleteRestore(t *testing.T) {
 
 func TestMaintenanceServiceSearch(t *testing.T) {
 	svc, _ := setupMaintenanceSvc(t)
-	svc.Add(&house.MaintenanceItem{Title: "Clean gutters", Cadence: "3m"})
-	svc.Add(&house.MaintenanceItem{Title: "Mow lawn", Cadence: "2w"})
+	if err := svc.Add(&house.MaintenanceItem{Title: "Clean gutters", Cadence: "3m"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Add(&house.MaintenanceItem{Title: "Mow lawn", Cadence: "2w"}); err != nil {
+		t.Fatal(err)
+	}
 
 	results := svc.Search("gutter")
 	if len(results) != 1 || results[0].Title != "Clean gutters" {
@@ -180,10 +196,14 @@ func TestMaintenanceServiceSearch(t *testing.T) {
 
 func TestMaintenanceServiceResync(t *testing.T) {
 	svc, path := setupMaintenanceSvc(t)
-	svc.Add(&house.MaintenanceItem{Title: "Item one", Cadence: "1m"})
+	if err := svc.Add(&house.MaintenanceItem{Title: "Item one", Cadence: "1m"}); err != nil {
+		t.Fatal(err)
+	}
 
 	// Externally modify the file.
-	os.WriteFile(path, []byte("# Maintenance\n\n- [ ] External item [cadence: 1w]\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Maintenance\n\n- [ ] External item [cadence: 1w]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := svc.Resync(); err != nil {
 		t.Fatalf("resync: %v", err)

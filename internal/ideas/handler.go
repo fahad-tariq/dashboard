@@ -3,6 +3,7 @@ package ideas
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"html/template"
 	"net/http"
 	"slices"
@@ -168,13 +169,13 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 	data := auth.TemplateData(r)
 	data["Title"] = idea.Title
 	data["Idea"] = idea
-	data["BodyHTML"] = template.HTML(bodyHTML)
+	data["BodyHTML"] = template.HTML(bodyHTML) //nolint:gosec // G203: markdown.Render output is bluemonday-sanitised
 	data["IsDeleted"] = idea.DeletedAt != ""
 
 	if h.commentarySt != nil {
 		if c, err := h.commentarySt.Get(slug, "ideas", 1); err == nil && c != "" {
 			if rendered, err := markdown.Render([]byte(c)); err == nil {
-				data["CommentaryHTML"] = template.HTML(rendered)
+				data["CommentaryHTML"] = template.HTML(rendered) //nolint:gosec // G203: markdown.Render output is bluemonday-sanitised
 			}
 		}
 	}
@@ -215,10 +216,15 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ideas?msg=idea-added", http.StatusSeeOther)
 }
 
+// triageMaxBytes bounds a triage request body; it only carries an action name.
+const triageMaxBytes = 64 << 10
+
 // TriageAction changes an idea's status (park/drop/untriage).
 func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	if err := r.ParseForm(); err != nil {
+	// triageAnimate posts FormData (multipart); plain form posts are urlencoded.
+	r.Body = http.MaxBytesReader(w, r.Body, triageMaxBytes)
+	if err := r.ParseMultipartForm(triageMaxBytes); err != nil && !errors.Is(err, http.ErrNotMultipart) { //nolint:gosec // G120: body capped by MaxBytesReader above
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
