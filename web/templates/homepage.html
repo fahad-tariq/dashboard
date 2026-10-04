@@ -3,7 +3,7 @@
      hx-ext="sse" sse-connect="/events"
      hx-get="/" hx-select=".homepage-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
-<span class="htmx-indicator meta-dim" role="status" aria-live="polite">updating&hellip;</span>
+<span class="htmx-indicator meta-dim" aria-hidden="true">updating&hellip;</span>
 
 <h1 class="homepage-greeting">{{or .Greeting "Today"}}</h1>
 {{if .DateLabel}}<p class="plan-date-label">{{.DateLabel}} &middot; <a href="/plan/calendar" class="meta-dim">calendar</a></p>{{end}}

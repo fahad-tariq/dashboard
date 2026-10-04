@@ -71,7 +71,7 @@
      hx-ext="sse" sse-connect="/events"
      hx-get="/ideas" hx-select=".ideas-page" hx-target="this" hx-swap="outerHTML"
      hx-trigger="sse:file-changed">
-<span class="htmx-indicator" role="status" aria-live="polite">updating&hellip;</span>
+<span class="htmx-indicator" aria-hidden="true">updating&hellip;</span>
 
 <h1>Ideas</h1>
 {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
