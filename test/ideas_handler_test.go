@@ -1,9 +1,11 @@
 package test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"html/template"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -238,6 +240,37 @@ func TestIdeasTriageAction(t *testing.T) {
 	}
 
 	// Verify status changed.
+	idea, err := env.ideasSvc.Get(slug)
+	if err != nil {
+		t.Fatalf("idea not found: %v", err)
+	}
+	if idea.Status != "parked" {
+		t.Errorf("expected status 'parked', got %q", idea.Status)
+	}
+}
+
+// triageAnimate in tracker.js posts `new FormData(form)`, which browsers send
+// as multipart/form-data, not urlencoded.
+func TestIdeasTriageActionMultipart(t *testing.T) {
+	env := setupIdeasEnv(t)
+	slug := addTestIdea(t, env.ideasSvc, "Triage via fetch")
+
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	if err := mw.WriteField("action", "park"); err != nil {
+		t.Fatal(err)
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest("POST", "/ideas/"+slug+"/triage", &body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	rr := httptest.NewRecorder()
+	env.router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Errorf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
+	}
 	idea, err := env.ideasSvc.Get(slug)
 	if err != nil {
 		t.Fatalf("idea not found: %v", err)
