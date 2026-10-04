@@ -300,7 +300,7 @@ func (h *Handler) AddProject(w http.ResponseWriter, r *http.Request) {
 		Body:   body,
 	}
 
-	if err := h.projectsSvc.AddItem(item); err != nil {
+	if _, err := h.projectsSvc.AddItem(item); err != nil {
 		httputil.ServerError(w, "adding project", err)
 		return
 	}

@@ -135,7 +135,9 @@ func setupCalendarEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracke
 	)
 	templates["calendar.html"] = tmpl
 
-	handler := home.CalendarPageSingle(personalSvc, familySvc, houseProjectsSvc, nil, templates, time.UTC)
+	handler := http.HandlerFunc(home.NewHandler(func(*http.Request) home.Lists {
+		return home.Lists{Personal: personalSvc, Family: familySvc, HouseProjects: houseProjectsSvc}
+	}, templates, time.UTC).CalendarPage)
 	return handler, personalSvc, familySvc
 }
 

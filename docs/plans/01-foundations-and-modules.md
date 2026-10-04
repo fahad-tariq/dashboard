@@ -293,24 +293,24 @@ Do not reopen these while executing this plan.
 
 **Purpose:** remove the duplicated wiring before building the framework. The route golden from Phase 1 guards this phase.
 
-- [ ] **Collapse no-auth mode.**
+- [x] **Collapse no-auth mode.**
   - With `DASHBOARD_AUTH=disabled`, a middleware injects user 1 into the context, including the name and admin fields that `auth.TemplateData` reads. It wraps every route, including `/events`.
   - Delete `SingleUserPlanHandlers`, `HomePageSingle`, `DigestPageSingle`, `CalendarPageSingle` and the single-user branch.
   - The expected route-golden diff (no-auth mode gains `/login`, `/account` and `/admin/*`, or they are excluded deliberately) is explained in Working Notes.
-- [ ] **Local-dev data paths.**
+- [x] **Local-dev data paths.**
   - Verify how no-auth mode resolves files today (`PERSONAL_PATH` and `IDEAS_PATH`, versus `USER_DATA_DIR/1/`).
   - If they differ, a registry override for user 1 MUST cover service paths, the watcher's watch spec and skeleton creation.
   - Ensure a user-1 row exists, so the purge loop, which iterates `auth.AllUsers`, still runs.
-- [ ] **Commentary scoping.**
+- [x] **Commentary scoping.**
   - Web commentary and the ideas handler use `auth.UserID(r.Context())` instead of a hard-coded `1`.
   - This is safe only after the previous task, because no-auth requests currently carry user 0.
-- [ ] **One `toTask` factory.**
+- [x] **One `toTask` factory.**
   - Replace the three `ToTaskFunc` closures with one function over the personal, family and house services.
   - `AddItem` returns the slug it assigned; callers, including `APIAddTodo`, stop recomputing it.
   - No de-duplication (see Decisions).
-- [ ] **API through the resolver.** The API resolves services through the same registry and resolver as the web handlers, with the API token mapped to user 1. Delete the duplicated API handler construction.
-- [ ] **Route mounting.** Replace the positional parameters of `mountAppRoutes` with a struct, and move API registration into a function next to it.
-- [ ] **Remove the Phase 1 `//nolint:gocyclo` markers** on `main` and `renderHomePage` by splitting them up.
+- [x] **API through the resolver.** The API resolves services through the same registry and resolver as the web handlers, with the API token mapped to user 1. Delete the duplicated API handler construction.
+- [x] **Route mounting.** Replace the positional parameters of `mountAppRoutes` with a struct, and move API registration into a function next to it.
+- [x] **Remove the Phase 1 `//nolint:gocyclo` markers** on `main` and `renderHomePage` by splitting them up.
 
 **Verification:**
 - The route golden matches, with the documented diff.
@@ -645,6 +645,21 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - Owner decision (2026-10-05): a visual design uplift goes into this plan as Phase 9, between interaction rework and documentation, so it is done once on the Phase 6 shared components and after Phase 8 settles the interaction patterns. Documentation becomes Phase 10.
 - Phase 4 STOP review: the owner tried the deployed app on 2026-10-05 and is moving on. Next is Phase 5.
 
+### Phase 5 notes
+
+- No-auth mode is now a middleware, not a branch: `auth.InjectUser(db, 1)` replaces `RequireAuth` and `RequireAuthAPI` when `DASHBOARD_AUTH=disabled`, reading user 1's row on every request so name and admin come from the database. `prepareUsers` runs `auth.EnsureUser(db, 1, "local@localhost")` in no-auth mode, so the purge loop and `/account` have a row. That row is an admin with the password hash `!`, which matches no password; if the same database later starts with auth on, it is a locked account, not an open one. bcrypt rejects `!` without hashing, so a login attempt as `local@localhost` returns faster than for other accounts. It only exists in local databases, so this is accepted.
+- Route golden diff: `routes_noauth.golden` gained exactly the 15 `/login`, `/logout`, `/account*` and `/admin/*` lines and is now identical to `routes_auth.golden`. They were kept rather than excluded so that both modes register one route tree. The nav still hides logout and the user link in no-auth mode (`authEnabled` is false).
+- Data paths differed as the plan suspected: no-auth read `PERSONAL_PATH`/`IDEAS_PATH`, auth read `USER_DATA_DIR/1/`. `Registry.SetUserPaths(1, ...)` covers service paths and skeleton creation (`EnsureUserDirs` now creates the files at the override paths). The watcher watches the two files as file categories whose callbacks resync user 1's services. `TestNoAuthUsesLegacyPaths` guards this.
+- Commentary (test-first, `TestCommentaryScopedToUser`): the web commentary endpoint and idea detail used user 1 for everyone, so user 2 saw user 1's notes. Both now use `auth.UserID`. The API commentary handlers still use user 1, which is correct because the token acts as user 1.
+- One `appServices.toTask` replaces the three closures. `tracker.Service.AddItem` returns the slug it assigned; `APIAddTodo` and the ideas test helper stop recomputing it.
+- API: `bearerAuth` puts user 1 in the request context, so the API uses the web handlers' resolvers. Deleted: the separate API ideas handler and its `toTask`, and both sets of tracker and plan API construction. The plan API functions are now `home.Handler` methods. The tracker API functions take a `tracker.ServiceResolver` returning (personal, family).
+- `home.Handler` takes a `home.Resolver` returning `home.Lists` instead of the registry, so tests pass a closure over their own services instead of using the deleted `HomePageSingle`/`DigestPageSingle`/`CalendarPageSingle`. `search.ServiceResolver` keeps its 5-tuple for Phase 6.
+- `internal/app` is split into `app.go` (start-up: users, services, watcher, sessions, purge), `routes.go` (a `handlers` struct replaces `mountAppRoutes`' 17 positional parameters; `mountBrowserRoutes`, `mountAPIRoutes`, middleware) and `templates.go` (func map and parsing, moved unchanged). `renderHomePage` is split by plan section. `gocyclo -over 15` reports only the six accepted Phase 1 exclusions.
+- Behaviour changes in no-auth mode only: it now resyncs house projects at start-up and also watches `USER_DATA_DIR`, as auth mode already did. Both are harmless.
+- `tracker.NewHandler` and `ideas.NewHandler` (static services) are now used only by tests. They were kept to avoid churning six test files ahead of Phase 6's handler changes.
+- CLAUDE.md still describes `SingleUserPlanHandlers`, "planner dual-mode handlers" and three `ToTaskFunc` closures. Phase 10 rewrites it; until then, these Phase 5 notes are the current description.
+- Verification: lint 0 issues; `INTEGRATION=1 go test -race ./...` green; Playwright runs in CI on the PR.
+
 - Follow-ups:
   - tighten CSP `script-src` after moving inline handlers
   - drop the `tracker_items` table in a later migration
@@ -656,3 +671,4 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - per-user SSE routing if multi-user returns
   - admin user deletion: the watcher recreates the deleted user's directory (admin frozen)
   - MoveToList slug collisions (dead `-<unix>` suffix) until Plan 3 stable IDs
+  - remove the test-only static `tracker.NewHandler`/`ideas.NewHandler` constructors (Phase 6)

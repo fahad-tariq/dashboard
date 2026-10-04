@@ -17,38 +17,33 @@ import (
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/insights"
-	"github.com/fahad/dashboard/internal/services"
 	"github.com/fahad/dashboard/internal/tracker"
 )
 
-type Handler struct {
-	registry       *services.Registry
-	maintenanceSvc *house.Service
-	templates      map[string]*template.Template
-	loc            *time.Location
+// Lists are the services one request reads and writes.
+type Lists struct {
+	Personal      *tracker.Service
+	Family        *tracker.Service
+	HouseProjects *tracker.Service
+	Maintenance   *house.Service
+	Ideas         *ideas.Service
 }
 
-func NewHandler(registry *services.Registry, maintenanceSvc *house.Service, templates map[string]*template.Template, loc *time.Location) *Handler {
-	return &Handler{
-		registry:       registry,
-		maintenanceSvc: maintenanceSvc,
-		templates:      templates,
-		loc:            loc,
-	}
+// Resolver returns the lists for the request's user.
+type Resolver func(r *http.Request) Lists
+
+type Handler struct {
+	resolve   Resolver
+	templates map[string]*template.Template
+	loc       *time.Location
+}
+
+func NewHandler(resolve Resolver, templates map[string]*template.Template, loc *time.Location) *Handler {
+	return &Handler{resolve: resolve, templates: templates, loc: loc}
 }
 
 func (h *Handler) HomePage(w http.ResponseWriter, r *http.Request) {
-	uid := auth.UserID(r.Context())
-	userSvc := h.registry.ForUser(uid)
-	familySvc := h.registry.Family()
-	houseProjectsSvc := h.registry.HouseProjects()
-	renderHomePage(w, r, userSvc.Personal, familySvc, houseProjectsSvc, h.maintenanceSvc, userSvc.Ideas, h.templates, h.loc)
-}
-
-func HomePageSingle(personalSvc, familySvc, houseProjectsSvc *tracker.Service, maintenanceSvc *house.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		renderHomePage(w, r, personalSvc, familySvc, houseProjectsSvc, maintenanceSvc, ideaSvc, templates, loc)
-	}
+	h.renderHomePage(w, r, h.resolve(r))
 }
 
 // Greeting returns a time-of-day greeting, optionally personalised with the
@@ -116,184 +111,138 @@ func PlanPrompt(now time.Time, openTaskCount int, streakDays int) string {
 	}
 }
 
-func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc, houseProjectsSvc *tracker.Service, maintenanceSvc *house.Service, ideaSvc *ideas.Service, templates map[string]*template.Template, loc *time.Location) { //nolint:gocyclo // reduced in Phase 5
-	personalItems, err := personalSvc.List()
-	if err != nil {
-		slog.Error("homepage personal list", "error", err)
+// planSection is one list's share of today's plan.
+type planSection struct {
+	planned   []tracker.Item // planned for today, then carried-over items
+	carried   int
+	unplanned []tracker.Item // open tasks for the picker
+}
+
+// buildPlanSection merges carried-over items into the plan and collects the
+// open tasks that are neither planned nor carried over.
+func buildPlanSection(svc *tracker.Service, items []tracker.Item, today string) planSection {
+	planned := svc.ListPlanned(today)
+	carried := svc.ListOverdue(today)
+	exclude := make(map[string]bool, len(planned)+len(carried))
+	for _, it := range planned {
+		exclude[it.Slug] = true
 	}
-	familyItems, err := familySvc.List()
-	if err != nil {
-		slog.Error("homepage family list", "error", err)
+	for _, it := range carried {
+		exclude[it.Slug] = true
 	}
-	allIdeas, err := ideaSvc.List()
+	var unplanned []tracker.Item
+	for _, it := range items {
+		if it.Type == tracker.TaskType && !it.Done && !exclude[it.Slug] {
+			unplanned = append(unplanned, it)
+		}
+	}
+	planned = append(planned, carried...)
+	sortPlanItems(planned)
+	sortByPriority(unplanned)
+	return planSection{planned: planned, carried: len(carried), unplanned: unplanned}
+}
+
+func slugSet(items []tracker.Item) map[string]bool {
+	set := make(map[string]bool, len(items))
+	for _, it := range items {
+		set[it.Slug] = true
+	}
+	return set
+}
+
+func countDone(items []tracker.Item) int {
+	n := 0
+	for _, it := range items {
+		if it.Done {
+			n++
+		}
+	}
+	return n
+}
+
+// tagInfos gathers tags from tasks, goals and unconverted ideas.
+func tagInfos(personal, family []tracker.Item, allIdeas []ideas.Idea) []insights.TagInfo {
+	var infos []insights.TagInfo
+	for _, it := range slices.Concat(personal, family) {
+		infos = append(infos, insights.TagInfo{Tags: it.Tags, Type: string(it.Type), Done: it.Done})
+	}
+	for _, idea := range allIdeas {
+		if idea.Status != "converted" {
+			infos = append(infos, insights.TagInfo{Tags: idea.Tags, Type: "idea", Done: false})
+		}
+	}
+	return infos
+}
+
+func listOrLog(name string, list func() ([]tracker.Item, error)) []tracker.Item {
+	items, err := list()
+	if err != nil {
+		slog.Error("homepage list", "list", name, "error", err)
+	}
+	return items
+}
+
+func (h *Handler) renderHomePage(w http.ResponseWriter, r *http.Request, l Lists) {
+	personalItems := listOrLog("personal", l.Personal.List)
+	familyItems := listOrLog("family", l.Family.List)
+	houseItems := listOrLog("house", l.HouseProjects.List)
+	allIdeas, err := l.Ideas.List()
 	if err != nil {
 		slog.Error("homepage ideas list", "error", err)
 	}
 
+	now := time.Now().In(h.loc)
+	today := now.Format("2006-01-02")
+
+	completedItems := append(toCompletedItems(personalItems), toCompletedItems(familyItems)...)
+	streakDays, totalCompleted := insights.Streak(completedItems, now)
+
+	personal := buildPlanSection(l.Personal, personalItems, today)
+	family := buildPlanSection(l.Family, familyItems, today)
+	houseSec := buildPlanSection(l.HouseProjects, houseItems, today)
+	overdueMaintenance := l.Maintenance.ListOverdue(now)
+
+	planTotal := len(personal.planned) + len(family.planned) + len(houseSec.planned)
+	planDone := countDone(personal.planned) + countDone(family.planned) + countDone(houseSec.planned)
+	planAllDone := planTotal > 0 && planDone == planTotal
 	untriaged, untriagedCount := filterAndCountUntriaged(allIdeas, 3)
 
-	now := time.Now().In(loc)
-
-	// Build completed items from both personal and family lists.
-	completedItems := toCompletedItems(personalItems)
-	completedItems = append(completedItems, toCompletedItems(familyItems)...)
-
-	velocity := insights.WeeklyVelocity(completedItems, now)
-	streakDays, totalCompleted := insights.Streak(completedItems, now)
-	milestone := insights.MilestoneBadge(totalCompleted)
-
-	// Build tag info from all sources for cross-section aggregation.
-	var tagInfos []insights.TagInfo
-	for _, it := range personalItems {
-		tagInfos = append(tagInfos, insights.TagInfo{Tags: it.Tags, Type: string(it.Type), Done: it.Done})
-	}
-	for _, it := range familyItems {
-		tagInfos = append(tagInfos, insights.TagInfo{Tags: it.Tags, Type: string(it.Type), Done: it.Done})
-	}
-	for _, idea := range allIdeas {
-		if idea.Status != "converted" {
-			tagInfos = append(tagInfos, insights.TagInfo{Tags: idea.Tags, Type: "idea", Done: false})
-		}
-	}
-	tagSummaries := insights.TopN(insights.TagAggregation(tagInfos), 5)
-
-	// Daily planner data.
-	today := now.Format("2006-01-02")
-	personalPlanned := personalSvc.ListPlanned(today)
-	familyPlanned := familySvc.ListPlanned(today)
-	housePlanned := houseProjectsSvc.ListPlanned(today)
-	personalCarriedOver := personalSvc.ListOverdue(today)
-	familyCarriedOver := familySvc.ListOverdue(today)
-	houseCarriedOver := houseProjectsSvc.ListOverdue(today)
-
-	// Overdue maintenance for homepage card.
-	overdueMaintenance := maintenanceSvc.ListOverdue(now)
-
-	// Unplanned tasks for the picker (open, not done, not planned, not carried over).
-	personalExclude := make(map[string]bool)
-	for _, it := range personalPlanned {
-		personalExclude[it.Slug] = true
-	}
-	for _, it := range personalCarriedOver {
-		personalExclude[it.Slug] = true
-	}
-	var unplannedPersonal []tracker.Item
-	for _, it := range personalItems {
-		if it.Type == tracker.TaskType && !it.Done && !personalExclude[it.Slug] {
-			unplannedPersonal = append(unplannedPersonal, it)
-		}
-	}
-
-	familyExclude := make(map[string]bool)
-	for _, it := range familyPlanned {
-		familyExclude[it.Slug] = true
-	}
-	for _, it := range familyCarriedOver {
-		familyExclude[it.Slug] = true
-	}
-	var unplannedFamily []tracker.Item
-	for _, it := range familyItems {
-		if it.Type == tracker.TaskType && !it.Done && !familyExclude[it.Slug] {
-			unplannedFamily = append(unplannedFamily, it)
-		}
-	}
-
-	// Unplanned house projects for the picker.
-	houseExclude := make(map[string]bool)
-	for _, it := range housePlanned {
-		houseExclude[it.Slug] = true
-	}
-	for _, it := range houseCarriedOver {
-		houseExclude[it.Slug] = true
-	}
-	houseProjectItems, _ := houseProjectsSvc.List()
-	var unplannedHouse []tracker.Item
-	for _, it := range houseProjectItems {
-		if it.Type == tracker.TaskType && !it.Done && !houseExclude[it.Slug] {
-			unplannedHouse = append(unplannedHouse, it)
-		}
-	}
-
-	// Auto-promote: merge carried-over items into planned lists.
-	personalCarriedCount := len(personalCarriedOver)
-	familyCarriedCount := len(familyCarriedOver)
-	houseCarriedCount := len(houseCarriedOver)
-	personalPlanned = append(personalPlanned, personalCarriedOver...)
-	familyPlanned = append(familyPlanned, familyCarriedOver...)
-	housePlanned = append(housePlanned, houseCarriedOver...)
-
-	sortPlanItems(personalPlanned)
-	sortPlanItems(familyPlanned)
-	sortPlanItems(housePlanned)
-	sortByPriority(unplannedPersonal)
-	sortByPriority(unplannedFamily)
-	sortByPriority(unplannedHouse)
-
-	planDone := 0
-	planTotal := len(personalPlanned) + len(familyPlanned) + len(housePlanned)
-	for _, it := range personalPlanned {
-		if it.Done {
-			planDone++
-		}
-	}
-	for _, it := range familyPlanned {
-		if it.Done {
-			planDone++
-		}
-	}
-	for _, it := range housePlanned {
-		if it.Done {
-			planDone++
-		}
-	}
-
 	data := auth.TemplateData(r)
-	planAllDone := planTotal > 0 && planDone == planTotal
 	userName, _ := data["UserName"].(string)
 	data["Title"] = "Home"
 	data["Greeting"] = Greeting(now, userName, streakDays, planAllDone)
 	data["DateLabel"] = formatDateLabel(now)
 	data["Today"] = today
-	data["PersonalPlanned"] = personalPlanned
-	data["FamilyPlanned"] = familyPlanned
-	data["HousePlanned"] = housePlanned
-	data["PersonalCarriedCount"] = personalCarriedCount
-	data["FamilyCarriedCount"] = familyCarriedCount
-	data["HouseCarriedCount"] = houseCarriedCount
-	data["CarriedOverCount"] = personalCarriedCount + familyCarriedCount + houseCarriedCount
-	data["UnplannedPersonal"] = unplannedPersonal
-	data["UnplannedFamily"] = unplannedFamily
-	data["UnplannedHouse"] = unplannedHouse
+	data["PersonalPlanned"] = personal.planned
+	data["FamilyPlanned"] = family.planned
+	data["HousePlanned"] = houseSec.planned
+	data["PersonalCarriedCount"] = personal.carried
+	data["FamilyCarriedCount"] = family.carried
+	data["HouseCarriedCount"] = houseSec.carried
+	data["CarriedOverCount"] = personal.carried + family.carried + houseSec.carried
+	data["UnplannedPersonal"] = personal.unplanned
+	data["UnplannedFamily"] = family.unplanned
+	data["UnplannedHouse"] = houseSec.unplanned
 	data["OverdueMaintenance"] = overdueMaintenance
 	data["OverdueMaintenanceCount"] = len(overdueMaintenance)
 	data["PlanDoneCount"] = planDone
 	data["PlanTotalCount"] = planTotal
 	data["PlanAllDone"] = planAllDone
-	openTaskCount := countOpenTasks(personalItems) + countOpenTasks(familyItems)
-	data["PlanPrompt"] = PlanPrompt(now, openTaskCount, streakDays)
-	// Build set of planned slugs to exclude from summary cards.
-	plannedSlugs := make(map[string]bool)
-	for _, it := range personalPlanned {
-		plannedSlugs[it.Slug] = true
-	}
-	familyPlannedSlugs := make(map[string]bool)
-	for _, it := range familyPlanned {
-		familyPlannedSlugs[it.Slug] = true
-	}
-
-	data["PersonalTasks"] = topTasksExcluding(personalItems, 5, plannedSlugs)
+	data["PlanPrompt"] = PlanPrompt(now, countOpenTasks(personalItems)+countOpenTasks(familyItems), streakDays)
+	// Summary cards leave out tasks already in the plan section.
+	data["PersonalTasks"] = topTasksExcluding(personalItems, 5, slugSet(personal.planned))
 	data["PersonalTaskCount"] = countOpenTasks(personalItems)
-	data["FamilyTasks"] = topTasksExcluding(familyItems, 5, familyPlannedSlugs)
+	data["FamilyTasks"] = topTasksExcluding(familyItems, 5, slugSet(family.planned))
 	data["FamilyTaskCount"] = countOpenTasks(familyItems)
 	data["Goals"] = activeGoals(personalItems)
 	data["UntriagedIdeas"] = untriaged
 	data["UntriagedCount"] = untriagedCount
 	data["TotalIdeaCount"] = len(allIdeas)
-	data["InsightLine"] = velocity
+	data["InsightLine"] = insights.WeeklyVelocity(completedItems, now)
 	data["StreakDays"] = streakDays
 	data["TotalCompleted"] = totalCompleted
-	data["MilestoneBadge"] = milestone
-	data["TagSummaries"] = tagSummaries
+	data["MilestoneBadge"] = insights.MilestoneBadge(totalCompleted)
+	data["TagSummaries"] = insights.TopN(insights.TagAggregation(tagInfos(personalItems, familyItems, allIdeas)), 5)
 
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
 		if flashMsg := resolvePlanFlash(msgKey, now); flashMsg != "" {
@@ -301,7 +250,7 @@ func renderHomePage(w http.ResponseWriter, r *http.Request, personalSvc, familyS
 		}
 	}
 
-	if err := templates["homepage.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
+	if err := h.templates["homepage.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
 		slog.Error("rendering homepage", "error", err)
 	}
 }
@@ -396,13 +345,6 @@ func filterAndCountUntriaged(allIdeas []ideas.Idea, n int) ([]ideas.Idea, int) {
 		}
 	}
 	return preview, count
-}
-
-// resolveServices returns (personalSvc, familySvc) for the current request context.
-func (h *Handler) resolveServices(r *http.Request) (*tracker.Service, *tracker.Service) {
-	uid := auth.UserID(r.Context())
-	userSvc := h.registry.ForUser(uid)
-	return userSvc.Personal, h.registry.Family()
 }
 
 var planFlashMessages = map[string]string{
@@ -578,290 +520,106 @@ func (h *Handler) ReorderPlanned(w http.ResponseWriter, r *http.Request) {
 
 // ClearCarriedOver handles POST /plan/bulk/clear-carried -- drops all overdue planned items.
 func (h *Handler) ClearCarriedOver(w http.ResponseWriter, r *http.Request) {
-	personal, family := h.resolveServices(r)
-	today := time.Now().In(h.loc).Format("2006-01-02")
-	clearOverdue(personal, today)
-	clearOverdue(family, today)
-	clearOverdue(h.registry.HouseProjects(), today)
+	h.clearAllOverdue(h.resolve(r))
 	http.Redirect(w, r, "/?msg=carried-cleared", http.StatusSeeOther)
 }
 
-func clearOverdue(svc *tracker.Service, today string) {
-	for _, it := range svc.ListOverdue(today) {
-		_ = svc.ClearPlanned(it.Slug)
+func (h *Handler) clearAllOverdue(l Lists) {
+	today := time.Now().In(h.loc).Format("2006-01-02")
+	for _, svc := range []*tracker.Service{l.Personal, l.Family, l.HouseProjects} {
+		for _, it := range svc.ListOverdue(today) {
+			_ = svc.ClearPlanned(it.Slug)
+		}
 	}
 }
 
-// serviceForList returns the tracker service for the given list name.
+// serviceForList returns the request user's tracker service for list, or nil.
 func (h *Handler) serviceForList(r *http.Request, list string) *tracker.Service {
-	personal, family := h.resolveServices(r)
+	return listService(h.resolve(r), list)
+}
+
+func listService(l Lists, list string) *tracker.Service {
 	switch list {
 	case "todos", "personal":
-		return personal
+		return l.Personal
 	case "family":
-		return family
+		return l.Family
 	case "house":
-		return h.registry.HouseProjects()
+		return l.HouseProjects
 	}
 	return nil
 }
 
 // APIListPlan handles GET /api/v1/plan?date=YYYY-MM-DD.
-func APIListPlan(personalSvc, familySvc, houseProjectsSvc *tracker.Service, loc *time.Location) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		date := r.URL.Query().Get("date")
-		if date == "" {
-			date = time.Now().In(loc).Format("2006-01-02")
-		}
-
-		personal := personalSvc.ListPlanned(date)
-		family := familySvc.ListPlanned(date)
-		housePlanned := houseProjectsSvc.ListPlanned(date)
-		overdue := personalSvc.ListOverdue(date)
-		overdue = append(overdue, familySvc.ListOverdue(date)...)
-		overdue = append(overdue, houseProjectsSvc.ListOverdue(date)...)
-
-		httputil.WriteJSON(w, http.StatusOK, map[string]any{
-			"date":     date,
-			"personal": planItemsToAPI(personal, "personal"),
-			"family":   planItemsToAPI(family, "family"),
-			"house":    planItemsToAPI(housePlanned, "house"),
-			"overdue":  planItemsToAPI(overdue, ""),
-		})
-	}
-}
-
-// APISetPlan handles PUT /api/v1/plan/{slug}.
-func APISetPlan(personalSvc, familySvc, houseProjectsSvc *tracker.Service, loc *time.Location) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		slug := chi.URLParam(r, "slug")
-
-		var body struct {
-			Date string `json:"date"`
-			List string `json:"list"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "Invalid JSON", http.StatusBadRequest)
-			return
-		}
-		if body.Date == "" {
-			body.Date = time.Now().In(loc).Format("2006-01-02")
-		}
-
-		var svc *tracker.Service
-		switch body.List {
-		case "personal", "todos":
-			svc = personalSvc
-		case "family":
-			svc = familySvc
-		case "house":
-			svc = houseProjectsSvc
-		default:
-			http.Error(w, "Invalid list", http.StatusBadRequest)
-			return
-		}
-
-		if err := svc.SetPlanned(slug, body.Date); err != nil {
-			http.Error(w, "Item not found", http.StatusNotFound)
-			return
-		}
-
-		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	}
-}
-
-// APIClearPlan handles DELETE /api/v1/plan/{slug}.
-func APIClearPlan(personalSvc, familySvc, houseProjectsSvc *tracker.Service) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		slug := chi.URLParam(r, "slug")
-
-		var body struct {
-			List string `json:"list"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "Invalid JSON", http.StatusBadRequest)
-			return
-		}
-
-		var svc *tracker.Service
-		switch body.List {
-		case "personal", "todos":
-			svc = personalSvc
-		case "family":
-			svc = familySvc
-		case "house":
-			svc = houseProjectsSvc
-		default:
-			http.Error(w, "Invalid list", http.StatusBadRequest)
-			return
-		}
-
-		if err := svc.ClearPlanned(slug); err != nil {
-			http.Error(w, "Item not found", http.StatusNotFound)
-			return
-		}
-
-		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	}
-}
-
-// SingleUserPlanHandlers holds plan handlers for single-user mode.
-type SingleUserPlanHandlers struct {
-	personalSvc      *tracker.Service
-	familySvc        *tracker.Service
-	houseProjectsSvc *tracker.Service
-	loc              *time.Location
-}
-
-func NewSingleUserPlanHandlers(personalSvc, familySvc, houseProjectsSvc *tracker.Service, loc *time.Location) *SingleUserPlanHandlers {
-	return &SingleUserPlanHandlers{personalSvc: personalSvc, familySvc: familySvc, houseProjectsSvc: houseProjectsSvc, loc: loc}
-}
-
-func (h *SingleUserPlanHandlers) serviceForList(list string) *tracker.Service {
-	switch list {
-	case "todos", "personal":
-		return h.personalSvc
-	case "family":
-		return h.familySvc
-	case "house":
-		return h.houseProjectsSvc
-	}
-	return nil
-}
-
-func (h *SingleUserPlanHandlers) SetPlanned(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
-		return
-	}
-	slug := strings.TrimSpace(r.FormValue("slug"))
-	list := strings.TrimSpace(r.FormValue("list"))
-	date := strings.TrimSpace(r.FormValue("date"))
-	if slug == "" || list == "" {
-		http.Error(w, "Missing slug or list", http.StatusBadRequest)
-		return
-	}
+func (h *Handler) APIListPlan(w http.ResponseWriter, r *http.Request) {
+	l := h.resolve(r)
+	date := r.URL.Query().Get("date")
 	if date == "" {
 		date = time.Now().In(h.loc).Format("2006-01-02")
 	}
-	svc := h.serviceForList(list)
+
+	overdue := slices.Concat(l.Personal.ListOverdue(date), l.Family.ListOverdue(date), l.HouseProjects.ListOverdue(date))
+	httputil.WriteJSON(w, http.StatusOK, map[string]any{
+		"date":     date,
+		"personal": planItemsToAPI(l.Personal.ListPlanned(date), "personal"),
+		"family":   planItemsToAPI(l.Family.ListPlanned(date), "family"),
+		"house":    planItemsToAPI(l.HouseProjects.ListPlanned(date), "house"),
+		"overdue":  planItemsToAPI(overdue, ""),
+	})
+}
+
+// APISetPlan handles PUT /api/v1/plan/{slug}.
+func (h *Handler) APISetPlan(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+
+	var body struct {
+		Date string `json:"date"`
+		List string `json:"list"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if body.Date == "" {
+		body.Date = time.Now().In(h.loc).Format("2006-01-02")
+	}
+
+	svc := h.serviceForList(r, body.List)
 	if svc == nil {
 		http.Error(w, "Invalid list", http.StatusBadRequest)
 		return
 	}
-	if err := svc.SetPlanned(slug, date); err != nil {
-		http.Error(w, "Item not found", http.StatusBadRequest)
+	if err := svc.SetPlanned(slug, body.Date); err != nil {
+		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
-	http.Redirect(w, r, "/?msg=plan-set", http.StatusSeeOther)
+
+	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (h *SingleUserPlanHandlers) ClearPlanned(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+// APIClearPlan handles DELETE /api/v1/plan/{slug}.
+func (h *Handler) APIClearPlan(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+
+	var body struct {
+		List string `json:"list"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-	slug := strings.TrimSpace(r.FormValue("slug"))
-	list := strings.TrimSpace(r.FormValue("list"))
-	if slug == "" || list == "" {
-		http.Error(w, "Missing slug or list", http.StatusBadRequest)
-		return
-	}
-	svc := h.serviceForList(list)
+
+	svc := h.serviceForList(r, body.List)
 	if svc == nil {
 		http.Error(w, "Invalid list", http.StatusBadRequest)
 		return
 	}
 	if err := svc.ClearPlanned(slug); err != nil {
-		http.Error(w, "Item not found", http.StatusBadRequest)
+		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
-	http.Redirect(w, r, "/?msg=plan-cleared", http.StatusSeeOther)
-}
 
-func (h *SingleUserPlanHandlers) CompletePlanned(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
-		return
-	}
-	slug := chi.URLParam(r, "slug")
-	list := strings.TrimSpace(r.FormValue("list"))
-	if slug == "" || list == "" {
-		http.Error(w, "Missing slug or list", http.StatusBadRequest)
-		return
-	}
-	svc := h.serviceForList(list)
-	if svc == nil {
-		http.Error(w, "Invalid list", http.StatusBadRequest)
-		return
-	}
-	if err := svc.Complete(slug); err != nil {
-		http.Error(w, "Item not found", http.StatusBadRequest)
-		return
-	}
-	http.Redirect(w, r, "/?msg=plan-completed", http.StatusSeeOther)
-}
-
-func (h *SingleUserPlanHandlers) ReorderPlanned(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
-		return
-	}
-	slugs := httputil.ParseCSV(r.FormValue("slugs"))
-	list := strings.TrimSpace(r.FormValue("list"))
-	if len(slugs) == 0 || list == "" {
-		http.Error(w, "Missing slugs or list", http.StatusBadRequest)
-		return
-	}
-	svc := h.serviceForList(list)
-	if svc == nil {
-		http.Error(w, "Invalid list", http.StatusBadRequest)
-		return
-	}
-	if err := svc.ReorderPlanned(slugs); err != nil {
-		http.Error(w, "Failed to reorder", http.StatusBadRequest)
-		return
-	}
-	if r.Header.Get("HX-Request") == "true" || r.Header.Get("X-Requested-With") == "XMLHttpRequest" {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	http.Redirect(w, r, "/?msg=plan-reordered", http.StatusSeeOther)
-}
-
-func (h *SingleUserPlanHandlers) ClearCarriedOver(w http.ResponseWriter, r *http.Request) {
-	today := time.Now().In(h.loc).Format("2006-01-02")
-	clearOverdue(h.personalSvc, today)
-	clearOverdue(h.familySvc, today)
-	clearOverdue(h.houseProjectsSvc, today)
-	http.Redirect(w, r, "/?msg=carried-cleared", http.StatusSeeOther)
-}
-
-func (h *SingleUserPlanHandlers) BulkSetPlanned(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
-		return
-	}
-	slugs := httputil.ParseCSV(r.FormValue("slugs"))
-	list := strings.TrimSpace(r.FormValue("list"))
-	date := strings.TrimSpace(r.FormValue("date"))
-	if len(slugs) == 0 || list == "" {
-		http.Error(w, "No items selected", http.StatusBadRequest)
-		return
-	}
-	if date == "" {
-		date = time.Now().In(h.loc).Format("2006-01-02")
-	}
-	svc := h.serviceForList(list)
-	if svc == nil {
-		http.Error(w, "Invalid list", http.StatusBadRequest)
-		return
-	}
-	if err := svc.BulkSetPlanned(slugs, date); err != nil {
-		http.Error(w, "Failed to update items", http.StatusBadRequest)
-		return
-	}
-	http.Redirect(w, r, "/?msg=plan-bulk-set", http.StatusSeeOther)
+	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func planItemsToAPI(items []tracker.Item, list string) []map[string]any {

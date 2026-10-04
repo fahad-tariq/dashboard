@@ -31,7 +31,7 @@ func TestTrackerSummaryFromCache(t *testing.T) {
 		t.Errorf("Summary = %+v, want 2 open tasks and 1 active goal", sum)
 	}
 
-	if err := svc.AddItem(tracker.Item{Title: "Another", Type: tracker.TaskType}); err != nil {
+	if _, err := svc.AddItem(tracker.Item{Title: "Another", Type: tracker.TaskType}); err != nil {
 		t.Fatal(err)
 	}
 	if sum, _ := svc.Summary(); sum.OpenTasks != 3 {

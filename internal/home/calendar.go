@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/fahad/dashboard/internal/auth"
-	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/tracker"
 )
 
@@ -23,20 +22,10 @@ type CalendarDay struct {
 	TaskCount int
 }
 
-// CalendarPage handles GET /plan/calendar in auth-enabled mode.
+// CalendarPage handles GET /plan/calendar.
 func (h *Handler) CalendarPage(w http.ResponseWriter, r *http.Request) {
-	uid := auth.UserID(r.Context())
-	userSvc := h.registry.ForUser(uid)
-	familySvc := h.registry.Family()
-	houseProjectsSvc := h.registry.HouseProjects()
-	renderCalendarPage(w, r, userSvc.Personal, familySvc, houseProjectsSvc, h.templates, h.loc)
-}
-
-// CalendarPageSingle returns a handler for GET /plan/calendar in single-user mode.
-func CalendarPageSingle(personalSvc, familySvc, houseProjectsSvc *tracker.Service, _ *ideas.Service, templates map[string]*template.Template, loc *time.Location) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		renderCalendarPage(w, r, personalSvc, familySvc, houseProjectsSvc, templates, loc)
-	}
+	l := h.resolve(r)
+	renderCalendarPage(w, r, l.Personal, l.Family, l.HouseProjects, h.templates, h.loc)
 }
 
 func renderCalendarPage(w http.ResponseWriter, r *http.Request, personalSvc, familySvc, houseProjectsSvc *tracker.Service, templates map[string]*template.Template, loc *time.Location) {

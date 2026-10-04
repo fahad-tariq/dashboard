@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -119,6 +121,31 @@ func RequireAdmin(sm *scs.SessionManager) func(http.Handler) http.Handler {
 				return
 			}
 			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// WithUser returns ctx carrying u as the authenticated user.
+func WithUser(ctx context.Context, u User) context.Context {
+	ctx = context.WithValue(ctx, ctxUserID, u.ID)
+	ctx = context.WithValue(ctx, ctxUserEmail, u.Email)
+	ctx = context.WithValue(ctx, ctxIsAdmin, u.Role == "admin")
+	ctx = context.WithValue(ctx, ctxFirstName, u.FirstName)
+	return ctx
+}
+
+// InjectUser serves every request as user id, for local development with auth
+// disabled. The row is read per request so account edits show at once.
+func InjectUser(db *sql.DB, id int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			u, err := FindByID(db, id)
+			if err != nil || u == nil {
+				slog.Error("loading local user", "user_id", id, "error", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(WithUser(r.Context(), *u)))
 		})
 	}
 }

@@ -62,7 +62,9 @@ func setupHomeEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.Se
 	)
 	templates["homepage.html"] = tmpl
 
-	handler := home.HomePageSingle(personalSvc, familySvc, houseProjectsSvc, maintenanceSvc, ideasSvc, templates, time.UTC)
+	handler := http.HandlerFunc(home.NewHandler(func(*http.Request) home.Lists {
+		return home.Lists{Personal: personalSvc, Family: familySvc, HouseProjects: houseProjectsSvc, Maintenance: maintenanceSvc, Ideas: ideasSvc}
+	}, templates, time.UTC).HomePage)
 	return handler, personalSvc, familySvc, ideasSvc
 }
 
@@ -144,7 +146,9 @@ func TestHomePageShowsIdeaCounts(t *testing.T) {
 	)
 	templates["homepage.html"] = tmpl
 
-	handler := home.HomePageSingle(personalSvc, familySvc, houseProjectsSvc, maintenanceSvc, ideasSvc, templates, time.UTC)
+	handler := http.HandlerFunc(home.NewHandler(func(*http.Request) home.Lists {
+		return home.Lists{Personal: personalSvc, Family: familySvc, HouseProjects: houseProjectsSvc, Maintenance: maintenanceSvc, Ideas: ideasSvc}
+	}, templates, time.UTC).HomePage)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
@@ -202,7 +206,9 @@ func TestHomePageEmpty(t *testing.T) {
 	)
 	templates["homepage.html"] = tmpl
 
-	handler := home.HomePageSingle(personalSvc, familySvc, houseProjectsSvc, maintenanceSvc, ideasSvc, templates, time.UTC)
+	handler := http.HandlerFunc(home.NewHandler(func(*http.Request) home.Lists {
+		return home.Lists{Personal: personalSvc, Family: familySvc, HouseProjects: houseProjectsSvc, Maintenance: maintenanceSvc, Ideas: ideasSvc}
+	}, templates, time.UTC).HomePage)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()

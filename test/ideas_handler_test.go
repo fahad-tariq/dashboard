@@ -58,8 +58,7 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 			Tags:     tags,
 			FromIdea: fromIdeaSlug,
 		}
-		err := personalSvc.AddItem(item)
-		return tracker.Slugify(title), err
+		return personalSvc.AddItem(item)
 	}
 
 	funcMap := template.FuncMap{

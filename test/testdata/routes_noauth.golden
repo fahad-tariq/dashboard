@@ -7,6 +7,12 @@ DELETE  /api/v1/todos/{slug}/substeps/{index}
 DELETE  /static/*
 DELETE  /uploads/*
 GET     /
+GET     /account
+GET     /account/password
+GET     /admin/users
+GET     /admin/users/new
+GET     /admin/users/{id}/edit
+GET     /admin/users/{id}/password
 GET     /api/v1/commentary/{list}/{slug}
 GET     /api/v1/ideas
 GET     /api/v1/plan
@@ -22,6 +28,7 @@ GET     /goals
 GET     /house
 GET     /ideas
 GET     /ideas/{slug}
+GET     /login
 GET     /personal
 GET     /plan/calendar
 GET     /search
@@ -34,6 +41,12 @@ OPTIONS /static/*
 OPTIONS /uploads/*
 PATCH   /static/*
 PATCH   /uploads/*
+POST    /account/name
+POST    /account/password
+POST    /admin/users/new
+POST    /admin/users/{id}/delete
+POST    /admin/users/{id}/edit
+POST    /admin/users/{id}/password
 POST    /api/v1/ideas
 POST    /api/v1/ideas/{slug}/research
 POST    /api/v1/plan/clear-carried
@@ -87,6 +100,8 @@ POST    /ideas/{slug}/purge
 POST    /ideas/{slug}/restore
 POST    /ideas/{slug}/to-task
 POST    /ideas/{slug}/triage
+POST    /login
+POST    /logout
 POST    /plan/bulk/clear-carried
 POST    /plan/bulk/set
 POST    /plan/clear

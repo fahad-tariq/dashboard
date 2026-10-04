@@ -29,9 +29,34 @@ type Registry struct {
 	familySvc        *tracker.Service
 	houseProjectsSvc *tracker.Service
 
-	mu      sync.RWMutex
-	cache   map[int64]*UserServices
-	publish func(category string)
+	mu        sync.RWMutex
+	cache     map[int64]*UserServices
+	publish   func(category string)
+	overrides map[int64]userPaths
+}
+
+// userPaths are the files behind one user's services.
+type userPaths struct{ personal, ideas string }
+
+// SetUserPaths makes userID's services use the given files instead of
+// USER_DATA_DIR/{id}/. No-auth mode uses it to keep PERSONAL_PATH and
+// IDEAS_PATH for user 1. Call it before the user's services are first used.
+func (r *Registry) SetUserPaths(userID int64, personalPath, ideasPath string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.overrides == nil {
+		r.overrides = make(map[int64]userPaths)
+	}
+	r.overrides[userID] = userPaths{personal: personalPath, ideas: ideasPath}
+}
+
+// pathsFor returns userID's files. Callers hold r.mu.
+func (r *Registry) pathsFor(userID int64) userPaths {
+	if p, ok := r.overrides[userID]; ok {
+		return p
+	}
+	base := filepath.Join(r.userDataDir, fmt.Sprintf("%d", userID))
+	return userPaths{personal: filepath.Join(base, "personal.md"), ideas: filepath.Join(base, "ideas.md")}
 }
 
 // SetPublisher makes every service, shared and per-user, call publish with
@@ -86,30 +111,24 @@ func (r *Registry) HouseProjects() *tracker.Service {
 // EnsureUserDirs creates per-user directories and skeleton files.
 // Idempotent -- safe to call multiple times.
 func (r *Registry) EnsureUserDirs(userID int64) error {
-	base := filepath.Join(r.userDataDir, fmt.Sprintf("%d", userID))
+	r.mu.RLock()
+	paths := r.pathsFor(userID)
+	r.mu.RUnlock()
 
-	if err := os.MkdirAll(base, 0o755); err != nil {
-		return fmt.Errorf("creating directory %s: %w", base, err)
-	}
-
-	// Create skeleton personal.md if it does not exist.
-	personalPath := filepath.Join(base, "personal.md")
-	if _, err := os.Stat(personalPath); os.IsNotExist(err) {
-		skeleton := "# Personal\n\n"
-		if err := atomicfile.Write(personalPath, []byte(skeleton), 0o644); err != nil {
-			return fmt.Errorf("creating personal.md: %w", err)
+	for _, f := range []struct{ path, heading string }{
+		{paths.personal, "Personal"},
+		{paths.ideas, "Ideas"},
+	} {
+		dir := filepath.Dir(f.path)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("creating directory %s: %w", dir, err)
+		}
+		if _, err := os.Stat(f.path); os.IsNotExist(err) {
+			if err := atomicfile.Write(f.path, []byte("# "+f.heading+"\n\n"), 0o644); err != nil {
+				return fmt.Errorf("creating %s: %w", filepath.Base(f.path), err)
+			}
 		}
 	}
-
-	// Create skeleton ideas.md if it does not exist.
-	ideasPath := filepath.Join(base, "ideas.md")
-	if _, err := os.Stat(ideasPath); os.IsNotExist(err) {
-		skeleton := "# Ideas\n\n"
-		if err := atomicfile.Write(ideasPath, []byte(skeleton), 0o644); err != nil {
-			return fmt.Errorf("creating ideas.md: %w", err)
-		}
-	}
-
 	return nil
 }
 
@@ -134,17 +153,10 @@ func (r *Registry) ForUser(userID int64) *UserServices {
 		return svc
 	}
 
-	base := filepath.Join(r.userDataDir, fmt.Sprintf("%d", userID))
-
-	personalPath := filepath.Join(base, "personal.md")
-	personalSvc := tracker.NewService(personalPath, "Personal", r.loc)
-
-	ideasPath := filepath.Join(base, "ideas.md")
-	ideaSvc := ideas.NewService(ideasPath, r.loc)
-
+	paths := r.pathsFor(userID)
 	svc := &UserServices{
-		Personal: personalSvc,
-		Ideas:    ideaSvc,
+		Personal: tracker.NewService(paths.personal, "Personal", r.loc),
+		Ideas:    ideas.NewService(paths.ideas, r.loc),
 	}
 	r.wireUser(svc)
 	r.cache[userID] = svc

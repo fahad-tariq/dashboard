@@ -61,6 +61,26 @@ func CreateUserWithHash(db *sql.DB, email, firstName, hash string) (int64, error
 	return result.LastInsertId()
 }
 
+// EnsureUser creates an admin row with the given id and email unless one with
+// that id exists. Its password hash matches no password, so the row cannot be
+// logged into until an admin sets a password.
+func EnsureUser(db *sql.DB, id int64, email string) error {
+	if _, err := db.Exec(
+		"INSERT OR IGNORE INTO users (id, email, first_name, password_hash, role, created_at) VALUES (?, ?, '', '!', 'admin', ?)",
+		id, email, time.Now().UTC().Format(time.RFC3339),
+	); err != nil {
+		return fmt.Errorf("ensuring user %d: %w", id, err)
+	}
+	u, err := FindByID(db, id)
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return fmt.Errorf("ensuring user %d: email %q belongs to another user", id, email)
+	}
+	return nil
+}
+
 // FindByEmail returns the user with the given email, or nil if not found.
 func FindByEmail(db *sql.DB, email string) (*User, error) {
 	u := &User{}
