@@ -147,8 +147,9 @@ func ParseTracker(path string) ([]Item, error) {
 	for line := range strings.SplitSeq(string(data), "\n") {
 		trimmed := strings.TrimSpace(line)
 
-		// Skip headings (section headers and top-level heading).
-		if strings.HasPrefix(trimmed, "#") {
+		// Skip headings (section headers and top-level heading). Only
+		// unindented lines count: an indented "## ..." is body content.
+		if strings.HasPrefix(line, "#") {
 			if current != nil {
 				current.Body = strings.TrimSpace(current.Body)
 				current.SubStepsDone, current.SubStepsTotal = countSubSteps(current.Body)
