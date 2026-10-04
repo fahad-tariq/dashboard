@@ -17,9 +17,13 @@ import (
 	"github.com/fahad/dashboard/internal/db"
 )
 
+// testUser is an email and password; authRouter creates them in order, so the
+// first gets ID 1.
+type testUser struct{ email, password string }
+
 // authRouter builds the real router with auth on and the given users. files
 // maps paths relative to USER_DATA_DIR to content written before start-up.
-func authRouter(t *testing.T, users, files map[string]string) (http.Handler, *config.Config, *sql.DB) {
+func authRouter(t *testing.T, users []testUser, files map[string]string) (http.Handler, *config.Config, *sql.DB) {
 	t.Helper()
 	paths := tempPaths(t)
 	paths["DASHBOARD_PASSWORD_HASH"] = ""
@@ -34,8 +38,8 @@ func authRouter(t *testing.T, users, files map[string]string) (http.Handler, *co
 		t.Fatalf("db.Open: %v", err)
 	}
 	t.Cleanup(func() { closeDB(t, database) })
-	for email, password := range users {
-		if _, err := auth.CreateUser(database, email, "", password); err != nil {
+	for _, u := range users {
+		if _, err := auth.CreateUser(database, u.email, "", u.password); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -163,9 +167,9 @@ func TestNoAuthUsesLegacyPaths(t *testing.T) {
 // Commentary belongs to the logged-in user, not always user 1.
 func TestCommentaryScopedToUser(t *testing.T) {
 	idea := "# Ideas\n\n- [ ] Shared idea [status: untriaged] [added: 2026-09-10]\n"
-	h, _, database := authRouter(t, map[string]string{
-		"one@test.com": "password-one",
-		"two@test.com": "password-two",
+	h, _, database := authRouter(t, []testUser{
+		{"one@test.com", "password-one"},
+		{"two@test.com", "password-two"},
 	}, map[string]string{"1/ideas.md": idea, "2/ideas.md": idea})
 	store := commentary.NewStore(database)
 	for uid, note := range map[int]string{1: "note for user one", 2: "note for user two"} {

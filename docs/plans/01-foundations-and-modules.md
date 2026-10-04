@@ -659,6 +659,7 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - `tracker.NewHandler` and `ideas.NewHandler` (static services) are now used only by tests. They were kept to avoid churning six test files ahead of Phase 6's handler changes.
 - CLAUDE.md still describes `SingleUserPlanHandlers`, "planner dual-mode handlers" and three `ToTaskFunc` closures. Phase 10 rewrites it; until then, these Phase 5 notes are the current description.
 - Verification: lint 0 issues; `INTEGRATION=1 go test -race ./...` green; Playwright runs in CI on the PR.
+- First CI run (PR #8): the other four jobs passed, including e2e; `test` failed in `TestCommentaryScopedToUser`. The test was flaky, not the fix: `authRouter` created users from a map, so in a random half of runs `two@test.com` got ID 1. Users are now an ordered slice; 50 repeated runs pass.
 
 - Follow-ups:
   - tighten CSP `script-src` after moving inline handlers
