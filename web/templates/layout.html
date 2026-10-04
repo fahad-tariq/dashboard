@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="htmx-config" content='{"allowEval":false}'>
     <title>{{.Title}} - dash</title>
-    <link rel="stylesheet" href="/static/theme.css">
+    <link rel="stylesheet" href="{{static "theme.css"}}">
     <style>
         :root, [data-theme="light"] { --accent: hsl({{seasonalAccent}}, 68%, 40%); }
         [data-theme="dark"] { --accent: hsl({{seasonalAccent}}, 78%, 74%); }
@@ -16,8 +16,8 @@
             if (t) document.documentElement.setAttribute('data-theme', t);
         })();
     </script>
-    <script defer src="/static/htmx.min.js"></script>
-    <script defer src="/static/htmx-sse.js"></script>
+    <script defer src="{{static "htmx.min.js"}}"></script>
+    <script defer src="{{static "htmx-sse.js"}}"></script>
 </head>
 <body>
     <nav class="nav" aria-label="Main navigation">
@@ -146,9 +146,9 @@
         </div>
     </div>
     <footer class="build-info">build {{buildVersion}} <span class="mcp-status" id="mcp-status" role="status" aria-live="polite" aria-label="MCP: checking">[mcp]</span></footer>
-    <script src="/static/dialog.js"></script>
-    <script src="/static/tracker.js"></script>
-    <script src="/static/upload.js"></script>
+    <script src="{{static "dialog.js"}}"></script>
+    <script src="{{static "tracker.js"}}"></script>
+    <script src="{{static "upload.js"}}"></script>
     <script>
         (function() {
             function collapseActionsOnMobile() {
@@ -162,7 +162,7 @@
             document.body.addEventListener('htmx:afterSwap', collapseActionsOnMobile);
         })();
     </script>
-    <script src="/static/shortcuts.js"></script>
+    <script src="{{static "shortcuts.js"}}"></script>
     <script>
         (function() {
             var el = document.getElementById('mcp-status');

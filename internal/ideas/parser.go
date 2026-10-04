@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/slug"
 )
 
@@ -53,7 +54,7 @@ func ParseIdeas(path string) ([]Idea, error) {
 
 		// Headings end the current idea and are skipped.
 		// Only non-indented lines are headings; indented # lines are body content.
-		if !strings.HasPrefix(line, " ") && strings.HasPrefix(trimmed, "#") {
+		if strings.HasPrefix(line, "#") {
 			if current != nil {
 				current.Body = strings.TrimSpace(current.Body)
 				ideas = append(ideas, *current)
@@ -62,8 +63,11 @@ func ParseIdeas(path string) ([]Idea, error) {
 			continue
 		}
 
-		// Checkbox line starts a new idea.
-		if title, ok := parseIdeaCheckbox(trimmed); ok {
+		// An unindented checkbox line starts a new idea; an indented one is a
+		// checklist inside the current idea's body, unless no idea is open yet
+		// (hand-written files sometimes indent ideas under a heading).
+		indented := strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")
+		if title, ok := parseIdeaCheckbox(trimmed); ok && (!indented || current == nil) {
 			if current != nil {
 				current.Body = strings.TrimSpace(current.Body)
 				ideas = append(ideas, *current)
@@ -76,11 +80,8 @@ func ParseIdeas(path string) ([]Idea, error) {
 			continue
 		}
 
-		// Body lines: indented (2+ spaces) or blank lines between indented lines.
-		if strings.HasPrefix(line, "  ") {
-			current.Body += line[2:] + "\n"
-		} else if trimmed == "" {
-			current.Body += "\n"
+		if body, ok := ideaBodyLine(line, trimmed); ok {
+			current.Body += body + "\n"
 		}
 	}
 
@@ -90,6 +91,21 @@ func ParseIdeas(path string) ([]Idea, error) {
 	}
 
 	return ideas, nil
+}
+
+// ideaBodyLine returns the body text of an idea line: indented (2+ spaces)
+// or blank lines between indented lines. A leading tab (hand-edited files)
+// counts as one indent level.
+func ideaBodyLine(line, trimmed string) (string, bool) {
+	switch {
+	case strings.HasPrefix(line, "  "):
+		return line[2:], true
+	case strings.HasPrefix(line, "\t"):
+		return line[1:], true
+	case trimmed == "":
+		return "", true
+	}
+	return "", false
 }
 
 // parseIdeaCheckbox checks if a line is a checkbox and returns the content after the checkbox prefix.
@@ -156,7 +172,13 @@ func parseIdeaLine(raw string) *Idea {
 }
 
 // WriteIdeas writes all ideas to a flat-file ideas.md.
+// WriteIdeas atomically replaces path with the rendered ideas file.
 func WriteIdeas(path string, heading string, ideas []Idea) error {
+	return atomicfile.Write(path, RenderIdeas(heading, ideas), 0o644)
+}
+
+// RenderIdeas returns the markdown for an ideas file.
+func RenderIdeas(heading string, ideas []Idea) []byte {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n\n", heading)
 
@@ -204,7 +226,7 @@ func WriteIdeas(path string, heading string, ideas []Idea) error {
 		}
 	}
 
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return []byte(b.String())
 }
 
 // Slugify exposes the shared slug generation for use by the handler.

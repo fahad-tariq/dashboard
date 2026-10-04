@@ -53,6 +53,10 @@ const (
 	// per minute before getting 429s. A valid token is never blocked.
 	failedBearerLimit = 10
 
+	// publishDebounce delays service change events like the old watcher
+	// debounce, so the tab making a change finishes its request first.
+	publishDebounce = 500 * time.Millisecond
+
 	// sessionIdleTimeout logs out a session unused for a week, well inside
 	// the absolute SESSION_LIFETIME.
 	sessionIdleTimeout = 7 * 24 * time.Hour
@@ -61,8 +65,9 @@ const (
 		"img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
 )
 
-func buildFuncMap(loc *time.Location, authEnabled bool, version string) template.FuncMap {
+func buildFuncMap(loc *time.Location, authEnabled bool, version string, static func(string) (string, error)) template.FuncMap {
 	return template.FuncMap{
+		"static":       static,
 		"authEnabled":  func() bool { return authEnabled },
 		"buildVersion": func() string { return version },
 		"percentage": func(current, target float64) int {
@@ -196,7 +201,16 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 		return nil, err
 	}
 
-	fm := buildFuncMap(cfg.Location, cfg.AuthEnabled(), version)
+	staticSub, err := fs.Sub(web.StaticFS, "static")
+	if err != nil {
+		return nil, fmt.Errorf("static assets: %w", err)
+	}
+	assets, err := newStaticAssets(staticSub)
+	if err != nil {
+		return nil, err
+	}
+
+	fm := buildFuncMap(cfg.Location, cfg.AuthEnabled(), version, assets.URL)
 	templates, err := parseTemplates(fm)
 	if err != nil {
 		return nil, fmt.Errorf("parsing templates: %w", err)
@@ -218,8 +232,7 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 	r := root.With(http.NewCrossOriginProtection().Handler)
 
 	// Static assets are always public.
-	staticSub, _ := fs.Sub(web.StaticFS, "static")
-	r.Handle("/static/*", cacheImmutable(http.StripPrefix("/static/", http.FileServerFS(staticSub))))
+	r.Handle("/static/*", assets.Handler())
 
 	// ideaHandler is declared here so the API routes (below both branches)
 	// can reference it regardless of which branch executes.
@@ -284,38 +297,26 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 			cfg.HouseProjectsPath: "house-projects",
 			cfg.MaintenancePath:   "maintenance",
 		}
-		callbacks := map[string]func(){
-			"family": func() {
-				if err := registry.Family().Resync(); err != nil {
-					slog.Error("family resync failed", "error", err)
-				}
-			},
-			"house-projects": func() {
-				if err := registry.HouseProjects().Resync(); err != nil {
-					slog.Error("house projects resync failed", "error", err)
-				}
-			},
-			"maintenance": func() {
-				if err := maintenanceSvc.Resync(); err != nil {
-					slog.Error("maintenance resync failed", "error", err)
-				}
-			},
+		publish := broker.Debounced(publishDebounce)
+		registry.SetPublisher(publish)
+		maintenanceSvc.OnChange(func() { publish("maintenance") })
+		callbacks := map[string]func() bool{
+			"family":         resyncCallback("family", registry.Family()),
+			"house-projects": resyncCallback("house projects", registry.HouseProjects()),
+			"maintenance":    resyncCallback("maintenance", maintenanceSvc),
 		}
-		userCallback := func(userID int64, category string) {
+		userCallback := func(userID int64, category string) bool {
 			if userID == 0 {
-				return
+				return false
 			}
 			svc := registry.ForUser(userID)
 			switch category {
 			case "personal":
-				if err := svc.Personal.Resync(); err != nil {
-					slog.Error("per-user personal resync failed", "user_id", userID, "error", err)
-				}
+				return resyncCallback("personal", svc.Personal)()
 			case "ideas":
-				if err := svc.Ideas.Resync(); err != nil {
-					slog.Error("per-user ideas resync failed", "user_id", userID, "error", err)
-				}
+				return resyncCallback("ideas", svc.Ideas)()
 			}
+			return false
 		}
 		if err := watcher.WatchWithUserCallbacks(nil, fileCategories, cfg.UserDataDir, broker, callbacks, userCallback); err != nil {
 			slog.Warn("file watcher failed to start", "error", err)
@@ -399,7 +400,7 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 			}
 		}()
 
-		loginTmpl, err := template.New("login.html").ParseFS(web.TemplateFS, "templates/login.html")
+		loginTmpl, err := template.New("login.html").Funcs(template.FuncMap{"static": assets.URL}).ParseFS(web.TemplateFS, "templates/login.html")
 		if err != nil {
 			return nil, fmt.Errorf("parsing login template: %w", err)
 		}
@@ -482,12 +483,9 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 	} else {
 		// Auth disabled: singleton services are fine for single-user mode.
 		ideaSvc := ideas.NewService(cfg.IdeasPath, cfg.Location)
-		personalStore := tracker.NewStore(database, "personal")
-		familyStore := tracker.NewStore(database, "family")
-		personalSvc := tracker.NewService(cfg.PersonalPath, "Personal", personalStore, cfg.Location)
-		familySvc := tracker.NewService(cfg.FamilyPath, "Family", familyStore, cfg.Location)
-		houseProjectsStore := tracker.NewStore(database, "house")
-		houseProjectsSvc := tracker.NewService(cfg.HouseProjectsPath, "House", houseProjectsStore, cfg.Location)
+		personalSvc := tracker.NewService(cfg.PersonalPath, "Personal", cfg.Location)
+		familySvc := tracker.NewService(cfg.FamilyPath, "Family", cfg.Location)
+		houseProjectsSvc := tracker.NewService(cfg.HouseProjectsPath, "House", cfg.Location)
 		maintenanceSvc := house.NewService(cfg.MaintenancePath, cfg.Location)
 		if err := personalSvc.Resync(); err != nil {
 			slog.Warn("initial personal sync", "error", err)
@@ -503,32 +501,19 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 			cfg.HouseProjectsPath: "house-projects",
 			cfg.MaintenancePath:   "maintenance",
 		}
-		callbacks := map[string]func(){
-			"personal": func() {
-				if err := personalSvc.Resync(); err != nil {
-					slog.Error("personal resync failed", "error", err)
-				}
-			},
-			"family": func() {
-				if err := familySvc.Resync(); err != nil {
-					slog.Error("family resync failed", "error", err)
-				}
-			},
-			"ideas": func() {
-				if err := ideaSvc.Resync(); err != nil {
-					slog.Error("ideas resync failed", "error", err)
-				}
-			},
-			"house-projects": func() {
-				if err := houseProjectsSvc.Resync(); err != nil {
-					slog.Error("house projects resync failed", "error", err)
-				}
-			},
-			"maintenance": func() {
-				if err := maintenanceSvc.Resync(); err != nil {
-					slog.Error("maintenance resync failed", "error", err)
-				}
-			},
+		debounced := broker.Debounced(publishDebounce)
+		publish := func(category string) func() { return func() { debounced(category) } }
+		personalSvc.OnChange(publish("personal"))
+		familySvc.OnChange(publish("family"))
+		ideaSvc.OnChange(publish("ideas"))
+		houseProjectsSvc.OnChange(publish("house-projects"))
+		maintenanceSvc.OnChange(publish("maintenance"))
+		callbacks := map[string]func() bool{
+			"personal":       resyncCallback("personal", personalSvc),
+			"family":         resyncCallback("family", familySvc),
+			"ideas":          resyncCallback("ideas", ideaSvc),
+			"house-projects": resyncCallback("house projects", houseProjectsSvc),
+			"maintenance":    resyncCallback("maintenance", maintenanceSvc),
 		}
 		if err := watcher.Watch(nil, fileCategories, broker, callbacks); err != nil {
 			slog.Warn("file watcher failed to start", "error", err)
@@ -848,6 +833,19 @@ func bearerAuth(token string, failures *auth.RateLimiter, trusted []netip.Prefix
 			w.WriteHeader(status)
 			_, _ = w.Write([]byte(body))
 		})
+	}
+}
+
+// resyncCallback adapts a service to the watcher: it re-reads the file only if
+// it differs from the service's own last write and reports whether it did.
+func resyncCallback(name string, svc interface{ ResyncIfChanged() (bool, error) }) func() bool {
+	return func() bool {
+		changed, err := svc.ResyncIfChanged()
+		if err != nil {
+			slog.Error("resync failed", "list", name, "error", err)
+			return false
+		}
+		return changed
 	}
 }
 

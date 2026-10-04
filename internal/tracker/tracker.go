@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/slug"
 )
 
@@ -146,8 +147,9 @@ func ParseTracker(path string) ([]Item, error) {
 	for line := range strings.SplitSeq(string(data), "\n") {
 		trimmed := strings.TrimSpace(line)
 
-		// Skip headings (section headers and top-level heading).
-		if strings.HasPrefix(trimmed, "#") {
+		// Skip headings (section headers and top-level heading). Only
+		// unindented lines count: an indented "## ..." is body content.
+		if strings.HasPrefix(line, "#") {
 			if current != nil {
 				current.Body = strings.TrimSpace(current.Body)
 				current.SubStepsDone, current.SubStepsTotal = countSubSteps(current.Body)
@@ -327,7 +329,13 @@ func parseItemLine(raw string, done bool) *Item { //nolint:gocyclo // one branch
 
 // WriteTracker writes items back to a markdown file as a flat list.
 // Tags are stored inline on each item via [tags:].
+// WriteTracker atomically replaces path with the rendered list.
 func WriteTracker(path, heading string, items []Item) error {
+	return atomicfile.Write(path, RenderTracker(heading, items), 0o644)
+}
+
+// RenderTracker returns the markdown for a tracker list.
+func RenderTracker(heading string, items []Item) []byte {
 	var sb strings.Builder
 	sb.WriteString("# " + heading + "\n\n")
 
@@ -335,7 +343,7 @@ func WriteTracker(path, heading string, items []Item) error {
 		writeItem(&sb, it)
 	}
 
-	return os.WriteFile(path, []byte(sb.String()), 0o644)
+	return []byte(sb.String())
 }
 
 func writeItem(sb *strings.Builder, it Item) { //nolint:gocyclo // one branch per inline metadata tag

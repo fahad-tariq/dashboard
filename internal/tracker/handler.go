@@ -746,17 +746,18 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 
 	movedItem := *item
 
-	if err := svc.PermanentDelete(slug); err != nil {
-		httputil.ServerError(w, "deleting item from source list", err, "slug", slug)
-		return
-	}
-
 	if _, err := otherSvc.Get(movedItem.Slug); err == nil {
 		movedItem.Slug = movedItem.Slug + "-" + fmt.Sprintf("%d", time.Now().Unix())
 	}
 
+	// Add before deleting: a failed add leaves the item where it was, and a
+	// failed delete leaves a recoverable duplicate rather than losing it.
 	if err := otherSvc.AddItem(movedItem); err != nil {
-		httputil.ServerError(w, "item deleted from source but failed to add to target, manual recovery may be needed", err, "slug", slug)
+		httputil.ServerError(w, "adding item to target list", err, "slug", slug)
+		return
+	}
+	if err := svc.PermanentDelete(slug); err != nil {
+		httputil.ServerError(w, "item copied to target but not removed from source", err, "slug", slug)
 		return
 	}
 

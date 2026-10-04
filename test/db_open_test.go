@@ -60,3 +60,39 @@ func TestOpenRefusesReadOnlyDatabase(t *testing.T) {
 		t.Errorf("error %q should say the database is not writable", err)
 	}
 }
+
+// Pragmas set with db.Exec only reach the connection that ran them; every
+// pooled connection must carry them.
+func TestPragmasOnEveryPooledConnection(t *testing.T) {
+	database, err := db.Open(filepath.Join(t.TempDir(), "dashboard.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeDB(t, database) })
+
+	want := map[string]string{"busy_timeout": "5000", "foreign_keys": "1", "journal_mode": "wal", "synchronous": "1"}
+	var conns []*sql.Conn
+	for range 3 {
+		c, err := database.Conn(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		conns = append(conns, c)
+	}
+	for i, c := range conns {
+		for pragma, v := range want {
+			var got string
+			if err := c.QueryRowContext(t.Context(), "PRAGMA "+pragma).Scan(&got); err != nil {
+				t.Fatalf("conn %d PRAGMA %s: %v", i, pragma, err)
+			}
+			if got != v {
+				t.Errorf("conn %d: %s = %q, want %q", i, pragma, got, v)
+			}
+		}
+	}
+	for _, c := range conns {
+		if err := c.Close(); err != nil {
+			t.Error(err)
+		}
+	}
+}

@@ -115,7 +115,7 @@ dash.example.net {
 ```
 
 - Ports are published on `127.0.0.1` only. Docker-published ports bypass ufw, so a `0.0.0.0` binding would expose the plain-HTTP app to the LAN.
-- The compose network has a fixed subnet (`172.30.81.0/24`). Requests through the published port reach the container from its gateway, `172.30.81.1`, which is therefore `DASHBOARD_TRUSTED_PROXIES`. Caddy appends the real client address to `X-Forwarded-For`, and the app uses that rightmost entry for login rate limiting. Change both values together if the subnet clashes with another network.
+- The compose network has a fixed subnet (`172.30.81.0/24`). Requests through the published port reach the container from its gateway, `172.30.81.1`, which is therefore `DASHBOARD_TRUSTED_PROXIES`. Caddy sets `X-Forwarded-For` to the client address it saw (it replaces any client-supplied value unless Caddy itself has `trusted_proxies`), and the app uses the rightmost entry for login rate limiting. If another proxy such as a CDN ever sits in front of Caddy, configure Caddy's `trusted_proxies` too, or every client will look like the CDN. Change both values together if the subnet clashes with another network.
 - Set `DASHBOARD_UID`/`DASHBOARD_GID` to the owner of `./data` and `./users`. Before switching an existing deployment, make sure that user owns everything (once, as root): `chown -R <uid>:<gid> data users`.
 - `DASHBOARD_SECURE_COOKIES` stays `true`: the browser talks HTTPS to the proxy.
 
@@ -274,34 +274,27 @@ With multi-user, personal data is stored per-user under `USER_DATA_DIR/{user_id}
 
 ## Backup
 
-All user data is plain markdown files. The SQLite database stores users, sessions, and a tracker cache. The tracker cache is rebuilt from markdown on startup, but the users table is authoritative.
+User data is markdown under the data and users directories, plus the SQLite database, which is authoritative for users, sessions and commentary. Back up all three.
 
-To back up the dashboard, copy the markdown files and database. A few options:
-
-**Docker volume snapshot**
+`scripts/backup.sh` (also `make backup`) writes `dashboard-backup-<timestamp>.tar.gz` containing `data/`, `users/` and a database snapshot taken with SQLite's online backup API, which is safe while the server runs. A plain `cp` or `tar` of a live WAL database is not. It checks the snapshot's integrity, prunes archives older than `RETENTION_DAYS` (default 14), and exits non-zero on any failure.
 
 ```bash
-docker run --rm -v dashboard_data:/data -v "$(pwd)":/backup alpine \
-  tar czf /backup/dashboard-backup-$(date +%F).tar.gz /data
+make backup                                   # ./data, ./users -> ./backups
+DATA_DIR=/srv/dash/data USERS_DIR=/srv/dash/users BACKUP_DIR=/srv/dash/backups bash scripts/backup.sh
 ```
 
-**Scheduled sync to cloud storage**
+Run it from cron for scheduled backups, and copy the archives off the host.
 
-Use `rclone` or `rsync` on a cron schedule to sync the data directory to S3, GCS, Backblaze, or a remote host:
-
-```bash
-# Example: sync to an rclone remote every 6 hours
-0 */6 * * * rclone sync /data remote:dashboard-backup
-```
-
-**Git-based version history**
-
-Initialise a git repo in your data directory to track changes over time:
+**Restore**
 
 ```bash
-cd /data
-git init && git add -A && git commit -m "initial"
-# Add a cron job to auto-commit periodically
+docker compose stop dashboard
+mkdir restore && tar -xzf backups/dashboard-backup-<timestamp>.tar.gz -C restore
+rm -f data/dashboard.db-wal data/dashboard.db-shm
+cp -a restore/data/. data/ && cp -a restore/users/. users/
+cp restore/dashboard.db data/dashboard.db
+chown -R <uid>:<gid> data users   # the user the container runs as
+docker compose start dashboard
 ```
 
 ## Stack

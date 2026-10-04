@@ -92,3 +92,44 @@ func TestSSESlowClientDropsMessage(t *testing.T) {
 		t.Fatal("Send blocked on slow client")
 	}
 }
+
+// Service writes publish through a debounce so the tab that made a change
+// finishes its own request before the refresh arrives, as the watcher's
+// debounce used to ensure; a burst of writes becomes one event per category.
+func TestSSEDebouncedPublisherCoalesces(t *testing.T) {
+	b := sse.NewBroker()
+	ch := make(chan string, 16)
+	b.Subscribe(ch)
+	defer b.Unsubscribe(ch)
+
+	publish := b.Debounced(80 * time.Millisecond)
+	publish("personal")
+	publish("personal")
+	publish("family")
+	publish("personal")
+
+	select {
+	case msg := <-ch:
+		t.Fatalf("event sent before the debounce elapsed: %q", msg)
+	case <-time.After(40 * time.Millisecond):
+	}
+	got := map[string]int{}
+	deadline := time.After(time.Second)
+	for len(got) < 2 {
+		select {
+		case msg := <-ch:
+			got[msg]++
+		case <-deadline:
+			t.Fatalf("timed out; got %v", got)
+		}
+	}
+	time.Sleep(150 * time.Millisecond)
+	select {
+	case msg := <-ch:
+		t.Fatalf("extra event %q", msg)
+	default:
+	}
+	if got["event: file-changed\ndata: personal\n\n"] != 1 || got["event: file-changed\ndata: family\n\n"] != 1 {
+		t.Errorf("events = %v, want one per category", got)
+	}
+}

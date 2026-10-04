@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/fahad/dashboard/internal/atomicfile"
 )
 
 type Config struct {
@@ -104,6 +106,22 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) validate() error {
+	// Remove temp files left by writes interrupted in an earlier run, before
+	// anything below writes.
+	cleaned := map[string]bool{}
+	for _, dir := range []string{
+		filepath.Dir(c.PersonalPath), filepath.Dir(c.FamilyPath), filepath.Dir(c.IdeasPath),
+		filepath.Dir(c.MaintenancePath), filepath.Dir(c.HouseProjectsPath), c.UserDataDir,
+	} {
+		if cleaned[dir] {
+			continue
+		}
+		cleaned[dir] = true
+		if err := atomicfile.CleanStale(dir); err != nil {
+			return fmt.Errorf("removing stale temp files in %s: %w", dir, err)
+		}
+	}
+
 	if err := os.MkdirAll(c.UploadsDir, 0o755); err != nil {
 		return fmt.Errorf("creating uploads dir %q: %w", c.UploadsDir, err)
 	}
@@ -124,7 +142,7 @@ func (c *Config) validate() error {
 		}
 		if _, err := os.Stat(entry.path); os.IsNotExist(err) {
 			skeleton := "# " + entry.heading + "\n\n"
-			if err := os.WriteFile(entry.path, []byte(skeleton), 0o644); err != nil {
+			if err := atomicfile.Write(entry.path, []byte(skeleton), 0o644); err != nil {
 				return fmt.Errorf("creating %s skeleton: %w", entry.path, err)
 			}
 		}
@@ -176,7 +194,11 @@ func parsePrefixes(s string) ([]netip.Prefix, error) {
 		if field == "" {
 			continue
 		}
+		// Peers are compared unmapped, so store IPv4-mapped forms as IPv4.
 		if p, err := netip.ParsePrefix(field); err == nil {
+			if p.Addr().Is4In6() && p.Bits() >= 96 {
+				p = netip.PrefixFrom(p.Addr().Unmap(), p.Bits()-96)
+			}
 			out = append(out, p.Masked())
 			continue
 		}
@@ -184,6 +206,7 @@ func parsePrefixes(s string) ([]netip.Prefix, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%q is not a CIDR or IP address", field)
 		}
+		addr = addr.Unmap()
 		out = append(out, netip.PrefixFrom(addr, addr.BitLen()))
 	}
 	return out, nil

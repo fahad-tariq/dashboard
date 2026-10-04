@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
@@ -237,7 +238,7 @@ func migrateFile(src, dst string) {
 		fmt.Printf("  error reading %s: %v\n", src, err)
 		return
 	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil { //nolint:gosec // G703: operator-run CLI; paths come from its own flags
+	if err := atomicfile.Write(dst, data, 0o644); err != nil {
 		fmt.Printf("  error writing %s: %v\n", dst, err)
 		return
 	}

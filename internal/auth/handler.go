@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 
@@ -63,11 +64,14 @@ func (h *Handler) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 	next := r.FormValue("next")
 	email := strings.TrimSpace(r.FormValue("email"))
 
-	if !h.limiter.Allow(ip) {
-		retryAfter := h.limiter.RetryAfter(ip)
+	key := rateLimitKey(ip)
+	if !h.limiter.Allow(key) {
+		retryAfter := h.limiter.RetryAfter(key)
 		mins := int(retryAfter.Minutes()) + 1
 		msg := fmt.Sprintf("Too many attempts. Try again in %d minute(s).", mins)
 		slog.Warn("login rate limited", "ip", ip)
+		w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())+1))
+		w.WriteHeader(http.StatusTooManyRequests)
 		h.renderLogin(w, next, msg, email, false)
 		return
 	}
@@ -93,7 +97,7 @@ func (h *Handler) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 		hash = user.PasswordHash
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil || user == nil {
-		h.delay.Fail(email)
+		h.delay.Fail(email, user != nil)
 		slog.Warn("login failed", "ip", ip)
 		h.renderLogin(w, next, "Incorrect email or password.", email, false)
 		return
@@ -121,6 +125,16 @@ func (h *Handler) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 		dest = next
 	}
 	http.Redirect(w, r, dest, http.StatusSeeOther) //nolint:gosec // G710: dest checked by httputil.IsLocalPath
+}
+
+// rateLimitKey buckets IPv6 clients by /64, the block one holder typically
+// controls; IPv4 addresses are used as-is.
+func rateLimitKey(ip string) string {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil || addr.Is4() || addr.Is4In6() {
+		return ip
+	}
+	return netip.PrefixFrom(addr, 64).Masked().String()
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {

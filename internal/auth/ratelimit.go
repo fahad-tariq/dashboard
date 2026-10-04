@@ -138,14 +138,23 @@ type accountFailures struct {
 }
 
 // AccountDelay slows repeated failed logins for one account, whichever IPs
-// they come from.
+// they come from. Real accounts and unknown emails are tracked separately so
+// a flood of made-up emails cannot evict a real account's history; both use
+// the same schedule, so the delay does not reveal which accounts exist.
 type AccountDelay struct {
-	mu    sync.Mutex
-	fails *lru[accountFailures]
+	mu      sync.Mutex
+	known   *lru[accountFailures]
+	unknown *lru[accountFailures]
 }
 
+// knownTracked bounds real accounts; this is a single-owner deployment.
+const knownTracked = 64
+
 func NewAccountDelay() *AccountDelay {
-	return &AccountDelay{fails: newLRU[accountFailures](defaultTracked)}
+	return &AccountDelay{
+		known:   newLRU[accountFailures](knownTracked),
+		unknown: newLRU[accountFailures](defaultTracked),
+	}
 }
 
 func accountKey(email string) string {
@@ -157,7 +166,11 @@ func (d *AccountDelay) Delay(email string) time.Duration {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	f, ok := d.fails.peek(accountKey(email))
+	key := accountKey(email)
+	f, ok := d.known.peek(key)
+	if !ok {
+		f, ok = d.unknown.peek(key)
+	}
 	if !ok || time.Since(f.last) > failureMemory || f.count < freeFailures {
 		return 0
 	}
@@ -165,13 +178,17 @@ func (d *AccountDelay) Delay(email string) time.Duration {
 	return min(time.Second<<shift, maxAccountDelay)
 }
 
-// Fail records a failed login for email.
-func (d *AccountDelay) Fail(email string) {
+// Fail records a failed login for email; known says whether the account exists.
+func (d *AccountDelay) Fail(email string, known bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	bucket := d.unknown
+	if known {
+		bucket = d.known
+	}
 	now := time.Now()
-	f := d.fails.get(accountKey(email), func() accountFailures { return accountFailures{} })
+	f := bucket.get(accountKey(email), func() accountFailures { return accountFailures{} })
 	if now.Sub(f.last) > failureMemory {
 		f.count = 0
 	}
@@ -183,5 +200,6 @@ func (d *AccountDelay) Fail(email string) {
 func (d *AccountDelay) Succeed(email string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.fails.remove(accountKey(email))
+	d.known.remove(accountKey(email))
+	d.unknown.remove(accountKey(email))
 }

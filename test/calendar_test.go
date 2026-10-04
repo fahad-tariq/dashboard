@@ -115,9 +115,9 @@ func setupCalendarEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracke
 	}
 	t.Cleanup(func() { database.Close() })
 
-	personalSvc := tracker.NewService(dir+"/personal.md", "Personal", tracker.NewStore(database, "personal"), time.UTC)
-	familySvc := tracker.NewService(dir+"/family.md", "Family", tracker.NewStore(database, "family"), time.UTC)
-	houseProjectsSvc := tracker.NewService(dir+"/house-projects.md", "House", tracker.NewStore(database, "house"), time.UTC)
+	personalSvc := tracker.NewService(dir+"/personal.md", "Personal", time.UTC)
+	familySvc := tracker.NewService(dir+"/family.md", "Family", time.UTC)
+	houseProjectsSvc := tracker.NewService(dir+"/house-projects.md", "House", time.UTC)
 
 	funcMap := template.FuncMap{
 		"authEnabled":  func() bool { return false },

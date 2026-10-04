@@ -119,6 +119,7 @@ class BearerAuthMiddleware:
 
         # Validate bearer token.
         token = _extract_bearer(scope)
+        # Both sides are bytes: compare_digest raises on non-ASCII str input.
         if not token or not hmac.compare_digest(token, self.token):
             client_addr = scope.get("client")
             key = client_addr[0] if client_addr else "unknown"
@@ -475,6 +476,8 @@ async def delete_commentary(list: CommentaryList, slug: Slug) -> str:
 
 _READ_ONLY = ToolAnnotations(readOnlyHint=True)
 _DESTRUCTIVE = ToolAnnotations(readOnlyHint=False, destructiveHint=True)
+# The spec defaults destructiveHint to true when readOnlyHint is false.
+_WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
 READ_ONLY_TOOLS = [list_todos, get_todo, list_ideas, get_plan, get_commentary]
 WRITE_TOOLS = [
@@ -502,7 +505,7 @@ def build_server(allow_destructive: bool) -> FastMCP:
     for fn in READ_ONLY_TOOLS:
         server.add_tool(fn, annotations=_READ_ONLY)
     for fn in WRITE_TOOLS:
-        server.add_tool(fn)
+        server.add_tool(fn, annotations=_WRITE)
     if allow_destructive:
         for fn in DESTRUCTIVE_TOOLS:
             server.add_tool(fn, annotations=_DESTRUCTIVE)

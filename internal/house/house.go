@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/slug"
 )
 
@@ -60,7 +61,7 @@ func ParseMaintenance(path string) ([]MaintenanceItem, error) { //nolint:gocyclo
 		trimmed := strings.TrimSpace(line)
 
 		// Non-indented headings end the current item and are skipped.
-		if !strings.HasPrefix(line, " ") && strings.HasPrefix(trimmed, "#") {
+		if strings.HasPrefix(line, "#") {
 			if current != nil {
 				items = append(items, *current)
 				current = nil
@@ -84,7 +85,11 @@ func ParseMaintenance(path string) ([]MaintenanceItem, error) { //nolint:gocyclo
 			continue
 		}
 
-		// Body lines: indented (2+ spaces). Parse as log entries or notes.
+		// Body lines: indented by 2+ spaces or, in hand-edited files, a tab.
+		// Parse as log entries or notes.
+		if strings.HasPrefix(line, "\t") {
+			line = "  " + line[1:]
+		}
 		if strings.HasPrefix(line, "  ") {
 			bodyContent := strings.TrimSpace(line[2:])
 			if entry, ok := parseLogEntry(bodyContent); ok {
@@ -181,7 +186,13 @@ func parseLogEntry(line string) (LogEntry, bool) {
 }
 
 // WriteMaintenance writes maintenance items to a markdown file.
+// WriteMaintenance atomically replaces path with the rendered schedule.
 func WriteMaintenance(path, heading string, items []MaintenanceItem) error {
+	return atomicfile.Write(path, RenderMaintenance(heading, items), 0o644)
+}
+
+// RenderMaintenance returns the markdown for the maintenance schedule.
+func RenderMaintenance(heading string, items []MaintenanceItem) []byte {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n\n", heading)
 
@@ -229,7 +240,7 @@ func WriteMaintenance(path, heading string, items []MaintenanceItem) error {
 		}
 	}
 
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return []byte(b.String())
 }
 
 // Slugify exposes the shared slug generation.

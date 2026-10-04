@@ -51,6 +51,27 @@ test('expanded tracker item suppresses the SSE refresh', async ({ page }) => {
   await expect(trackerItem(page, external)).toBeVisible();
 });
 
+test('open completion note on /house survives an SSE refresh', async ({ page }) => {
+  const external = uniqueTitle('Added while typing');
+  const connected = waitForSseConnection(page);
+  await page.goto('/house');
+  await connected;
+  await waitForSseSettle(page);
+
+  const row = page.locator('tr.house-row-maint', { hasText: 'Clean gutters' });
+  await row.getByRole('button', { name: 'done' }).click();
+  const note = row.getByLabel('Completion note');
+  await note.fill('half typed');
+
+  const refresh = page.waitForResponse((r) => new URL(r.url()).pathname === '/house' && r.request().headers()['hx-request'] === 'true');
+  appendLine(sharedFile('maintenance.md'), `- [ ] ${external} [cadence: 1y]`);
+  await refresh;
+
+  // The refresh was fetched but not swapped in, so the note is still there.
+  await expect(note).toHaveValue('half typed');
+  await expect(page.locator('tr.house-row-maint', { hasText: external })).toHaveCount(0);
+});
+
 // CLAUDE.md says planDetailExpanded (and planDragInProgress) suppress SSE swaps,
 // but tracker.js only suppresses swaps whose target is .tracker-page, so the
 // homepage re-renders and collapses the expanded item.

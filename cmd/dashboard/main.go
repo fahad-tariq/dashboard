@@ -84,6 +84,9 @@ func main() {
 		os.Exit(1)
 	case <-shutdownCtx.Done():
 	}
+	// Restore default signal handling so a second Ctrl-C or SIGTERM kills
+	// the process instead of waiting out the graceful shutdown.
+	shutdownCancel()
 
 	slog.Info("shutting down")
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)

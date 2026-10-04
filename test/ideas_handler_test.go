@@ -48,8 +48,7 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 	t.Cleanup(func() { database.Close() })
 
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
-	personalStore := tracker.NewStore(database, "personal")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
+	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
 
 	toTask := func(_ context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error) {
 		item := tracker.Item{

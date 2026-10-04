@@ -344,6 +344,23 @@ document.addEventListener('htmx:afterSettle', function() {
     });
 });
 
+function isSSERefresh(evt) {
+    var elt = evt.detail.elt;
+    var trigger = elt && elt.getAttribute && elt.getAttribute('hx-trigger');
+    return !!trigger && trigger.indexOf('sse:') !== -1;
+}
+
+// True while an inline note popover is open, or a text field inside container
+// has focus and holds typed text.
+function userIsEditing(container) {
+    if (!container.querySelector) return false;
+    if (container.querySelector('.house-note-popover.open')) return true;
+    var active = document.activeElement;
+    if (!active || !container.contains(active)) return false;
+    var tag = active.tagName;
+    return (tag === 'INPUT' || tag === 'TEXTAREA') && active.value !== '';
+}
+
 // Delay SSE swap when a completion celebration is in progress so the
 // green flash animation is visible before the DOM is replaced.
 var pendingSwap = null;
@@ -356,6 +373,12 @@ document.addEventListener('htmx:beforeSwap', function(evt) {
     // plan detail, or any tracker item is expanded.
     var isSSESwap = target.classList && target.classList.contains('tracker-page');
     if (isSSESwap && (bulkSelectActive || window.planDragInProgress || window.planDetailExpanded || Object.keys(trackerExpandedItems).length > 0)) {
+        evt.detail.shouldSwap = false;
+        return;
+    }
+
+    // On any SSE-refreshed page, never replace a form the user is filling in.
+    if (isSSERefresh(evt) && userIsEditing(target)) {
         evt.detail.shouldSwap = false;
         return;
     }

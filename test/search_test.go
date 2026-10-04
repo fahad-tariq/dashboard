@@ -82,7 +82,7 @@ func TestSearchHandler(t *testing.T) {
 	}
 	personalDB, _ := db.Open(filepath.Join(dir, "personal.db"))
 	t.Cleanup(func() { personalDB.Close() })
-	personalSvc := tracker.NewService(personalPath, "Personal", tracker.NewStore(personalDB, "personal"), time.UTC)
+	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
 
 	// Set up family tracker.
 	familyPath := filepath.Join(dir, "family.md")
@@ -91,7 +91,7 @@ func TestSearchHandler(t *testing.T) {
 	}
 	familyDB, _ := db.Open(filepath.Join(dir, "family.db"))
 	t.Cleanup(func() { familyDB.Close() })
-	familySvc := tracker.NewService(familyPath, "Family", tracker.NewStore(familyDB, "family"), time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
 
 	// Set up ideas.
 	ideasPath := filepath.Join(dir, "ideas.md")
@@ -141,7 +141,7 @@ func TestSearchQueryTooLong(t *testing.T) {
 	}
 	personalDB, _ := db.Open(filepath.Join(dir, "p.db"))
 	t.Cleanup(func() { personalDB.Close() })
-	personalSvc := tracker.NewService(personalPath, "Personal", tracker.NewStore(personalDB, "personal"), time.UTC)
+	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
 
 	familyPath := filepath.Join(dir, "family.md")
 	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
@@ -149,7 +149,7 @@ func TestSearchQueryTooLong(t *testing.T) {
 	}
 	familyDB, _ := db.Open(filepath.Join(dir, "f.db"))
 	t.Cleanup(func() { familyDB.Close() })
-	familySvc := tracker.NewService(familyPath, "Family", tracker.NewStore(familyDB, "family"), time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
 
 	ideasPath := filepath.Join(dir, "ideas.md")
 	if err := os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644); err != nil {
@@ -184,7 +184,7 @@ func TestSearchExcludesDeletedItems(t *testing.T) {
 	}
 	personalDB, _ := db.Open(filepath.Join(dir, "personal.db"))
 	t.Cleanup(func() { personalDB.Close() })
-	personalSvc := tracker.NewService(personalPath, "Personal", tracker.NewStore(personalDB, "personal"), time.UTC)
+	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
 
 	// Family tracker empty.
 	familyPath := filepath.Join(dir, "family.md")
@@ -193,7 +193,7 @@ func TestSearchExcludesDeletedItems(t *testing.T) {
 	}
 	familyDB, _ := db.Open(filepath.Join(dir, "family.db"))
 	t.Cleanup(func() { familyDB.Close() })
-	familySvc := tracker.NewService(familyPath, "Family", tracker.NewStore(familyDB, "family"), time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
 
 	// Ideas with a soft-deleted idea.
 	ideasPath := filepath.Join(dir, "ideas.md")
@@ -244,7 +244,7 @@ func TestSearchSnippetInResults(t *testing.T) {
 	}
 	personalDB, _ := db.Open(filepath.Join(dir, "p.db"))
 	t.Cleanup(func() { personalDB.Close() })
-	personalSvc := tracker.NewService(personalPath, "Personal", tracker.NewStore(personalDB, "personal"), time.UTC)
+	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
 
 	familyPath := filepath.Join(dir, "family.md")
 	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
@@ -252,7 +252,7 @@ func TestSearchSnippetInResults(t *testing.T) {
 	}
 	familyDB, _ := db.Open(filepath.Join(dir, "f.db"))
 	t.Cleanup(func() { familyDB.Close() })
-	familySvc := tracker.NewService(familyPath, "Family", tracker.NewStore(familyDB, "family"), time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
 
 	ideasPath := filepath.Join(dir, "ideas.md")
 	if err := os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644); err != nil {

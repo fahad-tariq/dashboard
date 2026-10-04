@@ -130,43 +130,43 @@ Do not reopen these while executing this plan.
 
 **Purpose:** close confirmed exposure paths. Every task starts with a failing test.
 
-- [ ] **Explicit auth mode.**
+- [x] **Explicit auth mode.**
   - Replace implicit "no hash and no users means open" with `DASHBOARD_AUTH=disabled`.
   - The server MUST refuse to start when auth is off without that switch.
   - It MUST also refuse when the switch is set and `ADDR` is not a loopback address.
   - A lost data volume must never produce an open dashboard.
-- [ ] **Container exposure.**
+- [x] **Container exposure.**
   - The dashboard port MUST be bound to `127.0.0.1`, or not published if Caddy reaches it over the Docker network. Record which in the README.
   - Put the compose network on a fixed subnet (ipam) so trusted-proxy configuration is stable.
-- [ ] **Login rate limiting.**
+- [x] **Login rate limiting.**
   - Remove `middleware.RealIP`.
   - Use the client IP from the rightmost `X-Forwarded-For` entry only when the direct peer is in `DASHBOARD_TRUSTED_PROXIES` (CIDRs, default empty, meaning use `RemoteAddr`).
   - Document the Caddy configuration.
   - Bound the limiter map with least-recently-used eviction. It must never reset wholesale.
   - Add per-account progressive *delay* (never a lockout, which would let an attacker lock out the only user).
   - Test that a spoofed `X-Forwarded-For` or `X-Real-IP` from an untrusted peer is ignored.
-- [ ] **Login timing.** Unknown emails run bcrypt against a fixed dummy hash. Stop logging submitted emails.
-- [ ] **API and MCP tokens.**
+- [x] **Login timing.** Unknown emails run bcrypt against a fixed dummy hash. Stop logging submitted emails.
+- [x] **API and MCP tokens.**
   - If `DASHBOARD_API_TOKEN` is unset or shorter than 32 characters, `/api/v1` is not mounted and an error is logged.
   - Add a separate inbound `MCP_TOKEN` for the sidecar, and rate-limit failed bearer attempts.
   - Destructive MCP tools are disabled unless `MCP_ALLOW_DESTRUCTIVE=true`: `delete_todo`, `remove_substep`, `clear_carried_plan` and `delete_commentary`. They also get `destructiveHint` annotations. Update the MCP smoke tests.
-- [ ] **Cross-origin protection.**
+- [x] **Cross-origin protection.**
   - Wrap the whole web router, including `/login`, `/logout` and `/upload`, in `http.NewCrossOriginProtection()`.
   - Mount `/api/v1` on a separate subrouter outside it. Do not use bypass patterns.
   - Test that a mismatched `Origin` and `Sec-Fetch-Site: cross-site` are rejected, and that htmx and form posts from the same origin pass.
-- [ ] **Security headers middleware:**
+- [x] **Security headers middleware:**
   - `Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'`
   - `X-Content-Type-Options: nosniff`
   - `Referrer-Policy: same-origin`
 
   Set `htmx.config.allowEval=false` via `<meta name="htmx-config">`. Record tightening `script-src` as a follow-up; there are 98 inline handlers today.
-- [ ] **HTTP server.**
+- [x] **HTTP server.**
   - Use an `http.Server` with `ReadHeaderTimeout`, `ReadTimeout` and `IdleTimeout`.
   - The SSE handler clears its deadlines via `http.ResponseController` and sends a heartbeat comment every 30s.
   - Broker subscribers close on `RegisterOnShutdown`.
   - Graceful shutdown on SIGTERM uses the existing `shutdownCtx`.
   - Set `sm.IdleTimeout` on the session manager.
-- [ ] **Container hardening.**
+- [x] **Container hardening.**
   - Add bind mounts for `IDEAS_PATH` and `UPLOADS_DIR`. Today they sit on the container filesystem, and `config.go` creates them at boot.
   - Run both images as a non-root user.
   - Add a documented one-off chown step for existing root-owned data.
@@ -184,18 +184,18 @@ Do not reopen these while executing this plan.
 
 **Purpose:** crash-safe writes, no self-triggered work, correct SQLite configuration and cache-safe assets.
 
-- [ ] **Backup first.**
+- [x] **Backup first.**
   - Add a `make backup` target that copies every markdown file and the DB to a timestamped directory.
   - Run it and document restoring in the README.
-- [ ] **Round-trip fixtures.**
+- [x] **Round-trip fixtures.**
   - Add real-shaped fixtures for each parser: blank lines in idea bodies, indented headings, sub-steps, image captions, all inline metadata, soft-deleted items and maintenance logs.
   - Parse-then-write MUST be byte-identical (or match a documented normalisation).
   - This guards every later change.
-- [ ] **SQLite configuration.**
+- [x] **SQLite configuration.**
   - Set the pragmas through the modernc DSN so every pooled connection gets them: `_pragma=busy_timeout(5000)`, `foreign_keys(1)`, `journal_mode(WAL)`, `synchronous(NORMAL)`.
   - Remove `?_busy_timeout=5000` and the `db.Exec("PRAGMA ...")` loop.
   - Test: open three pooled connections and assert the pragma values on each.
-- [ ] **Atomic file writes.** Add one shared helper that:
+- [x] **Atomic file writes.** Add one shared helper that:
   1. creates a temp file in the target's directory with mode `0600`, named with a leading `.` and a non-`.md` suffix
   2. writes and fsyncs it
   3. chmods it to the target's mode
@@ -210,28 +210,28 @@ Do not reopen these while executing this plan.
   Also remove stale temp files at startup. Tests:
   - inject failure after the write, at fsync and at rename; the original bytes are unchanged and the temp file is removed
   - a concurrent-reader test (`INTEGRATION=1`) hammers reads during writes and never sees a partial file
-- [ ] **`MoveToList` ordering.** Add to the target before deleting from the source, so a failed add cannot lose the item.
-- [ ] **Change events from services, not the watcher.**
+- [x] **`MoveToList` ordering.** Add to the target before deleting from the source, so a failed add cannot lose the item.
+- [x] **Change events from services, not the watcher.**
   - Inject a publisher interface into the tracker, ideas and house services. After every successful write, from web, API or MCP, they publish a change event for their category.
   - Each service records a content hash of its last write.
   - Watcher callbacks return whether the file changed. When the hash matches the service's last write, the watcher skips `Resync` and does not broadcast.
   - The watcher today sends `file-changed` before running callbacks; reorder that.
   - Test seams: a fake publisher counting events, and a `Resync` counter on the service.
   - Test that one web mutation and one API mutation each produce exactly one event and zero `Resync` calls, and that an external edit produces one of each.
-- [ ] **Drop the SQLite tracker mirror.**
+- [x] **Drop the SQLite tracker mirror.**
   - Remove `store.ReplaceAll` from `mutate`, `AddItem`, `PermanentDelete` and `Resync`, and compute `Summary()` from the cache.
   - Remove the `store` parameter from `tracker.NewService` (about 30 call sites in 10 test files).
   - Remove `NewUserStore`, `NewSharedStore` and `ReplaceAllWithAttribution` and their tests in `registry_test`.
   - Adjust `admin_test`'s `tracker_items` cascade assertion.
   - Check `multiuser_test` against the in-memory count, since the SQL unique index used to collapse duplicate slugs.
   - The table stays in the schema, unused.
-- [ ] **Static asset versioning.**
+- [x] **Static asset versioning.**
   - Hash each embedded static file at startup.
   - A `static "theme.css"` template function returns `/static/theme.css?v=<hash>`, and every template uses it.
   - `immutable` caching applies only to versioned requests.
 
 **Verification:**
-- `make bench` shows `BenchmarkMutate200` at least 3x faster than the Phase 1 baseline (`benchstat`, same machine).
+- `make bench` shows `BenchmarkMutate200` at least 3x faster than the Phase 1 baseline (`benchstat`, same machine), measured excluding the atomic-write fsyncs (owner decision 2026-10-04; see Phase 3 notes).
 - Round-trip, fault-injection and event-count tests pass.
 - Playwright passes.
 
@@ -486,7 +486,7 @@ Modules receive one `module.Deps` struct: location, templates, change publisher,
 | Security | Spoofed forwarding headers ignored; no API without a token; auth cannot be off by accident or off-loopback; cross-origin POST rejected; CSP present; destructive MCP tools off by default |
 | Crash-safe writes | Fault-injection and concurrent-reader tests pass; round-trip fixtures byte-identical |
 | No self-triggered work | One mutation (web or API) produces one event and zero `Resync` calls |
-| Speed | `BenchmarkMutate200` at least 3x faster than the Phase 1 baseline |
+| Speed | `BenchmarkMutate200` work at least 3x faster than the Phase 1 baseline, excluding atomic-write fsyncs |
 | Accessibility | axe has zero serious or critical violations across pages, themes and interactive states; contrast holds every day of 2028 |
 | Extensibility | The fixture module passes the contract test; the Phase 7 evidence shows only registration lines outside module directories |
 | Simpler wiring | Single-user branch deleted; no `gocyclo` exclusions left on `main` or `renderHomePage`; one `toTask` |
@@ -537,7 +537,7 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - gocyclo in `_test.go` files is excluded; table tests are long by design.
 - Second CI run: 46 more lint findings. The first run was truncated by golangci-lint's default caps (50 issues per linter, 3 identical issues). `.golangci.yml` now sets both caps to 0. About 180 unchecked errors in tests were wrapped in `if err := ...; err != nil { t.Fatal(err) }` by an AST-based rewrite, checked by standalone `errcheck` (zero remaining) and the race suite. gosec G104 is excluded (it duplicates errcheck), and gosec is off for `_test.go` files (template-func stubs and temp-dir fixtures).
 - Idea triage buttons never worked (fixed, test-first in `TestIdeasTriageActionMultipart`): `triageAnimate` posts `new FormData(form)` (multipart), but `TriageAction` called `r.ParseForm()`, which ignores multipart bodies, and `FormValue` then skips multipart parsing because `r.Form` is already set. The action arrived empty, the handler returned 400, and the JS reloaded the page regardless, hiding the failure. Found by the e2e suite on its first real run. Phase 8's "idea triage surfaces errors" item covers the swallowed error.
-- e2e timing: the app's own writes broadcast `file-changed` about 500ms later, and the resulting container swap closes open `<details>`, collapses rows and detaches any form the confirm modal is holding (so Confirm silently does nothing). The last one is a real user-facing bug whenever any write lands while the modal is open, including one from the API or MCP; Phase 3 (no self-broadcast) and Phase 8 (morph swaps, native dialogs) remove it. `waitForSseSettle` now waits for 1.2s of quiet, tracked through `htmx:sseMessage`, `htmx:beforeRequest` and `htmx:afterSettle`, instead of sleeping a fixed 1.5s, and the add/plan helpers call it after every navigation that follows a write.
+- e2e timing: the app's own writes broadcast `file-changed` about 500ms later, and the resulting container swap closes open `<details>`, collapses rows and detaches any form the confirm modal is holding (so Confirm silently does nothing). The last one is a real user-facing bug whenever any write lands while the modal is open, including one from the API or MCP. Phase 3 does not remove it (services still publish every write, debounced); Phase 8 (morph swaps, native dialogs) does. `waitForSseSettle` now waits for 1.2s of quiet, tracked through `htmx:sseMessage`, `htmx:beforeRequest` and `htmx:afterSettle`, instead of sleeping a fixed 1.5s, and the add/plan helpers call it after every navigation that follows a write.
 - Sub-step actions collapsed the expanded task (fixed; the failing e2e spec `add, toggle and remove a sub-step` is the test). Diagnosed from the CI trace: the item was `minimised` 20ms after the targeted sub-step swap, before any SSE request. The server renders every item `minimised`; `tracker.js` re-expanded in `htmx:afterSwap`, but htmx's settle step then re-applies the new element's `class` attribute. Re-expansion now runs in `htmx:afterSettle`. CLAUDE.md's "afterSwap re-expands them" is out of date; Phase 9 rewrites that section. A brief collapsed flash remains until Phase 8's morph swaps.
 - gosec G120 does not recognise `r.Body = http.MaxBytesReader(...)`, so the triage handler's `ParseMultipartForm` carries a `nolint` noting the cap.
 - Search shortcut swallowed after Escape (fixed, test-first: `search.spec.ts` now asserts the input loses focus). `closeSearch()` hid the overlay but left focus on the hidden `#search-input`, so `isInputFocused()` ignored the next `/` until Chrome's focus fixup ran; intermittent in CI for that reason. `closeSearch()` now blurs the input and returns focus to the element focused before search opened. Phase 8's native `<dialog>` handles this itself.
@@ -547,7 +547,7 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 
 - Explicit auth mode: `config.CheckAuthMode` runs in `NewRouter` once `HasUsers` is known. `DASHBOARD_AUTH` accepts only empty, `enabled` or `disabled`. The noauth route golden now builds with `DASHBOARD_AUTH=disabled` and `ADDR=127.0.0.1:0`; its contents are unchanged.
 - Client IP: `httputil.ClientIP` uses the peer address (port stripped) unless the peer is in `DASHBOARD_TRUSTED_PROXIES` (CIDRs or bare IPs), then the rightmost `X-Forwarded-For` entry. `X-Real-IP` is never read. Removing `middleware.RealIP` would otherwise have broken login rate limiting outright: `RemoteAddr` includes the source port, so every attempt landed in a fresh bucket.
-- Login limiter and account delay share a small LRU (4096 entries, evicts least recently seen, no bulk reset). Account delay: three free failures, then 1s, 2s, 4s, capped at 8s, forgotten after 15 quiet minutes, cleared on success. Two tests sleep through real delays, adding about 10s to the race suite.
+- Login limiter and account delay are separate instances of one small LRU type (evicts least recently seen, no bulk reset). The account delay keeps real accounts (64) and unknown emails (4096) in separate LRUs so an email flood cannot evict a real account; both follow the same schedule, so the delay does not reveal which accounts exist. IPv6 clients are rate limited per /64. Account delay: three free failures, then 1s, 2s, 4s, capped at 8s, forgotten after 15 quiet minutes, cleared on success. Two tests sleep through real delays, adding about 10s to the race suite.
 - Unknown emails are compared against a real cost-10 dummy hash (a malformed hash would return instantly and defeat the point). Login logs carry the IP and, on success, the user ID; never the submitted email.
 - API: not mounted (error logged) unless `DASHBOARD_API_TOKEN` is at least 32 characters. Failed bearer attempts: 10 per minute per client IP, then 429; a valid token always passes. Same rule in the MCP sidecar.
 - MCP: `MCP_TOKEN` (inbound) and `DASHBOARD_API_TOKEN` (outbound) must both be at least 32 characters and differ. Destructive tools are unregistered unless `MCP_ALLOW_DESTRUCTIVE=true`. The smoke tests were written without being run (uv blocked locally); CI is the first run.
@@ -557,8 +557,26 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - Containers: both images run as UID 10001 by default; compose sets `user` from `DASHBOARD_UID`/`DASHBOARD_GID` (fliptronic already runs as `1007:1007`, the data owner). Compose runs both read-only with `/tmp` as tmpfs, `cap_drop: [ALL]` and `no-new-privileges`, binds ports to `127.0.0.1`, and uses a fixed subnet `172.30.81.0/24` whose gateway `172.30.81.1` is `DASHBOARD_TRUSTED_PROXIES`. Base images pinned by digest (Dependabot `docker` ecosystem tracks them). Images now build, without pushing, on pull requests.
 - fliptronic facts (read via the homelab repo's `homelab-ssh`): the dashboard published `0.0.0.0:8081` and `[::]:8081`, which Docker routes past ufw; the MCP sidecar is deployed on `127.0.0.1:9100` behind Caddy's `/mcp*`; uploads already live inside the `data` mount; `DASHBOARD_SECURE_COOKIES` defaults to `false` there; Caddy's `security_headers` snippet sets HSTS, nosniff, X-Frame-Options and Referrer-Policy but no CSP. No chown is needed: the only root-owned files (`data/personal.md`, legacy `ideas/`) are not written in auth mode.
 - Compose smoke run (local, real data copy): passed after two findings. (1) With `-wal`/`-shm` present SQLite opened a non-writable database read-only; the server started and failed on the first save. `db.Open` now does a no-op write after migrations and refuses to start with a message naming the owner mismatch (test-first, `TestOpenRefusesReadOnlyDatabase`). (2) The owner's local Docker runtime shares `~` read-only into its VM (`touch` gave "Read-only file system"), so the smoke run used Docker volumes; production bind mounts are native and unaffected.
+- Self-review fixes: account-delay eviction (above), IPv6 /64 buckets, IPv4-mapped trusted proxies normalised, `Retry-After` and 429 on rate-limited logins, the DB write probe only blames ownership for read-only errors, a second signal during shutdown kills the process, MCP write tools carry `destructiveHint=False` and MCP tokens must be ASCII (compared as bytes).
+- Accepted limits: the failed-bearer limiter cannot slow guessing, because a valid token is never blocked (a deliberate trade-off; the 32-character minimum is the real protection, and the API is unmounted in production). The account delay is a per-request sleep, so parallel requests from many IPs wait concurrently. `sm.IdleTimeout` makes scs rewrite the session row and send Set-Cookie on every authenticated request; negligible for one user, watch it in Phase 3. `main` does not wait for background goroutines at shutdown; Phase 3 atomic writes make an interrupted write harmless.
 - Owner decision (2026-10-04): MCP is not used. The fliptronic deploy removes the `dashboard-mcp` service and Caddy's `/mcp*` route, and drops `DASHBOARD_API_TOKEN` so `/api/v1` is not mounted. Both stay in the repo and can be re-enabled. The footer MCP badge will then report MCP as unavailable; revisit it in Phase 9.
-- Deploy actions for the owner: add `MCP_TOKEN` (`openssl rand -hex 32`) to the server `.env` and switch MCP clients to it; make sure `DASHBOARD_API_TOKEN` is at least 32 characters or the API disappears; set `DASHBOARD_TRUSTED_PROXIES` once the Caddy topology is known (until then every login behind Caddy shares one rate-limit bucket).
+- Deployed to fliptronic 2026-10-04 (image from merge `909b7cb`): compose and Caddyfile backed up (`.bak.1791110956`), MCP service and `/mcp*` route removed, API token dropped, hardening applied. Verified through Caddy: `/login` 200, `/api/v1/*` and `/mcp/*` 404, CSP/HSTS present, cross-site login POST 403, `172.16.61.9:8081` no longer reachable, `verify-stack.sh` all green (a first run failed two checks only because Caddy was still starting). Homelab docs updated (uncommitted in that repo for the owner).
+- Deploy actions (superseded by the owner decision above): with MCP and the API removed on fliptronic, no token work was needed; `DASHBOARD_TRUSTED_PROXIES=172.30.81.1` is set in the production compose.
+
+### Phase 3 notes
+
+- Backup: fliptronic's cron `backup.sh` archived `data/tracker.md` (gone), the legacy `ideas/` dir and the compose file, with errors sent to `/dev/null`: 804-byte archives, no user data, no database, for months. A manual full snapshot was taken first (`backups/manual-full-20261004-105705.tar.gz`), then `scripts/backup.sh` replaced it (old script kept as `backup.sh.bak.<epoch>`; cron line now `cd`s into the dashboard dir). The script tars `data/` and `users/` and adds a DB snapshot from SQLite's online backup API (Python `sqlite3`, present on the host) with an integrity check, excluding the live `-wal`/`-shm`. `make backup` wraps it; README documents restore. Tests run the script against temp dirs.
+
+- SQLite pragmas moved into the DSN. Before, `foreign_keys` and `synchronous` reached only the connection that ran the `PRAGMA`, so `ON DELETE CASCADE` depended on which pooled connection a query used.
+- Static assets: `static "name"` emits `/static/name?v=<sha256 prefix>`; only a request with the current hash gets `immutable`, everything else `no-cache`. A test forbids hard-coded `/static/` URLs in templates. Uploads keep `immutable` (random names, never rewritten).
+- `MoveToList` now adds to the target before deleting from the source; a failed add used to lose the item (reproduced in `TestMoveToListKeepsItemWhenTargetWriteFails`).
+- Atomic writes: `internal/atomicfile` (temp `.<name>.atomic-*.tmp` at 0600, write, fsync, chmod to the target's mode, rename, fsync dir). Used by the tracker, ideas and house writers, skeleton creation in config and the registry, and `migrate-data`. `config.Load` removes stale temp files first. Fault-injection tests cover failure after write, at fsync and at rename; the concurrent-reader test is gated by `INTEGRATION=1`, which the CI test job sets.
+- SQLite mirror dropped: `Summary()` (only ever called by tests) counts from the cache; `tracker.NewService` lost its store parameter; `store.go` deleted with the registry store tests. `tracker_items` stays in the schema.
+- Change events: each service embeds `changes.Recorder` and writes through one helper (render, atomic write, record SHA-256, publish `file-changed` with its category). The registry gets the publisher via `SetPublisher` and applies it to shared services and to each user's services as they are created. `ResyncIfChanged` hashes the file and re-parses only on a difference; the watcher runs callbacks first and broadcasts only when one reports a real change (or when no callback exists). Verified end to end through a real watcher and broker: one web or API mutation gives exactly one event and zero re-parses; an external edit gives one of each. The event name stays `file-changed` until Phase 7 renames it.
+- Round-trip fixtures (`test/roundtrip_test.go`, `test/testdata/roundtrip/`): byte-identical round trips for personal, family and house-project trackers, ideas and maintenance, covering every inline tag, sub-steps, captions, soft deletes, blank lines and space-indented headings (tab indentation was added afterwards); goldens pin the writers' documented normalisations (tracker drops blank lines and flattens deeper indents, ideas collapse blank-line runs and add a missing status, metadata is reordered). They were committed inside `9d0a87f` by an over-broad `git add`, ahead of the fixes. Two real data-loss bugs found and fixed: an indented `## heading` in a tracker body ended the item and dropped the rest of its body; an indented checklist in an idea body split into new top-level ideas and lost its done state (production `ideas.md` had no indented checkboxes, so nothing re-parses differently). A third, in hand-edited files: tab-indented body lines vanished in ideas and maintenance, and a tab-indented heading ended the item; a tab now counts as one indent level and only unindented `#` lines are headings in all three parsers (no production file has tab-indented lines).
+- Self-review fixes: atomic writes follow symlinks; a failed post-rename directory fsync is logged, not returned (the file was replaced); `CleanStale` skips unreadable directories instead of blocking startup; an externally deleted file empties the cache and broadcasts; an indented checkbox before any idea is still an idea; `backup.sh` resolves relative directories, keeps the archive on GNU tar's "file changed" exit 1 and URI-escapes the snapshot path; the DB ping carries the ownership hint. Service events now go through `Broker.Debounced` (500ms per category), restoring the gap the watcher debounce used to give, so the writing tab finishes its own request before the refresh.
+- Accepted or deferred: a user whose services are first created by a watcher event does not get that first event broadcast (no tab can be open for them); deleting a user via admin lets the watcher recreate their directory (pre-existing; admin is frozen; backlog); MoveToList's `-<unix>` collision suffix is dead because `AddItem` re-slugifies (pre-existing; Plan 3 stable IDs); `sm.IdleTimeout` session rewrites per request remain (negligible for one user). Phase 3 Playwright verification is the CI run on this branch.
+- Speed (owner decision 2026-10-04: keep fsync, judge the work): `BenchmarkMutate200` is 8.93 ms with durable writes (`docs/plans/bench-phase3.txt`), 2.9x slower than the 3.07 ms baseline, because Go's `File.Sync` is `F_FULLFSYNC` on macOS and each write fsyncs the file and its directory. With both fsyncs disabled (measured once, not committed) it is 0.53 ms, 5.8x faster than baseline; allocations fell 51% and bytes 43%. Linux `fsync` is expected to be much cheaper.
 
 - Follow-ups:
   - tighten CSP `script-src` after moving inline handlers
@@ -569,3 +587,5 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - MCP uv, Python 3.14 and ty (Plan 3)
   - shortcut opt-out and calendar keyboard reschedule (backlog)
   - per-user SSE routing if multi-user returns
+  - admin user deletion: the watcher recreates the deleted user's directory (admin frozen)
+  - MoveToList slug collisions (dead `-<unix>` suffix) until Plan 3 stable IDs
