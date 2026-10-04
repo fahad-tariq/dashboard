@@ -197,3 +197,58 @@ func TestCommentaryScopedToUser(t *testing.T) {
 		})
 	}
 }
+
+// A database first used in no-auth mode holds only the unusable local user.
+// Starting it with auth on must behave as if it had no users: bootstrap from
+// DASHBOARD_PASSWORD_HASH, or refuse to start without one.
+func TestAuthModeIgnoresLocalPlaceholderUser(t *testing.T) {
+	hash := "$2a$10$abcdefghijklmnopqrstuuJ5bW3pH0bQ0b9b7xg2y2Jm8m2pXq6m6"
+	tests := map[string]struct {
+		passwordHash string
+		wantErr      bool
+	}{
+		"hash set bootstraps admin": {passwordHash: hash},
+		"no hash refuses to start":  {wantErr: true},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			paths := tempPaths(t)
+			paths["DASHBOARD_PASSWORD_HASH"] = ""
+			paths["DASHBOARD_AUTH"] = "disabled"
+			paths["ADDR"] = "127.0.0.1:0"
+			setEnvForConfig(t, paths)
+			cfg, err := config.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			database, err := db.Open(cfg.DBPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { closeDB(t, database) })
+			if _, err := app.NewRouter(t.Context(), cfg, database, "test"); err != nil {
+				t.Fatal(err)
+			}
+
+			cfg.AuthDisabled = false
+			cfg.PasswordHash = tc.passwordHash
+			_, err = app.NewRouter(t.Context(), cfg, database, "test")
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("auth mode started with only the unusable local user")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("NewRouter in auth mode: %v", err)
+			}
+			u, err := auth.FindByEmail(database, "admin@localhost")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if u == nil || u.PasswordHash != hash {
+				t.Fatalf("admin@localhost not bootstrapped from DASHBOARD_PASSWORD_HASH: %+v", u)
+			}
+		})
+	}
+}
