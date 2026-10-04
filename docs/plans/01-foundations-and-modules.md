@@ -243,38 +243,38 @@ Do not reopen these while executing this plan.
 
 **Purpose:** fix WCAG 2.2 AA failures, and lay the shared toast and id foundations that Phase 8 reuses.
 
-- [ ] **Seasonal accent contrast.**
+- [x] **Seasonal accent contrast.**
   - `internal/seasonal` computes a per-hue lightness and returns a concrete colour per theme, which the layout injects.
   - A test calls that same function for every day of 2028 (a leap year). It asserts at least 4.5:1 against the `--base` and `--mantle` values, and at least 3:1 for the focus ring.
   - The test reads token values parsed from `theme.css`, not duplicated constants.
-- [ ] **Light-theme text tokens.**
+- [x] **Light-theme text tokens.**
   - Add `--success-fg`, `--warning-fg`, `--danger-fg`, `--priority-medium-fg` and `--on-accent`, darkened in light mode only.
   - Point text usages at them. Catppuccin hues remain for borders and fills.
   - The same token-parsing test asserts at least 4.5:1. Measured failures today: green 2.75, teal 3.08, peach 2.64, yellow 2.31, medium priority 2.92.
-- [ ] **Stable id scheme.**
+- [x] **Stable id scheme.**
   - `item-{slug}` for tracker rows, `plan-{list}-{slug}` for plan rows, `{row-id}-substep-{n}-{action}` for sub-step buttons.
   - Record it in Working Notes; Phase 8 morph swaps depend on it.
   - Renaming an item changes its id. This is accepted until Plan 3's stable IDs.
-- [ ] **Plan rows.**
+- [x] **Plan rows.**
   - Replace `role="button" tabindex="0"` on `.plan-item` with a real `<button aria-expanded aria-controls>` toggle. The row click stays as a mouse convenience.
   - Render the reorder buttons on all pointers, with an `aria-label` that names the task.
-- [ ] **Announcer and toast.**
+- [x] **Announcer and toast.**
   - Add one `#announcer` polite live region and a toast partial to the layout. The toast shows text only, set via `textContent`.
   - Reorder announces the new position and returns focus to the moved control.
   - Remove the duplicate flash in `homepage.html`.
   - Flash messages use `role="status"`, or `role="alert"` for `flashErrorKeys` only.
   - Remove `aria-live` from the MCP footer badge.
-- [ ] **Target size and focus.**
+- [x] **Target size and focus.**
   - Every interactive control is at least 24x24 CSS px; 44 px on coarse pointers.
   - Add `scroll-padding` for the sticky nav and the bulk bar.
   - Restore a visible focus outline on `.form-input` and `.search-input`.
-- [ ] **Semantics.**
+- [x] **Semantics.**
   - Add a skip link to `<main>`.
   - The homepage always has an `<h1>`.
   - Add labels (visible or `aria-label`) to the goal, idea and tracker edit fields.
   - Declare `color-scheme: light dark`.
   - The first-visit theme follows `prefers-color-scheme`.
-- [ ] **Accessibility tests.**
+- [x] **Accessibility tests.**
   - Add `@axe-core/playwright` scans on every main page in both themes, and in these states: item expanded, select mode, modal open, mobile nav open, toast visible.
   - Add a 320px-wide run asserting no horizontal page scroll except the house table.
   - Add a `reducedMotion: 'reduce'` run.
@@ -577,6 +577,31 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - Self-review fixes: atomic writes follow symlinks; a failed post-rename directory fsync is logged, not returned (the file was replaced); `CleanStale` skips unreadable directories instead of blocking startup; an externally deleted file empties the cache and broadcasts; an indented checkbox before any idea is still an idea; `backup.sh` resolves relative directories, keeps the archive on GNU tar's "file changed" exit 1 and URI-escapes the snapshot path; the DB ping carries the ownership hint. Service events now go through `Broker.Debounced` (500ms per category), restoring the gap the watcher debounce used to give, so the writing tab finishes its own request before the refresh.
 - Accepted or deferred: a user whose services are first created by a watcher event does not get that first event broadcast (no tab can be open for them); deleting a user via admin lets the watcher recreate their directory (pre-existing; admin is frozen; backlog); MoveToList's `-<unix>` collision suffix is dead because `AddItem` re-slugifies (pre-existing; Plan 3 stable IDs); `sm.IdleTimeout` session rewrites per request remain (negligible for one user). Phase 3 Playwright verification is the CI run on this branch.
 - Speed (owner decision 2026-10-04: keep fsync, judge the work): `BenchmarkMutate200` is 8.93 ms with durable writes (`docs/plans/bench-phase3.txt`), 2.9x slower than the 3.07 ms baseline, because Go's `File.Sync` is `F_FULLFSYNC` on macOS and each write fsyncs the file and its directory. With both fsyncs disabled (measured once, not committed) it is 0.53 ms, 5.8x faster than baseline; allocations fell 51% and bytes 43%. Linux `fsync` is expected to be much cheaper.
+
+### Phase 4 notes
+
+- Contrast: `internal/theme` parses the two token blocks from the embedded `theme.css` (resolving `var()` chains) and computes WCAG contrast. `seasonal.AccentFor(now, tokens)` keeps the seasonal hue and saturation and steps lightness away from the background until the accent reaches 4.5:1 on `--base` and `--mantle` and under `--on-accent`. The layout injects the resulting hex per theme. `NewRouter` checks every day of 2028 at startup, so a token edit that breaks contrast fails at boot rather than on some later date. The test calls the same function with the same parsed tokens. The light fallback `--accent` is now `#214fab` (the January value); `var(--blue)` was 4.04:1 on `--mantle`.
+- Light-theme failures went beyond the five the plan measured: red and `--priority-high` (4.46 on `--mantle`), mauve (4.45), `--priority-low` (3.97), `--overlay0` (3.25) and `--subtext0` (4.06) as text, `--base` text on green, teal and medium-priority fills (about 3:1), the fallback accent, and opacity-dimmed done, deleted and footer text. New tokens: `--success-fg`, `--warning-fg`, `--attention-fg` (peach, for the stale age badge), `--danger-fg`, `--tag-fg` (teal), `--priority-medium-fg` and `--on-accent`. In dark mode each one aliases its Catppuccin hue. Filled badges use the `-fg` token as the fill so `--base` text keeps its contrast. `--priority-high` and `--priority-low` already had light-only overrides and were darkened in place.
+- Two guards in `test/contrast_test.go` go beyond the plan. `TestThemeRuleTextContrast` checks every `color:` rule in `theme.css` against the rule's own background, or against `--base` and `--mantle` if it sets none, in both themes; it covers about 300 pairs. `TestThemeNoOpacityDimming` forbids `opacity` below 1 except on the drag ghost and the loading pulse, because opacity blends text below its token's contrast. Done rows now dim with `--fg-muted`.
+- Id scheme (Phase 8 morph swaps depend on it): tracker rows and house projects `item-{slug}`, ideas `idea-{slug}`, maintenance `maint-{slug}`, plan rows `plan-{list}-{slug}` (list is `todos`, `family` or `house`). Suffixes: `-toggle`, `-detail`, `-up`, `-down`, `-done`, `-drop`, and `-substep-{n}-{toggle|promote|remove}`. Done and deleted tracker rows gained ids. `TestPagesHaveNoRoleButtonAndUniqueIDs` asserts unique ids on every main page. House rows used the bare slug before, so the plan row's `/house#item-{slug}` link never matched; search and the homepage maintenance card now link to `#item-` and `#maint-`.
+- Toggles: the plan says plan rows, but tracker, goal and idea headers and house `<tr>`s had the same `role="button"` pattern with checkboxes, badges and forms inside, which axe reports as `nested-interactive` (serious). All of them now use a `<button>` toggle with `aria-expanded` and `aria-controls`; tracker toggles are named by the item title. A row click still toggles (`planItemClick`, `itemHeaderClick`, `houseRowClick`), except on the row's other controls. Clickable badges are `<button>`s. The three plan-row copies became one `plan-row` template (with a new `dict` template func).
+- Reorder buttons render on every pointer (CLAUDE.md's "mobile fallback, coarse pointer only" is stale; Phase 9). After a move, focus returns to the pressed button and `#announcer` says "Moved X to position N of M", or "X is already first/last".
+- Live regions: `#announcer` (polite) plus the server flash (`role="status"`, or `role="alert"` for `flashErrorKeys`). The per-page "updating…" indicators were also polite live regions, so every SSE refresh was announced; they are now `aria-hidden`. The MCP badge carries its state as sr-only text instead of a live region. `showToast(msg)` sets text via `textContent` and announces through `#announcer`; the toast is not itself a live region. It hides after 6s; Phase 8 adds the undo button, the 10s minimum and pause on hover or focus.
+- Target size: global minimums of 24px for `button`, `select`, `summary`, clickable badges and checkboxes, and 44px under `pointer: coarse`. On phones the tracker header's badge buttons are 44px tall, which makes rows taller; check this during the owner's review.
+- Theme: the first visit follows `prefers-color-scheme`, which also means Playwright, whose default is light, now runs light unless a spec sets the theme. `color-scheme` is declared per theme block plus a `<meta>`. `html` no longer hard-codes `data-theme="dark"`. The login page gets the same treatment, plus `<main>`, `<h1>` and a keyboard-reachable "Change" button (it was an `<a>` without `href`).
+- Go render tests (`test/a11y_render_test.go`) build the real router in no-auth mode with seeded files and assert the markup contract: skip link, landmarks, live regions, plan and tracker row ids and names, one flash, and an accessible name on every form field.
+- The Phase 1 homepage suppression bug is fixed. `tracker.js`'s `beforeSwap` guard now also holds `.homepage-page` refreshes while a plan item is expanded or dragged, and any SSE refresh moves focus to the new copy of the focused element by id instead of letting it fall to `<body>`. The keyboard reorder test depends on both. The `sse.spec` homepage test is no longer `fixme`. CLAUDE.md's claim about homepage suppression is now true.
+- Playwright (`e2e/tests/a11y.spec.ts`, written by a sub-agent against the markup contract above; type-checked with `bunx -p typescript@5 tsc`, not yet run):
+  - axe scans with the `wcag2a`/`aa`, `wcag21a`/`aa` and `wcag22aa` tags, failing on serious or critical violations and printing all of them, for every main page in both themes and in these states: item expanded, plan item expanded, select mode, confirm modal, search, shortcut help, mobile nav and toast
+  - a 320px reflow check, a reduced-motion check, the skip link, and target-size checks (24px, and 44px with `hasTouch`)
+  - a keyboard-only plan flow: expand, move up with focus kept and the move announced, then complete
+  - existing specs moved to the new accessible names
+
+  Things to watch on the first CI run:
+  - the strict 44px check covers badges, filter tags and `summary` elements
+  - the toast hides after 6s, so a slow scan can miss it
+  - the keyboard test tabs up to 400 times, so it slows as the shared plan list grows
+- VoiceOver pass: not done. This environment cannot run a browser, so the owner needs to do it during the STOP review.
 
 - Follow-ups:
   - tighten CSP `script-src` after moving inline handlers
