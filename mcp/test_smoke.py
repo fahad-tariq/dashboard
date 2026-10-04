@@ -159,6 +159,12 @@ class TestConfig:
         with pytest.raises(client.ConfigError, match=f"{name} must be at least 32"):
             server.load_config(env)
 
+    @pytest.mark.parametrize("name", ["MCP_TOKEN", "DASHBOARD_API_TOKEN"])
+    def test_non_ascii_token_refused(self, name):
+        env = {**_VALID_ENV, name: "\u00e9" * 40}
+        with pytest.raises(client.ConfigError, match=f"{name} must be ASCII"):
+            server.load_config(env)
+
     def test_shared_token_refused(self):
         env = {"MCP_TOKEN": _API_TOKEN, "DASHBOARD_API_TOKEN": _API_TOKEN}
         with pytest.raises(client.ConfigError, match="must differ"):
@@ -276,7 +282,12 @@ class TestToolDiscovery:
         for name, tool in tools.items():
             annotations = tool.get("annotations") or {}
             assert annotations.get("readOnlyHint", False) is (name in _READ_ONLY_NAMES), f"{name}: {annotations}"
-            assert not annotations.get("destructiveHint")
+            if name in _READ_ONLY_NAMES:
+                assert not annotations.get("destructiveHint")
+            else:
+                # Per the MCP spec destructiveHint defaults to true for
+                # non-read-only tools, so write tools must say false.
+                assert annotations.get("destructiveHint") is False, f"{name}: {annotations}"
 
     def test_destructive_tool_not_callable_by_default(self, cli):
         headers = _init_session(cli)
