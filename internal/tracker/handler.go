@@ -368,14 +368,12 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) redirectBack(w http.ResponseWriter, r *http.Request, anchor string, msg ...string) {
 	dest := r.Header.Get("Referer")
 
-	if dest != "" {
-		if u, err := url.Parse(dest); err == nil {
-			dest = u.Path
-		} else {
-			dest = "/" + h.listName
-		}
+	if u, err := url.Parse(dest); err == nil && dest != "" {
+		dest = u.Path
+	} else {
+		dest = ""
 	}
-	if dest == "" || !strings.HasPrefix(dest, "/") {
+	if !httputil.IsLocalPath(dest) {
 		dest = "/" + h.listName
 	}
 	if len(msg) > 0 && msg[0] != "" {
@@ -384,7 +382,7 @@ func (h *Handler) redirectBack(w http.ResponseWriter, r *http.Request, anchor st
 	if anchor != "" {
 		dest += "#" + anchor
 	}
-	http.Redirect(w, r, dest, http.StatusSeeOther)
+	http.Redirect(w, r, dest, http.StatusSeeOther) //nolint:gosec // G710: dest checked by httputil.IsLocalPath
 }
 
 func (h *Handler) UpdateNotes(w http.ResponseWriter, r *http.Request) {

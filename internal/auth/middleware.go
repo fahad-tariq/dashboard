@@ -100,7 +100,7 @@ func RequireAuthAPI(sm *scs.SessionManager) func(http.Handler) http.Handler {
 			if userID == 0 {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte(`{"error":"unauthorized"}`))
+				_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
 				return
 			}
 
@@ -133,18 +133,4 @@ func injectSessionContext(ctx context.Context, sm *scs.SessionManager) context.C
 	ctx = context.WithValue(ctx, ctxIsAdmin, isAdmin)
 	ctx = context.WithValue(ctx, ctxFirstName, firstName)
 	return ctx
-}
-
-// isLocalPath validates that a next parameter is a relative path to prevent open redirects.
-func isLocalPath(path string) bool {
-	if path == "" {
-		return false
-	}
-	if !strings.HasPrefix(path, "/") {
-		return false
-	}
-	if strings.HasPrefix(path, "//") {
-		return false
-	}
-	return true
 }
