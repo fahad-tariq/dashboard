@@ -1,0 +1,16 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/fahad/dashboard/test
+cpu: Apple M5 Max
+BenchmarkMutate200-18    	     378	   3101366 ns/op	 1182346 B/op	    9486 allocs/op
+BenchmarkMutate200-18    	     393	   3046492 ns/op	 1181942 B/op	    9486 allocs/op
+BenchmarkMutate200-18    	     390	   3050289 ns/op	 1183575 B/op	    9487 allocs/op
+BenchmarkMutate200-18    	     390	   3094575 ns/op	 1182148 B/op	    9486 allocs/op
+BenchmarkMutate200-18    	     392	   3052077 ns/op	 1182375 B/op	    9486 allocs/op
+BenchmarkMutate200-18    	     390	   3143762 ns/op	 1184731 B/op	    9487 allocs/op
+BenchmarkMutate200-18    	     350	   3187880 ns/op	 1183722 B/op	    9486 allocs/op
+BenchmarkMutate200-18    	     388	   3082422 ns/op	 1182213 B/op	    9486 allocs/op
+BenchmarkMutate200-18    	     387	   3053831 ns/op	 1182573 B/op	    9486 allocs/op
+BenchmarkMutate200-18    	     392	   3056984 ns/op	 1181081 B/op	    9486 allocs/op
+PASS
+ok  	github.com/fahad/dashboard/test	12.771s
