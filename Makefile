@@ -1,4 +1,4 @@
-.PHONY: lint fmt build test vuln cover bench e2e run docker-build docker-run clean tidy
+.PHONY: lint fmt build test vuln cover bench e2e backup run docker-build docker-run clean tidy
 
 BIN := dashboard
 CMD := ./cmd/dashboard
@@ -34,6 +34,11 @@ bench:
 
 e2e:
 	bash e2e/run.sh
+
+# Archive ./data, ./users and a live-safe DB snapshot into ./backups.
+# Override DATA_DIR, USERS_DIR, BACKUP_DIR or RETENTION_DAYS as needed.
+backup:
+	bash scripts/backup.sh
 
 run:
 	go run $(CMD)
