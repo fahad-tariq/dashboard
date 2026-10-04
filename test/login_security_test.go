@@ -123,7 +123,7 @@ func TestAccountDelayIsProgressiveNotALockout(t *testing.T) {
 	var delays []time.Duration
 	for range 8 {
 		delays = append(delays, d.Delay("Alice@Test.com"))
-		d.Fail("alice@test.com")
+		d.Fail("alice@test.com", true)
 	}
 	if delays[0] != 0 || delays[1] != 0 || delays[2] != 0 {
 		t.Errorf("first attempts delayed: %v", delays[:3])
@@ -221,5 +221,67 @@ func TestConfigTrustedProxies(t *testing.T) {
 				t.Errorf("TrustedProxies = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+// Flooding made-up emails must not evict a real account's failure history,
+// or an attacker could reset its delay at will.
+func TestAccountDelaySurvivesUnknownEmailFlood(t *testing.T) {
+	d := auth.NewAccountDelay()
+	for range 6 {
+		d.Fail("owner@test.com", true)
+	}
+	before := d.Delay("owner@test.com")
+	for i := range 5000 {
+		d.Fail(fmt.Sprintf("nobody-%d@test.com", i), false)
+	}
+	if got := d.Delay("owner@test.com"); got != before || got == 0 {
+		t.Errorf("owner delay after flood = %v, want %v", got, before)
+	}
+	// Unknown emails are delayed on the same schedule, so the delay does not
+	// reveal which accounts exist.
+	for range 6 {
+		d.Fail("ghost@test.com", false)
+	}
+	if got := d.Delay("ghost@test.com"); got != before {
+		t.Errorf("unknown email delay = %v, want %v like a real account", got, before)
+	}
+}
+
+// One IPv6 holder controls a whole /64, so the limit must apply per /64.
+func TestLoginRateLimitBucketsIPv6By64(t *testing.T) {
+	sm, database := newTestSessionManager(t)
+	createTestUser(t, database, "alice@test.com", "secretpw")
+	h := sm.LoadAndSave(http.HandlerFunc(auth.NewHandler(sm, database, auth.NewRateLimiter(), loginTmpl).LoginSubmit))
+
+	var last *httptest.ResponseRecorder
+	for i := range 6 {
+		last = loginAttempt(h, fmt.Sprintf("[2001:db8:1:2::%x]:443", i+1), nil, "nobody@test.com", "wrong")
+	}
+	if !strings.Contains(last.Body.String(), "Too many attempts") {
+		t.Errorf("6th attempt from the same /64 was not rate limited")
+	}
+	if got := last.Header().Get("Retry-After"); got == "" {
+		t.Error("rate-limited login lacks a Retry-After header")
+	}
+	other := loginAttempt(h, "[2001:db8:1:3::1]:443", nil, "nobody@test.com", "wrong")
+	if strings.Contains(other.Body.String(), "Too many attempts") {
+		t.Error("a different /64 was rate limited")
+	}
+}
+
+func TestTrustedProxyAcceptsIPv4MappedForm(t *testing.T) {
+	paths := tempPaths(t)
+	paths["DASHBOARD_TRUSTED_PROXIES"] = "::ffff:172.30.0.2"
+	setEnvForConfig(t, paths)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest("GET", "/", nil)
+	r.RemoteAddr = "172.30.0.2:4000"
+	r.Header.Set("X-Forwarded-For", "198.51.100.7")
+	if got := httputil.ClientIP(r, cfg.TrustedProxies); got != "198.51.100.7" {
+		t.Errorf("ClientIP = %q; an IPv4-mapped trusted proxy was not matched", got)
 	}
 }
