@@ -183,3 +183,25 @@ func TestThemeNoOpacityDimming(t *testing.T) {
 		}
 	}
 }
+
+// TestThemeTextBackgroundsSetColour closes a gap in TestThemeRuleTextContrast:
+// a rule that sets a background but inherits its text colour cannot be
+// checked, and inherited --fg-muted or --fg-dim on --surface0 fails AA.
+// Backgrounds that never hold text (bars, fills, separators) are exempt.
+func TestThemeTextBackgroundsSetColour(t *testing.T) {
+	textless := regexp.MustCompile(`progress|digest-bar|filter-sep`)
+	pageBackgrounds := map[string]bool{"--base": true, "--bg": true, "--mantle": true, "--bg-card": true, "--row-hover": true}
+	css := cssCommentRe.ReplaceAllString(loadThemeCSS(t), "")
+	for _, m := range cssRuleRe.FindAllStringSubmatch(css, -1) {
+		selector := strings.Join(strings.Fields(m[1]), " ")
+		bm := cssBgRe.FindStringSubmatch(m[2])
+		if bm == nil || cssColourRe.MatchString(m[2]) || textless.MatchString(selector) {
+			continue
+		}
+		bgVar := cssVarRe.FindStringSubmatch(strings.TrimSpace(bm[1]))
+		if bgVar == nil || pageBackgrounds[bgVar[1]] {
+			continue
+		}
+		t.Errorf("%s: sets background %s but inherits its text colour; set color so contrast can be checked", selector, bgVar[1])
+	}
+}
