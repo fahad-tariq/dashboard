@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/fahad/dashboard/internal/app"
 	"github.com/fahad/dashboard/internal/auth"
@@ -58,7 +59,12 @@ func main() {
 	}
 
 	slog.Info("starting server", "addr", cfg.Addr)
-	if err := http.ListenAndServe(cfg.Addr, router); err != nil {
+	srv := &http.Server{
+		Addr:              cfg.Addr,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}
@@ -70,7 +76,7 @@ func runUserAdd() {
 	email := fs.String("email", "", "user email address")
 	password := fs.String("password", "", "user password")
 	firstName := fs.String("first-name", "", "user first name (optional)")
-	fs.Parse(os.Args[2:])
+	_ = fs.Parse(os.Args[2:]) // ExitOnError: Parse exits on failure
 
 	if *email == "" || *password == "" {
 		fmt.Fprintln(os.Stderr, "usage: dashboard useradd --email <email> --password <password> [--first-name <name>]")

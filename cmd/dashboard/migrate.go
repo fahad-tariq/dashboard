@@ -18,7 +18,7 @@ func runMigrateData() { //nolint:gocyclo // one-off migration command, linear st
 	userID := fs.Int("user-id", 0, "target user ID")
 	oldIdeasDir := fs.String("ideas-dir", "", "old ideas directory (with untriaged/parked/dropped subdirs)")
 	oldExpDir := fs.String("explorations-dir", "", "old explorations directory")
-	fs.Parse(os.Args[2:])
+	_ = fs.Parse(os.Args[2:]) // ExitOnError: Parse exits on failure
 
 	if *userID <= 0 {
 		fmt.Fprintln(os.Stderr, "usage: dashboard migrate-data --user-id <N> [--ideas-dir <path>] [--explorations-dir <path>]")

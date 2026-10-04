@@ -171,9 +171,6 @@ func (s *Service) UpdateStatus(slug, status string) error {
 			if it.Completed == "" {
 				it.Completed = time.Now().In(s.loc).Format("2006-01-02")
 			}
-		} else if status == "drop" {
-			it.Done = false
-			it.Completed = ""
 		} else {
 			it.Done = false
 			it.Completed = ""

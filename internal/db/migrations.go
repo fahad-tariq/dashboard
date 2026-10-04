@@ -71,15 +71,15 @@ func Migrate(db *sql.DB) error {
 			return fmt.Errorf("migration %d: begin tx: %w", i, err)
 		}
 		if _, err := tx.Exec(migrations[i]); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("migration %d: %w", i, err)
 		}
 		if _, err := tx.Exec("DELETE FROM schema_version"); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("migration %d: update version: %w", i, err)
 		}
 		if _, err := tx.Exec("INSERT INTO schema_version (version) VALUES (?)", i+1); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("migration %d: insert version: %w", i, err)
 		}
 		if err := tx.Commit(); err != nil {

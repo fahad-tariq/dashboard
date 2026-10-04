@@ -141,7 +141,7 @@ func buildFuncMap(loc *time.Location, authEnabled bool, version string) template
 				last = m[1]
 			}
 			b.WriteString(html.EscapeString(text[last:]))
-			return template.HTML(b.String())
+			return template.HTML(b.String()) //nolint:gosec // G203: every segment is html.EscapeString-ed above
 		},
 		"truncateBody": func(body string) string {
 			body = strings.ReplaceAll(body, "\n", " ")
@@ -185,7 +185,7 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 	uploadHandler := upload.NewHandler(cfg.UploadsDir)
 
 	r := chi.NewRouter()
-	r.Use(middleware.RealIP)
+	r.Use(middleware.RealIP) //nolint:staticcheck // SA1019: spoofable; replaced by trusted-proxy handling in Plan 1 Phase 2
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Compress(5))
 

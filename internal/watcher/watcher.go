@@ -89,7 +89,7 @@ func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, u
 			}
 
 			if event.Op&fsnotify.Create != 0 {
-				addRecursive(w, event.Name)
+				watchNewPath(w, event.Name)
 			}
 
 			userID, category := classifyEventWithUser(event.Name, dirCategories, fileCategories, userDataDir)
@@ -181,6 +181,13 @@ func classifyEventWithUser(path string, dirCategories, fileCategories map[string
 	}
 
 	return 0, ""
+}
+
+// watchNewPath adds a newly created file or directory tree to the watcher.
+func watchNewPath(w *fsnotify.Watcher, path string) {
+	if err := addRecursive(w, path); err != nil {
+		slog.Warn("watching new path", "path", path, "error", err)
+	}
 }
 
 func addRecursive(w *fsnotify.Watcher, path string) error {

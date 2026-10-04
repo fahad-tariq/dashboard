@@ -41,7 +41,9 @@ func setupAdminEnv(t *testing.T) *adminTestEnv {
 	t.Cleanup(func() { database.Close() })
 
 	userDataDir := filepath.Join(tmpDir, "users")
-	os.MkdirAll(userDataDir, 0o755)
+	if err := os.MkdirAll(userDataDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	sm := scs.New()
 	store := auth.NewSQLiteStore(database)
@@ -197,12 +199,18 @@ func TestAdminCanDeleteOtherUser(t *testing.T) {
 	env := setupAdminEnv(t)
 
 	// Create another user to delete.
-	auth.CreateUser(env.database, "victim@test.com", "", "password")
+	if _, err := auth.CreateUser(env.database, "victim@test.com", "", "password"); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create user data dir for user 2.
 	userDir := filepath.Join(env.tmpDir, "users", "2")
-	os.MkdirAll(userDir, 0o755)
-	os.WriteFile(filepath.Join(userDir, "personal.md"), []byte("# Personal\n"), 0o644)
+	if err := os.MkdirAll(userDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "personal.md"), []byte("# Personal\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	req := httptest.NewRequest("POST", "/admin/users/2/delete", nil)
 	req.AddCookie(env.adminCookie)
@@ -310,7 +318,9 @@ func TestAdminRoleChangeInvalidatesSessions(t *testing.T) {
 	env := setupAdminEnv(t)
 
 	// Create a second user (regular).
-	auth.CreateUser(env.database, "bob@test.com", "", "password")
+	if _, err := auth.CreateUser(env.database, "bob@test.com", "", "password"); err != nil {
+		t.Fatal(err)
+	}
 
 	// Insert a session for bob (user_id=2).
 	_, err := env.database.Exec(
@@ -338,7 +348,9 @@ func TestAdminRoleChangeInvalidatesSessions(t *testing.T) {
 
 	// Verify bob's sessions were invalidated.
 	var count int
-	env.database.QueryRow("SELECT COUNT(*) FROM sessions WHERE user_id = 2").Scan(&count)
+	if err := env.database.QueryRow("SELECT COUNT(*) FROM sessions WHERE user_id = 2").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
 	if count != 0 {
 		t.Errorf("expected 0 sessions for bob after role change, got %d", count)
 	}

@@ -51,8 +51,12 @@ func TestCommentaryStore_GetEmpty(t *testing.T) {
 func TestCommentaryStore_SetOverwrites(t *testing.T) {
 	store := setupCommentaryStore(t)
 
-	store.Set("task-1", "personal", 1, "first version")
-	store.Set("task-1", "personal", 1, "updated version")
+	if err := store.Set("task-1", "personal", 1, "first version"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Set("task-1", "personal", 1, "updated version"); err != nil {
+		t.Fatal(err)
+	}
 
 	got, _ := store.Get("task-1", "personal", 1)
 	if got != "updated version" {
@@ -63,7 +67,9 @@ func TestCommentaryStore_SetOverwrites(t *testing.T) {
 func TestCommentaryStore_Delete(t *testing.T) {
 	store := setupCommentaryStore(t)
 
-	store.Set("task-1", "personal", 1, "some content")
+	if err := store.Set("task-1", "personal", 1, "some content"); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.Delete("task-1", "personal", 1); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}

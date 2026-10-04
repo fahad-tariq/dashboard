@@ -10,6 +10,23 @@ linters:
   settings:
     gocyclo:
       min-complexity: 15
+    gosec:
+      excludes:
+        # Every file path comes from config or the per-user registry, never
+        # from request input.
+        - G304
+        # Data files and directories are deliberately readable by the owner's
+        # tooling on the host; the container runs single-user.
+        - G301
+        - G306
+  exclusions:
+    presets:
+      # Unchecked Close, Flush, os.Remove and fmt.Fprint* calls.
+      - std-error-handling
+    rules:
+      # Table-driven tests are long by design.
+      - path: _test\.go
+        linters: [gocyclo]
 
 formatters:
   enable:

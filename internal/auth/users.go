@@ -172,7 +172,7 @@ func DeleteUser(db *sql.DB, id int64) error {
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 
 	if _, err := tx.Exec("DELETE FROM tracker_items WHERE user_id = ?", id); err != nil {
 		return fmt.Errorf("deleting tracker items: %w", err)

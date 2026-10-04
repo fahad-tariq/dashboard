@@ -39,7 +39,9 @@ func TestFirstUserGetsAdminRole(t *testing.T) {
 
 func TestSecondUserGetsUserRole(t *testing.T) {
 	database := newTestDB(t)
-	auth.CreateUser(database, "first@test.com", "", "password")
+	if _, err := auth.CreateUser(database, "first@test.com", "", "password"); err != nil {
+		t.Fatal(err)
+	}
 
 	id, err := auth.CreateUser(database, "second@test.com", "", "password")
 	if err != nil {
@@ -231,14 +233,18 @@ func TestDeleteUserCascade(t *testing.T) {
 
 	// Tracker items should be gone.
 	var itemCount int
-	database.QueryRow("SELECT COUNT(*) FROM tracker_items WHERE user_id = ?", id).Scan(&itemCount)
+	if err := database.QueryRow("SELECT COUNT(*) FROM tracker_items WHERE user_id = ?", id).Scan(&itemCount); err != nil {
+		t.Fatal(err)
+	}
 	if itemCount != 0 {
 		t.Errorf("tracker items should be deleted, got %d", itemCount)
 	}
 
 	// Sessions should be gone.
 	var sessCount int
-	database.QueryRow("SELECT COUNT(*) FROM sessions WHERE user_id = ?", id).Scan(&sessCount)
+	if err := database.QueryRow("SELECT COUNT(*) FROM sessions WHERE user_id = ?", id).Scan(&sessCount); err != nil {
+		t.Fatal(err)
+	}
 	if sessCount != 0 {
 		t.Errorf("sessions should be deleted, got %d", sessCount)
 	}
@@ -347,9 +353,13 @@ func TestForUserCreatesDirectoriesLazily(t *testing.T) {
 
 	userDataDir := filepath.Join(tmpDir, "users")
 	familyPath := filepath.Join(tmpDir, "family.md")
-	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	houseProjectsPath := filepath.Join(tmpDir, "house-projects.md")
-	os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644)
+	if err := os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
 

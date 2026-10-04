@@ -1,6 +1,8 @@
 package commentary
 
 import (
+	"bytes"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -40,9 +42,12 @@ func WebGetCommentary(store *Store) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(`<div class="commentary-note">`))
-		w.Write([]byte(`<span class="commentary-label">ironclaw</span>`))
-		w.Write(rendered)
-		w.Write([]byte(`</div>`))
+		var b bytes.Buffer
+		b.WriteString(`<div class="commentary-note"><span class="commentary-label">ironclaw</span>`)
+		b.Write(rendered)
+		b.WriteString(`</div>`)
+		if _, err := w.Write(b.Bytes()); err != nil {
+			slog.Debug("writing commentary", "error", err)
+		}
 	}
 }

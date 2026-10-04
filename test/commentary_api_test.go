@@ -68,7 +68,9 @@ func TestCommentaryAPI_SetAndGet(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
 	if resp["content"] != "This task has been open for a week." {
 		t.Errorf("content = %v", resp["content"])
 	}
@@ -83,7 +85,9 @@ func TestCommentaryAPI_GetEmpty(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
 	if resp["content"] != "" {
 		t.Errorf("content should be empty, got %v", resp["content"])
 	}

@@ -46,7 +46,7 @@ func (s *Store) ReplaceAllWithAttribution(items []Item, attributionUserID int64)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // no-op after Commit
 
 	// Delete rows whose slugs are no longer in the item set.
 	if len(items) == 0 {
@@ -71,13 +71,13 @@ func (s *Store) ReplaceAllWithAttribution(items []Item, attributionUserID int64)
 		if s.shared {
 			args := []any{s.listName}
 			args = append(args, slugs...)
-			if _, err := tx.Exec("DELETE FROM tracker_items WHERE list = ? AND slug NOT IN ("+placeholders+")", args...); err != nil {
+			if _, err := tx.Exec("DELETE FROM tracker_items WHERE list = ? AND slug NOT IN ("+placeholders+")", args...); err != nil { //nolint:gosec // G202: placeholders is only "?, ?, ..."
 				return err
 			}
 		} else {
 			args := []any{s.listName, s.userID}
 			args = append(args, slugs...)
-			if _, err := tx.Exec("DELETE FROM tracker_items WHERE list = ? AND user_id = ? AND slug NOT IN ("+placeholders+")", args...); err != nil {
+			if _, err := tx.Exec("DELETE FROM tracker_items WHERE list = ? AND user_id = ? AND slug NOT IN ("+placeholders+")", args...); err != nil { //nolint:gosec // G202: placeholders is only "?, ?, ..."
 				return err
 			}
 		}

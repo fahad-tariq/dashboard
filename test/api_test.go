@@ -81,7 +81,9 @@ func TestAPIAddIdea_EmptyTitle(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.NewDecoder(rec.Body).Decode(&resp)
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
 	if resp["error"] != "title required" {
 		t.Errorf("error message: got %q", resp["error"])
 	}
@@ -103,7 +105,9 @@ func TestAPIAddIdea_InvalidJSON(t *testing.T) {
 
 func TestAPITriageIdea_Valid(t *testing.T) {
 	h, svc := newTestHandler(t)
-	svc.Add(&ideas.Idea{Slug: "triage-me", Title: "Triage Me", Body: "Content."})
+	if err := svc.Add(&ideas.Idea{Slug: "triage-me", Title: "Triage Me", Body: "Content."}); err != nil {
+		t.Fatal(err)
+	}
 
 	body := `{"action":"park"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/ideas/triage-me/triage", strings.NewReader(body))
@@ -126,7 +130,9 @@ func TestAPITriageIdea_Valid(t *testing.T) {
 
 func TestAPIAddResearch_Valid(t *testing.T) {
 	h, svc := newTestHandler(t)
-	svc.Add(&ideas.Idea{Slug: "research-target", Title: "Research Target", Body: "Initial body."})
+	if err := svc.Add(&ideas.Idea{Slug: "research-target", Title: "Research Target", Body: "Initial body."}); err != nil {
+		t.Fatal(err)
+	}
 
 	body := `{"content":"New research findings."}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/ideas/research-target/research", strings.NewReader(body))
@@ -155,7 +161,9 @@ func TestAPIAddResearch_Valid(t *testing.T) {
 
 func TestAPIListIdeas_ExcludesDeleted(t *testing.T) {
 	h, svc := newTestHandler(t)
-	svc.Add(&ideas.Idea{Slug: "active-idea", Title: "Active Idea", Body: "Visible."})
+	if err := svc.Add(&ideas.Idea{Slug: "active-idea", Title: "Active Idea", Body: "Visible."}); err != nil {
+		t.Fatal(err)
+	}
 	svc.Add(&ideas.Idea{Slug: "trashed-idea", Title: "Trashed Idea", Body: "Hidden."})
 	if err := svc.Delete("trashed-idea"); err != nil {
 		t.Fatalf("delete: %v", err)

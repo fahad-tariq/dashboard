@@ -79,8 +79,8 @@ func TestMaintenanceServiceLogCompletion(t *testing.T) {
 		t.Fatalf("expected 2 log entries, got %d", len(item.Log))
 	}
 	// First entry should be the newest.
-	if item.Log[0].Date > item.Log[1].Date {
-		// Both are today, so dates are equal -- that's fine.
+	if item.Log[0].Date < item.Log[1].Date {
+		t.Errorf("log not newest-first: %+v", item.Log)
 	}
 }
 
@@ -118,7 +118,9 @@ func TestMaintenanceServiceListOverdue(t *testing.T) {
 - [ ] Check smoke alarms [cadence: 6m] [added: 2025-01-01]
 `
 	os.WriteFile(path, []byte(content), 0o644)
-	svc.Resync()
+	if err := svc.Resync(); err != nil {
+		t.Fatal(err)
+	}
 
 	now := time.Date(2026, 3, 29, 12, 0, 0, 0, time.UTC)
 	overdue := svc.ListOverdue(now)
