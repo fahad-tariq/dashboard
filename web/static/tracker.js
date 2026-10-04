@@ -356,6 +356,26 @@ document.addEventListener('htmx:afterSettle', function() {
     });
 });
 
+// A refresh replaces the focused control with a fresh copy. Remember its id
+// (see the id scheme in the plan) so focus can move to the new copy instead
+// of falling back to <body>.
+var focusBeforeRefresh = null;
+
+function rememberFocus(target) {
+    var active = document.activeElement;
+    focusBeforeRefresh = active && active.id && target.contains(active) ? active.id : null;
+}
+
+document.addEventListener('htmx:afterSettle', function() {
+    if (!focusBeforeRefresh) return;
+    var id = focusBeforeRefresh;
+    focusBeforeRefresh = null;
+    var active = document.activeElement;
+    if (active && active !== document.body) return;
+    var el = document.getElementById(id);
+    if (el) el.focus();
+});
+
 function isSSERefresh(evt) {
     var elt = evt.detail.elt;
     var trigger = elt && elt.getAttribute && elt.getAttribute('hx-trigger');
@@ -381,13 +401,21 @@ document.addEventListener('htmx:beforeSwap', function(evt) {
     var target = evt.detail.target;
     if (!target) return;
 
-    // Suppress SSE swaps (targeting .tracker-page) while select mode, drag,
-    // plan detail, or any tracker item is expanded.
-    var isSSESwap = target.classList && target.classList.contains('tracker-page');
-    if (isSSESwap && (bulkSelectActive || window.planDragInProgress || window.planDetailExpanded || Object.keys(trackerExpandedItems).length > 0)) {
+    // Suppress SSE swaps of a list page while select mode, drag, plan
+    // detail, or any tracker item is expanded, and of the homepage while a
+    // plan item is expanded or dragged.
+    var cls = target.classList;
+    var isTrackerSwap = cls && cls.contains('tracker-page');
+    var isHomeSwap = cls && cls.contains('homepage-page');
+    if (isTrackerSwap && (bulkSelectActive || window.planDragInProgress || window.planDetailExpanded || Object.keys(trackerExpandedItems).length > 0)) {
         evt.detail.shouldSwap = false;
         return;
     }
+    if (isHomeSwap && (window.planDragInProgress || window.planDetailExpanded)) {
+        evt.detail.shouldSwap = false;
+        return;
+    }
+    if (isSSERefresh(evt)) rememberFocus(target);
 
     // On any SSE-refreshed page, never replace a form the user is filling in.
     if (isSSERefresh(evt) && userIsEditing(target)) {
