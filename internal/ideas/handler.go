@@ -3,6 +3,7 @@ package ideas
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"html/template"
 	"net/http"
 	"slices"
@@ -218,7 +219,8 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 // TriageAction changes an idea's status (park/drop/untriage).
 func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	if err := r.ParseForm(); err != nil {
+	// triageAnimate posts FormData (multipart); plain form posts are urlencoded.
+	if err := r.ParseMultipartForm(1 << 20); err != nil && !errors.Is(err, http.ErrNotMultipart) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
