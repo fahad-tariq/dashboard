@@ -188,7 +188,6 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 	uploadHandler := upload.NewHandler(cfg.UploadsDir)
 
 	r := chi.NewRouter()
-	r.Use(middleware.RealIP) //nolint:staticcheck // SA1019: spoofable; replaced by trusted-proxy handling in Plan 1 Phase 2
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Compress(5))
 
@@ -379,7 +378,7 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 		}
 
 		limiter := auth.NewRateLimiter()
-		authHandler := auth.NewHandler(sm, database, limiter, loginTmpl)
+		authHandler := auth.NewHandler(sm, database, limiter, loginTmpl, auth.WithTrustedProxies(cfg.TrustedProxies))
 
 		// Public routes (no auth).
 		r.Get("/login", authHandler.LoginPage)

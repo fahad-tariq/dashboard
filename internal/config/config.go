@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -23,6 +25,7 @@ type Config struct {
 	Addr              string
 	PasswordHash      string
 	AuthDisabled      bool // DASHBOARD_AUTH=disabled: local development on loopback only.
+	TrustedProxies    []netip.Prefix
 	SessionLifetime   time.Duration
 	SecureCookies     bool
 	HasUsers          bool // Set at startup after checking the users table.
@@ -47,6 +50,11 @@ func Load() (*Config, error) {
 		authDisabled = true
 	default:
 		return nil, fmt.Errorf("DASHBOARD_AUTH must be \"enabled\" or \"disabled\", got %q", v)
+	}
+
+	trusted, err := parsePrefixes(os.Getenv("DASHBOARD_TRUSTED_PROXIES"))
+	if err != nil {
+		return nil, fmt.Errorf("parsing DASHBOARD_TRUSTED_PROXIES: %w", err)
 	}
 
 	loc := time.Local
@@ -83,6 +91,7 @@ func Load() (*Config, error) {
 		Addr:              envOr("ADDR", ":8080"),
 		PasswordHash:      os.Getenv("DASHBOARD_PASSWORD_HASH"),
 		AuthDisabled:      authDisabled,
+		TrustedProxies:    trusted,
 		SessionLifetime:   sessionLifetime,
 		SecureCookies:     secureCookies,
 		Location:          loc,
@@ -156,6 +165,28 @@ func (c *Config) CheckAuthMode() error {
 			"(create a user, set DASHBOARD_PASSWORD_HASH, or set DASHBOARD_AUTH=disabled with a loopback ADDR for local development)")
 	}
 	return nil
+}
+
+// parsePrefixes reads a comma-separated list of CIDRs; a bare IP means that
+// single address.
+func parsePrefixes(s string) ([]netip.Prefix, error) {
+	var out []netip.Prefix
+	for field := range strings.SplitSeq(s, ",") {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		if p, err := netip.ParsePrefix(field); err == nil {
+			out = append(out, p.Masked())
+			continue
+		}
+		addr, err := netip.ParseAddr(field)
+		if err != nil {
+			return nil, fmt.Errorf("%q is not a CIDR or IP address", field)
+		}
+		out = append(out, netip.PrefixFrom(addr, addr.BitLen()))
+	}
+	return out, nil
 }
 
 func isLoopbackAddr(addr string) bool {

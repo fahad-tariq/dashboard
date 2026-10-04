@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"container/list"
+	"strings"
 	"sync"
 	"time"
 )
@@ -8,23 +10,87 @@ import (
 const (
 	maxAttempts = 5
 	window      = time.Minute
+
+	// defaultTracked caps how many IPs or accounts are remembered. When full,
+	// the least recently seen entry is dropped; nothing is ever reset in bulk.
+	defaultTracked = 4096
+
+	// Account delay: free attempts, then 1s, 2s, 4s... capped, forgotten after
+	// a quiet period. A delay, never a lockout, so an attacker cannot lock the
+	// only user out.
+	freeFailures    = 3
+	maxAccountDelay = 8 * time.Second
+	failureMemory   = 15 * time.Minute
 )
+
+// lru is a fixed-capacity map that evicts the least recently used key.
+// Callers hold their own lock.
+type lru[V any] struct {
+	capacity int
+	order    *list.List
+	items    map[string]*list.Element
+}
+
+type lruEntry[V any] struct {
+	key   string
+	value V
+}
+
+func newLRU[V any](capacity int) *lru[V] {
+	return &lru[V]{capacity: capacity, order: list.New(), items: make(map[string]*list.Element)}
+}
+
+// get returns the entry for key, creating it with init if absent, and marks
+// it most recently used.
+func (c *lru[V]) get(key string, init func() V) *V {
+	if el, ok := c.items[key]; ok {
+		c.order.MoveToFront(el)
+		return &el.Value.(*lruEntry[V]).value
+	}
+	e := &lruEntry[V]{key: key, value: init()}
+	c.items[key] = c.order.PushFront(e)
+	if c.order.Len() > c.capacity {
+		oldest := c.order.Back()
+		c.order.Remove(oldest)
+		delete(c.items, oldest.Value.(*lruEntry[V]).key)
+	}
+	return &e.value
+}
+
+func (c *lru[V]) peek(key string) (V, bool) {
+	el, ok := c.items[key]
+	if !ok {
+		var zero V
+		return zero, false
+	}
+	return el.Value.(*lruEntry[V]).value, true
+}
+
+func (c *lru[V]) remove(key string) {
+	if el, ok := c.items[key]; ok {
+		c.order.Remove(el)
+		delete(c.items, key)
+	}
+}
 
 type attempt struct {
 	count    int
 	windowAt time.Time
 }
 
-// RateLimiter tracks login attempts per IP address.
+// RateLimiter tracks login attempts per client IP.
 type RateLimiter struct {
 	mu       sync.Mutex
-	attempts map[string]*attempt
+	attempts *lru[attempt]
 }
 
 func NewRateLimiter() *RateLimiter {
-	rl := &RateLimiter{attempts: make(map[string]*attempt)}
-	go rl.cleanup()
-	return rl
+	return NewRateLimiterWithCapacity(defaultTracked)
+}
+
+// NewRateLimiterWithCapacity bounds the number of IPs tracked at once.
+func NewRateLimiterWithCapacity(capacity int) *RateLimiter {
+	return &RateLimiter{attempts: newLRU[attempt](capacity)}
 }
 
 // Allow returns true if the IP has not exceeded the rate limit.
@@ -33,10 +99,9 @@ func (rl *RateLimiter) Allow(ip string) bool {
 	defer rl.mu.Unlock()
 
 	now := time.Now()
-	a, ok := rl.attempts[ip]
-	if !ok || now.After(a.windowAt) {
-		rl.attempts[ip] = &attempt{count: 1, windowAt: now.Add(window)}
-		return true
+	a := rl.attempts.get(ip, func() attempt { return attempt{windowAt: now.Add(window)} })
+	if now.After(a.windowAt) {
+		*a = attempt{windowAt: now.Add(window)}
 	}
 	a.count++
 	return a.count <= maxAttempts
@@ -47,27 +112,70 @@ func (rl *RateLimiter) RetryAfter(ip string) time.Duration {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
-	a, ok := rl.attempts[ip]
+	a, ok := rl.attempts.peek(ip)
 	if !ok {
 		return 0
 	}
-	d := time.Until(a.windowAt)
-	if d < 0 {
-		return 0
-	}
-	return d
+	return max(time.Until(a.windowAt), 0)
 }
 
-func (rl *RateLimiter) cleanup() {
-	for {
-		time.Sleep(5 * time.Minute)
-		rl.mu.Lock()
-		now := time.Now()
-		for ip, a := range rl.attempts {
-			if now.After(a.windowAt) {
-				delete(rl.attempts, ip)
-			}
-		}
-		rl.mu.Unlock()
+// Len reports how many IPs are currently tracked.
+func (rl *RateLimiter) Len() int {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	return rl.attempts.order.Len()
+}
+
+type accountFailures struct {
+	count int
+	last  time.Time
+}
+
+// AccountDelay slows repeated failed logins for one account, whichever IPs
+// they come from.
+type AccountDelay struct {
+	mu    sync.Mutex
+	fails *lru[accountFailures]
+}
+
+func NewAccountDelay() *AccountDelay {
+	return &AccountDelay{fails: newLRU[accountFailures](defaultTracked)}
+}
+
+func accountKey(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// Delay returns how long to wait before checking a password for email.
+func (d *AccountDelay) Delay(email string) time.Duration {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	f, ok := d.fails.peek(accountKey(email))
+	if !ok || time.Since(f.last) > failureMemory || f.count < freeFailures {
+		return 0
 	}
+	shift := min(f.count-freeFailures, 8)
+	return min(time.Second<<shift, maxAccountDelay)
+}
+
+// Fail records a failed login for email.
+func (d *AccountDelay) Fail(email string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	now := time.Now()
+	f := d.fails.get(accountKey(email), func() accountFailures { return accountFailures{} })
+	if now.Sub(f.last) > failureMemory {
+		f.count = 0
+	}
+	f.count++
+	f.last = now
+}
+
+// Succeed clears the failure history for email.
+func (d *AccountDelay) Succeed(email string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.fails.remove(accountKey(email))
 }
