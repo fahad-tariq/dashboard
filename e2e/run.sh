@@ -28,7 +28,14 @@ SERVER_PID=""
 # shellcheck disable=SC2329 # invoked via trap
 cleanup() {
     if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
+        # The server does not yet exit on SIGTERM (graceful shutdown lands in
+        # Plan 1 Phase 2), so escalate rather than wait forever.
         kill "$SERVER_PID" 2>/dev/null || true
+        for _ in $(seq 1 25); do
+            kill -0 "$SERVER_PID" 2>/dev/null || break
+            sleep 0.2
+        done
+        kill -9 "$SERVER_PID" 2>/dev/null || true
         wait "$SERVER_PID" 2>/dev/null || true
     fi
     # Keep the server log alongside Playwright's artefacts for CI uploads.
