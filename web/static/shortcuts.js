@@ -7,6 +7,7 @@ var shortcutHelp = document.getElementById('shortcut-help');
 var searchDebounce = null;
 var searchActiveIdx = -1;
 var gPending = false;
+var searchReturnFocus = null;
 
 function isInputFocused() {
     var el = document.activeElement;
@@ -16,6 +17,7 @@ function isInputFocused() {
 }
 
 function openSearch() {
+    searchReturnFocus = document.activeElement;
     searchOverlay.classList.add('visible');
     searchInput.value = '';
     searchResults.innerHTML = '';
@@ -28,6 +30,13 @@ function closeSearch() {
     searchInput.value = '';
     searchResults.innerHTML = '';
     searchActiveIdx = -1;
+    // Leaving focus on the hidden input would make isInputFocused() swallow
+    // the next shortcut.
+    if (document.activeElement === searchInput) searchInput.blur();
+    if (searchReturnFocus && searchReturnFocus !== searchInput && document.body.contains(searchReturnFocus)) {
+        searchReturnFocus.focus();
+    }
+    searchReturnFocus = null;
 }
 
 function openShortcutHelp() {
