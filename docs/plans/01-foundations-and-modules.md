@@ -191,11 +191,11 @@ Do not reopen these while executing this plan.
   - Add real-shaped fixtures for each parser: blank lines in idea bodies, indented headings, sub-steps, image captions, all inline metadata, soft-deleted items and maintenance logs.
   - Parse-then-write MUST be byte-identical (or match a documented normalisation).
   - This guards every later change.
-- [ ] **SQLite configuration.**
+- [x] **SQLite configuration.**
   - Set the pragmas through the modernc DSN so every pooled connection gets them: `_pragma=busy_timeout(5000)`, `foreign_keys(1)`, `journal_mode(WAL)`, `synchronous(NORMAL)`.
   - Remove `?_busy_timeout=5000` and the `db.Exec("PRAGMA ...")` loop.
   - Test: open three pooled connections and assert the pragma values on each.
-- [ ] **Atomic file writes.** Add one shared helper that:
+- [x] **Atomic file writes.** Add one shared helper that:
   1. creates a temp file in the target's directory with mode `0600`, named with a leading `.` and a non-`.md` suffix
   2. writes and fsyncs it
   3. chmods it to the target's mode
@@ -210,22 +210,22 @@ Do not reopen these while executing this plan.
   Also remove stale temp files at startup. Tests:
   - inject failure after the write, at fsync and at rename; the original bytes are unchanged and the temp file is removed
   - a concurrent-reader test (`INTEGRATION=1`) hammers reads during writes and never sees a partial file
-- [ ] **`MoveToList` ordering.** Add to the target before deleting from the source, so a failed add cannot lose the item.
-- [ ] **Change events from services, not the watcher.**
+- [x] **`MoveToList` ordering.** Add to the target before deleting from the source, so a failed add cannot lose the item.
+- [x] **Change events from services, not the watcher.**
   - Inject a publisher interface into the tracker, ideas and house services. After every successful write, from web, API or MCP, they publish a change event for their category.
   - Each service records a content hash of its last write.
   - Watcher callbacks return whether the file changed. When the hash matches the service's last write, the watcher skips `Resync` and does not broadcast.
   - The watcher today sends `file-changed` before running callbacks; reorder that.
   - Test seams: a fake publisher counting events, and a `Resync` counter on the service.
   - Test that one web mutation and one API mutation each produce exactly one event and zero `Resync` calls, and that an external edit produces one of each.
-- [ ] **Drop the SQLite tracker mirror.**
+- [x] **Drop the SQLite tracker mirror.**
   - Remove `store.ReplaceAll` from `mutate`, `AddItem`, `PermanentDelete` and `Resync`, and compute `Summary()` from the cache.
   - Remove the `store` parameter from `tracker.NewService` (about 30 call sites in 10 test files).
   - Remove `NewUserStore`, `NewSharedStore` and `ReplaceAllWithAttribution` and their tests in `registry_test`.
   - Adjust `admin_test`'s `tracker_items` cascade assertion.
   - Check `multiuser_test` against the in-memory count, since the SQL unique index used to collapse duplicate slugs.
   - The table stays in the schema, unused.
-- [ ] **Static asset versioning.**
+- [x] **Static asset versioning.**
   - Hash each embedded static file at startup.
   - A `static "theme.css"` template function returns `/static/theme.css?v=<hash>`, and every template uses it.
   - `immutable` caching applies only to versioned requests.
@@ -572,6 +572,7 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - `MoveToList` now adds to the target before deleting from the source; a failed add used to lose the item (reproduced in `TestMoveToListKeepsItemWhenTargetWriteFails`).
 - Atomic writes: `internal/atomicfile` (temp `.<name>.atomic-*.tmp` at 0600, write, fsync, chmod to the target's mode, rename, fsync dir). Used by the tracker, ideas and house writers, skeleton creation in config and the registry, and `migrate-data`. `config.Load` removes stale temp files first. Fault-injection tests cover failure after write, at fsync and at rename; the concurrent-reader test is gated by `INTEGRATION=1`, which the CI test job sets.
 - SQLite mirror dropped: `Summary()` (only ever called by tests) counts from the cache; `tracker.NewService` lost its store parameter; `store.go` deleted with the registry store tests. `tracker_items` stays in the schema.
+- Change events: each service embeds `changes.Recorder` and writes through one helper (render, atomic write, record SHA-256, publish `file-changed` with its category). The registry gets the publisher via `SetPublisher` and applies it to shared services and to each user's services as they are created. `ResyncIfChanged` hashes the file and re-parses only on a difference; the watcher runs callbacks first and broadcasts only when one reports a real change (or when no callback exists). Verified end to end through a real watcher and broker: one web or API mutation gives exactly one event and zero re-parses; an external edit gives one of each. The event name stays `file-changed` until Phase 7 renames it.
 - Speed (owner decision 2026-10-04: keep fsync, judge the work): `BenchmarkMutate200` is 8.93 ms with durable writes (`docs/plans/bench-phase3.txt`), 2.9x slower than the 3.07 ms baseline, because Go's `File.Sync` is `F_FULLFSYNC` on macOS and each write fsyncs the file and its directory. With both fsyncs disabled (measured once, not committed) it is 0.53 ms, 5.8x faster than baseline; allocations fell 51% and bytes 43%. Linux `fsync` is expected to be much cheaper.
 
 - Follow-ups:
