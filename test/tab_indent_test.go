@@ -19,7 +19,7 @@ func TestTabIndentedBodyLinesSurvive(t *testing.T) {
 		want    []string
 	}{
 		"idea": {
-			content: "# Ideas\n\n- [ ] Camping kit [status: untriaged]\n\tPack light.\n\t- [x] Head torch\n",
+			content: "# Ideas\n\n- [ ] Camping kit [status: untriaged]\n\tPack light.\n\t## Gear\n\t- [x] Head torch\n",
 			body: func(p string) (string, error) {
 				got, err := ideas.ParseIdeas(p)
 				if err != nil || len(got) != 1 {
@@ -27,10 +27,10 @@ func TestTabIndentedBodyLinesSurvive(t *testing.T) {
 				}
 				return got[0].Body, nil
 			},
-			want: []string{"Pack light.", "- [x] Head torch"},
+			want: []string{"Pack light.", "## Gear", "- [x] Head torch"},
 		},
 		"maintenance": {
-			content: "# Maintenance\n\n- [ ] Clean gutters [cadence: 6m]\n\tUse the tall ladder.\n",
+			content: "# Maintenance\n\n- [ ] Clean gutters [cadence: 6m]\n\t## Safety\n\tUse the tall ladder.\n",
 			body: func(p string) (string, error) {
 				got, err := house.ParseMaintenance(p)
 				if err != nil || len(got) != 1 {
@@ -38,7 +38,7 @@ func TestTabIndentedBodyLinesSurvive(t *testing.T) {
 				}
 				return got[0].Notes, nil
 			},
-			want: []string{"Use the tall ladder."},
+			want: []string{"## Safety", "Use the tall ladder."},
 		},
 	}
 	for name, tc := range tests {
