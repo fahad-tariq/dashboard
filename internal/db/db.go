@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -36,7 +37,10 @@ func Open(path string) (*sql.DB, error) {
 	// surfaces that at startup instead.
 	if _, err := db.Exec("UPDATE schema_version SET version = version"); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("database %s is not writable (does its owner match the user the server runs as?): %w", path, err)
+		if strings.Contains(err.Error(), "readonly") {
+			return nil, fmt.Errorf("database %s is not writable (does its owner match the user the server runs as?): %w", path, err)
+		}
+		return nil, fmt.Errorf("database %s write check failed: %w", path, err)
 	}
 
 	return db, nil

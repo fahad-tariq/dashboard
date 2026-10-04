@@ -37,6 +37,9 @@ def require_token(name: str, env: Mapping[str, str] = os.environ) -> str:
         raise ConfigError(f"{name} is not set")
     if len(token) < MIN_TOKEN_LENGTH:
         raise ConfigError(f"{name} must be at least {MIN_TOKEN_LENGTH} characters")
+    if not token.isascii():
+        # hmac.compare_digest rejects non-ASCII str, and headers are ASCII.
+        raise ConfigError(f"{name} must be ASCII")
     return token
 
 

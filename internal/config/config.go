@@ -176,7 +176,11 @@ func parsePrefixes(s string) ([]netip.Prefix, error) {
 		if field == "" {
 			continue
 		}
+		// Peers are compared unmapped, so store IPv4-mapped forms as IPv4.
 		if p, err := netip.ParsePrefix(field); err == nil {
+			if p.Addr().Is4In6() && p.Bits() >= 96 {
+				p = netip.PrefixFrom(p.Addr().Unmap(), p.Bits()-96)
+			}
 			out = append(out, p.Masked())
 			continue
 		}
@@ -184,6 +188,7 @@ func parsePrefixes(s string) ([]netip.Prefix, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%q is not a CIDR or IP address", field)
 		}
+		addr = addr.Unmap()
 		out = append(out, netip.PrefixFrom(addr, addr.BitLen()))
 	}
 	return out, nil

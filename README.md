@@ -115,7 +115,7 @@ dash.example.net {
 ```
 
 - Ports are published on `127.0.0.1` only. Docker-published ports bypass ufw, so a `0.0.0.0` binding would expose the plain-HTTP app to the LAN.
-- The compose network has a fixed subnet (`172.30.81.0/24`). Requests through the published port reach the container from its gateway, `172.30.81.1`, which is therefore `DASHBOARD_TRUSTED_PROXIES`. Caddy appends the real client address to `X-Forwarded-For`, and the app uses that rightmost entry for login rate limiting. Change both values together if the subnet clashes with another network.
+- The compose network has a fixed subnet (`172.30.81.0/24`). Requests through the published port reach the container from its gateway, `172.30.81.1`, which is therefore `DASHBOARD_TRUSTED_PROXIES`. Caddy sets `X-Forwarded-For` to the client address it saw (it replaces any client-supplied value unless Caddy itself has `trusted_proxies`), and the app uses the rightmost entry for login rate limiting. If another proxy such as a CDN ever sits in front of Caddy, configure Caddy's `trusted_proxies` too, or every client will look like the CDN. Change both values together if the subnet clashes with another network.
 - Set `DASHBOARD_UID`/`DASHBOARD_GID` to the owner of `./data` and `./users`. Before switching an existing deployment, make sure that user owns everything (once, as root): `chown -R <uid>:<gid> data users`.
 - `DASHBOARD_SECURE_COOKIES` stays `true`: the browser talks HTTPS to the proxy.
 

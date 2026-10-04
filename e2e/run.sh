@@ -29,8 +29,9 @@ SERVER_PID=""
 cleanup() {
     local shutdown_failed=false
     if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
-        # The server must exit on SIGTERM within its 8s shutdown window, even
-        # with SSE streams open. Escalate and fail the run if it does not.
+        # The server must exit on SIGTERM within its 8s shutdown window.
+        # Escalate and fail the run if it does not. (Browsers are closed by
+        # now; TestSSECloseEndsStreams covers shutdown with streams open.)
         kill "$SERVER_PID" 2>/dev/null || true
         for _ in $(seq 1 50); do
             kill -0 "$SERVER_PID" 2>/dev/null || break
