@@ -84,11 +84,15 @@ func ParseHex(s string) (RGB, error) {
 	if !hexRe.MatchString(s) {
 		return RGB{}, fmt.Errorf("theme: %q is not a #rrggbb colour", s)
 	}
-	n, err := strconv.ParseUint(s[1:], 16, 32)
-	if err != nil {
-		return RGB{}, fmt.Errorf("theme: parse %q: %w", s, err)
+	var ch [3]uint8
+	for i := range ch {
+		v, err := strconv.ParseUint(s[1+2*i:3+2*i], 16, 8)
+		if err != nil {
+			return RGB{}, fmt.Errorf("theme: parse %q: %w", s, err)
+		}
+		ch[i] = uint8(v)
 	}
-	return RGB{uint8(n >> 16), uint8(n >> 8), uint8(n)}, nil
+	return RGB{ch[0], ch[1], ch[2]}, nil
 }
 
 // Hex formats the colour as #rrggbb.

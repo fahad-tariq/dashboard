@@ -87,22 +87,7 @@ func buildFuncMap(loc *time.Location, authEnabled bool, version string, static f
 			}
 			return fmt.Sprintf("%g", f)
 		},
-		// dict passes several values to a sub-template:
-		// {{template "x" (dict "Item" . "List" "todos")}}.
-		"dict": func(kv ...any) (map[string]any, error) {
-			if len(kv)%2 != 0 {
-				return nil, fmt.Errorf("dict: odd number of arguments")
-			}
-			m := make(map[string]any, len(kv)/2)
-			for i := 0; i < len(kv); i += 2 {
-				k, ok := kv[i].(string)
-				if !ok {
-					return nil, fmt.Errorf("dict: key %v is not a string", kv[i])
-				}
-				m[k] = kv[i+1]
-			}
-			return m, nil
-		},
+		"dict": templateDict,
 		"subtract": func(a, b int) int {
 			return a - b
 		},
@@ -148,16 +133,7 @@ func buildFuncMap(loc *time.Location, authEnabled bool, version string, static f
 		"formatDateLabel": func() string {
 			return time.Now().In(loc).Format("Monday, 2 January")
 		},
-		"seasonalAccent": func() seasonalAccentCSS {
-			acc, err := seasonal.AccentFor(time.Now().In(loc), tokens)
-			if err != nil {
-				// Validated for a whole year at startup, so this is unreachable;
-				// the layout then keeps theme.css's fallback accent.
-				slog.Error("seasonal accent", "error", err)
-				return seasonalAccentCSS{}
-			}
-			return seasonalAccentCSS{Light: acc.Light.Hex(), Dark: acc.Dark.Hex()}
-		},
+		"seasonalAccent": seasonalAccentFunc(loc, tokens),
 		"planDoneMessage": func() string {
 			return httputil.RotatingFlash("plan-done", []string{
 				"All done for the day.",
@@ -908,6 +884,36 @@ func parseTemplates(fm template.FuncMap) (map[string]*template.Template, error) 
 	}
 
 	return templates, nil
+}
+
+// templateDict passes several values to a sub-template:
+// {{template "x" (dict "Item" . "List" "todos")}}.
+func templateDict(kv ...any) (map[string]any, error) {
+	if len(kv)%2 != 0 {
+		return nil, fmt.Errorf("dict: odd number of arguments")
+	}
+	m := make(map[string]any, len(kv)/2)
+	for i := 0; i < len(kv); i += 2 {
+		k, ok := kv[i].(string)
+		if !ok {
+			return nil, fmt.Errorf("dict: key %v is not a string", kv[i])
+		}
+		m[k] = kv[i+1]
+	}
+	return m, nil
+}
+
+func seasonalAccentFunc(loc *time.Location, tokens theme.Tokens) func() seasonalAccentCSS {
+	return func() seasonalAccentCSS {
+		acc, err := seasonal.AccentFor(time.Now().In(loc), tokens)
+		if err != nil {
+			// Validated for a whole year at startup, so this is unreachable;
+			// the layout then keeps theme.css's fallback accent.
+			slog.Error("seasonal accent", "error", err)
+			return seasonalAccentCSS{}
+		}
+		return seasonalAccentCSS{Light: acc.Light.Hex(), Dark: acc.Dark.Hex()}
+	}
 }
 
 // loadThemeTokens parses theme.css and checks that a seasonal accent exists
