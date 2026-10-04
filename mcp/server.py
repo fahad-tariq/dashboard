@@ -119,8 +119,8 @@ class BearerAuthMiddleware:
 
         # Validate bearer token.
         token = _extract_bearer(scope)
-        # Bytes, not str: compare_digest raises on non-ASCII str input.
-        if not token or not hmac.compare_digest(token.encode(), self.token.encode()):
+        # Both sides are bytes: compare_digest raises on non-ASCII str input.
+        if not token or not hmac.compare_digest(token, self.token):
             client_addr = scope.get("client")
             key = client_addr[0] if client_addr else "unknown"
             if self.limiter.record_failure(key):

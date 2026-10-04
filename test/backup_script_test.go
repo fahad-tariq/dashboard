@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"database/sql"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -32,7 +33,7 @@ func readTarGz(t *testing.T, path string) map[string][]byte {
 	tr := tar.NewReader(gz)
 	for {
 		h, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

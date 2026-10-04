@@ -37,16 +37,7 @@ func Write(path string, data []byte, defaultMode fs.FileMode) error {
 // path and fsyncs the directory. On any failure the temp file is removed and
 // path is left as it was.
 func (w Writer) Write(path string, data []byte, defaultMode fs.FileMode) (err error) {
-	writeData, syncFile, rename := w.WriteData, w.Sync, w.Rename
-	if writeData == nil {
-		writeData = func(f *os.File, b []byte) error { _, err := f.Write(b); return err }
-	}
-	if syncFile == nil {
-		syncFile = (*os.File).Sync
-	}
-	if rename == nil {
-		rename = os.Rename
-	}
+	writeData, syncFile, rename := w.ops()
 
 	// Write through a symlink to its target; renaming over the link itself
 	// would replace it with a regular file.
@@ -100,6 +91,25 @@ func (w Writer) Write(path string, data []byte, defaultMode fs.FileMode) (err er
 	return nil
 }
 
+// ops returns the configured operations, falling back to the real ones.
+func (w Writer) ops() (
+	writeData func(*os.File, []byte) error,
+	syncFile func(*os.File) error,
+	rename func(string, string) error,
+) {
+	writeData, syncFile, rename = w.WriteData, w.Sync, w.Rename
+	if writeData == nil {
+		writeData = func(f *os.File, b []byte) error { _, err := f.Write(b); return err }
+	}
+	if syncFile == nil {
+		syncFile = (*os.File).Sync
+	}
+	if rename == nil {
+		rename = os.Rename
+	}
+	return writeData, syncFile, rename
+}
+
 // syncDir makes the rename itself durable.
 func syncDir(dir string) error {
 	d, err := os.Open(dir)
@@ -114,13 +124,23 @@ func syncDir(dir string) error {
 }
 
 // CleanStale removes temp files that an interrupted Write left under root,
-// recursively. Call it at startup, before any writes.
+// recursively. Call it at startup, before any writes. The walk is confined
+// to root, so a symlink swapped in mid-walk cannot redirect a removal.
 func CleanStale(root string) error {
-	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		// A missing or unreadable directory must not stop startup.
+		if !errors.Is(err, fs.ErrNotExist) {
+			slog.Warn("skipping directory while removing stale temp files", "path", root, "error", err)
+		}
+		return nil
+	}
+	defer r.Close()
+	return fs.WalkDir(r.FS(), ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			// A missing or unreadable directory must not stop startup.
 			if !errors.Is(err, fs.ErrNotExist) {
-				slog.Warn("skipping directory while removing stale temp files", "path", path, "error", err)
+				slog.Warn("skipping directory while removing stale temp files",
+					"path", filepath.Join(root, path), "error", err)
 			}
 			if d != nil && d.IsDir() {
 				return fs.SkipDir
@@ -130,7 +150,7 @@ func CleanStale(root string) error {
 		name := d.Name()
 		if d.Type().IsRegular() && strings.HasPrefix(name, ".") &&
 			strings.Contains(name, tempInfix) && strings.HasSuffix(name, tempSuffix) {
-			if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			if err := r.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return err
 			}
 		}

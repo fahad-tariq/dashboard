@@ -80,14 +80,8 @@ func ParseIdeas(path string) ([]Idea, error) {
 			continue
 		}
 
-		// Body lines: indented (2+ spaces) or blank lines between indented lines.
-		// A leading tab (hand-edited files) counts as one indent level.
-		if strings.HasPrefix(line, "  ") {
-			current.Body += line[2:] + "\n"
-		} else if strings.HasPrefix(line, "\t") {
-			current.Body += line[1:] + "\n"
-		} else if trimmed == "" {
-			current.Body += "\n"
+		if body, ok := ideaBodyLine(line, trimmed); ok {
+			current.Body += body + "\n"
 		}
 	}
 
@@ -97,6 +91,21 @@ func ParseIdeas(path string) ([]Idea, error) {
 	}
 
 	return ideas, nil
+}
+
+// ideaBodyLine returns the body text of an idea line: indented (2+ spaces)
+// or blank lines between indented lines. A leading tab (hand-edited files)
+// counts as one indent level.
+func ideaBodyLine(line, trimmed string) (string, bool) {
+	switch {
+	case strings.HasPrefix(line, "  "):
+		return line[2:], true
+	case strings.HasPrefix(line, "\t"):
+		return line[1:], true
+	case trimmed == "":
+		return "", true
+	}
+	return "", false
 }
 
 // parseIdeaCheckbox checks if a line is a checkbox and returns the content after the checkbox prefix.
