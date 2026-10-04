@@ -61,7 +61,7 @@ func ParseMaintenance(path string) ([]MaintenanceItem, error) { //nolint:gocyclo
 		trimmed := strings.TrimSpace(line)
 
 		// Non-indented headings end the current item and are skipped.
-		if !strings.HasPrefix(line, " ") && strings.HasPrefix(trimmed, "#") {
+		if strings.HasPrefix(line, "#") {
 			if current != nil {
 				items = append(items, *current)
 				current = nil
@@ -85,7 +85,11 @@ func ParseMaintenance(path string) ([]MaintenanceItem, error) { //nolint:gocyclo
 			continue
 		}
 
-		// Body lines: indented (2+ spaces). Parse as log entries or notes.
+		// Body lines: indented by 2+ spaces or, in hand-edited files, a tab.
+		// Parse as log entries or notes.
+		if strings.HasPrefix(line, "\t") {
+			line = "  " + line[1:]
+		}
 		if strings.HasPrefix(line, "  ") {
 			bodyContent := strings.TrimSpace(line[2:])
 			if entry, ok := parseLogEntry(bodyContent); ok {

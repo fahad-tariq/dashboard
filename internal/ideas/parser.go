@@ -54,7 +54,7 @@ func ParseIdeas(path string) ([]Idea, error) {
 
 		// Headings end the current idea and are skipped.
 		// Only non-indented lines are headings; indented # lines are body content.
-		if !strings.HasPrefix(line, " ") && strings.HasPrefix(trimmed, "#") {
+		if strings.HasPrefix(line, "#") {
 			if current != nil {
 				current.Body = strings.TrimSpace(current.Body)
 				ideas = append(ideas, *current)
@@ -80,8 +80,11 @@ func ParseIdeas(path string) ([]Idea, error) {
 		}
 
 		// Body lines: indented (2+ spaces) or blank lines between indented lines.
+		// A leading tab (hand-edited files) counts as one indent level.
 		if strings.HasPrefix(line, "  ") {
 			current.Body += line[2:] + "\n"
+		} else if strings.HasPrefix(line, "\t") {
+			current.Body += line[1:] + "\n"
 		} else if trimmed == "" {
 			current.Body += "\n"
 		}
