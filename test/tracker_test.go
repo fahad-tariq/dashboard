@@ -11,7 +11,9 @@ import (
 
 func TestParseTrackerEmpty(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(""), 0o644)
+	if err := os.WriteFile(path, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -34,7 +36,9 @@ func TestParseTrackerMissing(t *testing.T) {
 
 func TestParseTrackerSingleTask(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte("# Tracker\n\n## Work\n\n- [ ] Update resume\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Tracker\n\n## Work\n\n- [ ] Update resume\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -75,7 +79,9 @@ func TestParseTrackerMultipleSections(t *testing.T) {
 - [x] Set up standing desk
 `
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -134,7 +140,9 @@ func TestParseTrackerMultipleSections(t *testing.T) {
 func TestParseTrackerGoalWithDecimals(t *testing.T) {
 	content := "## Health\n\n- [ ] Reach 90kg [goal: 85.5/90 kg]\n"
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -157,7 +165,9 @@ func TestParseTrackerGoalWithDecimals(t *testing.T) {
 func TestParseTrackerItemWithBody(t *testing.T) {
 	content := "## Work\n\n- [ ] Finish report !high\n  Draft is in Google Docs\n  Due next Friday\n"
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -335,7 +345,9 @@ func TestParseQuickAdd(t *testing.T) {
 func TestParseTrackerInlineTags(t *testing.T) {
 	content := "- [ ] Learn Go [tags: tech, study]\n"
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -393,7 +405,9 @@ func TestParseTrackerDoneSection(t *testing.T) {
 - [x] Completed task two
 `
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -414,7 +428,9 @@ func TestParseTrackerDoneSection(t *testing.T) {
 func TestParseTrackerGoalAtZero(t *testing.T) {
 	content := "## Fitness\n\n- [ ] Do 100 pushups [goal: 0/100 pushups]\n"
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -502,7 +518,9 @@ func TestTrackerCaptionedImagesRoundTrip(t *testing.T) {
 func TestParseTrackerGoalAt100Percent(t *testing.T) {
 	content := "## Fitness\n\n- [ ] Do 100 pushups [goal: 100/100 pushups]\n"
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -516,7 +534,9 @@ func TestParseTrackerGoalAt100Percent(t *testing.T) {
 func TestParseTrackerGoalOver100Percent(t *testing.T) {
 	content := "## Fitness\n\n- [ ] Do 100 pushups [goal: 120/100 pushups]\n"
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -603,7 +623,9 @@ func TestDeletedAtRoundTrip(t *testing.T) {
 func TestParseTrackerNoSubSteps(t *testing.T) {
 	content := "## Work\n\n- [ ] Write report\n  Draft is in Google Docs\n  Due Friday\n"
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -620,7 +642,9 @@ func TestParseTrackerNoSubSteps(t *testing.T) {
 func TestParseTrackerSubSteps(t *testing.T) {
 	content := "## Work\n\n- [ ] Plan birthday party\n  - [ ] Book venue\n  - [x] Send invitations\n  - [ ] Order cake\n"
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -640,7 +664,9 @@ func TestParseTrackerSubSteps(t *testing.T) {
 func TestParseTrackerSubStepsMixedBody(t *testing.T) {
 	content := "## Work\n\n- [ ] Mixed task\n  Some context text\n  - [x] Done step\n  - [X] Also done\n  - [ ] Not done\n  More notes here\n"
 	path := filepath.Join(t.TempDir(), "tracker.md")
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {

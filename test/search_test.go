@@ -45,7 +45,9 @@ func TestIdeasServiceSearch(t *testing.T) {
 	dir := t.TempDir()
 	ideasPath := filepath.Join(dir, "ideas.md")
 	content := "# Ideas\n\n- [ ] Build a rocket [status: untriaged]\n  Research propulsion systems\n- [ ] Write a novel [status: parked]\n"
-	os.WriteFile(ideasPath, []byte(content), 0o644)
+	if err := os.WriteFile(ideasPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	svc := ideas.NewService(ideasPath, time.UTC)
 
@@ -75,21 +77,27 @@ func TestSearchHandler(t *testing.T) {
 
 	// Set up personal tracker.
 	personalPath := filepath.Join(dir, "personal.md")
-	os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Buy groceries\n  Need milk\n"), 0o644)
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Buy groceries\n  Need milk\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	personalDB, _ := db.Open(filepath.Join(dir, "personal.db"))
 	t.Cleanup(func() { personalDB.Close() })
 	personalSvc := tracker.NewService(personalPath, "Personal", tracker.NewStore(personalDB, "personal"), time.UTC)
 
 	// Set up family tracker.
 	familyPath := filepath.Join(dir, "family.md")
-	os.WriteFile(familyPath, []byte("# Family\n\n- [ ] Plan holiday\n"), 0o644)
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n- [ ] Plan holiday\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	familyDB, _ := db.Open(filepath.Join(dir, "family.db"))
 	t.Cleanup(func() { familyDB.Close() })
 	familySvc := tracker.NewService(familyPath, "Family", tracker.NewStore(familyDB, "family"), time.UTC)
 
 	// Set up ideas.
 	ideasPath := filepath.Join(dir, "ideas.md")
-	os.WriteFile(ideasPath, []byte("# Ideas\n\n- [ ] Build a rocket [status: untriaged]\n"), 0o644)
+	if err := os.WriteFile(ideasPath, []byte("# Ideas\n\n- [ ] Build a rocket [status: untriaged]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 
 	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
@@ -128,19 +136,25 @@ func TestSearchHandler(t *testing.T) {
 func TestSearchQueryTooLong(t *testing.T) {
 	dir := t.TempDir()
 	personalPath := filepath.Join(dir, "personal.md")
-	os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Buy groceries\n"), 0o644)
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Buy groceries\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	personalDB, _ := db.Open(filepath.Join(dir, "p.db"))
 	t.Cleanup(func() { personalDB.Close() })
 	personalSvc := tracker.NewService(personalPath, "Personal", tracker.NewStore(personalDB, "personal"), time.UTC)
 
 	familyPath := filepath.Join(dir, "family.md")
-	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	familyDB, _ := db.Open(filepath.Join(dir, "f.db"))
 	t.Cleanup(func() { familyDB.Close() })
 	familySvc := tracker.NewService(familyPath, "Family", tracker.NewStore(familyDB, "family"), time.UTC)
 
 	ideasPath := filepath.Join(dir, "ideas.md")
-	os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 
 	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
@@ -165,21 +179,27 @@ func TestSearchExcludesDeletedItems(t *testing.T) {
 
 	// Personal tracker with a soft-deleted item.
 	personalPath := filepath.Join(dir, "personal.md")
-	os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Active task\n- [ ] Trashed task [deleted: 2026-03-01]\n"), 0o644)
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Active task\n- [ ] Trashed task [deleted: 2026-03-01]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	personalDB, _ := db.Open(filepath.Join(dir, "personal.db"))
 	t.Cleanup(func() { personalDB.Close() })
 	personalSvc := tracker.NewService(personalPath, "Personal", tracker.NewStore(personalDB, "personal"), time.UTC)
 
 	// Family tracker empty.
 	familyPath := filepath.Join(dir, "family.md")
-	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	familyDB, _ := db.Open(filepath.Join(dir, "family.db"))
 	t.Cleanup(func() { familyDB.Close() })
 	familySvc := tracker.NewService(familyPath, "Family", tracker.NewStore(familyDB, "family"), time.UTC)
 
 	// Ideas with a soft-deleted idea.
 	ideasPath := filepath.Join(dir, "ideas.md")
-	os.WriteFile(ideasPath, []byte("# Ideas\n\n- [ ] Active idea [status: untriaged]\n- [ ] Trashed idea [status: untriaged] [deleted: 2026-03-01]\n"), 0o644)
+	if err := os.WriteFile(ideasPath, []byte("# Ideas\n\n- [ ] Active idea [status: untriaged]\n- [ ] Trashed idea [status: untriaged] [deleted: 2026-03-01]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 
 	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
@@ -219,19 +239,25 @@ func TestSearchExcludesDeletedItems(t *testing.T) {
 func TestSearchSnippetInResults(t *testing.T) {
 	dir := t.TempDir()
 	personalPath := filepath.Join(dir, "personal.md")
-	os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Research project\n  The quick brown fox jumps over the lazy dog near the riverbank\n"), 0o644)
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Research project\n  The quick brown fox jumps over the lazy dog near the riverbank\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	personalDB, _ := db.Open(filepath.Join(dir, "p.db"))
 	t.Cleanup(func() { personalDB.Close() })
 	personalSvc := tracker.NewService(personalPath, "Personal", tracker.NewStore(personalDB, "personal"), time.UTC)
 
 	familyPath := filepath.Join(dir, "family.md")
-	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	familyDB, _ := db.Open(filepath.Join(dir, "f.db"))
 	t.Cleanup(func() { familyDB.Close() })
 	familySvc := tracker.NewService(familyPath, "Family", tracker.NewStore(familyDB, "family"), time.UTC)
 
 	ideasPath := filepath.Join(dir, "ideas.md")
-	os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 
 	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {

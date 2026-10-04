@@ -187,7 +187,9 @@ func TestReconstructImagesPipesStrippedFromImagesField(t *testing.T) {
 	form := strings.NewReader("images=abc.png%7Cinjected")
 	r, _ := http.NewRequest("POST", "/", form)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	r.ParseForm()
+	if err := r.ParseForm(); err != nil {
+		t.Fatal(err)
+	}
 
 	got := httputil.ReconstructImages(r)
 	if len(got) != 1 {

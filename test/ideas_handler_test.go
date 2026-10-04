@@ -32,8 +32,12 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 	dir := t.TempDir()
 	ideasPath := filepath.Join(dir, "ideas.md")
 	personalPath := filepath.Join(dir, "personal.md")
-	os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644)
-	os.WriteFile(personalPath, []byte("# Personal\n\n"), 0o644)
+	if err := os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	database, err := db.Open(filepath.Join(dir, "test.db"))
 	if err != nil {

@@ -24,9 +24,13 @@ func setupRegistry(t *testing.T) (*services.Registry, string) {
 
 	userDataDir := filepath.Join(tmpDir, "users")
 	familyPath := filepath.Join(tmpDir, "family.md")
-	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	houseProjectsPath := filepath.Join(tmpDir, "house-projects.md")
-	os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644)
+	if err := os.WriteFile(houseProjectsPath, []byte("# House\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
 	return reg, tmpDir
@@ -34,15 +38,23 @@ func setupRegistry(t *testing.T) (*services.Registry, string) {
 
 func TestPersonalDataIsolation(t *testing.T) {
 	reg, _ := setupRegistry(t)
-	reg.EnsureUserDirs(1)
-	reg.EnsureUserDirs(2)
+	if err := reg.EnsureUserDirs(1); err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.EnsureUserDirs(2); err != nil {
+		t.Fatal(err)
+	}
 
 	user1 := reg.ForUser(1)
 	user2 := reg.ForUser(2)
 
 	// Resync both personal services.
-	user1.Personal.Resync()
-	user2.Personal.Resync()
+	if err := user1.Personal.Resync(); err != nil {
+		t.Fatal(err)
+	}
+	if err := user2.Personal.Resync(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Add a task for user 1.
 	if err := user1.Personal.AddItem(tracker.Item{Title: "User 1 task", Type: tracker.TaskType}); err != nil {
@@ -69,11 +81,17 @@ func TestPersonalDataIsolation(t *testing.T) {
 
 func TestFamilyListSharedAcrossUsers(t *testing.T) {
 	reg, _ := setupRegistry(t)
-	reg.EnsureUserDirs(1)
-	reg.EnsureUserDirs(2)
+	if err := reg.EnsureUserDirs(1); err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.EnsureUserDirs(2); err != nil {
+		t.Fatal(err)
+	}
 
 	familySvc := reg.Family()
-	familySvc.Resync()
+	if err := familySvc.Resync(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Add a task to family.
 	if err := familySvc.AddItem(tracker.Item{Title: "Shared task", Type: tracker.TaskType}); err != nil {
@@ -95,13 +113,19 @@ func TestFamilyListSharedAcrossUsers(t *testing.T) {
 
 func TestMoveFromPersonalToFamily(t *testing.T) {
 	reg, _ := setupRegistry(t)
-	reg.EnsureUserDirs(1)
+	if err := reg.EnsureUserDirs(1); err != nil {
+		t.Fatal(err)
+	}
 
 	user1 := reg.ForUser(1)
 	familySvc := reg.Family()
 
-	user1.Personal.Resync()
-	familySvc.Resync()
+	if err := user1.Personal.Resync(); err != nil {
+		t.Fatal(err)
+	}
+	if err := familySvc.Resync(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Add a task to personal.
 	if err := user1.Personal.AddItem(tracker.Item{Title: "Move me", Type: tracker.TaskType}); err != nil {
@@ -135,10 +159,14 @@ func TestMoveFromPersonalToFamily(t *testing.T) {
 
 func TestToTaskFromIdeasCreatesInUserPersonal(t *testing.T) {
 	reg, _ := setupRegistry(t)
-	reg.EnsureUserDirs(1)
+	if err := reg.EnsureUserDirs(1); err != nil {
+		t.Fatal(err)
+	}
 
 	user1 := reg.ForUser(1)
-	user1.Personal.Resync()
+	if err := user1.Personal.Resync(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Add an idea for user 1.
 	idea := &ideas.Idea{

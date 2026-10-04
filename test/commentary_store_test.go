@@ -91,9 +91,15 @@ func TestCommentaryStore_DeleteNonexistent(t *testing.T) {
 func TestCommentaryStore_ScopedByListAndUser(t *testing.T) {
 	store := setupCommentaryStore(t)
 
-	store.Set("task-1", "personal", 1, "personal user 1")
-	store.Set("task-1", "family", 1, "family user 1")
-	store.Set("task-1", "personal", 2, "personal user 2")
+	if err := store.Set("task-1", "personal", 1, "personal user 1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Set("task-1", "family", 1, "family user 1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Set("task-1", "personal", 2, "personal user 2"); err != nil {
+		t.Fatal(err)
+	}
 
 	tests := []struct {
 		list   string
@@ -116,9 +122,15 @@ func TestCommentaryStore_ScopedByListAndUser(t *testing.T) {
 func TestCommentaryStore_ListForSlugs(t *testing.T) {
 	store := setupCommentaryStore(t)
 
-	store.Set("task-1", "personal", 1, "comment 1")
-	store.Set("task-2", "personal", 1, "comment 2")
-	store.Set("task-3", "family", 1, "family comment")
+	if err := store.Set("task-1", "personal", 1, "comment 1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Set("task-2", "personal", 1, "comment 2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Set("task-3", "family", 1, "family comment"); err != nil {
+		t.Fatal(err)
+	}
 
 	got, err := store.ListForSlugs([]string{"task-1", "task-2", "task-3"}, "personal", 1)
 	if err != nil {
@@ -150,8 +162,12 @@ func TestCommentaryStore_ListForSlugsEmpty(t *testing.T) {
 func TestCommentaryStore_HasCommentary(t *testing.T) {
 	store := setupCommentaryStore(t)
 
-	store.Set("task-1", "personal", 1, "has commentary")
-	store.Set("task-3", "personal", 1, "also has")
+	if err := store.Set("task-1", "personal", 1, "has commentary"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Set("task-3", "personal", 1, "also has"); err != nil {
+		t.Fatal(err)
+	}
 
 	got, err := store.HasCommentary([]string{"task-1", "task-2", "task-3"}, "personal", 1)
 	if err != nil {

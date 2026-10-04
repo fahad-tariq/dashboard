@@ -32,8 +32,12 @@ func setupTrackerEnv(t *testing.T) *trackerTestEnv {
 	dir := t.TempDir()
 	personalPath := filepath.Join(dir, "personal.md")
 	familyPath := filepath.Join(dir, "family.md")
-	os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Existing task\n"), 0o644)
-	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Existing task\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	database, err := db.Open(filepath.Join(dir, "test.db"))
 	if err != nil {

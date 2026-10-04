@@ -28,8 +28,12 @@ func setupAPIEnv(t *testing.T) *apiTestEnv {
 	dir := t.TempDir()
 	personalPath := filepath.Join(dir, "personal.md")
 	familyPath := filepath.Join(dir, "family.md")
-	os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Existing task [tags: backend]\n- [ ] Private item [tags: private]\n"), 0o644)
-	os.WriteFile(familyPath, []byte("# Family\n\n- [ ] Family task\n"), 0o644)
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Existing task [tags: backend]\n- [ ] Private item [tags: private]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n- [ ] Family task\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	database, err := db.Open(filepath.Join(dir, "test.db"))
 	if err != nil {
@@ -82,7 +86,9 @@ func TestAPIListTodos(t *testing.T) {
 	}
 
 	var resp map[string][]map[string]any
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
 
 	// "Existing task" should be present, "Private item" should be filtered
 	personal := resp["personal"]
@@ -123,7 +129,9 @@ func TestAPIAddTodo(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
 	if resp["title"] != "New API task" {
 		t.Errorf("title = %v, want New API task", resp["title"])
 	}
@@ -142,7 +150,9 @@ func TestAPIAddTodoStripsMetadata(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
 	title := resp["title"].(string)
 	if strings.Contains(title, "[planned:") || strings.Contains(title, "[deleted:") {
 		t.Errorf("title should have metadata stripped, got %q", title)
@@ -168,7 +178,9 @@ func TestAPIGetTodo(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
 	if resp["title"] != "Existing task" {
 		t.Errorf("title = %v, want Existing task", resp["title"])
 	}

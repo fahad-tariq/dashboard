@@ -107,7 +107,9 @@ func TestCommentaryAPI_Delete(t *testing.T) {
 	// Verify it's gone
 	w = commentaryRequest(t, env, "GET", "/api/v1/commentary/personal/task-1", "")
 	var resp map[string]any
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
 	if resp["content"] != "" {
 		t.Errorf("content should be empty after delete, got %v", resp["content"])
 	}
@@ -155,7 +157,9 @@ func TestCommentaryAPI_IdeasList(t *testing.T) {
 
 	w = commentaryRequest(t, env, "GET", "/api/v1/commentary/ideas/idea-1", "")
 	var resp map[string]any
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
 	if resp["content"] != "Idea commentary" {
 		t.Errorf("content = %v", resp["content"])
 	}
@@ -170,7 +174,9 @@ func TestCommentaryAPI_TodosNormalisesToPersonal(t *testing.T) {
 	// Should be retrievable as "personal"
 	w := commentaryRequest(t, env, "GET", "/api/v1/commentary/personal/task-1", "")
 	var resp map[string]any
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
 	if resp["content"] != "via todos" {
 		t.Errorf("content = %v, want 'via todos'", resp["content"])
 	}

@@ -15,7 +15,9 @@ func TestPlannedMetadataRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "tracker.md")
 	content := "# Test\n\n- [ ] Review docs [added: 2026-03-01] [planned: 2026-03-19]\n- [ ] Fix bug [added: 2026-03-02]\n"
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {
@@ -55,7 +57,9 @@ func newPlannerService(t *testing.T, content string) *tracker.Service {
 	t.Helper()
 	dir := t.TempDir()
 	mdPath := filepath.Join(dir, "tracker.md")
-	os.WriteFile(mdPath, []byte(content), 0o644)
+	if err := os.WriteFile(mdPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	database, err := db.Open(filepath.Join(dir, "test.db"))
 	if err != nil {
 		t.Fatalf("open db: %v", err)
@@ -182,7 +186,9 @@ func TestPlanOrderMetadataRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "tracker.md")
 	content := "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [plan-order: 2]\n- [ ] Task B [added: 2026-03-02] [planned: 2026-03-19] [plan-order: 1]\n"
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := tracker.ParseTracker(path)
 	if err != nil {

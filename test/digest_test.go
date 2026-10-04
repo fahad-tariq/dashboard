@@ -174,9 +174,15 @@ func setupDigestEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.
 	personalPath := filepath.Join(dir, "personal.md")
 	familyPath := filepath.Join(dir, "family.md")
 	ideasPath := filepath.Join(dir, "ideas.md")
-	os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Buy milk\n  [added: 2026-03-17]\n- [x] Done task\n  [added: 2026-03-16]\n  [completed: 2026-03-17]\n"), 0o644)
-	os.WriteFile(familyPath, []byte("# Family\n\n- [ ] Plan holiday\n"), 0o644)
-	os.WriteFile(ideasPath, []byte("# Ideas\n\n- [ ] Cool idea\n  [added: 2026-03-17]\n"), 0o644)
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Buy milk\n  [added: 2026-03-17]\n- [x] Done task\n  [added: 2026-03-16]\n  [completed: 2026-03-17]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n- [ ] Plan holiday\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ideasPath, []byte("# Ideas\n\n- [ ] Cool idea\n  [added: 2026-03-17]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	database, err := db.Open(filepath.Join(dir, "test.db"))
 	if err != nil {
@@ -279,9 +285,15 @@ func TestDigestPageEmptyState(t *testing.T) {
 	personalPath := filepath.Join(dir, "personal.md")
 	familyPath := filepath.Join(dir, "family.md")
 	ideasPath := filepath.Join(dir, "ideas.md")
-	os.WriteFile(personalPath, []byte("# Personal\n\n"), 0o644)
-	os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644)
-	os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ideasPath, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	database, err := db.Open(filepath.Join(dir, "test.db"))
 	if err != nil {

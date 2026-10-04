@@ -19,6 +19,8 @@ linters:
         # tooling on the host; the container runs single-user.
         - G301
         - G306
+        # Duplicates errcheck, which applies the std-error-handling preset.
+        - G104
   exclusions:
     presets:
       # Unchecked Close, Flush, os.Remove and fmt.Fprint* calls.
@@ -27,6 +29,14 @@ linters:
       # Table-driven tests are long by design.
       - path: _test\.go
         linters: [gocyclo]
+      # Tests stub template funcs and write fixtures to temp dirs.
+      - path: _test\.go
+        linters: [gosec]
+
+issues:
+  # Report everything; the defaults (50 per linter, 3 identical) hid findings.
+  max-issues-per-linter: 0
+  max-same-issues: 0
 
 formatters:
   enable:

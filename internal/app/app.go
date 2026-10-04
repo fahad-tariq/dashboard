@@ -746,7 +746,7 @@ func mountAppRoutes(r chi.Router, homePage, digestPage, calendarPage http.Handle
 
 	r.Get("/exploration", http.RedirectHandler("/ideas", http.StatusMovedPermanently).ServeHTTP)
 	r.Get("/exploration/{slug}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/ideas/"+chi.URLParam(r, "slug"), http.StatusMovedPermanently)
+		http.Redirect(w, r, "/ideas/"+chi.URLParam(r, "slug"), http.StatusMovedPermanently) //nolint:gosec // G710: chi params cannot contain "/", so the target stays under /ideas/
 	})
 }
 
@@ -807,7 +807,7 @@ func bearerAuth(token string) func(http.Handler) http.Handler {
 			if !ok || subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte(`{"error":"unauthorized"}`))
+				_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
 				return
 			}
 			next.ServeHTTP(w, r)

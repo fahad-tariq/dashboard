@@ -26,7 +26,9 @@ func newTestHandler(t *testing.T) (*ideas.Handler, *ideas.Service) {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
-	os.WriteFile(path, []byte("# Ideas\n\n"), 0o644)
+	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	svc := ideas.NewService(path, time.UTC)
 	h := ideas.NewHandler(svc, nil, nil, time.UTC)
 	return h, svc
@@ -164,7 +166,9 @@ func TestAPIListIdeas_ExcludesDeleted(t *testing.T) {
 	if err := svc.Add(&ideas.Idea{Slug: "active-idea", Title: "Active Idea", Body: "Visible."}); err != nil {
 		t.Fatal(err)
 	}
-	svc.Add(&ideas.Idea{Slug: "trashed-idea", Title: "Trashed Idea", Body: "Hidden."})
+	if err := svc.Add(&ideas.Idea{Slug: "trashed-idea", Title: "Trashed Idea", Body: "Hidden."}); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.Delete("trashed-idea"); err != nil {
 		t.Fatalf("delete: %v", err)
 	}

@@ -15,7 +15,9 @@ func newTestService(t *testing.T, content string) *tracker.Service {
 	t.Helper()
 	dir := t.TempDir()
 	mdPath := filepath.Join(dir, "tracker.md")
-	os.WriteFile(mdPath, []byte(content), 0o644)
+	if err := os.WriteFile(mdPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	database, err := db.Open(filepath.Join(dir, "test.db"))
 	if err != nil {
