@@ -36,8 +36,8 @@ func TestMoveToListKeepsItemWhenTargetWriteFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { closeDB(t, database) })
-	personal := tracker.NewService(personalPath, "Personal", tracker.NewStore(database, "personal"), time.UTC)
-	family := tracker.NewService(familyPath, "Family", tracker.NewStore(database, "family"), time.UTC)
+	personal := tracker.NewService(personalPath, "Personal", time.UTC)
+	family := tracker.NewService(familyPath, "Family", time.UTC)
 
 	// Make the target unwritable, file and directory both.
 	if err := os.Chmod(familyPath, 0o444); err != nil {

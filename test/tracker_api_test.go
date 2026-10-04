@@ -40,11 +40,8 @@ func setupAPIEnv(t *testing.T) *apiTestEnv {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { database.Close() })
-
-	personalStore := tracker.NewStore(database, "personal")
-	familyStore := tracker.NewStore(database, "family")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
-	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
+	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
 
 	r := chi.NewRouter()
 	r.Get("/api/v1/todos", tracker.APIListTodos(personalSvc, familySvc))

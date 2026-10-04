@@ -189,13 +189,9 @@ func setupDigestEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { database.Close() })
-
-	personalStore := tracker.NewStore(database, "personal")
-	familyStore := tracker.NewStore(database, "family")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
-	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
-	houseProjectsStore := tracker.NewStore(database, "house")
-	houseProjectsSvc := tracker.NewService(dir+"/house-projects.md", "House", houseProjectsStore, time.UTC)
+	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
+	houseProjectsSvc := tracker.NewService(dir+"/house-projects.md", "House", time.UTC)
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
@@ -300,13 +296,9 @@ func TestDigestPageEmptyState(t *testing.T) {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { database.Close() })
-
-	personalStore := tracker.NewStore(database, "personal")
-	familyStore := tracker.NewStore(database, "family")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
-	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
-	houseProjectsStore := tracker.NewStore(database, "house")
-	houseProjectsSvc := tracker.NewService(dir+"/house-projects.md", "House", houseProjectsStore, time.UTC)
+	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
+	houseProjectsSvc := tracker.NewService(dir+"/house-projects.md", "House", time.UTC)
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{

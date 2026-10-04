@@ -14,14 +14,13 @@ import (
 type Service struct {
 	trackerPath string
 	heading     string
-	store       *Store
 	loc         *time.Location
 	mu          sync.RWMutex
 	cache       []Item
 }
 
-func NewService(trackerPath, heading string, store *Store, loc *time.Location) *Service {
-	s := &Service{trackerPath: trackerPath, heading: heading, store: store, loc: loc}
+func NewService(trackerPath, heading string, loc *time.Location) *Service {
+	s := &Service{trackerPath: trackerPath, heading: heading, loc: loc}
 	s.loadCache()
 	return s
 }
@@ -62,18 +61,7 @@ func (s *Service) mutate(slug string, fn func(*Item) error) error {
 		return err
 	}
 	s.cache = items
-	return s.store.ReplaceAll(activeItems(items))
-}
-
-// activeItems returns only non-deleted items for DB cache sync.
-func activeItems(items []Item) []Item {
-	var out []Item
-	for _, it := range items {
-		if it.DeletedAt == "" {
-			out = append(out, it)
-		}
-	}
-	return out
+	return nil
 }
 
 func (s *Service) List() ([]Item, error) {
@@ -135,7 +123,7 @@ func (s *Service) AddItem(item Item) error {
 		return err
 	}
 	s.cache = items
-	return s.store.ReplaceAll(activeItems(items))
+	return nil
 }
 
 func (s *Service) UpdateNotes(slug, body string) error {
@@ -221,7 +209,7 @@ func (s *Service) PermanentDelete(slug string) error {
 		return err
 	}
 	s.cache = items
-	return s.store.ReplaceAll(activeItems(items))
+	return nil
 }
 
 // PurgeExpired permanently removes items deleted more than `days` ago.
@@ -259,7 +247,7 @@ func (s *Service) PurgeExpired(days int) error {
 		return err
 	}
 	s.cache = kept
-	return s.store.ReplaceAll(activeItems(kept))
+	return nil
 }
 
 // mutateBatch acquires the lock once, parses the file once, applies fn to all
@@ -297,7 +285,7 @@ func (s *Service) mutateBatch(slugs []string, fn func(*Item) error) error {
 		return err
 	}
 	s.cache = items
-	return s.store.ReplaceAll(activeItems(items))
+	return nil
 }
 
 // BulkComplete marks multiple items as done in a single file write.
@@ -400,7 +388,7 @@ func (s *Service) Resync() error {
 		return err
 	}
 	s.cache = items
-	return s.store.ReplaceAll(activeItems(items))
+	return nil
 }
 
 // Search returns items whose title or body contains the query (case-insensitive).
@@ -560,5 +548,20 @@ func (s *Service) RemoveSubStep(slug string, index int) error {
 }
 
 func (s *Service) Summary() (Summary, error) {
-	return s.store.Summary()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var sum Summary
+	for _, it := range s.cache {
+		if it.DeletedAt != "" || it.Done {
+			continue
+		}
+		switch it.Type {
+		case TaskType:
+			sum.OpenTasks++
+		case GoalType:
+			sum.ActiveGoals++
+		}
+	}
+	return sum, nil
 }

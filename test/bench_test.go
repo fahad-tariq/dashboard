@@ -36,7 +36,7 @@ func BenchmarkMutate200(b *testing.B) {
 	}
 	b.Cleanup(func() { database.Close() })
 
-	svc := tracker.NewService(mdPath, "Personal", tracker.NewStore(database, "personal"), time.UTC)
+	svc := tracker.NewService(mdPath, "Personal", time.UTC)
 	if err := svc.Resync(); err != nil {
 		b.Fatal(err)
 	}

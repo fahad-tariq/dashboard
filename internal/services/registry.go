@@ -35,11 +35,8 @@ type Registry struct {
 
 // NewRegistry creates a new service registry.
 func NewRegistry(db *sql.DB, userDataDir, familyPath, houseProjectsPath string, loc *time.Location) *Registry {
-	familyStore := tracker.NewSharedStore(db, "family")
-	familySvc := tracker.NewService(familyPath, "Family", familyStore, loc)
-
-	houseStore := tracker.NewSharedStore(db, "house")
-	houseProjectsSvc := tracker.NewService(houseProjectsPath, "House", houseStore, loc)
+	familySvc := tracker.NewService(familyPath, "Family", loc)
+	houseProjectsSvc := tracker.NewService(houseProjectsPath, "House", loc)
 
 	return &Registry{
 		db:               db,
@@ -116,8 +113,7 @@ func (r *Registry) ForUser(userID int64) *UserServices {
 	base := filepath.Join(r.userDataDir, fmt.Sprintf("%d", userID))
 
 	personalPath := filepath.Join(base, "personal.md")
-	personalStore := tracker.NewUserStore(r.db, "personal", userID)
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, r.loc)
+	personalSvc := tracker.NewService(personalPath, "Personal", r.loc)
 
 	ideasPath := filepath.Join(base, "ideas.md")
 	ideaSvc := ideas.NewService(ideasPath, r.loc)

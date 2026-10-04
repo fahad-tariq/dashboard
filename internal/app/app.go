@@ -491,12 +491,9 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 	} else {
 		// Auth disabled: singleton services are fine for single-user mode.
 		ideaSvc := ideas.NewService(cfg.IdeasPath, cfg.Location)
-		personalStore := tracker.NewStore(database, "personal")
-		familyStore := tracker.NewStore(database, "family")
-		personalSvc := tracker.NewService(cfg.PersonalPath, "Personal", personalStore, cfg.Location)
-		familySvc := tracker.NewService(cfg.FamilyPath, "Family", familyStore, cfg.Location)
-		houseProjectsStore := tracker.NewStore(database, "house")
-		houseProjectsSvc := tracker.NewService(cfg.HouseProjectsPath, "House", houseProjectsStore, cfg.Location)
+		personalSvc := tracker.NewService(cfg.PersonalPath, "Personal", cfg.Location)
+		familySvc := tracker.NewService(cfg.FamilyPath, "Family", cfg.Location)
+		houseProjectsSvc := tracker.NewService(cfg.HouseProjectsPath, "House", cfg.Location)
 		maintenanceSvc := house.NewService(cfg.MaintenancePath, cfg.Location)
 		if err := personalSvc.Resync(); err != nil {
 			slog.Warn("initial personal sync", "error", err)

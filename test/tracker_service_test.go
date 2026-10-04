@@ -24,9 +24,7 @@ func newTestService(t *testing.T, content string) *tracker.Service {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { database.Close() })
-
-	store := tracker.NewStore(database, "personal")
-	return tracker.NewService(mdPath, "Tracker", store, time.UTC)
+	return tracker.NewService(mdPath, "Tracker", time.UTC)
 }
 
 func TestTrackerServiceAddItem(t *testing.T) {

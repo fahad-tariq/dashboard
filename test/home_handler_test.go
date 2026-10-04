@@ -39,13 +39,9 @@ func setupHomeEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.Se
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { database.Close() })
-
-	personalStore := tracker.NewStore(database, "personal")
-	familyStore := tracker.NewStore(database, "family")
-	houseStore := tracker.NewStore(database, "house")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
-	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
-	houseProjectsSvc := tracker.NewService(filepath.Join(dir, "house-projects.md"), "House", houseStore, time.UTC)
+	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
+	houseProjectsSvc := tracker.NewService(filepath.Join(dir, "house-projects.md"), "House", time.UTC)
 	maintenanceSvc := house.NewService(filepath.Join(dir, "maintenance.md"), time.UTC)
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
@@ -125,13 +121,9 @@ func TestHomePageShowsIdeaCounts(t *testing.T) {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { database.Close() })
-
-	personalStore := tracker.NewStore(database, "personal")
-	familyStore := tracker.NewStore(database, "family")
-	houseStore := tracker.NewStore(database, "house")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
-	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
-	houseProjectsSvc := tracker.NewService(filepath.Join(dir, "house-projects.md"), "House", houseStore, time.UTC)
+	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
+	houseProjectsSvc := tracker.NewService(filepath.Join(dir, "house-projects.md"), "House", time.UTC)
 	maintenanceSvc := house.NewService(filepath.Join(dir, "maintenance.md"), time.UTC)
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
@@ -187,13 +179,9 @@ func TestHomePageEmpty(t *testing.T) {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { database.Close() })
-
-	personalStore := tracker.NewStore(database, "personal")
-	familyStore := tracker.NewStore(database, "family")
-	houseStore := tracker.NewStore(database, "house")
-	personalSvc := tracker.NewService(personalPath, "Personal", personalStore, time.UTC)
-	familySvc := tracker.NewService(familyPath, "Family", familyStore, time.UTC)
-	houseProjectsSvc := tracker.NewService(filepath.Join(dir, "house-projects.md"), "House", houseStore, time.UTC)
+	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
+	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
+	houseProjectsSvc := tracker.NewService(filepath.Join(dir, "house-projects.md"), "House", time.UTC)
 	maintenanceSvc := house.NewService(filepath.Join(dir, "maintenance.md"), time.UTC)
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 

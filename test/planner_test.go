@@ -65,8 +65,7 @@ func newPlannerService(t *testing.T, content string) *tracker.Service {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { database.Close() })
-	store := tracker.NewStore(database, "personal")
-	return tracker.NewService(mdPath, "Test", store, time.UTC)
+	return tracker.NewService(mdPath, "Test", time.UTC)
 }
 
 func TestSetPlannedAndClear(t *testing.T) {
