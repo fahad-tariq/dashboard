@@ -53,6 +53,10 @@ const (
 	// per minute before getting 429s. A valid token is never blocked.
 	failedBearerLimit = 10
 
+	// publishDebounce delays service change events like the old watcher
+	// debounce, so the tab making a change finishes its request first.
+	publishDebounce = 500 * time.Millisecond
+
 	// sessionIdleTimeout logs out a session unused for a week, well inside
 	// the absolute SESSION_LIFETIME.
 	sessionIdleTimeout = 7 * 24 * time.Hour
@@ -293,7 +297,7 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 			cfg.HouseProjectsPath: "house-projects",
 			cfg.MaintenancePath:   "maintenance",
 		}
-		publish := func(category string) { broker.Send("file-changed", category) }
+		publish := broker.Debounced(publishDebounce)
 		registry.SetPublisher(publish)
 		maintenanceSvc.OnChange(func() { publish("maintenance") })
 		callbacks := map[string]func() bool{
@@ -497,7 +501,8 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 			cfg.HouseProjectsPath: "house-projects",
 			cfg.MaintenancePath:   "maintenance",
 		}
-		publish := func(category string) func() { return func() { broker.Send("file-changed", category) } }
+		debounced := broker.Debounced(publishDebounce)
+		publish := func(category string) func() { return func() { debounced(category) } }
 		personalSvc.OnChange(publish("personal"))
 		familySvc.OnChange(publish("family"))
 		ideaSvc.OnChange(publish("ideas"))

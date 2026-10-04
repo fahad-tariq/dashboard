@@ -22,6 +22,9 @@ func Open(path string) (*sql.DB, error) {
 	// rather than on first use.
 	if err := db.Ping(); err != nil {
 		db.Close()
+		if strings.Contains(err.Error(), "readonly") {
+			return nil, fmt.Errorf("database %s is not writable (does its owner match the user the server runs as?): %w", path, err)
+		}
 		return nil, fmt.Errorf("opening database %s: %w", path, err)
 	}
 

@@ -129,3 +129,30 @@ func (b *Broker) Unsubscribe(ch chan string) {
 	close(ch)
 	slog.Debug("sse client disconnected", "total", len(b.clients))
 }
+
+// Debounced returns a publisher that sends one "file-changed" event per
+// category once delay has passed without another call for that category.
+// Services publish their own writes through it so the tab that made a change
+// finishes its own request before the refresh arrives.
+func (b *Broker) Debounced(delay time.Duration) func(category string) {
+	var mu sync.Mutex
+	timers := map[string]*time.Timer{}
+	return func(category string) {
+		mu.Lock()
+		defer mu.Unlock()
+		if t, ok := timers[category]; ok && t.Stop() {
+			t.Reset(delay)
+			return
+		}
+		var t *time.Timer
+		t = time.AfterFunc(delay, func() {
+			mu.Lock()
+			if timers[category] == t {
+				delete(timers, category)
+			}
+			mu.Unlock()
+			b.Send("file-changed", category)
+		})
+		timers[category] = t
+	}
+}

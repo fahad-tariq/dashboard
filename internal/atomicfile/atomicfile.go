@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,6 +48,12 @@ func (w Writer) Write(path string, data []byte, defaultMode fs.FileMode) (err er
 		rename = os.Rename
 	}
 
+	// Write through a symlink to its target; renaming over the link itself
+	// would replace it with a regular file.
+	if real, evalErr := filepath.EvalSymlinks(path); evalErr == nil {
+		path = real
+	}
+
 	mode := defaultMode
 	if info, statErr := os.Stat(path); statErr == nil {
 		mode = info.Mode().Perm()
@@ -85,7 +92,12 @@ func (w Writer) Write(path string, data []byte, defaultMode fs.FileMode) (err er
 	if err = rename(tmp, path); err != nil {
 		return fmt.Errorf("replacing %s: %w", path, err)
 	}
-	return syncDir(dir)
+	// The file is replaced at this point; reporting failure would make callers
+	// treat a completed write as failed. Durability of the rename is reduced.
+	if syncErr := syncDir(dir); syncErr != nil {
+		slog.Warn("directory sync after atomic write failed", "dir", dir, "error", syncErr)
+	}
+	return nil
 }
 
 // syncDir makes the rename itself durable.
@@ -106,10 +118,14 @@ func syncDir(dir string) error {
 func CleanStale(root string) error {
 	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				return nil
+			// A missing or unreadable directory must not stop startup.
+			if !errors.Is(err, fs.ErrNotExist) {
+				slog.Warn("skipping directory while removing stale temp files", "path", path, "error", err)
 			}
-			return err
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
 		}
 		name := d.Name()
 		if d.Type().IsRegular() && strings.HasPrefix(name, ".") &&

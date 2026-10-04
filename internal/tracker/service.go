@@ -1,7 +1,9 @@
 package tracker
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"slices"
@@ -599,6 +601,14 @@ func (s *Service) ResyncIfChanged() (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	data, err := os.ReadFile(s.trackerPath)
+	if errors.Is(err, fs.ErrNotExist) {
+		// Deleted outside the app: the list is now empty.
+		if !s.Differs(nil) {
+			return false, nil
+		}
+		s.cache = nil
+		return true, nil
+	}
 	if err != nil {
 		return false, err
 	}
