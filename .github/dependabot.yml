@@ -23,6 +23,10 @@ updates:
     groups:
       pip:
         patterns: ["*"]
+    ignore:
+      # mcp 2.x renamed FastMCP; the migration belongs to Plan 3.
+      - dependency-name: mcp
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /e2e
@@ -31,6 +35,10 @@ updates:
     groups:
       e2e:
         patterns: ["*"]
+    ignore:
+      # Types track the Node major CI runs (24).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directory: /
