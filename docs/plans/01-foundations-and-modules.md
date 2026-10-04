@@ -130,43 +130,43 @@ Do not reopen these while executing this plan.
 
 **Purpose:** close confirmed exposure paths. Every task starts with a failing test.
 
-- [ ] **Explicit auth mode.**
+- [x] **Explicit auth mode.**
   - Replace implicit "no hash and no users means open" with `DASHBOARD_AUTH=disabled`.
   - The server MUST refuse to start when auth is off without that switch.
   - It MUST also refuse when the switch is set and `ADDR` is not a loopback address.
   - A lost data volume must never produce an open dashboard.
-- [ ] **Container exposure.**
+- [x] **Container exposure.**
   - The dashboard port MUST be bound to `127.0.0.1`, or not published if Caddy reaches it over the Docker network. Record which in the README.
   - Put the compose network on a fixed subnet (ipam) so trusted-proxy configuration is stable.
-- [ ] **Login rate limiting.**
+- [x] **Login rate limiting.**
   - Remove `middleware.RealIP`.
   - Use the client IP from the rightmost `X-Forwarded-For` entry only when the direct peer is in `DASHBOARD_TRUSTED_PROXIES` (CIDRs, default empty, meaning use `RemoteAddr`).
   - Document the Caddy configuration.
   - Bound the limiter map with least-recently-used eviction. It must never reset wholesale.
   - Add per-account progressive *delay* (never a lockout, which would let an attacker lock out the only user).
   - Test that a spoofed `X-Forwarded-For` or `X-Real-IP` from an untrusted peer is ignored.
-- [ ] **Login timing.** Unknown emails run bcrypt against a fixed dummy hash. Stop logging submitted emails.
-- [ ] **API and MCP tokens.**
+- [x] **Login timing.** Unknown emails run bcrypt against a fixed dummy hash. Stop logging submitted emails.
+- [x] **API and MCP tokens.**
   - If `DASHBOARD_API_TOKEN` is unset or shorter than 32 characters, `/api/v1` is not mounted and an error is logged.
   - Add a separate inbound `MCP_TOKEN` for the sidecar, and rate-limit failed bearer attempts.
   - Destructive MCP tools are disabled unless `MCP_ALLOW_DESTRUCTIVE=true`: `delete_todo`, `remove_substep`, `clear_carried_plan` and `delete_commentary`. They also get `destructiveHint` annotations. Update the MCP smoke tests.
-- [ ] **Cross-origin protection.**
+- [x] **Cross-origin protection.**
   - Wrap the whole web router, including `/login`, `/logout` and `/upload`, in `http.NewCrossOriginProtection()`.
   - Mount `/api/v1` on a separate subrouter outside it. Do not use bypass patterns.
   - Test that a mismatched `Origin` and `Sec-Fetch-Site: cross-site` are rejected, and that htmx and form posts from the same origin pass.
-- [ ] **Security headers middleware:**
+- [x] **Security headers middleware:**
   - `Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'`
   - `X-Content-Type-Options: nosniff`
   - `Referrer-Policy: same-origin`
 
   Set `htmx.config.allowEval=false` via `<meta name="htmx-config">`. Record tightening `script-src` as a follow-up; there are 98 inline handlers today.
-- [ ] **HTTP server.**
+- [x] **HTTP server.**
   - Use an `http.Server` with `ReadHeaderTimeout`, `ReadTimeout` and `IdleTimeout`.
   - The SSE handler clears its deadlines via `http.ResponseController` and sends a heartbeat comment every 30s.
   - Broker subscribers close on `RegisterOnShutdown`.
   - Graceful shutdown on SIGTERM uses the existing `shutdownCtx`.
   - Set `sm.IdleTimeout` on the session manager.
-- [ ] **Container hardening.**
+- [x] **Container hardening.**
   - Add bind mounts for `IDEAS_PATH` and `UPLOADS_DIR`. Today they sit on the container filesystem, and `config.go` creates them at boot.
   - Run both images as a non-root user.
   - Add a documented one-off chown step for existing root-owned data.
@@ -558,6 +558,7 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - fliptronic facts (read via the homelab repo's `homelab-ssh`): the dashboard published `0.0.0.0:8081` and `[::]:8081`, which Docker routes past ufw; the MCP sidecar is deployed on `127.0.0.1:9100` behind Caddy's `/mcp*`; uploads already live inside the `data` mount; `DASHBOARD_SECURE_COOKIES` defaults to `false` there; Caddy's `security_headers` snippet sets HSTS, nosniff, X-Frame-Options and Referrer-Policy but no CSP. No chown is needed: the only root-owned files (`data/personal.md`, legacy `ideas/`) are not written in auth mode.
 - Compose smoke run (local, real data copy): passed after two findings. (1) With `-wal`/`-shm` present SQLite opened a non-writable database read-only; the server started and failed on the first save. `db.Open` now does a no-op write after migrations and refuses to start with a message naming the owner mismatch (test-first, `TestOpenRefusesReadOnlyDatabase`). (2) The owner's local Docker runtime shares `~` read-only into its VM (`touch` gave "Read-only file system"), so the smoke run used Docker volumes; production bind mounts are native and unaffected.
 - Owner decision (2026-10-04): MCP is not used. The fliptronic deploy removes the `dashboard-mcp` service and Caddy's `/mcp*` route, and drops `DASHBOARD_API_TOKEN` so `/api/v1` is not mounted. Both stay in the repo and can be re-enabled. The footer MCP badge will then report MCP as unavailable; revisit it in Phase 9.
+- Deployed to fliptronic 2026-10-04 (image from merge `909b7cb`): compose and Caddyfile backed up (`.bak.1791110956`), MCP service and `/mcp*` route removed, API token dropped, hardening applied. Verified through Caddy: `/login` 200, `/api/v1/*` and `/mcp/*` 404, CSP/HSTS present, cross-site login POST 403, `172.16.61.9:8081` no longer reachable, `verify-stack.sh` all green (a first run failed two checks only because Caddy was still starting). Homelab docs updated (uncommitted in that repo for the owner).
 - Deploy actions for the owner: add `MCP_TOKEN` (`openssl rand -hex 32`) to the server `.env` and switch MCP clients to it; make sure `DASHBOARD_API_TOKEN` is at least 32 characters or the API disappears; set `DASHBOARD_TRUSTED_PROXIES` once the Caddy topology is known (until then every login behind Caddy shares one rate-limit bucket).
 
 - Follow-ups:
