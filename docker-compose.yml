@@ -1,37 +1,82 @@
+# Reference deployment. The dashboard sits behind a reverse proxy on the same
+# host (e.g. Caddy with network_mode: host proxying to 127.0.0.1:8081), so the
+# port is bound to loopback only: Docker-published ports bypass ufw.
 services:
   dashboard:
     build:
       context: .
       args:
         VERSION: ${VERSION:-dev}
+    # Match the owner of ./data and ./users on the host.
+    user: "${DASHBOARD_UID:-10001}:${DASHBOARD_GID:-10001}"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${DASHBOARD_PORT:-8081}:8080"
+    networks: [dashboard]
     volumes:
       - ./data:/data/db
       - ./users:/data/users
     environment:
       - ADDR=:8080
-      - IDEAS_PATH=/data/ideas.md
-      - UPLOADS_DIR=/data/uploads
+      - IDEAS_PATH=/data/db/ideas.md
+      - UPLOADS_DIR=/data/db/uploads
       - PERSONAL_PATH=/data/db/personal.md
       - FAMILY_PATH=/data/db/family.md
       - MAINTENANCE_PATH=/data/db/maintenance.md
       - HOUSE_PROJECTS_PATH=/data/db/house-projects.md
       - DB_PATH=/data/db/dashboard.db
+      - USER_DATA_DIR=/data/users
       - DASHBOARD_API_TOKEN=${DASHBOARD_API_TOKEN}
       - DASHBOARD_PASSWORD_HASH=${DASHBOARD_PASSWORD_HASH}
       - SESSION_LIFETIME=${SESSION_LIFETIME:-720h}
       - DASHBOARD_SECURE_COOKIES=${DASHBOARD_SECURE_COOKIES:-true}
-      - USER_DATA_DIR=/data/users
       - DASHBOARD_TIMEZONE=${DASHBOARD_TIMEZONE:-Australia/Sydney}
+      # Connections arriving through the published port come from the network
+      # gateway, so that is the proxy whose X-Forwarded-For is trusted.
+      - DASHBOARD_TRUSTED_PROXIES=172.30.81.1
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   dashboard-mcp:
     build:
       context: ./mcp
+    user: "${DASHBOARD_UID:-10001}:${DASHBOARD_GID:-10001}"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "127.0.0.1:9100:9100"
+    networks: [dashboard]
     environment:
       - DASHBOARD_API_URL=http://dashboard:8080/api/v1
       - DASHBOARD_API_TOKEN=${DASHBOARD_API_TOKEN}
+      - MCP_TOKEN=${MCP_TOKEN}
+      - MCP_ALLOW_DESTRUCTIVE=${MCP_ALLOW_DESTRUCTIVE:-false}
     depends_on:
       - dashboard
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  dashboard:
+    # Fixed subnet so the gateway (the trusted proxy above) never changes.
+    ipam:
+      config:
+        - subnet: 172.30.81.0/24
+          gateway: 172.30.81.1

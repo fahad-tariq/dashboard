@@ -6,6 +6,9 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/netip"
+	"strings"
+	"time"
 
 	"github.com/alexedwards/scs/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -13,20 +16,41 @@ import (
 	"github.com/fahad/dashboard/internal/httputil"
 )
 
+// dummyHash is a real cost-10 bcrypt hash of random bytes. Unknown emails are
+// compared against it so a failed login costs the same whether or not the
+// account exists.
+const dummyHash = "$2a$10$xldbDwxTwAEN1f78OsHC9ek7W9iuoqqpD5S.NyLYYs5R6BHGTQ7w6"
+
 type Handler struct {
 	sm      *scs.SessionManager
 	db      *sql.DB
 	limiter *RateLimiter
+	delay   *AccountDelay
+	trusted []netip.Prefix
 	tmpl    *template.Template
 }
 
-func NewHandler(sm *scs.SessionManager, db *sql.DB, limiter *RateLimiter, tmpl *template.Template) *Handler {
-	return &Handler{
+// Option configures a Handler.
+type Option func(*Handler)
+
+// WithTrustedProxies sets the proxies whose X-Forwarded-For is believed when
+// rate limiting by client IP.
+func WithTrustedProxies(prefixes []netip.Prefix) Option {
+	return func(h *Handler) { h.trusted = prefixes }
+}
+
+func NewHandler(sm *scs.SessionManager, db *sql.DB, limiter *RateLimiter, tmpl *template.Template, opts ...Option) *Handler {
+	h := &Handler{
 		sm:      sm,
 		db:      db,
 		limiter: limiter,
+		delay:   NewAccountDelay(),
 		tmpl:    tmpl,
 	}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
 }
 
 func (h *Handler) LoginPage(w http.ResponseWriter, r *http.Request) {
@@ -35,9 +59,9 @@ func (h *Handler) LoginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) LoginSubmit(w http.ResponseWriter, r *http.Request) {
-	ip := r.RemoteAddr
+	ip := httputil.ClientIP(r, h.trusted)
 	next := r.FormValue("next")
-	email := r.FormValue("email")
+	email := strings.TrimSpace(r.FormValue("email"))
 
 	if !h.limiter.Allow(ip) {
 		retryAfter := h.limiter.RetryAfter(ip)
@@ -50,23 +74,31 @@ func (h *Handler) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 
 	password := r.FormValue("password")
 
+	if d := h.delay.Delay(email); d > 0 {
+		select {
+		case <-time.After(d):
+		case <-r.Context().Done():
+			return
+		}
+	}
+
 	user, err := FindByEmail(h.db, email)
 	if err != nil {
 		slog.Error("finding user", "error", err)
 		h.renderLogin(w, next, "Internal error.", email, false)
 		return
 	}
-	if user == nil {
-		slog.Warn("login failed: unknown email", "ip", ip, "email", email)
+	hash := dummyHash
+	if user != nil {
+		hash = user.PasswordHash
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil || user == nil {
+		h.delay.Fail(email)
+		slog.Warn("login failed", "ip", ip)
 		h.renderLogin(w, next, "Incorrect email or password.", email, false)
 		return
 	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		slog.Warn("login failed: wrong password", "ip", ip, "email", email)
-		h.renderLogin(w, next, "Incorrect email or password.", email, false)
-		return
-	}
+	h.delay.Succeed(email)
 
 	if err := h.sm.RenewToken(r.Context()); err != nil {
 		slog.Error("renewing session token", "error", err)
@@ -82,7 +114,7 @@ func (h *Handler) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 	h.sm.Put(r.Context(), "is_admin", user.Role == "admin")
 	h.sm.Put(r.Context(), "first_name", user.FirstName)
 
-	slog.Info("login successful", "ip", ip, "email", email)
+	slog.Info("login successful", "ip", ip, "user_id", user.ID)
 
 	dest := "/"
 	if httputil.IsLocalPath(next) {

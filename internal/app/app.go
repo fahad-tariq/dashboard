@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strings"
@@ -41,7 +42,24 @@ import (
 	"github.com/fahad/dashboard/web"
 )
 
-const trashRetentionDays = 7
+const (
+	trashRetentionDays = 7
+
+	// minAPITokenLength is the shortest DASHBOARD_API_TOKEN accepted; with a
+	// shorter or missing token the API is not mounted at all.
+	minAPITokenLength = 32
+
+	// failedBearerLimit is how many bad bearer tokens one client IP may send
+	// per minute before getting 429s. A valid token is never blocked.
+	failedBearerLimit = 10
+
+	// sessionIdleTimeout logs out a session unused for a week, well inside
+	// the absolute SESSION_LIFETIME.
+	sessionIdleTimeout = 7 * 24 * time.Hour
+
+	contentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+		"img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+)
 
 func buildFuncMap(loc *time.Location, authEnabled bool, version string) template.FuncMap {
 	return template.FuncMap{
@@ -174,6 +192,9 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 		count = 1
 	}
 	cfg.HasUsers = count > 0
+	if err := cfg.CheckAuthMode(); err != nil {
+		return nil, err
+	}
 
 	fm := buildFuncMap(cfg.Location, cfg.AuthEnabled(), version)
 	templates, err := parseTemplates(fm)
@@ -182,12 +203,19 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 	}
 
 	broker := sse.NewBroker()
+	// End open event streams as soon as shutdown starts, so http.Server.Shutdown
+	// is not left waiting on them.
+	context.AfterFunc(shutdownCtx, broker.Close)
 	uploadHandler := upload.NewHandler(cfg.UploadsDir)
 
-	r := chi.NewRouter()
-	r.Use(middleware.RealIP) //nolint:staticcheck // SA1019: spoofable; replaced by trusted-proxy handling in Plan 1 Phase 2
-	r.Use(middleware.Recoverer)
-	r.Use(middleware.Compress(5))
+	root := chi.NewRouter()
+	root.Use(securityHeaders)
+	root.Use(middleware.Recoverer)
+	root.Use(middleware.Compress(5))
+
+	// Every browser-facing route sits behind cross-origin protection; the
+	// bearer-token API is registered on root below, outside it.
+	r := root.With(http.NewCrossOriginProtection().Handler)
 
 	// Static assets are always public.
 	staticSub, _ := fs.Sub(web.StaticFS, "static")
@@ -349,6 +377,7 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 		sm := scs.New()
 		sm.Store = sessionStore
 		sm.Lifetime = cfg.SessionLifetime
+		sm.IdleTimeout = sessionIdleTimeout
 		sm.Cookie.HttpOnly = true
 		sm.Cookie.SameSite = http.SameSiteLaxMode
 		sm.Cookie.Secure = cfg.SecureCookies
@@ -376,7 +405,7 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 		}
 
 		limiter := auth.NewRateLimiter()
-		authHandler := auth.NewHandler(sm, database, limiter, loginTmpl)
+		authHandler := auth.NewHandler(sm, database, limiter, loginTmpl, auth.WithTrustedProxies(cfg.TrustedProxies))
 
 		// Public routes (no auth).
 		r.Get("/login", authHandler.LoginPage)
@@ -651,13 +680,14 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 		apiReorderPlan = home.APIReorderPlan(userSvc.Personal, registry.Family(), registry.HouseProjects(), cfg.Location)
 		apiClearCarried = home.APIClearCarried(userSvc.Personal, registry.Family(), registry.HouseProjects(), cfg.Location)
 	}
+	if len(cfg.APIToken) < minAPITokenLength {
+		slog.Error("API not mounted: DASHBOARD_API_TOKEN must be set and at least 32 characters")
+		return root, nil
+	}
 	apiRateLimiter := httputil.NewRateLimiter(60, 60)
-	r.Route("/api/v1", func(r chi.Router) {
-		if cfg.APIToken != "" {
-			r.Use(bearerAuth(cfg.APIToken))
-		} else {
-			slog.Warn("API routes have no authentication -- set DASHBOARD_API_TOKEN")
-		}
+	failedBearer := auth.NewRateLimiterWithLimit(failedBearerLimit, 4096)
+	root.Route("/api/v1", func(r chi.Router) {
+		r.Use(bearerAuth(cfg.APIToken, failedBearer, cfg.TrustedProxies))
 		r.Use(httputil.RateLimitMiddleware(apiRateLimiter))
 
 		r.Get("/ideas", apiIdeaHandler.APIListIdeas)
@@ -689,7 +719,7 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 			r.Delete("/todos/{slug}/substeps/{index}", apiRemoveSubStep)
 		}
 	})
-	return r, nil
+	return root, nil
 }
 
 func mountAppRoutes(r chi.Router, homePage, digestPage, calendarPage http.HandlerFunc, personalHandler, familyHandler *tracker.Handler, houseHandler *house.Handler, ideaHandler *ideas.Handler, searchHandler *search.Handler, uploadHandler *upload.Handler, uploadsDir string, planSet, planClear, planComplete, planBulkSet, planClearCarried, planReorder http.HandlerFunc) {
@@ -799,20 +829,36 @@ func cacheImmutable(h http.Handler) http.Handler {
 	})
 }
 
-func bearerAuth(token string) func(http.Handler) http.Handler {
+// bearerAuth checks the API token. Failed attempts are counted per client IP
+// and answered with 429 past the limit; a valid token always gets through, so
+// bad guesses cannot lock out a real client behind the same address.
+func bearerAuth(token string, failures *auth.RateLimiter, trusted []netip.Prefix) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			auth := r.Header.Get("Authorization")
-			provided, ok := strings.CutPrefix(auth, "Bearer ")
-			if !ok || subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusUnauthorized)
-				_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+			provided, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if ok && subtle.ConstantTimeCompare([]byte(provided), []byte(token)) == 1 {
+				next.ServeHTTP(w, r)
 				return
 			}
-			next.ServeHTTP(w, r)
+			status, body := http.StatusUnauthorized, `{"error":"unauthorized"}`
+			if !failures.Allow(httputil.ClientIP(r, trusted)) {
+				status, body = http.StatusTooManyRequests, `{"error":"too many failed attempts"}`
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(body))
 		})
 	}
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("Content-Security-Policy", contentSecurityPolicy)
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "same-origin")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func parseTemplates(fm template.FuncMap) (map[string]*template.Template, error) {

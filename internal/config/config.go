@@ -1,10 +1,14 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,6 +24,8 @@ type Config struct {
 	APIToken          string
 	Addr              string
 	PasswordHash      string
+	AuthDisabled      bool // DASHBOARD_AUTH=disabled: local development on loopback only.
+	TrustedProxies    []netip.Prefix
 	SessionLifetime   time.Duration
 	SecureCookies     bool
 	HasUsers          bool // Set at startup after checking the users table.
@@ -35,6 +41,20 @@ func Load() (*Config, error) {
 	secureCookies := true
 	if v, ok := os.LookupEnv("DASHBOARD_SECURE_COOKIES"); ok {
 		secureCookies, _ = strconv.ParseBool(v)
+	}
+
+	authDisabled := false
+	switch v := os.Getenv("DASHBOARD_AUTH"); v {
+	case "", "enabled":
+	case "disabled":
+		authDisabled = true
+	default:
+		return nil, fmt.Errorf("DASHBOARD_AUTH must be \"enabled\" or \"disabled\", got %q", v)
+	}
+
+	trusted, err := parsePrefixes(os.Getenv("DASHBOARD_TRUSTED_PROXIES"))
+	if err != nil {
+		return nil, fmt.Errorf("parsing DASHBOARD_TRUSTED_PROXIES: %w", err)
 	}
 
 	loc := time.Local
@@ -70,6 +90,8 @@ func Load() (*Config, error) {
 		APIToken:          os.Getenv("DASHBOARD_API_TOKEN"),
 		Addr:              envOr("ADDR", ":8080"),
 		PasswordHash:      os.Getenv("DASHBOARD_PASSWORD_HASH"),
+		AuthDisabled:      authDisabled,
+		TrustedProxies:    trusted,
 		SessionLifetime:   sessionLifetime,
 		SecureCookies:     secureCookies,
 		Location:          loc,
@@ -124,5 +146,57 @@ func envOr(key, fallback string) string {
 
 // AuthEnabled returns true if authentication should be enforced.
 func (c *Config) AuthEnabled() bool {
-	return c.PasswordHash != "" || c.HasUsers
+	return !c.AuthDisabled && (c.PasswordHash != "" || c.HasUsers)
+}
+
+// CheckAuthMode refuses configurations that would serve an open dashboard by
+// accident. Call it once HasUsers is known. A lost data volume (no users, no
+// hash) must stop the server, and turning auth off is only allowed on a
+// loopback address.
+func (c *Config) CheckAuthMode() error {
+	if c.AuthDisabled {
+		if !isLoopbackAddr(c.Addr) {
+			return fmt.Errorf("DASHBOARD_AUTH=disabled requires a loopback ADDR (127.0.0.1, ::1 or localhost), got %q", c.Addr)
+		}
+		return nil
+	}
+	if c.PasswordHash == "" && !c.HasUsers {
+		return errors.New("no users and no DASHBOARD_PASSWORD_HASH: refusing to start without authentication " +
+			"(create a user, set DASHBOARD_PASSWORD_HASH, or set DASHBOARD_AUTH=disabled with a loopback ADDR for local development)")
+	}
+	return nil
+}
+
+// parsePrefixes reads a comma-separated list of CIDRs; a bare IP means that
+// single address.
+func parsePrefixes(s string) ([]netip.Prefix, error) {
+	var out []netip.Prefix
+	for field := range strings.SplitSeq(s, ",") {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		if p, err := netip.ParsePrefix(field); err == nil {
+			out = append(out, p.Masked())
+			continue
+		}
+		addr, err := netip.ParseAddr(field)
+		if err != nil {
+			return nil, fmt.Errorf("%q is not a CIDR or IP address", field)
+		}
+		out = append(out, netip.PrefixFrom(addr, addr.BitLen()))
+	}
+	return out, nil
+}
+
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil || host == "" {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

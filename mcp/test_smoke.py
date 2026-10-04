@@ -13,13 +13,21 @@ import pytest
 import respx
 
 # Set required env before importing server modules.
-_TEST_TOKEN = "test-token-that-is-at-least-thirty-two-characters-long"
-os.environ.setdefault("DASHBOARD_API_TOKEN", _TEST_TOKEN)
+os.environ.setdefault("DASHBOARD_API_TOKEN", "test-token-that-is-at-least-thirty-two-characters-long")
+os.environ.setdefault("MCP_TOKEN", "test-mcp-token-that-is-at-least-thirty-two-characters")
 os.environ.setdefault("DASHBOARD_API_URL", "http://dashboard:8080/api/v1")
+os.environ.pop("MCP_ALLOW_DESTRUCTIVE", None)
+_API_TOKEN = os.environ["DASHBOARD_API_TOKEN"]
+_MCP_TOKEN = os.environ["MCP_TOKEN"]
 
 from starlette.testclient import TestClient  # noqa: E402
 
+import client  # noqa: E402
+import server  # noqa: E402
 from server import app  # noqa: E402
+
+_DESTRUCTIVE_NAMES = {"delete_todo", "remove_substep", "clear_carried_plan", "delete_commentary"}
+_READ_ONLY_NAMES = {"list_todos", "get_todo", "list_ideas", "get_plan", "get_commentary"}
 
 
 @pytest.fixture(scope="module")
@@ -33,18 +41,35 @@ def cli():
         yield client
 
 
+@pytest.fixture(scope="module")
+def cli_destructive():
+    """Module-scoped client for a separate app built with destructive tools enabled."""
+    destructive_app = server.create_app(server.Config(mcp_token=_MCP_TOKEN, allow_destructive=True))
+    with TestClient(destructive_app, raise_server_exceptions=False) as client:
+        yield client
+
+
 @pytest.fixture
 def cli_no_lifespan():
-    """Per-test client WITHOUT lifespan -- for auth-rejection tests that
+    """Per-test client WITHOUT lifespan, on a fresh app so failed-auth
+    counters do not leak between tests. For auth-rejection tests that
     never reach the MCP session manager."""
-    return TestClient(app, raise_server_exceptions=False)
+    fresh = server.create_app(server.Config(mcp_token=_MCP_TOKEN))
+    return TestClient(fresh, raise_server_exceptions=False)
 
 
 def _auth_headers():
     return {
-        "Authorization": f"Bearer {_TEST_TOKEN}",
+        "Authorization": f"Bearer {_MCP_TOKEN}",
         "Accept": "application/json, text/event-stream",
     }
+
+
+def _list_tools(cli) -> list[dict]:
+    headers = _init_session(cli)
+    resp = cli.post("/", json=_mcp_request("tools/list"), headers=headers)
+    assert resp.status_code == 200
+    return resp.json().get("result", {}).get("tools", [])
 
 
 def _mcp_request(method: str, params: dict | None = None) -> dict:
@@ -98,25 +123,173 @@ class TestAuth:
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 
+    def test_dashboard_api_token_rejected_inbound(self, cli_no_lifespan):
+        resp = cli_no_lifespan.post(
+            "/",
+            json=_mcp_request("initialize"),
+            headers={"Authorization": f"Bearer {_API_TOKEN}"},
+        )
+        assert resp.status_code == 401
+
+    def test_mcp_token_accepted_inbound(self, cli):
+        _init_session(cli)
+
+
+# ---- Startup configuration ----
+
+
+_VALID_ENV = {"MCP_TOKEN": _MCP_TOKEN, "DASHBOARD_API_TOKEN": _API_TOKEN}
+
+
+class TestConfig:
+    def test_valid_env(self):
+        cfg = server.load_config(_VALID_ENV)
+        assert cfg.mcp_token == _MCP_TOKEN
+        assert cfg.allow_destructive is False
+
+    @pytest.mark.parametrize("name", ["MCP_TOKEN", "DASHBOARD_API_TOKEN"])
+    def test_missing_token_refused(self, name):
+        env = {k: v for k, v in _VALID_ENV.items() if k != name}
+        with pytest.raises(client.ConfigError, match=f"{name} is not set"):
+            server.load_config(env)
+
+    @pytest.mark.parametrize("name", ["MCP_TOKEN", "DASHBOARD_API_TOKEN"])
+    def test_short_token_refused(self, name):
+        env = {**_VALID_ENV, name: "x" * 31}
+        with pytest.raises(client.ConfigError, match=f"{name} must be at least 32"):
+            server.load_config(env)
+
+    def test_shared_token_refused(self):
+        env = {"MCP_TOKEN": _API_TOKEN, "DASHBOARD_API_TOKEN": _API_TOKEN}
+        with pytest.raises(client.ConfigError, match="must differ"):
+            server.load_config(env)
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [("true", True), ("TRUE", True), ("1", False), ("false", False), ("", False)],
+    )
+    def test_allow_destructive_flag(self, value, expected):
+        cfg = server.load_config({**_VALID_ENV, "MCP_ALLOW_DESTRUCTIVE": value})
+        assert cfg.allow_destructive is expected
+
+
+# ---- Failed-auth rate limiting ----
+
+
+async def _ok_app(scope, receive, send):
+    await send({"type": "http.response.start", "status": 200, "headers": []})
+    await send({"type": "http.response.body", "body": b"ok"})
+
+
+class _FakeClock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def _limited_client(limiter, client_host="testclient"):
+    mw = server.BearerAuthMiddleware(_ok_app, _MCP_TOKEN, limiter)
+
+    async def with_client_addr(scope, receive, send):
+        await mw({**scope, "client": (client_host, 50000)}, receive, send)
+
+    return TestClient(with_client_addr)
+
+
+_BAD = {"Authorization": "Bearer wrong-token"}
+_GOOD = {"Authorization": f"Bearer {_MCP_TOKEN}"}
+
+
+class TestRateLimit:
+    def test_429_after_limit(self):
+        c = _limited_client(server.FailedAuthLimiter(limit=3))
+        assert [c.get("/", headers=_BAD).status_code for _ in range(5)] == [401, 401, 401, 429, 429]
+
+    def test_valid_token_unaffected_when_limited(self):
+        c = _limited_client(server.FailedAuthLimiter(limit=2))
+        for _ in range(3):
+            c.get("/", headers=_BAD)
+        assert c.get("/", headers=_BAD).status_code == 429
+        assert c.get("/", headers=_GOOD).status_code == 200
+
+    def test_successes_do_not_count(self):
+        c = _limited_client(server.FailedAuthLimiter(limit=2))
+        for _ in range(5):
+            assert c.get("/", headers=_GOOD).status_code == 200
+        assert c.get("/", headers=_BAD).status_code == 401
+
+    def test_window_resets(self):
+        clock = _FakeClock()
+        c = _limited_client(server.FailedAuthLimiter(limit=1, window=60, clock=clock))
+        c.get("/", headers=_BAD)
+        assert c.get("/", headers=_BAD).status_code == 429
+        clock.now += 60
+        assert c.get("/", headers=_BAD).status_code == 401
+
+    def test_per_client_ip(self):
+        limiter = server.FailedAuthLimiter(limit=1)
+        a = _limited_client(limiter, "10.0.0.1")
+        b = _limited_client(limiter, "10.0.0.2")
+        a.get("/", headers=_BAD)
+        assert a.get("/", headers=_BAD).status_code == 429
+        assert b.get("/", headers=_BAD).status_code == 401
+
+    def test_tracked_clients_bounded(self):
+        limiter = server.FailedAuthLimiter(limit=1, max_clients=3)
+        for i in range(10):
+            limiter.record_failure(f"10.0.0.{i}")
+        assert len(limiter._windows) == 3
+        # Oldest entries are evicted, so 10.0.0.0 starts a fresh window.
+        assert limiter.record_failure("10.0.0.0") is False
+
+    def test_missing_token_counts_as_failure(self):
+        c = _limited_client(server.FailedAuthLimiter(limit=1))
+        c.get("/")
+        assert c.get("/").status_code == 429
+
 
 # ---- Tool discovery ----
 
 
 class TestToolDiscovery:
     def test_tools_list_count(self, cli):
-        headers = _init_session(cli)
-        resp = cli.post("/", json=_mcp_request("tools/list"), headers=headers)
-        assert resp.status_code == 200
-        body = resp.json()
-        tools = body.get("result", {}).get("tools", [])
+        tools = _list_tools(cli)
         tool_names = sorted(t["name"] for t in tools)
-        assert len(tools) == 24, f"Expected 24 tools, got {len(tools)}: {tool_names}"
+        assert len(tools) == 20, f"Expected 20 tools, got {len(tools)}: {tool_names}"
 
-    def test_all_expected_tools_present(self, cli):
+    def test_destructive_tools_absent_by_default(self, cli):
+        names = {t["name"] for t in _list_tools(cli)}
+        assert not names & _DESTRUCTIVE_NAMES
+
+    def test_destructive_tools_present_when_enabled(self, cli_destructive):
+        tools = {t["name"]: t for t in _list_tools(cli_destructive)}
+        assert len(tools) == 24
+        for name in _DESTRUCTIVE_NAMES:
+            annotations = tools[name].get("annotations") or {}
+            assert annotations.get("destructiveHint") is True, f"{name}: {annotations}"
+            assert annotations.get("readOnlyHint") is False, f"{name}: {annotations}"
+
+    def test_read_only_annotations(self, cli):
+        tools = {t["name"]: t for t in _list_tools(cli)}
+        for name, tool in tools.items():
+            annotations = tool.get("annotations") or {}
+            assert annotations.get("readOnlyHint", False) is (name in _READ_ONLY_NAMES), f"{name}: {annotations}"
+            assert not annotations.get("destructiveHint")
+
+    def test_destructive_tool_not_callable_by_default(self, cli):
         headers = _init_session(cli)
-        resp = cli.post("/", json=_mcp_request("tools/list"), headers=headers)
-        tools = resp.json().get("result", {}).get("tools", [])
-        names = {t["name"] for t in tools}
+        resp = cli.post(
+            "/",
+            json=_mcp_request("tools/call", {"name": "delete_todo", "arguments": {"slug": "my-task", "list": "personal"}}),
+            headers=headers,
+        )
+        body = resp.json()
+        assert "error" in body or body.get("result", {}).get("isError") is True, body
+
+    def test_all_expected_tools_present(self, cli_destructive):
+        names = {t["name"] for t in _list_tools(cli_destructive)}
         expected = {
             # Todos (12)
             "list_todos", "get_todo", "add_todo", "update_todo",
@@ -224,12 +397,12 @@ class TestToolCalls:
         assert parsed["status"] == "ok"
 
     @respx.mock
-    def test_delete_todo(self, cli):
+    def test_delete_todo(self, cli_destructive):
         respx.delete("http://dashboard:8080/api/v1/todos/my-task").mock(
             return_value=httpx.Response(200, json={"status": "ok"})
         )
-        headers = _init_session(cli)
-        resp = cli.post(
+        headers = _init_session(cli_destructive)
+        resp = cli_destructive.post(
             "/",
             json=_mcp_request("tools/call", {"name": "delete_todo", "arguments": {"slug": "my-task", "list": "family"}}),
             headers=headers,
@@ -361,12 +534,12 @@ class TestToolCalls:
         assert resp.status_code == 200
 
     @respx.mock
-    def test_clear_carried_plan(self, cli):
+    def test_clear_carried_plan(self, cli_destructive):
         respx.post("http://dashboard:8080/api/v1/plan/clear-carried").mock(
             return_value=httpx.Response(200, json={"status": "ok"})
         )
-        headers = _init_session(cli)
-        resp = cli.post(
+        headers = _init_session(cli_destructive)
+        resp = cli_destructive.post(
             "/",
             json=_mcp_request("tools/call", {"name": "clear_carried_plan", "arguments": {}}),
             headers=headers,
@@ -403,12 +576,12 @@ class TestToolCalls:
         assert resp.status_code == 200
 
     @respx.mock
-    def test_delete_commentary(self, cli):
+    def test_delete_commentary(self, cli_destructive):
         respx.delete("http://dashboard:8080/api/v1/commentary/family/my-task").mock(
             return_value=httpx.Response(200, json={"status": "ok"})
         )
-        headers = _init_session(cli)
-        resp = cli.post(
+        headers = _init_session(cli_destructive)
+        resp = cli_destructive.post(
             "/",
             json=_mcp_request("tools/call", {"name": "delete_commentary", "arguments": {"list": "family", "slug": "my-task"}}),
             headers=headers,

@@ -7,6 +7,7 @@ lifespan because stateless_http=True runs lifespan per-request.
 import os
 import re
 import sys
+from collections.abc import Mapping
 
 import httpx
 
@@ -22,16 +23,27 @@ class DashboardError(Exception):
         super().__init__(f"HTTP {status}: {message}")
 
 
-def _init_token() -> str:
-    token = os.environ.get("DASHBOARD_API_TOKEN", "")
+class ConfigError(Exception):
+    """Raised when required configuration is missing or invalid."""
+
+
+MIN_TOKEN_LENGTH = 32
+
+
+def require_token(name: str, env: Mapping[str, str] = os.environ) -> str:
+    """Return the token in env[name], rejecting missing or short values."""
+    token = env.get(name, "")
     if not token:
-        sys.exit("DASHBOARD_API_TOKEN is not set")
-    if len(token) < 32:
-        sys.exit("DASHBOARD_API_TOKEN must be at least 32 characters")
+        raise ConfigError(f"{name} is not set")
+    if len(token) < MIN_TOKEN_LENGTH:
+        raise ConfigError(f"{name} must be at least {MIN_TOKEN_LENGTH} characters")
     return token
 
 
-TOKEN = _init_token()
+try:
+    TOKEN = require_token("DASHBOARD_API_TOKEN")
+except ConfigError as exc:
+    sys.exit(str(exc))
 
 _client = httpx.AsyncClient(
     base_url=os.environ.get("DASHBOARD_API_URL", "http://dashboard:8080/api/v1"),

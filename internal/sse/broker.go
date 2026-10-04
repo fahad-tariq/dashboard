@@ -5,17 +5,32 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 )
+
+// defaultHeartbeat keeps idle streams alive through proxies and lets the
+// server notice dead clients.
+const defaultHeartbeat = 30 * time.Second
 
 // Broker manages SSE client connections and broadcasts events.
 type Broker struct {
-	mu      sync.RWMutex
-	clients map[chan string]struct{}
+	mu        sync.RWMutex
+	clients   map[chan string]struct{}
+	heartbeat time.Duration
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 func NewBroker() *Broker {
+	return NewBrokerWithHeartbeat(defaultHeartbeat)
+}
+
+// NewBrokerWithHeartbeat sends a comment line to each client every interval.
+func NewBrokerWithHeartbeat(interval time.Duration) *Broker {
 	return &Broker{
-		clients: make(map[chan string]struct{}),
+		clients:   make(map[chan string]struct{}),
+		heartbeat: interval,
+		done:      make(chan struct{}),
 	}
 }
 
@@ -34,12 +49,28 @@ func (b *Broker) Send(event, data string) {
 	}
 }
 
+// Close ends every open stream and refuses new ones, so graceful shutdown
+// is not held up by long-lived connections. Safe to call more than once.
+func (b *Broker) Close() {
+	b.closeOnce.Do(func() { close(b.done) })
+}
+
 // ServeHTTP implements the SSE endpoint.
 func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+	select {
+	case <-b.done:
+		http.Error(w, "Shutting down", http.StatusServiceUnavailable)
 		return
+	default:
+	}
+
+	// Streams outlive the server's read and write timeouts by design.
+	rc := http.NewResponseController(w)
+	if err := rc.SetReadDeadline(time.Time{}); err != nil {
+		slog.Debug("clearing SSE read deadline", "error", err)
+	}
+	if err := rc.SetWriteDeadline(time.Time{}); err != nil {
+		slog.Debug("clearing SSE write deadline", "error", err)
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -51,20 +82,37 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	b.Subscribe(ch)
 	defer b.Unsubscribe(ch)
 
-	// Send initial keepalive.
-	fmt.Fprint(w, ": connected\n\n")
-	flusher.Flush()
+	ticker := time.NewTicker(b.heartbeat)
+	defer ticker.Stop()
+
+	if !write(w, rc, ": connected\n\n") {
+		return
+	}
 
 	ctx := r.Context()
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-b.done:
+			return
+		case <-ticker.C:
+			if !write(w, rc, ": ping\n\n") {
+				return
+			}
 		case msg := <-ch:
-			fmt.Fprint(w, msg)
-			flusher.Flush()
+			if !write(w, rc, msg) {
+				return
+			}
 		}
 	}
+}
+
+func write(w http.ResponseWriter, rc *http.ResponseController, msg string) bool {
+	if _, err := fmt.Fprint(w, msg); err != nil {
+		return false
+	}
+	return rc.Flush() == nil
 }
 
 func (b *Broker) Subscribe(ch chan string) {

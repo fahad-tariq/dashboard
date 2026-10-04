@@ -27,15 +27,20 @@ SERVER_PID=""
 
 # shellcheck disable=SC2329 # invoked via trap
 cleanup() {
+    local shutdown_failed=false
     if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
-        # The server does not yet exit on SIGTERM (graceful shutdown lands in
-        # Plan 1 Phase 2), so escalate rather than wait forever.
+        # The server must exit on SIGTERM within its 8s shutdown window, even
+        # with SSE streams open. Escalate and fail the run if it does not.
         kill "$SERVER_PID" 2>/dev/null || true
-        for _ in $(seq 1 25); do
+        for _ in $(seq 1 50); do
             kill -0 "$SERVER_PID" 2>/dev/null || break
             sleep 0.2
         done
-        kill -9 "$SERVER_PID" 2>/dev/null || true
+        if kill -0 "$SERVER_PID" 2>/dev/null; then
+            echo "error: server ignored SIGTERM for 10s; killing it" >&2
+            kill -9 "$SERVER_PID" 2>/dev/null || true
+            shutdown_failed=true
+        fi
         wait "$SERVER_PID" 2>/dev/null || true
     fi
     # Keep the server log alongside Playwright's artefacts for CI uploads.
@@ -44,6 +49,9 @@ cleanup() {
         cp "$SERVER_LOG" "$E2E_DIR/test-results/server.log" || true
     fi
     rm -rf "$WORK_DIR"
+    if [[ "$shutdown_failed" == true ]]; then
+        exit 1
+    fi
 }
 trap cleanup EXIT
 
