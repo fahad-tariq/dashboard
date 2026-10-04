@@ -31,5 +31,13 @@ func Open(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("running migrations: %w", err)
 	}
 
+	// SQLite silently opens a file it cannot write read-only, so a wrong owner
+	// after a deploy would serve pages and fail every save. A no-op write
+	// surfaces that at startup instead.
+	if _, err := db.Exec("UPDATE schema_version SET version = version"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("database %s is not writable (does its owner match the user the server runs as?): %w", path, err)
+	}
+
 	return db, nil
 }
