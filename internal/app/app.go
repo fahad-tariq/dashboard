@@ -101,8 +101,9 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 // configurations.
 func prepareUsers(cfg *config.Config, database *sql.DB) error {
 	// Legacy password migration: auto-create admin user if DASHBOARD_PASSWORD_HASH
-	// is set and no users exist in the DB.
-	count, err := auth.UserCount(database)
+	// is set and nobody can log in. The no-auth placeholder user does not count,
+	// so a database first used locally cannot start in auth mode locked.
+	count, err := auth.LoginUserCount(database)
 	if err != nil {
 		return fmt.Errorf("counting users: %w", err)
 	}

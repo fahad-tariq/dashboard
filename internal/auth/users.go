@@ -40,10 +40,10 @@ func CreateUser(db *sql.DB, email, firstName, password string) (int64, error) {
 }
 
 // CreateUserWithHash inserts a new user row with a pre-computed password hash.
-// The first user created is automatically assigned the admin role.
+// The first user who can log in is automatically assigned the admin role.
 func CreateUserWithHash(db *sql.DB, email, firstName, hash string) (int64, error) {
 	role := "user"
-	count, err := UserCount(db)
+	count, err := LoginUserCount(db)
 	if err != nil {
 		return 0, fmt.Errorf("checking user count: %w", err)
 	}
@@ -61,13 +61,24 @@ func CreateUserWithHash(db *sql.DB, email, firstName, hash string) (int64, error
 	return result.LastInsertId()
 }
 
+// unusableHash is the password hash EnsureUser gives rows nobody may log in as.
+const unusableHash = "!"
+
+// LoginUserCount returns the number of users who can log in, leaving out rows
+// created by EnsureUser.
+func LoginUserCount(db *sql.DB) (int, error) {
+	var count int
+	err := db.QueryRow("SELECT COUNT(*) FROM users WHERE password_hash != ?", unusableHash).Scan(&count)
+	return count, err
+}
+
 // EnsureUser creates an admin row with the given id and email unless one with
 // that id exists. Its password hash matches no password, so the row cannot be
 // logged into until an admin sets a password.
 func EnsureUser(db *sql.DB, id int64, email string) error {
 	if _, err := db.Exec(
-		"INSERT OR IGNORE INTO users (id, email, first_name, password_hash, role, created_at) VALUES (?, ?, '', '!', 'admin', ?)",
-		id, email, time.Now().UTC().Format(time.RFC3339),
+		"INSERT OR IGNORE INTO users (id, email, first_name, password_hash, role, created_at) VALUES (?, ?, '', ?, 'admin', ?)",
+		id, email, unusableHash, time.Now().UTC().Format(time.RFC3339),
 	); err != nil {
 		return fmt.Errorf("ensuring user %d: %w", id, err)
 	}

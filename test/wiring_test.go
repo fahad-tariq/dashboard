@@ -246,7 +246,7 @@ func TestAuthModeIgnoresLocalPlaceholderUser(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if u == nil || u.PasswordHash != hash {
+			if u == nil || u.PasswordHash != hash || u.Role != "admin" {
 				t.Fatalf("admin@localhost not bootstrapped from DASHBOARD_PASSWORD_HASH: %+v", u)
 			}
 		})
