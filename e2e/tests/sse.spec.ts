@@ -1,6 +1,8 @@
 import {
   addTask,
   appendLine,
+  expandPlanItem,
+  expandTrackerItem,
   expect,
   planItem,
   sharedFile,
@@ -37,8 +39,7 @@ test('expanded tracker item suppresses the SSE refresh', async ({ page }) => {
   const external = uniqueTitle('Hidden until reload');
   const item = await addTask(page, title);
   await waitForSseSettle(page);
-  await item.locator('.tracker-item-header').click();
-  await expect(item).not.toHaveClass(/\bminimised\b/);
+  await expandTrackerItem(item);
 
   const refresh = page.waitForResponse((r) => new URL(r.url()).pathname === '/todos' && r.request().headers()['hx-request'] === 'true');
   appendLine(userFile('personal.md'), `- [ ] ${external}`);
@@ -72,10 +73,7 @@ test('open completion note on /house survives an SSE refresh', async ({ page }) 
   await expect(page.locator('tr.house-row-maint', { hasText: external })).toHaveCount(0);
 });
 
-// CLAUDE.md says planDetailExpanded (and planDragInProgress) suppress SSE swaps,
-// but tracker.js only suppresses swaps whose target is .tracker-page, so the
-// homepage re-renders and collapses the expanded item.
-test.fixme('expanded plan item suppresses the SSE refresh on the homepage', async ({ page }) => {
+test('expanded plan item suppresses the SSE refresh on the homepage', async ({ page }) => {
   const title = uniqueTitle('Stay expanded');
   const task = await addTask(page, title, { body: 'Detail that should stay visible' });
   await task.getByTitle('Do today').click();
@@ -86,8 +84,7 @@ test.fixme('expanded plan item suppresses the SSE refresh on the homepage', asyn
   await connected;
   await waitForSseSettle(page);
   const item = planItem(page, title);
-  await item.locator('.plan-item-title').click();
-  await expect(item).not.toHaveClass(/\bminimised\b/);
+  await expandPlanItem(item);
 
   const refresh = page.waitForResponse((r) => new URL(r.url()).pathname === '/' && r.request().headers()['hx-request'] === 'true');
   appendLine(sharedFile('family.md'), `- [ ] ${uniqueTitle('Family external')}`);

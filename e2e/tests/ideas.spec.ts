@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, test, uniqueTitle, waitForSseSettle } from './helpers';
+import { expandTrackerItem, expect, test, uniqueTitle, waitForSseSettle } from './helpers';
 
 function ideaSection(page: Page, heading: string) {
   return page.locator('.ideas-page section').filter({
@@ -24,8 +24,7 @@ test('add an idea and triage it', async ({ page }) => {
   await expect(untriagedCard).toBeVisible();
   await waitForSseSettle(page);
 
-  await untriagedCard.locator('.tracker-item-header').click();
-  await expect(untriagedCard).not.toHaveClass(/\bminimised\b/);
+  await expandTrackerItem(untriagedCard);
 
   // Triage posts via fetch then reloads the page.
   await untriagedCard.getByRole('button', { name: 'park' }).click();
@@ -37,6 +36,6 @@ test('add an idea and triage it', async ({ page }) => {
 test('seeded idea keeps blank lines in its body', async ({ page }) => {
   await page.goto('/ideas');
   const card = ideaSection(page, 'Untriaged').locator('.tracker-item', { hasText: 'Home weather station' });
-  await card.locator('.tracker-item-header').click();
+  await expandTrackerItem(card);
   await expect(card.locator('.tracker-item-body')).toContainText('Log readings to SQLite');
 });

@@ -85,9 +85,12 @@ export function trackerSection(page: Page, summary: RegExp): Locator {
   });
 }
 
+/** Expands a tracker or idea row through its toggle button. */
 export async function expandTrackerItem(item: Locator): Promise<void> {
-  await item.locator('.tracker-item-header').click();
+  const toggle = item.locator('.item-toggle');
+  await toggle.click();
   await expect(item).not.toHaveClass(/\bminimised\b/);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
 }
 
 export async function addTask(
@@ -131,4 +134,35 @@ export async function planFromPicker(page: Page, title: string): Promise<Locator
   await expect(item).toBeVisible();
   await waitForSseSettle(page);
   return item;
+}
+
+/** Expands a plan row on the homepage through its toggle button. */
+export async function expandPlanItem(item: Locator): Promise<void> {
+  const toggle = item.locator('.plan-item-toggle');
+  await toggle.click();
+  await expect(item).not.toHaveClass(/\bminimised\b/);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+}
+
+export type Theme = 'dark' | 'light';
+
+/** Stores the theme before any page script runs, as a returning visitor would have it. */
+export async function useTheme(page: Page, theme: Theme): Promise<void> {
+  await page.addInitScript((t) => {
+    localStorage.setItem('theme', t);
+  }, theme);
+}
+
+/** Id of the focused element, or '' when nothing with an id has focus. */
+export function activeElementId(page: Page): Promise<string> {
+  return page.evaluate(() => document.activeElement?.id ?? '');
+}
+
+/** Presses Tab until the element with the given id has focus. */
+export async function tabTo(page: Page, id: string, maxPresses = 400): Promise<void> {
+  for (let i = 0; i < maxPresses; i++) {
+    if ((await activeElementId(page)) === id) return;
+    await page.keyboard.press('Tab');
+  }
+  throw new Error(`#${id} not reached after ${maxPresses} Tab presses`);
 }
