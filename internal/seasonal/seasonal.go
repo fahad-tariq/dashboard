@@ -1,8 +1,11 @@
 package seasonal
 
 import (
+	"fmt"
 	"math"
 	"time"
+
+	"github.com/fahad/dashboard/internal/theme"
 )
 
 // Southern hemisphere seasonal hue targets (HSL hue 0-360).
@@ -60,4 +63,67 @@ func AccentHue(now time.Time) int {
 
 func lerp(a, b int, t float64) int {
 	return int(math.Round(float64(a) + t*float64(b-a)))
+}
+
+// MinTextContrast is the WCAG 2.2 AA ratio for normal text.
+const MinTextContrast = 4.5
+
+// Accent is the seasonal accent colour for each theme.
+type Accent struct {
+	Light, Dark theme.RGB
+}
+
+// style is the look each theme aims for. Lightness is only a starting
+// point: hues differ in luminance, so teal at 40% is far paler than blue.
+type style struct {
+	saturation, lightness, step float64
+}
+
+var styles = map[string]style{
+	theme.Light: {saturation: 0.68, lightness: 0.40, step: -0.005},
+	theme.Dark:  {saturation: 0.78, lightness: 0.74, step: 0.005},
+}
+
+// AccentFor returns the accent for the day's hue in each theme, moving
+// lightness away from the background until the accent reaches
+// MinTextContrast against --base and --mantle, and --on-accent text reaches
+// it against the accent.
+func AccentFor(now time.Time, tokens theme.Tokens) (Accent, error) {
+	hue := float64(AccentHue(now))
+	light, err := accentFor(hue, tokens, theme.Light)
+	if err != nil {
+		return Accent{}, err
+	}
+	dark, err := accentFor(hue, tokens, theme.Dark)
+	if err != nil {
+		return Accent{}, err
+	}
+	return Accent{Light: light, Dark: dark}, nil
+}
+
+func accentFor(hue float64, tokens theme.Tokens, themeName string) (theme.RGB, error) {
+	var against []theme.RGB
+	for _, name := range []string{"--base", "--mantle", "--on-accent"} {
+		c, err := tokens.Colour(themeName, name)
+		if err != nil {
+			return theme.RGB{}, err
+		}
+		against = append(against, c)
+	}
+	st := styles[themeName]
+	for l := st.lightness; l >= 0 && l <= 1; l += st.step {
+		c := theme.FromHSL(hue, st.saturation, l)
+		if minContrast(c, against) >= MinTextContrast {
+			return c, nil
+		}
+	}
+	return theme.RGB{}, fmt.Errorf("seasonal: no %s accent for hue %.0f reaches %.1f:1", themeName, hue, MinTextContrast)
+}
+
+func minContrast(c theme.RGB, against []theme.RGB) float64 {
+	worst := math.Inf(1)
+	for _, a := range against {
+		worst = math.Min(worst, theme.Contrast(c, a))
+	}
+	return worst
 }
