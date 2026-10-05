@@ -13,8 +13,11 @@
 
 {{if or .InsightLine.ThisWeek .InsightLine.LastWeek .StreakDays .MilestoneBadge}}
 <div class="homepage-insights">
-    {{if or .InsightLine.ThisWeek .InsightLine.LastWeek}}
+    {{/* A quiet week opens with last week, not with a zero. */}}
+    {{if .InsightLine.ThisWeek}}
     <span class="homepage-insight"><strong>{{.InsightLine.ThisWeek}}</strong> completed this week{{if .InsightLine.LastWeek}}, <strong>{{.InsightLine.LastWeek}}</strong> last week{{end}}</span>
+    {{else if .InsightLine.LastWeek}}
+    <span class="homepage-insight"><strong>{{.InsightLine.LastWeek}}</strong> completed last week</span>
     {{end}}
     {{if gt .StreakDays 0}}
     <span class="badge-streak">{{.StreakDays}}-day streak</span>

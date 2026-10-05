@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/fahad/dashboard/internal/module"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -21,8 +22,10 @@ func resync(svc *tracker.Service) func(int64) (bool, error) {
 	return func(int64) (bool, error) { return svc.ResyncIfChanged() }
 }
 
-// taskWidget lists a list's open tasks, highest priority first, leaving out
-// those already in today's plan. It is hidden when nothing is open.
+// taskWidget lists a list's open tasks, oldest first, leaving out those
+// already in today's plan. The homepage picker beside it already orders by
+// priority, so the card surfaces what has waited longest instead. It is
+// hidden when nothing is open.
 func taskWidget(id, title, path string, svc *tracker.Service, today string) (module.WidgetData, bool) {
 	items, err := svc.List()
 	if err != nil {
@@ -47,10 +50,19 @@ func taskWidget(id, title, path string, svc *tracker.Service, today string) (mod
 	if count == 0 {
 		return module.WidgetData{}, false
 	}
+	// Dates are YYYY-MM-DD, so they sort as strings; undated items go last.
 	slices.SortStableFunc(open, func(a, b tracker.Item) int {
-		return tracker.PriorityWeight[a.Priority] - tracker.PriorityWeight[b.Priority]
+		switch {
+		case a.Added == b.Added:
+			return 0
+		case a.Added == "":
+			return 1
+		case b.Added == "":
+			return -1
+		}
+		return strings.Compare(a.Added, b.Added)
 	})
-	data := module.WidgetData{ID: id, Title: title, Count: count, CountLabel: "open", Link: path}
+	data := module.WidgetData{ID: id, Title: title, Count: count, CountLabel: "open", Note: "oldest first", Link: path}
 	for _, it := range open[:min(len(open), 5)] {
 		data.Items = append(data.Items, module.WidgetItem{Label: it.Title, URL: path + "#item-" + it.Slug, Priority: it.Priority})
 	}

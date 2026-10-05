@@ -87,3 +87,15 @@ test('the style selector restyles the page and is remembered', async ({ page }) 
   await expect(html).toHaveAttribute('data-style', 'document');
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(paperBg);
 });
+
+test('"j" and "k" move focus between list rows', async ({ page }) => {
+  await page.goto('/todos');
+  const toggles = page.locator('.tracker-list > .tracker-item .item-toggle');
+  await expect(toggles.nth(1)).toBeVisible();
+  await page.keyboard.press('j');
+  await expect(toggles.nth(0)).toBeFocused();
+  await page.keyboard.press('j');
+  await expect(toggles.nth(1)).toBeFocused();
+  await page.keyboard.press('k');
+  await expect(toggles.nth(0)).toBeFocused();
+});

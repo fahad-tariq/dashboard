@@ -77,7 +77,7 @@ export function waitForSseConnection(page: Page): Promise<unknown> {
 
 export function trackerItem(page: Page, title: string): Locator {
   return page
-    .locator('.tracker-page > .tracker-item')
+    .locator('.tracker-list > .tracker-item')
     .filter({ has: page.locator('.tracker-item-title', { hasText: title }) });
 }
 

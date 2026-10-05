@@ -83,3 +83,24 @@ select, swap and push settings are inherited from the container. */}}
 
 {{/* toast is the layout's single toast region; showToast fills it. */}}
 {{define "toast"}}<div id="toast" class="toast" hidden><span class="toast-text"></span><button type="button" class="btn btn-secondary btn-sm toast-undo" hidden>undo</button><button type="button" class="toast-close" aria-label="Dismiss">&#x2715;</button></div>{{end}}
+
+{{/* list-filters is a list page's filter set: Items (the filterable rows,
+for counts), Categories, Priorities (either may be empty), NoStale. "stale" appears
+when any item is two weeks old or more. On wide screens the rail shows it as
+a vertical list with counts. */}}
+{{define "list-filters"}}{{$items := .Items}}
+<div class="tracker-filters" role="group" aria-label="Filter">
+    <button data-keep-class="active" data-keep-attr="aria-pressed" aria-pressed="true" class="filter-tag active" data-action="filter" data-filter-type="" data-filter-value="">all <span class="filter-count">{{len $items}}</span></button>
+    {{- if not .NoStale}}{{with filterCount $items "stale" "true"}}
+    <button data-keep-class="active" data-keep-attr="aria-pressed" aria-pressed="false" class="filter-tag filter-stale" data-value="true" data-action="filter" data-filter-type="stale" data-filter-value="true">stale <span class="filter-count">{{.}}</span></button>
+    {{- end}}{{end}}
+    {{- if .Categories}}<span class="filter-sep"></span>{{end}}
+    {{- range .Categories}}
+    <button data-keep-class="active" data-keep-attr="aria-pressed" aria-pressed="false" class="filter-tag filter-cat" data-value="{{.}}" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}} <span class="filter-count">{{filterCount $items "category" .}}</span></button>
+    {{- end}}
+    {{- if .Priorities}}<span class="filter-sep"></span>{{end}}
+    {{- range .Priorities}}
+    <button data-keep-class="active" data-keep-attr="aria-pressed" aria-pressed="false" class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" data-action="filter" data-filter-type="priority" data-filter-value="{{.}}">{{.}} <span class="filter-count">{{filterCount $items "priority" .}}</span></button>
+    {{- end}}
+</div>
+{{end}}

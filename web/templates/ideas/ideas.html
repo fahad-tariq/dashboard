@@ -69,25 +69,28 @@
 {{end}}
 
 {{define "content"}}
-<div class="ideas-page" data-live data-keep-class="select-mode"
+<div class="ideas-page list-page" data-live data-keep-class="select-mode"
      hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false">
 {{template "live-refresh" (dict "Path" "/ideas" "Trigger" "sse:changed:ideas")}}
 <span class="htmx-indicator" aria-hidden="true">updating&hellip;</span>
 
+<aside class="list-rail" aria-label="Ideas overview and filters">
 <h1 id="page-heading" tabindex="-1">Ideas</h1>
-{{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
 <div class="summary-stats">
     {{if .Untriaged}}<span class="stat-item"><span class="stat-value">{{len .Untriaged}}</span> untriaged</span>{{end}}
     {{if .Parked}}<span class="stat-item"><span class="stat-value">{{len .Parked}}</span> parked</span>{{end}}
     {{if .Dropped}}<span class="stat-item"><span class="stat-value">{{len .Dropped}}</span> dropped</span>{{end}}
 </div>
-
 <div class="status-legend">
     <span class="status-legend-item"><strong>Untriaged</strong> -- New ideas waiting for a decision</span>
     <span class="status-legend-item"><strong>Parked</strong> -- Worth keeping, not acting on now</span>
     <span class="status-legend-item"><strong>Dropped</strong> -- Decided against, kept for reference</span>
 </div>
+{{if .Categories}}{{template "list-filters" (dict "Items" .Filterable "Categories" .Categories)}}{{end}}
+</aside>
 
+<div class="list-main">
+<div class="list-toolbar">
 <details class="quick-add tracker-add-form" data-keep-attr="open">
     <summary>Add idea</summary>
     <form method="POST" action="/ideas/add" class="tracker-goal-form" hx-boost="true">
@@ -100,21 +103,8 @@
         <button type="submit" class="btn btn-primary">add idea</button>
     </form>
 </details>
-<p class="section-help">Ideas are things worth capturing but not ready to act on. Triage them as you go -- park what you might revisit, drop what you won't.</p>
-
-{{if .Categories}}
-<div class="tracker-filters">
-    <button data-keep-class="active" class="filter-tag active" data-action="filter" data-filter-type="" data-filter-value="">all</button>
-    {{range .Categories}}
-    <button data-keep-class="active" class="filter-tag filter-cat" data-value="{{.}}" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>
-    {{end}}
-    <span class="filter-actions"><button class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button></span>
+<span class="filter-actions"><button class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button></span>
 </div>
-{{else}}
-<div class="tracker-filters">
-    <button class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button>
-</div>
-{{end}}
 
 {{if .Untriaged}}
 <section id="ideas-untriaged" data-row-list data-row-heading="ideas-untriaged-heading">
@@ -204,6 +194,7 @@
 <p class="empty">No ideas yet. For half-formed thoughts, projects to explore someday.</p>
 {{end}}
 <p class="empty filter-empty" style="display:none" data-keep-attr="style">No ideas match the current filter.</p>
+</div>
 
 <div class="bulk-bar" id="bulk-bar" data-keep-class="visible" role="toolbar" aria-label="Bulk actions">
     <span class="bulk-bar-count" id="bulk-bar-count" aria-live="polite">0 selected</span>

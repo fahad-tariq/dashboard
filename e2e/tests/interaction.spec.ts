@@ -49,8 +49,8 @@ test('tracker actions update in place: priority, edit, complete, uncomplete, tra
   await expandTrackerItem(item);
 
   // Priority: the row stays expanded through the morph.
+  // The priority select applies on change.
   await item.getByLabel('Priority', { exact: true }).selectOption('high');
-  await item.getByRole('button', { name: 'apply' }).click();
   await expect(item.locator('.tracker-item-meta .badge-priority-high')).toBeVisible();
   await expect(item).not.toHaveClass(/\bminimised\b/);
 
@@ -159,7 +159,7 @@ test('keyboard: completing a row moves focus to the next row, an emptied list to
   // The row focus should land on: the next open row, or the previous one if
   // this row is last.
   const expected = await page.evaluate((id) => {
-    const rows = Array.from(document.querySelectorAll('.tracker-page > .tracker-item[data-row]'));
+    const rows = Array.from(document.querySelectorAll('.tracker-list > .tracker-item[data-row]'));
     const i = rows.findIndex((r) => r.id === id);
     return (rows[i + 1] ?? rows[i - 1]).id;
   }, firstId);

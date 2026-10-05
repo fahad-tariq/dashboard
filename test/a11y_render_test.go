@@ -194,6 +194,9 @@ func TestTrackerRowMarkup(t *testing.T) {
 		`id="item-plan-weekend-hike-substep-1-remove" aria-label="Remove step: Check the weather"`,
 		`aria-label="Complete Plan weekend hike"`,
 		`<span class="badge badge-tag">`,
+		`<aside class="list-rail" aria-label="Todos overview and filters">`,
+		`<span class="filter-count">`,
+		`aria-label="Do today: Plan weekend hike" title="Do today">today</button>`,
 		`<button type="submit" class="tick item-complete-btn" aria-label="Complete Plan weekend hike"`,
 	} {
 		if !strings.Contains(body, want) {

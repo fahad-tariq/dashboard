@@ -1,18 +1,21 @@
 {{define "content"}}
 
-<div class="tracker-page" id="open-items" data-live data-keep-class="select-mode"
-     data-row-list data-row-heading="page-heading"
+<div class="tracker-page list-page" id="open-items" data-live data-keep-class="select-mode"
      hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false">
 {{template "live-refresh" (dict "Path" (printf "/%s" .ListName) "Trigger" (printf "sse:changed:%s" .ListName))}}
 <span class="htmx-indicator" aria-hidden="true">updating&hellip;</span>
 
-<h1 id="page-heading" tabindex="-1">{{.Title}}</h1>
-{{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
-<div class="summary-stats">
-    <span class="stat-item"><span class="stat-value">{{len .Tasks}}</span> open</span>
-    {{if .DoneTasks}}<span class="stat-item"><span class="stat-value">{{len .DoneTasks}}</span> done</span>{{end}}
-</div>
+<aside class="list-rail" aria-label="{{.Title}} overview and filters">
+    <h1 id="page-heading" tabindex="-1">{{.Title}}</h1>
+    <div class="summary-stats">
+        <span class="stat-item"><span class="stat-value">{{len .Tasks}}</span> open</span>
+        {{if .DoneTasks}}<span class="stat-item"><span class="stat-value">{{len .DoneTasks}}</span> done</span>{{end}}
+    </div>
+    {{template "list-filters" (dict "Items" .Tasks "Categories" .Categories "Priorities" .Priorities)}}
+</aside>
 
+<div class="list-main">
+<div class="list-toolbar">
 <details class="quick-add tracker-add-form" data-keep-attr="open">
     <summary>Add task</summary>
     <form method="POST" action="/{{.ListName}}/add" class="tracker-goal-form" data-submit="clear-filter" hx-boost="true">
@@ -34,25 +37,15 @@
         <button type="submit" class="btn btn-primary">add task</button>
     </form>
 </details>
-<p class="section-help">Todos are actionable items you want to complete. Use tags and priorities to organise them.</p>
-
-<div class="tracker-filters">
-    <button data-keep-class="active" class="filter-tag active" data-action="filter" data-filter-type="" data-filter-value="">all</button>
-    {{range .Categories}}
-    <button data-keep-class="active" class="filter-tag filter-cat" data-value="{{.}}" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>
-    {{end}}
-    {{if .Priorities}}<span class="filter-sep"></span>{{end}}
-    {{range .Priorities}}
-    <button data-keep-class="active" class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" data-action="filter" data-filter-type="priority" data-filter-value="{{.}}">{{.}}</button>
-    {{end}}
-    <span class="filter-actions">
+<span class="filter-actions">
     <button data-keep-class="active" class="filter-tag filter-toggle" data-action="toggle-all-items" title="Expand/collapse all">expand</button>
     <button class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button>
-    </span>
+</span>
 </div>
 
+<div class="tracker-list" id="open-list" data-row-list data-row-heading="page-heading">
 {{range .Tasks}}
-<div class="tracker-item minimised" id="item-{{.Slug}}" data-row data-keep-class="minimised" data-keep-attr="style" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+<div class="tracker-item minimised" id="item-{{.Slug}}" data-row data-keep-class="minimised" data-keep-attr="style" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}" data-stale="{{isStale .Added}}">
     <div class="tracker-item-header" data-action="item-header">
         <input type="checkbox" class="bulk-checkbox" data-action="bulk-checkbox" aria-label="Select {{.Title}}">
         <form method="POST" action="/{{$.ListName}}/{{.Slug}}/complete" class="item-complete-form" data-stop-click data-submit="celebrate" hx-boost="true" hx-swap="morph swap:200ms">
@@ -62,6 +55,9 @@
             <span class="tracker-item-title">{{linkify .Title}}</span>
             {{template "tracker-meta" .}}
         </div>
+        {{if not .Planned}}<form method="POST" action="/{{$.ListName}}/{{.Slug}}/plan" class="item-complete-form" data-stop-click hx-boost="true">
+            <button type="submit" class="btn btn-quiet btn-sm row-today" aria-label="Do today: {{.Title}}" title="Do today">today</button>
+        </form>{{end}}
         <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand"></button>
     </div>
     <div class="tracker-item-detail" id="item-{{.Slug}}-detail">
@@ -98,17 +94,13 @@
             <details class="item-actions-menu" open data-keep-attr="open">
                 <summary class="btn btn-secondary btn-sm item-actions-toggle">more</summary>
                 <div class="tracker-item-actions item-actions-panel">
-                    {{if not .Planned}}<form method="POST" action="/{{$.ListName}}/{{.Slug}}/plan" class="inline-triage" hx-boost="true">
-                        <button type="submit" class="btn btn-secondary btn-sm" aria-label="Do today: {{.Title}}" title="Do today">do today</button>
-                    </form>{{end}}
                     <form method="POST" action="/{{$.ListName}}/{{.Slug}}/priority" class="inline-triage" hx-boost="true">
-                        <select name="priority" class="form-select-sm" aria-label="Priority">
+                        <select name="priority" class="form-select-sm" aria-label="Priority" data-autosubmit>
                             <option value="" {{if eq .Priority ""}}selected{{end}}>no priority</option>
                             <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
                             <option value="medium" {{if eq .Priority "medium"}}selected{{end}}>medium</option>
                             <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
                         </select>
-                        <button type="submit" class="btn btn-quiet btn-sm">apply</button>
                     </form>
                     <form method="POST" action="/{{$.ListName}}/{{.Slug}}/move" class="inline-triage" data-confirm="Move to {{$.OtherListName}}?" hx-boost="true">
                         <button type="submit" class="btn btn-quiet btn-sm">move to {{$.OtherListName}}</button>
@@ -138,6 +130,7 @@
     </div>
 </div>
 {{end}}
+</div>
 
 {{if .DoneTasks}}
 <details class="tracker-done-section" id="done-items" data-row-list data-row-heading="done-summary" data-keep-attr="open">
@@ -204,9 +197,10 @@
 {{end}}
 
 {{if and (not .Tasks) (not .DoneTasks)}}
-<p class="empty">{{if eq .ListName "family"}}No family tasks yet. Add shared tasks here.{{else}}No tasks yet. Add one above to get started.{{end}}</p>
+<p class="empty">{{if eq .ListName "family"}}No family tasks yet. Add shared tasks here.{{else}}No tasks yet. Todos are things you want to get done; tags and priorities keep them in order.{{end}}</p>
 {{end}}
 <p class="empty filter-empty" style="display:none" data-keep-attr="style">No tasks match the current filter.</p>
+</div>
 
 <div class="bulk-bar" id="bulk-bar" data-keep-class="visible" role="toolbar" aria-label="Bulk actions">
     <span class="bulk-bar-count" id="bulk-bar-count" aria-live="polite">0 selected</span>
@@ -250,6 +244,7 @@ age, sub-steps, then at most two tags. Trimmed so an empty line matches
 :empty. */}}
 {{define "tracker-meta"}}<div class="tracker-item-meta">
     {{- if eq .Priority "high"}}<span class="badge badge-priority-high">high</span>{{else if .Priority}}<span class="badge badge-priority-{{.Priority}} sr-only">{{.Priority}} priority</span>{{end -}}
+    {{- if .Planned}}<span class="badge badge-planned">planned</span>{{end -}}
     {{- if .Added}}{{$age := ageBadge .Added}}{{if index $age 0}}<span class="badge badge-age badge-age-{{index $age 1}}" title="Added {{.Added}}">{{index $age 0}}</span>{{end}}{{end -}}
     {{- if .SubStepsTotal}}<span class="badge badge-substeps">{{.SubStepsDone}}/{{.SubStepsTotal}}</span>{{end -}}
     {{- range $i, $t := .Tags}}{{if lt $i 2}}<span class="badge badge-tag">{{$t}}</span>{{end}}{{end -}}

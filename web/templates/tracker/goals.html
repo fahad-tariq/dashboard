@@ -1,17 +1,20 @@
 {{define "content"}}
 
-<div class="tracker-page" id="open-items" data-live data-keep-class="select-mode"
-     data-row-list data-row-heading="page-heading"
+<div class="tracker-page list-page goals-page" id="open-items" data-live data-keep-class="select-mode"
      hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false">
 {{template "live-refresh" (dict "Path" "/goals" "Trigger" "sse:changed:todos")}}
 <span class="htmx-indicator" aria-hidden="true">updating&hellip;</span>
 
-<h1 id="page-heading" tabindex="-1">Goals</h1>
-{{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
-<div class="summary-stats">
-    <span class="stat-item"><span class="stat-value">{{len .Goals}}</span> active</span>
-</div>
+<aside class="list-rail" aria-label="Goals overview and filters">
+    <h1 id="page-heading" tabindex="-1">Goals</h1>
+    <div class="summary-stats">
+        <span class="stat-item"><span class="stat-value">{{len .Goals}}</span> active</span>
+    </div>
+    {{if or .Categories .Priorities}}{{template "list-filters" (dict "Items" .Goals "Categories" .Categories "Priorities" .Priorities "NoStale" true)}}{{end}}
+</aside>
 
+<div class="list-main">
+<div class="list-toolbar">
 <details class="quick-add tracker-add-form" data-keep-attr="open">
     <summary>Add goal</summary>
     <form method="POST" action="/todos/add-goal" class="tracker-goal-form" data-submit="clear-filter" hx-boost="true">
@@ -46,26 +49,10 @@
         <button type="submit" class="btn btn-primary">add goal</button>
     </form>
 </details>
-<p class="section-help">Goals track measurable progress. Set a target and unit, then update your progress over time.</p>
-
-{{if or .Categories .Priorities}}
-<div class="tracker-filters">
-    <button data-keep-class="active" class="filter-tag active" data-action="filter" data-filter-type="" data-filter-value="">all</button>
-    {{range .Categories}}
-    <button data-keep-class="active" class="filter-tag filter-cat" data-value="{{.}}" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>
-    {{end}}
-    {{if .Priorities}}<span class="filter-sep"></span>{{end}}
-    {{range .Priorities}}
-    <button data-keep-class="active" class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" data-action="filter" data-filter-type="priority" data-filter-value="{{.}}">{{.}}</button>
-    {{end}}
-    <span class="filter-actions"><button class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button></span>
+<span class="filter-actions"><button class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button></span>
 </div>
-{{else}}
-<div class="tracker-filters">
-    <button class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button>
-</div>
-{{end}}
 
+<div class="tracker-list goals-list" id="open-list" data-row-list data-row-heading="page-heading">
 {{range .Goals}}
 <div class="tracker-item" id="item-{{.Slug}}" data-row data-keep-attr="style" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
     <div class="tracker-item-header">
@@ -115,13 +102,12 @@
             <summary class="btn btn-secondary btn-sm item-actions-toggle">more</summary>
             <div class="item-actions-panel">
                 <form method="POST" action="/todos/{{.Slug}}/priority" class="inline-triage" hx-boost="true">
-                    <select name="priority" class="form-select-sm" aria-label="Priority">
+                    <select name="priority" class="form-select-sm" aria-label="Priority" data-autosubmit>
                         <option value="" {{if eq .Priority ""}}selected{{end}}>no priority</option>
                         <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
                         <option value="medium" {{if eq .Priority "medium"}}selected{{end}}>medium</option>
                         <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
                     </select>
-                    <button type="submit" class="btn btn-quiet btn-sm">apply</button>
                 </form>
                 <form method="POST" action="/todos/{{.Slug}}/delete" class="inline-triage" hx-boost="true">
                     <button type="submit" class="btn btn-danger btn-sm">trash</button>
@@ -146,6 +132,7 @@
     </details>
 </div>
 {{end}}
+</div>
 
 {{if .DeletedGoals}}
 <details class="tracker-done-section" id="deleted-items" data-row-list data-row-heading="deleted-summary" data-keep-attr="open">
@@ -178,9 +165,10 @@
 {{end}}
 
 {{if not .Goals}}
-<p class="empty">No goals yet. Track something measurable -- fitness, reading, savings.</p>
+<p class="empty">No goals yet. Track something measurable, like fitness, reading or savings: set a target and unit, then log progress.</p>
 {{end}}
 <p class="empty filter-empty" style="display:none" data-keep-attr="style">No goals match the current filter.</p>
+</div>
 
 <div class="bulk-bar" id="bulk-bar" data-keep-class="visible" role="toolbar" aria-label="Bulk actions">
     <span class="bulk-bar-count" id="bulk-bar-count" aria-live="polite">0 selected</span>

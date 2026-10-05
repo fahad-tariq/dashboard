@@ -824,3 +824,14 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - list pages are 880px, up from 760px
   - the picker's list scrolls inside a 22rem box
 - Deployed `78671a6` to fliptronic 2026-10-05 22:35 UTC (backup `dashboard-backup-20261005-223519.tar.gz`). CI run 37364969858 passed on attempt 3; e2e showed "cancelled" after about 15 minutes in attempts 1 and 2 with no failed step recorded (cause not visible without authenticated log access). Verified through Caddy as before; the served `theme.css` has the new picker rule.
+- **Design council (2026-10-06):** the owner asked for list pages to use desktop width and for wider UI/UX advice. Visual, product and interaction agents were consulted; all three rejected master-detail and multi-column task grids. The owner chose to build all six recommendations:
+  1. Above 1100px, list pages (todos, family, goals, ideas) are a 15rem sticky left rail (heading, counts, filters as a vertical list with counts, ideas legend) beside the list. The open rows sit in `.tracker-list` (the row list; e2e selectors moved from `.tracker-page >`); the add form and expand/select sit in a toolbar above them.
+  2. Noise trimmed: no "<name>'s list" subtitle, and the help text appears only in the empty state.
+  3. "today" (Do today) is back on each open row; already planned rows show a "planned" badge.
+  4. Priority applies on change (`data-autosubmit`), so there is no apply button.
+  5. Homepage: a week with nothing completed opens with last week's count instead of a zero, and the Todos and Family cards list the oldest open tasks first ("oldest first"), so they no longer repeat the picker's priority order.
+  6. From the "later" list:
+     - j/k move focus between rows (also on the homepage plan)
+     - a "stale" filter (two weeks old or more, from `insights.AgeBadge`) for tasks and ideas
+     - goals as a two-column card grid on wide screens
+  - Filter buttons carry `aria-pressed`, and "all" is found by its empty filter type, because labels now include counts. Counts come from a `filterCount` template func (reflection over Tags, Priority and Added).

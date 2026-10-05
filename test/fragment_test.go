@@ -64,12 +64,12 @@ func TestHTMXMutationReturnsFragment(t *testing.T) {
 		key           string
 		undo          string
 	}{
-		"tracker complete": {path: "/todos/plan-weekend-hike/complete", referer: "/todos", live: `class="tracker-page"`, key: "task-completed"},
-		"tracker trash":    {path: "/todos/plan-weekend-hike/delete", referer: "/todos", live: `class="tracker-page"`, key: "item-deleted", undo: "/todos/plan-weekend-hike/restore"},
+		"tracker complete": {path: "/todos/plan-weekend-hike/complete", referer: "/todos", live: `class="tracker-page list-page"`, key: "task-completed"},
+		"tracker trash":    {path: "/todos/plan-weekend-hike/delete", referer: "/todos", live: `class="tracker-page list-page"`, key: "item-deleted", undo: "/todos/plan-weekend-hike/restore"},
 		"plan complete":    {path: "/plan/renew-passport/complete", form: url.Values{"list": {"todos"}}, live: `class="homepage-page"`, key: "plan-completed"},
 		"plan clear":       {path: "/plan/clear", form: url.Values{"list": {"family"}, "slug": {"organise-school-pickup-roster"}}, live: `class="homepage-page"`, key: "plan-cleared"},
-		"idea triage":      {path: "/ideas/home-weather-station/triage", form: url.Values{"action": {"park"}}, live: `class="ideas-page"`, key: "idea-triaged"},
-		"idea trash":       {path: "/ideas/learn-to-sail/delete", live: `class="ideas-page"`, key: "idea-deleted", undo: "/ideas/learn-to-sail/restore"},
+		"idea triage":      {path: "/ideas/home-weather-station/triage", form: url.Values{"action": {"park"}}, live: `class="ideas-page list-page"`, key: "idea-triaged"},
+		"idea trash":       {path: "/ideas/learn-to-sail/delete", live: `class="ideas-page list-page"`, key: "idea-deleted", undo: "/ideas/learn-to-sail/restore"},
 		"maintenance log":  {path: "/house/maintenance/clean-gutters/log", form: url.Values{"note": {"done"}}, live: `class="house-page"`, key: "completion-logged"},
 		"project trash":    {path: "/house/projects/paint-the-back-fence/delete", live: `class="house-page"`, key: "item-deleted", undo: "/house/projects/paint-the-back-fence/restore"},
 	}
@@ -203,7 +203,7 @@ func TestFragmentReplayKeepsTheSession(t *testing.T) {
 	}
 
 	rr := post(cookie)
-	if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), `class="tracker-page"`) || strings.Contains(rr.Body.String(), `action="/login"`) {
+	if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), `class="tracker-page list-page"`) || strings.Contains(rr.Body.String(), `action="/login"`) {
 		t.Fatalf("signed in: status %d; want the /todos page, not the login form", rr.Code)
 	}
 	if got := readTrigger(t, rr); got.Flash.Key != "task-completed" {

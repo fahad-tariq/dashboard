@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/url"
 	"path"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -53,6 +54,8 @@ func buildFuncMap(loc *time.Location, authEnabled bool, version string, static f
 		"subtract": func(a, b int) int {
 			return a - b
 		},
+		"isStale":     isStaleFunc(loc),
+		"filterCount": filterCountFunc(loc),
 		"ageBadge": func(added string) []string {
 			label, level := insights.AgeBadge(added, time.Now().In(loc))
 			return []string{label, level}
@@ -289,6 +292,54 @@ func templateDict(kv ...any) (map[string]any, error) {
 		m[k] = kv[i+1]
 	}
 	return m, nil
+}
+
+// staleLevels are the insights.AgeBadge levels the "stale" list filter shows.
+var staleLevels = map[string]bool{"stale": true, "old": true}
+
+// isStaleFunc returns "true" for an added date old enough for the stale
+// filter, else "", for a data-stale attribute.
+func isStaleFunc(loc *time.Location) func(added string) string {
+	return func(added string) string {
+		if _, level := insights.AgeBadge(added, time.Now().In(loc)); staleLevels[level] {
+			return "true"
+		}
+		return ""
+	}
+}
+
+// filterCountFunc counts the items a list filter would show. list is a slice
+// of structs with Tags, Priority and Added fields (tracker items or ideas);
+// kind is "category", "priority" or "stale", as in the filter buttons.
+func filterCountFunc(loc *time.Location) func(list any, kind, value string) int {
+	stale := isStaleFunc(loc)
+	return func(list any, kind, value string) int {
+		v := reflect.ValueOf(list)
+		if v.Kind() != reflect.Slice {
+			return 0
+		}
+		n := 0
+		for i := range v.Len() {
+			field := func(name string) reflect.Value { return reflect.Indirect(v.Index(i)).FieldByName(name) }
+			switch kind {
+			case "category":
+				if f := field("Tags"); f.IsValid() {
+					if tags, ok := f.Interface().([]string); ok && slices.ContainsFunc(tags, func(t string) bool { return strings.EqualFold(t, value) }) {
+						n++
+					}
+				}
+			case "priority":
+				if f := field("Priority"); f.IsValid() && f.String() == value {
+					n++
+				}
+			case "stale":
+				if f := field("Added"); f.IsValid() && stale(f.String()) == value {
+					n++
+				}
+			}
+		}
+		return n
+	}
 }
 
 func seasonalColourFunc(loc *time.Location, tokens theme.Tokens) func() seasonalCSS {

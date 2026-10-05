@@ -1643,6 +1643,82 @@
     .tag-summary-row { display: flex; align-items: center; gap: var(--sp-2); padding: 2px 0; font-size: var(--text-sm); }
     .tag-summary-counts { display: flex; gap: var(--sp-2); }
 
+    /* --- List pages (todos, family, goals, ideas) ---------------------- */
+    .list-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: var(--sp-2) var(--sp-4);
+        margin-bottom: var(--sp-3);
+    }
+    .list-toolbar > .quick-add { flex: 1 1 18rem; margin-bottom: 0; }
+    .list-toolbar > .filter-actions { padding-top: 2px; }
+    .filter-count {
+        display: none;
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: inherit;
+        font-variant-numeric: tabular-nums;
+    }
+    .row-today { flex: none; margin-top: -4px; }
+    .badge-planned { background: var(--accent-soft); color: var(--accent); font-family: var(--font-sans); }
+
+    /* Wide screens: overview and filters in a rail that stays in view, the
+       list beside it. Rows keep a readable width. */
+    @media (min-width: 1100px) {
+        .container > .list-page {
+            max-width: var(--w-wide);
+            display: grid;
+            grid-template-columns: 15rem minmax(0, 1fr);
+            column-gap: var(--sp-6);
+            align-items: start;
+        }
+        .list-rail {
+            position: sticky;
+            top: 4.5rem;
+            max-height: calc(100vh - 6rem);
+            overflow-y: auto;
+        }
+        .list-rail .status-legend { flex-direction: column; gap: var(--sp-1); }
+        .list-rail .status-legend-item + .status-legend-item::before { content: none; }
+        .list-rail .tracker-filters {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 2px;
+            margin-bottom: 0;
+        }
+        .list-rail .filter-tag {
+            justify-content: space-between;
+            min-height: 32px;
+            border-radius: var(--radius-sm);
+            background: transparent;
+            box-shadow: none;
+            font-size: var(--text-sm);
+        }
+        .list-rail .filter-tag:hover { background: var(--surface-2); border-color: transparent; }
+        .list-rail .filter-tag.active,
+        .list-rail .filter-tag.active:hover { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+        .list-rail .filter-count { display: inline; color: var(--text-muted); }
+        .list-rail .filter-tag.active .filter-count { color: var(--accent); }
+        .list-rail .filter-sep { width: auto; height: 1px; margin: var(--sp-2) 0; }
+        .list-rail .filter-active-badge { align-self: flex-start; margin-top: var(--sp-2); }
+
+        /* Goals are few and read like meters: two columns of cards. */
+        .goals-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+            gap: var(--sp-3);
+            margin-bottom: var(--sp-4);
+        }
+        .goals-list > .tracker-item,
+        .goals-list > .tracker-item:not(.tracker-item + .tracker-item),
+        .goals-list > .tracker-item:not(:has(+ .tracker-item)) {
+            margin: 0;
+            border: 1px solid var(--line);
+            border-radius: var(--control-radius);
+        }
+    }
+
     /* --- Ideas ----------------------------------------------------------- */
     .status-legend {
         display: flex;

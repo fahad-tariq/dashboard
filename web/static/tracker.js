@@ -39,14 +39,12 @@ function updateFilterBadge() {
 }
 
 function applyFilter() {
-    document.querySelectorAll('.filter-tag').forEach(function(b) {
-        if (!activeFilterType && b.textContent.trim() === 'all') {
-            b.classList.add('active');
-        } else if (activeFilterType && b.getAttribute('data-value') === activeFilterValue) {
-            b.classList.add('active');
-        } else {
-            b.classList.remove('active');
-        }
+    document.querySelectorAll('.filter-tag[data-action="filter"]').forEach(function(b) {
+        var on = activeFilterType
+            ? b.getAttribute('data-filter-type') === activeFilterType && b.getAttribute('data-value') === activeFilterValue
+            : b.getAttribute('data-filter-type') === '';
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', String(on));
     });
 
     var items = document.querySelectorAll('.tracker-item');

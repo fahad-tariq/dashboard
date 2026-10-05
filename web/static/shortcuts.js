@@ -202,6 +202,13 @@ document.addEventListener('keydown', function(e) {
         return;
     }
 
+    // "j" and "k" move focus to the next or previous row on list pages
+    // and the homepage plan.
+    if ((e.key === 'j' || e.key === 'k') && !gPending && moveRowFocus(e.key === 'j' ? 1 : -1)) {
+        e.preventDefault();
+        return;
+    }
+
     // "g" prefix for go-to shortcuts.
     if (e.key === 'g' && !gPending) {
         gPending = true;
@@ -215,6 +222,27 @@ document.addEventListener('keydown', function(e) {
         if (link) window.location.href = link;
     }
 });
+
+// moveRowFocus focuses the next (step 1) or previous (-1) visible row's focus
+// target, starting from the row holding focus or, with none, the first row.
+// It reports whether there were rows to move through.
+function moveRowFocus(step) {
+    var all = document.querySelectorAll('main [data-row] [data-row-focus]');
+    var targets = [];
+    for (var i = 0; i < all.length; i++) {
+        if (all[i].getClientRects().length > 0) targets.push(all[i]);
+    }
+    if (targets.length === 0) return false;
+    var current = document.activeElement && document.activeElement.closest ? document.activeElement.closest('[data-row]') : null;
+    var index = -1;
+    for (var j = 0; j < targets.length; j++) {
+        if (targets[j].closest('[data-row]') === current) { index = j; break; }
+    }
+    var next = index === -1 ? (step > 0 ? 0 : targets.length - 1) : Math.min(Math.max(index + step, 0), targets.length - 1);
+    targets[next].focus();
+    if (targets[next].scrollIntoView) targets[next].scrollIntoView({ block: 'nearest' });
+    return true;
+}
 
 // goTargets maps each "g" shortcut key to its nav link, read from the
 // data-shortcut attributes the server renders from the module registry.

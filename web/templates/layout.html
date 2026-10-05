@@ -143,6 +143,7 @@
                 {{- range $n := navItems}}{{with $n.Shortcut}}
                 <div class="shortcut-row"><span>Go to {{$n.Label}}</span> <kbd>g {{.}}</kbd></div>
                 {{- end}}{{end}}
+                <div class="shortcut-row"><span>Next / previous row</span> <span><kbd>j</kbd> <kbd>k</kbd></span></div>
                 <div class="shortcut-row"><span>Undo the last change offered</span> <kbd>u</kbd></div>
                 <div class="shortcut-row"><span>Exit select mode</span> <kbd>Esc</kbd></div>
             </div>

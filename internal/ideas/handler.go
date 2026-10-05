@@ -138,6 +138,7 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 	data["Parked"] = grouped["parked"]
 	data["Dropped"] = grouped["dropped"]
 	data["Converted"] = grouped["converted"]
+	data["Filterable"] = slices.Concat(grouped["untriaged"], grouped["parked"], grouped["dropped"])
 	data["DeletedIdeas"] = deletedIdeas
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
 		if flashMsg := resolveFlash(msgKey, time.Now().In(h.loc)); flashMsg != "" {
