@@ -8,7 +8,7 @@ This is the first of three plans:
 
 | Plan | Scope | Status |
 |---|---|---|
-| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | In progress: Phases 1-4 merged and deployed |
+| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | In progress: Phases 1-5 merged and deployed |
 | 2 | Exercise module on the framework, plus the SQLite migration hook it needs. Exercise scope is not yet decided | Not written |
 | 3 | Product features: quick capture, stable item IDs (which also fix slug collisions), due dates, recurring tasks merged with maintenance cadence, agent-proposed daily plan, reminders, weekly review, MCP tooling and possibly a Go MCP server | Not written; write after Phase 7 lands |
 
@@ -660,7 +660,9 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - CLAUDE.md still describes `SingleUserPlanHandlers`, "planner dual-mode handlers" and three `ToTaskFunc` closures. Phase 10 rewrites it; until then, these Phase 5 notes are the current description.
 - Verification: lint 0 issues; `INTEGRATION=1 go test -race ./...` green; Playwright runs in CI on the PR.
 - First CI run (PR #8): the other four jobs passed, including e2e; `test` failed in `TestCommentaryScopedToUser`. The test was flaky, not the fix: `authRouter` created users from a map, so in a random half of runs `two@test.com` got ID 1. Users are now an ordered slice; 50 repeated runs pass.
-- First `main` run after merge (`aaea9da`): e2e failed once on axe `color-contrast` for `#confirm-modal-title` (light theme, confirm modal open). It passed on the PR runs. The modal fades in from opacity 0 over 150ms and the scan started as soon as `.visible` was set, so axe measured a blended colour. The final colours pass. `expectNoSeriousViolations` now waits for every finite animation to finish before scanning. Not reproducible locally (no Chromium in the sandbox); the next CI run verifies it.
+- First `main` run after merge (`aaea9da`): e2e failed once on axe `color-contrast` for `#confirm-modal-title` (light theme, confirm modal open). It passed on the PR runs. The modal fades in from opacity 0 over 150ms and the scan started as soon as `.visible` was set, so axe measured a blended colour. The final colours pass. `expectNoSeriousViolations` now waits for every finite animation to finish before scanning. The next `main` run (`a704381`) passed.
+- Deployed to fliptronic 2026-10-05 00:00 UTC from image `f8143ab`, which is Phase 5 plus Dependabot's alpine 3.21 to 3.24 runtime bump (PR #5). A backup was taken first (`backups/dashboard-backup-20261004-235950.tar.gz`). Verified through Caddy: `/login` 200; `/`, `/todos`, `/account` and `/admin/users` redirect to login with `next`; `/events` 401; `/api/v1/*` 404; CSP and HSTS present; cross-site login POST 403; `verify-stack.sh` all green. Dependabot PRs #2 (`@types/node` 26) and #3 (pip group, including mcp 2.x) were closed, and `dependabot.yml` now ignores major bumps of both.
+- From Phase 6 on, work is committed directly to `main` (owner decision 2026-10-05); there are no more phase branches or PRs.
 
 - Follow-ups:
   - tighten CSP `script-src` after moving inline handlers
