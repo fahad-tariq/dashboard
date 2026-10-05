@@ -117,6 +117,11 @@ func TestFragmentResponsesLeavePlainPostsAndErrors(t *testing.T) {
 	if rr.Code != http.StatusBadRequest || !strings.Contains(rr.Body.String(), "not found") {
 		t.Errorf("missing item: status %d body %q; want 400 with the reason", rr.Code, rr.Body.String())
 	}
+	// A failure reports no revisions: the tab has not seen the changes they
+	// count, and must still refresh for them.
+	if got := rr.Header().Get("Dash-Revisions"); got != "" {
+		t.Errorf("failed request sent Dash-Revisions %q", got)
+	}
 
 	// A protocol-relative referer is reduced to its path and replayed
 	// locally; nothing points the page off the site.

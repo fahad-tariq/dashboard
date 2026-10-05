@@ -23,10 +23,19 @@ func TestLiveContainersMorphUnderOneConnection(t *testing.T) {
 		if len(tags) != 1 {
 			t.Fatalf("%s: %d live containers, want 1", path, len(tags))
 		}
-		for _, want := range []string{`hx-swap="morph"`, `hx-select="[data-live]"`, `hx-target="this"`, `hx-push-url="false"`, `hx-trigger="sse:changed:`} {
+		for _, want := range []string{`hx-swap="morph"`, `hx-select="[data-live]"`, `hx-target="this"`, `hx-push-url="false"`} {
 			if !strings.Contains(tags[0], want) {
 				t.Errorf("%s: live container lacks %s", path, want)
 			}
+		}
+		// The SSE trigger sits on a child whose attributes never change; on
+		// the container, each morph would add another SSE listener.
+		if strings.Contains(tags[0], "hx-trigger") {
+			t.Errorf("%s: the live container itself carries hx-trigger", path)
+		}
+		refresh := regexp.MustCompile(`<span class="live-refresh" id="live-refresh" hidden hx-get="[^"]+" hx-trigger="sse:changed:[^"]+" hx-target="closest \[data-live\]"`)
+		if !refresh.MatchString(body) {
+			t.Errorf("%s: no live-refresh trigger inside the container", path)
 		}
 	}
 }

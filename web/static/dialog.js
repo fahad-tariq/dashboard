@@ -70,7 +70,7 @@ function confirmModalOk() {
 document.addEventListener('htmx:confirm', function(evt) {
     var elt = evt.detail.elt;
     var message = elt && elt.getAttribute && elt.getAttribute('data-confirm');
-    if (message === null || message === undefined) return;
+    if (message === null || message === undefined || evt.defaultPrevented) return;
     evt.preventDefault();
     openConfirm(message, function() { evt.detail.issueRequest(true); });
 });

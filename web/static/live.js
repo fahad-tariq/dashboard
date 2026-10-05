@@ -8,6 +8,10 @@
 
      data-keep-class="a b"   these classes keep their current state
      data-keep-attr="a b"    these attributes keep their current value
+     data-morph-skip         the element and its contents are left alone
+                             (client-built content, such as upload.js's
+                             image area or loaded commentary)
+     data-client-*           attributes set by scripts are never removed
      edited text fields and changed checkboxes keep what the user entered
 
    Rows ([data-row]) sit in lists ([data-row-list], with data-row-heading
@@ -53,7 +57,13 @@
         queued.push({ elt: elt, type: type });
     }
 
-    window.liveRefresh = { hold: hold, release: release };
+    // keepValue marks a field whose value a script set, so a morph keeps it
+    // like a field the user typed in.
+    function keepValue(el) {
+        el.liveEdited = true;
+    }
+
+    window.liveRefresh = { hold: hold, release: release, keepValue: keepValue };
 
     // --- Revisions: skip the SSE echo of the tab's own writes ---
 
@@ -87,6 +97,10 @@
     });
 
     document.addEventListener('htmx:confirm', function(evt) {
+        if (evt.detail.elt && evt.detail.elt.liveHold) {
+            evt.preventDefault();
+            return;
+        }
         var trigger = evt.detail.triggeringEvent;
         if (!trigger || typeof trigger.type !== 'string' || trigger.type.indexOf('sse:') !== 0) return;
         if (isEcho(trigger)) {
@@ -107,6 +121,7 @@
 
     function keepClientState(oldNode, newNode) {
         if (oldNode.nodeType !== 1 || newNode.nodeType !== 1) return true;
+        if (oldNode.hasAttribute('data-morph-skip')) return false;
         words(newNode.getAttribute('data-keep-class')).forEach(function(c) {
             newNode.classList.toggle(c, oldNode.classList.contains(c));
         });
@@ -117,19 +132,45 @@
                 newNode.removeAttribute(a);
             }
         });
-        var tag = oldNode.tagName;
-        if (tag === 'INPUT' && (oldNode.type === 'checkbox' || oldNode.type === 'radio')) {
+        if (oldNode.tagName === 'INPUT' && (oldNode.type === 'checkbox' || oldNode.type === 'radio')) {
             if (oldNode.checked !== oldNode.defaultChecked) newNode.checked = oldNode.checked;
-        } else if ((tag === 'INPUT' && oldNode.type !== 'hidden') || tag === 'TEXTAREA') {
-            if (oldNode.value !== oldNode.defaultValue) newNode.value = oldNode.value;
         }
         return true;
     }
+
+    // Text the user typed is kept by refusing the morph's value update. This
+    // is the hook idiomorph consults both when the server's field has a value
+    // and when it has none (which would otherwise clear the field).
+    function keepAttribute(name, node, mutation) {
+        if (name === 'value' && node.liveEdited) return false;
+        if (mutation === 'remove' && name.indexOf('data-client-') === 0) return false;
+        return true;
+    }
+
+    document.addEventListener('input', function(evt) {
+        var el = evt.target;
+        if (el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type !== 'checkbox' && el.type !== 'radio'))) {
+            el.liveEdited = true;
+        }
+    });
+
+    // A reset form holds the server's values again. Hidden fields are left:
+    // reset does not change them, and only scripts write to them.
+    document.addEventListener('reset', function(evt) {
+        var fields = evt.target.elements || [];
+        for (var i = 0; i < fields.length; i++) {
+            if (fields[i].type !== 'hidden') fields[i].liveEdited = false;
+        }
+    });
 
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof Idiomorph === 'undefined') return;
         Idiomorph.defaults.ignoreActiveValue = true;
         Idiomorph.defaults.callbacks.beforeNodeMorphed = keepClientState;
+        Idiomorph.defaults.callbacks.beforeAttributeUpdated = keepAttribute;
+        Idiomorph.defaults.callbacks.beforeNodeRemoved = function(node) {
+            return !(node.nodeType === 1 && node.hasAttribute('data-morph-skip'));
+        };
         Idiomorph.defaults.callbacks.afterNodeAdded = function(node) {
             if (node.nodeType === 1) document.dispatchEvent(new CustomEvent('live:added', { detail: node }));
         };
@@ -142,22 +183,45 @@
     // or it would keep showing its old value.
     var refocusAfterSwap = null;
 
+    // An error flash (say an invalid cadence) means the form was not
+    // accepted, so what was typed stays for the user to correct.
+    function flashIsError(xhr) {
+        var raw = xhr.getResponseHeader('HX-Trigger');
+        if (!raw || raw.charAt(0) !== '{') return false;
+        try {
+            var flash = JSON.parse(raw)['dash:flash'];
+            return !!(flash && flash.error);
+        } catch (e) {
+            return false;
+        }
+    }
+
     document.addEventListener('htmx:beforeSwap', function(evt) {
         var elt = evt.detail.requestConfig && evt.detail.requestConfig.elt;
-        if (!elt || elt.tagName !== 'FORM' || evt.detail.xhr.status >= 300) return;
+        if (!elt || elt.tagName !== 'FORM' || evt.detail.xhr.status >= 300 || flashIsError(evt.detail.xhr)) return;
         var active = document.activeElement;
         if (active && active !== elt && elt.contains(active)) {
             refocusAfterSwap = active;
             active.blur();
         }
         elt.reset();
+        elt.dispatchEvent(new CustomEvent('live:form-accepted', { bubbles: true }));
     });
 
     // --- Submission feedback ---
 
+    // Buttons are marked aria-disabled rather than disabled: disabling the
+    // focused button would drop focus to <body>. A second submit while the
+    // first is in flight is refused in htmx:confirm below.
     function setBusy(form, busy) {
         var buttons = form.querySelectorAll('button');
-        for (var i = 0; i < buttons.length; i++) buttons[i].disabled = busy;
+        for (var i = 0; i < buttons.length; i++) {
+            if (busy) {
+                buttons[i].setAttribute('aria-disabled', 'true');
+            } else {
+                buttons[i].removeAttribute('aria-disabled');
+            }
+        }
         var row = rowOf(form);
         if (!row) return;
         if (busy) {
@@ -273,7 +337,7 @@
 
     document.addEventListener('htmx:afterRequest', function(evt) {
         var elt = evt.detail.elt;
-        noteRevisions(evt.detail.xhr && evt.detail.xhr.getResponseHeader('Dash-Revisions'));
+        if (evt.detail.successful) noteRevisions(evt.detail.xhr && evt.detail.xhr.getResponseHeader('Dash-Revisions'));
         if (elt && elt.liveHold) {
             release(elt.liveHold);
             elt.liveHold = null;

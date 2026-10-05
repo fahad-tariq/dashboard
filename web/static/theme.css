@@ -610,6 +610,7 @@ section h2 {
     cursor: progress;
     box-shadow: inset 3px 0 0 var(--accent);
 }
+button[aria-disabled="true"] { cursor: progress; }
 
 /* Title and metadata */
 .tracker-item-title {

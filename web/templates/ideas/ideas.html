@@ -68,8 +68,8 @@
 
 {{define "content"}}
 <div class="ideas-page" data-live data-keep-class="select-mode"
-     hx-get="/ideas" hx-trigger="sse:changed:ideas"
      hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false">
+{{template "live-refresh" (dict "Path" "/ideas" "Trigger" "sse:changed:ideas")}}
 <span class="htmx-indicator" aria-hidden="true">updating&hellip;</span>
 
 <h1 id="page-heading" tabindex="-1">Ideas</h1>

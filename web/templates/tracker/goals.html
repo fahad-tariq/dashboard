@@ -2,8 +2,8 @@
 
 <div class="tracker-page" id="open-items" data-live data-keep-class="select-mode"
      data-row-list data-row-heading="page-heading"
-     hx-get="/goals" hx-trigger="sse:changed:todos"
      hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false">
+{{template "live-refresh" (dict "Path" "/goals" "Trigger" "sse:changed:todos")}}
 <span class="htmx-indicator" aria-hidden="true">updating&hellip;</span>
 
 <h1 id="page-heading" tabindex="-1">Goals</h1>

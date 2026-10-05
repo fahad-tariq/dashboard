@@ -73,5 +73,13 @@ A Count above the rows shown adds a "+N more" link. */}}
 {{/* widget renders a module's module.WidgetData on the homepage. */}}
 {{define "widget"}}{{template "card" (dict "ID" (printf "widget-%s" .ID) "Title" .Title "Link" .Link "Count" .Count "CountLabel" .CountLabel "Note" .Note "Severity" .Severity "Items" .Items "EmptyText" .EmptyText)}}{{end}}
 
+{{/* live-refresh is a live container's SSE refresh: Path, Trigger. It sits
+on an element whose attributes never change. htmx re-initialises an element
+whenever any of its attributes changes (a morph changes the container's
+classes), and the SSE extension then adds a listener without removing the old
+one, so a trigger on the container itself would fire once more per swap. The
+select, swap and push settings are inherited from the container. */}}
+{{define "live-refresh"}}<span class="live-refresh" id="live-refresh" hidden hx-get="{{.Path}}" hx-trigger="{{.Trigger}}" hx-target="closest [data-live]" hx-indicator="closest [data-live]"></span>{{end}}
+
 {{/* toast is the layout's single toast region; showToast fills it. */}}
 {{define "toast"}}<div id="toast" class="toast" hidden><span class="toast-text"></span><button type="button" class="action-btn toast-undo" hidden>undo</button><button type="button" class="toast-close" aria-label="Dismiss">&#x2715;</button></div>{{end}}

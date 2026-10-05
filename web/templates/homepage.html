@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="homepage-page" data-live
-     hx-get="/" hx-trigger="{{homeTrigger}}"
      hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false">
+{{template "live-refresh" (dict "Path" "/" "Trigger" homeTrigger)}}
 <span class="htmx-indicator meta-dim" aria-hidden="true">updating&hellip;</span>
 
 <h1 class="homepage-greeting" id="page-heading" tabindex="-1">{{or .Greeting "Today"}}</h1>

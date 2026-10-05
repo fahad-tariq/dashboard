@@ -2,8 +2,8 @@
 
 <div class="tracker-page" id="open-items" data-live data-keep-class="select-mode"
      data-row-list data-row-heading="page-heading"
-     hx-get="/{{.ListName}}" hx-trigger="sse:changed:{{.ListName}}"
      hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false">
+{{template "live-refresh" (dict "Path" (printf "/%s" .ListName) "Trigger" (printf "sse:changed:%s" .ListName))}}
 <span class="htmx-indicator" aria-hidden="true">updating&hellip;</span>
 
 <h1 id="page-heading" tabindex="-1">{{.Title}}</h1>
@@ -100,7 +100,7 @@
                 <input type="text" name="text" placeholder="Add a step..." class="form-input substep-add-input" required aria-label="Add a sub-step">
                 <button type="submit" class="action-btn">add</button>
             </form>
-            <div class="commentary-slot" data-commentary-url="/commentary/{{$.ListName}}/{{.Slug}}"></div>
+            <div class="commentary-slot" data-morph-skip data-commentary-url="/commentary/{{$.ListName}}/{{.Slug}}"></div>
             <details class="item-actions-menu" open data-keep-attr="open">
                 <summary class="action-btn item-actions-toggle">more</summary>
                 <div class="tracker-item-actions item-actions-panel">

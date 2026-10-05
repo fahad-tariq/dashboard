@@ -55,7 +55,6 @@ func fragmentResponses(replay func() http.Handler, revisions func() map[string]u
 			}
 			out.Add("Vary", "HX-Request")
 			out.Set("Cache-Control", "no-store")
-			out.Set(revisionsHeader, formatRevisions(revisions()))
 
 			dest, err := url.Parse(location)
 			if rec.status != http.StatusSeeOther || err != nil || !httputil.IsLocalPath(dest.Path) || dest.Host != "" || dest.Scheme != "" {
@@ -75,7 +74,14 @@ func fragmentResponses(replay func() http.Handler, revisions func() map[string]u
 			}
 
 			out.Del("Location")
+			// Read before the replay renders, so the page holds at least the
+			// changes counted. Only a page that renders reports them: a tab
+			// that got nothing back must still refresh for them.
+			revs := formatRevisions(revisions())
 			page := replayGet(replay(), r, dest)
+			if page.status >= 200 && page.status < 300 {
+				out.Set(revisionsHeader, revs)
+			}
 			if trigger := flashTrigger(dest.Query().Get("msg"), page.body.Bytes(), undo); trigger != "" {
 				out.Set("HX-Trigger", trigger)
 			}

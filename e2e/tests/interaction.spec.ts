@@ -238,3 +238,23 @@ test('a failed idea triage shows an error toast and leaves the card', async ({ p
   await expect(card.getByRole('button', { name: 'park' })).toBeEnabled();
   await expectNoReload(page);
 });
+
+test('text typed in a field without focus survives another row\'s action', async ({ page }) => {
+  const keep = uniqueTitle('Keep my typing');
+  const done = uniqueTitle('Complete me instead');
+  await addTask(page, keep);
+  await addTask(page, done);
+  await markNoReload(page);
+
+  const keepRow = trackerItem(page, keep);
+  await expandTrackerItem(keepRow);
+  const step = keepRow.getByRole('textbox', { name: 'Add a sub-step' });
+  await step.fill('half-typed step');
+
+  // Completing another row moves focus away and morphs the whole list.
+  await trackerItem(page, done).getByRole('button', { name: `Complete ${done}` }).click();
+  await expect(trackerItem(page, done)).toHaveCount(0);
+
+  await expect(step).toHaveValue('half-typed step');
+  await expectNoReload(page);
+});

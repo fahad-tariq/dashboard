@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="moduletest-page" data-live
-     hx-get="/moduletest" hx-trigger="sse:changed:moduletest"
      hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false">
+{{template "live-refresh" (dict "Path" "/moduletest" "Trigger" "sse:changed:moduletest")}}
 {{template "page-header" (dict "Title" "Fixture" "Subtitle" "Test module")}}
 {{with .Error}}{{template "error-banner" .}}{{end}}
 {{template "quick-add" (dict "Summary" "Add item" "Action" "/moduletest/add" "Name" "title" "Label" "Item" "Placeholder" "Item")}}

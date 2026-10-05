@@ -8,9 +8,11 @@
     }
 
     function setupForm(form) {
-        // Skip if already initialised.
-        if (form.dataset.uploadInit) return;
-        form.dataset.uploadInit = '1';
+        // Skip if already initialised. data-client-* attributes and the
+        // data-morph-skip area survive live refreshes (see live.js), so an
+        // image attached but not yet saved is not lost to a refresh.
+        if (form.dataset.clientUploadInit) return;
+        form.dataset.clientUploadInit = '1';
 
         // Find or create hidden input for image filenames.
         var hidden = form.querySelector('input[name="images"]');
@@ -24,6 +26,7 @@
         // Create upload area.
         var area = document.createElement('div');
         area.className = 'upload-area';
+        area.setAttribute('data-morph-skip', '');
 
         var fileInput = document.createElement('input');
         fileInput.type = 'file';
@@ -60,6 +63,7 @@
         });
         // Rewrite hidden value to filenames only; captions travel via caption-N fields.
         hidden.value = filenames.join(',');
+        keepValue(hidden);
 
         // File input handler.
         fileInput.addEventListener('change', function() {
@@ -126,6 +130,7 @@
         var filenames = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
         filenames.push(filename);
         hidden.value = filenames.join(',');
+        keepValue(hidden);
         addThumbnail(gallery, hidden, filename, caption);
     }
 
@@ -161,6 +166,7 @@
         remove.addEventListener('click', function() {
             var filenames = hidden.value.split(',').filter(function(f) { return f !== filename; });
             hidden.value = filenames.join(',');
+            keepValue(hidden);
             wrap.remove();
             // Re-index all remaining caption inputs sequentially.
             reindexCaptions(gallery);
@@ -179,6 +185,24 @@
             inputs[i].name = 'caption-' + i;
         }
     }
+
+    // keepValue stops a live refresh replacing a value this script wrote
+    // with the server's "filename|caption" form.
+    function keepValue(el) {
+        if (window.liveRefresh) window.liveRefresh.keepValue(el);
+    }
+
+    // Once the form's own save is accepted, the server's images are the
+    // truth: drop the area so it is rebuilt from them after the swap.
+    document.addEventListener('live:form-accepted', function(evt) {
+        var form = evt.target;
+        if (!form.dataset || !form.dataset.clientUploadInit) return;
+        var area = form.querySelector('.upload-area');
+        if (area) area.parentNode.removeChild(area);
+        delete form.dataset.clientUploadInit;
+        var hidden = form.querySelector('input[name="images"]');
+        if (hidden) hidden.liveEdited = false;
+    });
 
     // Initialise on load and after htmx swaps.
     function init() {
