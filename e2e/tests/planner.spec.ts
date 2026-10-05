@@ -18,7 +18,7 @@ test('plan a task from the picker and complete it on the homepage', async ({ pag
 
   const item = await planFromPicker(page, title);
   await expect(item).not.toHaveClass(/plan-item-done/);
-  await expect(page.locator('.plan-progress-text')).toHaveText(/^\d+\/\d+ done$/);
+  await expect(page.locator('.plan-progress-text')).toHaveText(/^\d+ of \d+ done$/);
 
   await item.getByRole('button', { name: `done ${title}` }).click();
   await expect(planItem(page, title)).toHaveClass(/plan-item-done/);

@@ -21,7 +21,7 @@ test('confirm dialog cancels, closes on Escape and confirms a permanent delete',
   await expect(modal.getByRole('heading')).toHaveText('Move to family?');
   // Only permanent actions carry the warning and the danger button.
   await expect(page.locator('#confirm-modal-warning')).toBeHidden();
-  await expect(page.locator('#confirm-modal-ok')).not.toHaveClass(/confirm-btn-danger/);
+  await expect(page.locator('#confirm-modal-ok')).not.toHaveClass(/btn-solid-danger/);
   await expect(page.locator('#confirm-modal-ok')).toBeFocused();
   await modal.getByRole('button', { name: 'Cancel' }).click();
   await expect(modal).not.toHaveAttribute('open');

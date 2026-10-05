@@ -89,8 +89,12 @@ for (const style of STYLES) for (const theme of THEMES) {
         await shoot(page, `${prefix}-state-select-mode`);
 
         await open(page, '/todos');
-        await expandTrackerItem(trackerItem(page, 'Plan weekend hike'));
-        await trackerItem(page, 'Plan weekend hike').getByRole('button', { name: 'move to family' }).click();
+        const hike = trackerItem(page, 'Plan weekend hike');
+        await expandTrackerItem(hike);
+        // Phones fold the row actions behind "more".
+        const more = hike.locator('summary.item-actions-toggle');
+        if (await more.isVisible()) await more.click();
+        await hike.getByRole('button', { name: 'move to family' }).click();
         const modal = page.locator('#confirm-modal');
         await expect(modal).toHaveAttribute('open');
         await shoot(page, `${prefix}-state-dialog`);
