@@ -71,6 +71,8 @@
     </div>
     {{end}}
 
+    {{if not (or .PersonalPlanned .FamilyPlanned .HousePlanned)}}<p class="plan-empty">Nothing planned yet.</p>{{end}}
+
     {{/* Task picker */}}
     {{if or .UnplannedPersonal .UnplannedFamily .UnplannedHouse}}
     <details class="plan-picker" id="plan-picker" data-row-list data-row-heading="plan-picker-summary" data-keep-attr="open" {{if and (not .PersonalPlanned) (not .FamilyPlanned) (not .HousePlanned)}}open{{end}}>

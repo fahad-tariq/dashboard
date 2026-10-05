@@ -792,3 +792,27 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - Screenshots are their own CI job (`screenshots`, not gating the image build). The `e2e` job sets `E2E_SKIP_SCREENSHOTS`.
   - `.github/workflows/e2e-grep.yml` re-runs only the tests matching a `--grep` pattern on a pushed ref: `gh workflow run e2e-grep.yml -f grep="..."`.
   - Locally, `bash e2e/run.sh <spec or --grep ...>` works outside the nono sandbox.
+- **Design review of the screenshots** (Design Reviewer agent; before set 52 shots from `9f80d92` run locally by the owner, its two phone state shots missing to the old spec bug; after set 168 shots from CI run #81). The before commit never got its own CI run because it was pushed together with the redesign.
+  - Fixed:
+    - the bulk-bar tag input lacked `form-input`
+    - the month calendar's leading empty cells kept the week cell height
+    - the house table clipped on phones (notes now live in the expanded row below 768px)
+    - account cards were centred against a left-aligned heading
+    - filter separators dangled (expand and select now sit in `.filter-actions`; separators are hidden on phones)
+    - a lone "·" wrapped in the ideas legend (now a `::before`)
+    - "Done (n)" had no disclosure marker
+    - goal actions were misaligned
+    - today's calendar cell had a doubled top edge
+    - label casing was mixed
+  - Brief misses addressed:
+    - the Cards homepage is one column like the other styles
+    - age is coloured only once stale
+    - Paper's accent moved from terracotta to clay (`#8a5427` / `#d9a066`) because it read as the danger colour
+    - Paper draws pills as outlines
+    - an empty Today says "Nothing planned yet"
+    - select mode pads the page so the bulk bar does not cover the last rows
+    - link-styled chips and buttons get 44px on touch screens
+  - Not taken:
+    - dropping the mono `dash>_` wordmark (the owner chose to keep it)
+    - one page width everywhere (three widths are deliberate)
+    - the picker repeating tasks that also appear in the summary cards (a behaviour question, raised with the owner)

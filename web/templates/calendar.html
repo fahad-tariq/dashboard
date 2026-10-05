@@ -5,8 +5,8 @@
 
 <div class="calendar-controls">
     <div class="digest-period-toggle">
-        <a href="/plan/calendar?view=week{{if ne .Today ""}}&date={{.Today}}{{end}}" class="filter-tag{{if eq .View "week"}} active{{end}}">Week</a>
-        <a href="/plan/calendar?view=month{{if ne .Today ""}}&date={{.Today}}{{end}}" class="filter-tag{{if eq .View "month"}} active{{end}}">Month</a>
+        <a href="/plan/calendar?view=week{{if ne .Today ""}}&date={{.Today}}{{end}}" class="filter-tag{{if eq .View "week"}} active{{end}}">week</a>
+        <a href="/plan/calendar?view=month{{if ne .Today ""}}&date={{.Today}}{{end}}" class="filter-tag{{if eq .View "month"}} active{{end}}">month</a>
     </div>
     <div class="calendar-nav">
         <a href="/plan/calendar?view={{.View}}&date={{.PrevDate}}" class="btn btn-secondary btn-icon" aria-label="Previous {{.View}}">&lsaquo;</a>
@@ -73,12 +73,12 @@
         {{range $i, $day := .Days}}
         {{if and (eq $i 0) (ne $day.Weekday "Mon")}}
             {{/* Pad leading empty cells */}}
-            {{if eq $day.Weekday "Tue"}}<div class="calendar-cell calendar-cell-empty"></div>{{end}}
-            {{if eq $day.Weekday "Wed"}}<div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div>{{end}}
-            {{if eq $day.Weekday "Thu"}}<div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div>{{end}}
-            {{if eq $day.Weekday "Fri"}}<div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div>{{end}}
-            {{if eq $day.Weekday "Sat"}}<div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div>{{end}}
-            {{if eq $day.Weekday "Sun"}}<div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div><div class="calendar-cell calendar-cell-empty"></div>{{end}}
+            {{if eq $day.Weekday "Tue"}}<div class="calendar-cell calendar-cell-month calendar-cell-empty"></div>{{end}}
+            {{if eq $day.Weekday "Wed"}}<div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div>{{end}}
+            {{if eq $day.Weekday "Thu"}}<div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div>{{end}}
+            {{if eq $day.Weekday "Fri"}}<div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div>{{end}}
+            {{if eq $day.Weekday "Sat"}}<div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div>{{end}}
+            {{if eq $day.Weekday "Sun"}}<div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div><div class="calendar-cell calendar-cell-month calendar-cell-empty"></div>{{end}}
         {{end}}
         <div class="calendar-cell calendar-cell-month{{if $day.IsToday}} calendar-cell-today{{end}}" role="gridcell"{{if $day.IsToday}} aria-current="date"{{end}}>
             {{if gt $day.TaskCount 0}}

@@ -58,8 +58,7 @@
     {{range .Priorities}}
     <button data-keep-class="active" class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" data-action="filter" data-filter-type="priority" data-filter-value="{{.}}">{{.}}</button>
     {{end}}
-    <span class="filter-sep"></span>
-    <button class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button>
+    <span class="filter-actions"><button class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button></span>
 </div>
 {{else}}
 <div class="tracker-filters">
@@ -109,7 +108,7 @@
         <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage goal-set-form" hx-boost="true">
             <input type="number" name="delta" step="any" placeholder="set" class="form-input goal-set-input" required aria-label="Set progress for {{.Title}}">
             <input type="hidden" name="set" value="1">
-            <button type="submit" class="btn btn-quiet btn-sm">set</button>
+            <button type="submit" class="btn btn-secondary btn-sm">set</button>
         </form>
         {{end}}
         <details class="item-actions-menu" open data-keep-attr="open">

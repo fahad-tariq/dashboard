@@ -84,9 +84,7 @@
 
 <div class="status-legend">
     <span class="status-legend-item"><strong>Untriaged</strong> -- New ideas waiting for a decision</span>
-    <span class="status-legend-sep">&middot;</span>
     <span class="status-legend-item"><strong>Parked</strong> -- Worth keeping, not acting on now</span>
-    <span class="status-legend-sep">&middot;</span>
     <span class="status-legend-item"><strong>Dropped</strong> -- Decided against, kept for reference</span>
 </div>
 
@@ -110,8 +108,7 @@
     {{range .Categories}}
     <button data-keep-class="active" class="filter-tag filter-cat" data-value="{{.}}" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>
     {{end}}
-    <span class="filter-sep"></span>
-    <button class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button>
+    <span class="filter-actions"><button class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button></span>
 </div>
 {{else}}
 <div class="tracker-filters">

@@ -4,9 +4,9 @@
 <h1>Digest</h1>
 
 <div class="digest-period-toggle">
-    <a href="/digest?period=this-week" class="filter-tag{{if eq .Period "this-week"}} active{{end}}">This week</a>
-    <a href="/digest?period=last-week" class="filter-tag{{if eq .Period "last-week"}} active{{end}}">Last week</a>
-    <a href="/digest?period=this-month" class="filter-tag{{if eq .Period "this-month"}} active{{end}}">This month</a>
+    <a href="/digest?period=this-week" class="filter-tag{{if eq .Period "this-week"}} active{{end}}">this week</a>
+    <a href="/digest?period=last-week" class="filter-tag{{if eq .Period "last-week"}} active{{end}}">last week</a>
+    <a href="/digest?period=this-month" class="filter-tag{{if eq .Period "this-month"}} active{{end}}">this month</a>
 </div>
 
 {{if and (eq .Digest.CompletedTasks 0) (eq .Digest.AddedTasks 0) (eq .Digest.AddedIdeas 0)}}

@@ -45,10 +45,10 @@
     {{range .Priorities}}
     <button data-keep-class="active" class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" data-action="filter" data-filter-type="priority" data-filter-value="{{.}}">{{.}}</button>
     {{end}}
-    <span class="filter-sep"></span>
+    <span class="filter-actions">
     <button data-keep-class="active" class="filter-tag filter-toggle" data-action="toggle-all-items" title="Expand/collapse all">expand</button>
-    <span class="filter-sep"></span>
     <button class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button>
+    </span>
 </div>
 
 {{range .Tasks}}
@@ -232,7 +232,7 @@
     </form>
     <form method="POST" action="/{{.ListName}}/bulk/tag" id="bulk-tag-form">
         <input type="hidden" name="slugs" value="">
-        <input type="text" name="tag" placeholder="tag" class="form-input-sm" aria-label="Tag to add">
+        <input type="text" name="tag" placeholder="tag" class="form-input form-input-sm" aria-label="Tag to add">
         <button type="submit" class="btn btn-secondary btn-sm" data-action="bulk-submit" data-bulk-form="bulk-tag-form">add tag</button>
     </form>
     <form method="POST" action="/{{.ListName}}/bulk/plan" id="bulk-plan-form">
