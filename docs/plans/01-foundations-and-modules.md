@@ -8,7 +8,7 @@ This is the first of three plans:
 
 | Plan | Scope | Status |
 |---|---|---|
-| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | In progress: Phases 1-6 merged and deployed |
+| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | In progress: Phases 1-6 deployed; Phase 7 on `main`, awaiting owner review |
 | 2 | Exercise module on the framework, plus the SQLite migration hook it needs. Exercise scope is not yet decided | Not written |
 | 3 | Product features: quick capture, stable item IDs (which also fix slug collisions), due dates, recurring tasks merged with maintenance cadence, agent-proposed daily plan, reminders, weekly review, MCP tooling and possibly a Go MCP server | Not written; write after Phase 7 lands |
 
@@ -388,19 +388,19 @@ Modules receive one `module.Deps` struct: location, templates, change publisher,
 
 **Purpose:** one way to build features. `main.go` only registers modules and wires core services.
 
-- [ ] **`todos` module:** the personal tracker plus goals (Plan 3 decides whether goals fold into tasks). Routes, templates, nav (`g t`, `g o`), watch spec, search, widget and API.
-- [ ] **`family` module:** the shared tracker. `tracker.html` keeps scoping routes by `.ListName`.
-- [ ] **`ideas` module:** list, detail, triage, research and to-task conversion via the Phase 5 factory.
-- [ ] **`house` module:** maintenance and projects, keeping the two-file split.
-- [ ] **Core pages stay outside modules:** home and planner, calendar, digest, search, auth, account, admin, uploads and commentary. Record in Working Notes which could become capabilities later, such as a `Plannable` capability for Plan 2.
-- [ ] **Delete the replaced wiring:**
+- [x] **`todos` module:** the personal tracker plus goals (Plan 3 decides whether goals fold into tasks). Routes, templates, nav (`g t`, `g o`), watch spec, search, widget and API.
+- [x] **`family` module:** the shared tracker. `tracker.html` keeps scoping routes by `.ListName`.
+- [x] **`ideas` module:** list, detail, triage, research and to-task conversion via the Phase 5 factory.
+- [x] **`house` module:** maintenance and projects, keeping the two-file split.
+- [x] **Core pages stay outside modules:** home and planner, calendar, digest, search, auth, account, admin, uploads and commentary. Record in Working Notes which could become capabilities later, such as a `Plannable` capability for Plan 2.
+- [x] **Delete the replaced wiring:**
   - hard-coded nav links
   - the `shortcuts.js` switch
   - the `parseTemplates` page list
   - the watcher prefixes
   - module-specific `renderHomePage` parameters
-- [ ] **Rename SSE triggers** to `sse:changed:<id>` in templates *and* JS (`tracker.js` re-triggers `sse:file-changed` today). The homepage listens to every module that contributes to it.
-- [ ] **Requirement 4 evidence.** In Working Notes, list the files outside `internal/<module>/` and `web/templates/<module>/` that each migration touched beyond the registration line. Investigate anything other than the registration line and either fix it or justify it.
+- [x] **Rename SSE triggers** to `sse:changed:<id>` in templates *and* JS (`tracker.js` re-triggers `sse:file-changed` today). The homepage listens to every module that contributes to it.
+- [x] **Requirement 4 evidence.** In Working Notes, list the files outside `internal/<module>/` and `web/templates/<module>/` that each migration touched beyond the registration line. Investigate anything other than the registration line and either fix it or justify it.
 
 **Verification:**
 - The route golden is unchanged.
@@ -694,3 +694,28 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - admin user deletion: the watcher recreates the deleted user's directory (admin frozen)
   - MoveToList slug collisions (dead `-<unix>` suffix) until Plan 3 stable IDs
   - remove the test-only static `tracker.NewHandler`/`ideas.NewHandler` constructors (Phase 6)
+
+### Phase 7 notes
+
+- Layout: module adapters live in `internal/modules/` (`tasks` holds both `todos` and `family`, plus `ideas` and `house`), registered in `app.modules`. They cannot live in `internal/ideas` or `internal/house`: `module` imports `services`, which imports `ideas` and `tracker`, so an `ideas` package importing `module` would be a cycle. The adapters wrap the existing libraries (`tracker`, `ideas`, `house`), which keep their handlers, services and parsers. Templates: `web/templates/tracker/` (tracker and goals pages, shared by todos and family through the new `Manifest.Templates`), `ideas/` and `house/`. Registration order (todos, family, house, ideas) keeps the old search order and sets widget order; nav order still comes from each item's `Order`, so the nav is unchanged.
+- Contract changes: `Manifest.Templates` (template directory, defaults to the ID). `HomeWidget` returns `[]WidgetData`, so todos can show a todos card and a goals card; the registry IDs them `<module>` or `<module>-<id>`. `WidgetData` gained `CountLabel` and `Note`, and `WidgetItem` gained `Priority`, `Severity` and `Progress`, which is what the old cards used. `Deps` gained `Commentary`. Handlers take `httputil.PageLookup` instead of a template map, because module pages are parsed after modules are built; `Renderer.Lookup(dir)` resolves at request time.
+- Route checks: module browser routes are registered on a scratch router, checked against the manifest's `Prefixes` (at a path-segment boundary), then copied onto the real router with their middleware (`mountModule`). API routes are written relative to `/api/v1` and must sit under `/<module-id>`. Phase 6 mounted them with `r.Route`, but `chi.Walk` then reports `/api/v1/todos/` with a trailing slash, which would have changed the route golden; the copy keeps the goldens byte-identical and fails start-up for a stray route (`TestModuleRoutesMustStayUnderTheirPrefixes`).
+- Events: services publish `changed:<module-id>` through one debounced publisher shared with `Deps.Publish`; the registry maps personal to `todos`, and house projects and maintenance to `house`. The maintenance service moved into `services.Registry` so the core purge loop still reaches it. `file-changed` and `Broker.Debounced` are gone. Each page listens to its own module (`tracker.html` uses `changed:{{.ListName}}`); the homepage listens to the widget modules plus the four modules whose services the core reads itself (planner and tag summary). `tracker.js` re-triggers the element's own first `sse:` event after the completion animation. New tests: `TestModuleFilesSendTheirOwnEvent`, `TestModuleWritesSendTheirOwnEvent`, `TestPagesRefreshOnTheirModulesEvents`; Playwright `sse.spec.ts` checks that an `ideas.md` edit refreshes `/ideas` and `/` but not `/todos` (the context fixture now installs the activity tracker, so extra pages get it).
+- Homepage: the todos, family, goals, maintenance and ideas cards are module widgets (`TestHomepageWidgetsComeFromModules`). Visible differences: widgets sit in the auto-fit `.homepage-widgets` grid instead of the two-column grid, with the tag card last; goals and overdue maintenance cap at 5 rows plus "+N more"; goal titles link to their row. The page counts as empty when nothing can be planned and no widget shows; before, overdue maintenance or house projects alone also showed the empty message. Tracker links from widgets and search now use `#item-<slug>`, like the planner's "open in list" links. The old `#<slug>` links worked too (`tracker.js` handles both), so this is consistency, not a fix, although the commit describing the failing tests calls it one.
+- Inline handlers: the five migrated templates use a delegated dispatcher in `tracker.js` (`data-action`, `data-stop-click`, `data-confirm`, `data-submit`, `data-autosubmit`), as the Phase 6 contract requires of module templates. `house.html`'s inline script is now `web/static/house.js`. One bug was found and fixed before commit: `house.js` runs before `tracker.js` on first load, so it now creates the shared `clickActions` table. Known change: clicks on controls that used to `stopPropagation` (badges, bulk checkboxes) now also close an open nav "more" menu. Core templates (`homepage.html`, `layout.html`, calendar, account, login) keep their inline handlers until the CSP follow-up.
+- Core pages stay outside modules: home and planner, calendar, digest, search, auth, account, admin, uploads and commentary. Candidates for capabilities later:
+  - `Plannable` (Plan 2): items with planned dates, set/clear/complete/reorder. It would replace `home.Lists`' three tracker services, `listService` and `coreHomeEvents`.
+  - `DigestSource` and a tag source: the digest and the homepage tag card read ideas through `home.Lists`.
+  - `Purger`: the purge loop names the shared and per-user services.
+  - Commentary list names: `httputil.validate` allows `todos`, `family`, `house`, `ideas`; a manifest field could declare them.
+- Requirement 4 evidence. Files outside `internal/modules/<x>/` and `web/templates/<x>/` touched in `66b683d` and `3acc5e9`:
+  - Registration: the four lines in `app.modules`.
+  - Framework, once for all modules: `internal/module/*` (contract, registry, renderer, fixture), `internal/app/*` (route checks, template parsing, deleting the core feature wiring), `internal/sse/broker.go`, `internal/httputil/pages.go`, `_components/components.html` and the widget classes in `theme.css`.
+  - Deleting the replaced wiring: `home/handler.go` and `homepage.html` (cards and their data), core nav, the core watcher specs, search adapters, the `parseTemplates` page list, `mountTrackerRoutes`. The `shortcuts.js` switch and the watcher prefixes had already gone in Phase 6.
+  - Each feature's existing library: `tracker/handler.go` (`PageLookup`, `Mount`), `ideas/handler.go` and `house/handler.go` (`PageLookup`).
+  - `services/registry.go`: maintenance moved in, and module IDs for the publisher. Justified: the registry is the core's store for the per-user and shared markdown lists the planner and purge also read. A new module that owns its storage (exercise, Plan 2) does not touch it.
+  - `web/static/house.js` and `tracker.js`: static assets are one flat embedded directory. A new module with its own JS would add a file there; a per-module static directory is a follow-up if exercise needs one. `tracker.js` also hard-codes `.tracker-page` and `.ideas-page` for SSE suppression and select mode, which Phase 8's morph swaps remove.
+  - So a new module needs only its package, its template directory and one registration line, unless it needs page JS (a file in `web/static/`), plannable items (Plan 2) or commentary.
+- Self-review (independent reviewer): no user-facing regressions found. Fixed in `3acc5e9`: `search.spec.ts` still expected `/todos#renew-passport`; the homepage trigger only covered widget modules, so a list the planner reads would stop refreshing if its module dropped its widget; core pages were detected by matching the text `{{define "content"}}`, so a differently spaced define would have skipped a page until request time (now parsed and checked with `Lookup`).
+- Verification: lint 0 issues; `INTEGRATION=1 go test -race ./...` green; route goldens unchanged; gocyclo only lists the six accepted exclusions; e2e type-checks. Playwright runs in CI on push, and is the first browser run of the handler conversion.
+- Follow-ups: per-module static assets if a module needs JS; the capabilities above; the remaining inline handlers in core templates; remove the test-only static `tracker.NewHandler`/`ideas.NewHandler` (still open).
