@@ -203,7 +203,7 @@
         var elt = evt.detail.requestConfig && evt.detail.requestConfig.elt;
         if (!elt || elt.tagName !== 'FORM' || evt.detail.xhr.status >= 300 || flashIsError(evt.detail.xhr)) return;
         var active = document.activeElement;
-        if (active && active !== elt && elt.contains(active)) {
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && elt.contains(active)) {
             refocusAfterSwap = active;
             active.blur();
         }
@@ -298,16 +298,25 @@
         return !active || active === document.body || !visible(active);
     }
 
+    // restoreFocus runs after a form's response settles. If the row stayed
+    // in its list, it only repairs lost focus. If the row left its list,
+    // focus that is lost or still inside the moved row goes to the next row:
+    // a morph can keep the focused button alive inside the moved row (now
+    // likely a different action), so "lost" alone is not enough.
     function restoreFocus() {
         var p = pendingFocus;
         pendingFocus = null;
-        if (!p || !focusLost()) return;
+        if (!p) return;
         var row = document.getElementById(p.row);
         var list = document.getElementById(p.list);
-        if (row && list && listOf(row) === list && visible(row)) {
-            var active = p.active && document.getElementById(p.active);
-            if (visible(active)) {
-                active.focus();
+        var stayed = row && list && listOf(row) === list && visible(row);
+        var active = document.activeElement;
+        if (stayed && !focusLost()) return;
+        if (!stayed && !focusLost() && !(row && row.contains(active))) return;
+        if (stayed) {
+            var before = p.active && document.getElementById(p.active);
+            if (visible(before)) {
+                before.focus();
             } else {
                 focusRow(row);
             }
