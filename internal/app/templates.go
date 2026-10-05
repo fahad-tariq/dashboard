@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/url"
+	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/insights"
+	"github.com/fahad/dashboard/internal/module"
 	"github.com/fahad/dashboard/internal/seasonal"
 	"github.com/fahad/dashboard/internal/theme"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -23,8 +25,11 @@ import (
 // seasonalAccentCSS is the accent the layout injects for each theme.
 type seasonalAccentCSS struct{ Light, Dark string }
 
-func buildFuncMap(loc *time.Location, authEnabled bool, version string, static func(string) (string, error), tokens theme.Tokens) template.FuncMap {
+func buildFuncMap(loc *time.Location, authEnabled bool, version string, static func(string) (string, error), tokens theme.Tokens, reg *module.Registry) template.FuncMap {
 	return template.FuncMap{
+		"navItems":     reg.Nav,
+		"navHasMore":   reg.HasMore,
+		"navCurrent":   navCurrent,
 		"static":       static,
 		"authEnabled":  func() bool { return authEnabled },
 		"buildVersion": func() string { return version },
@@ -136,49 +141,85 @@ func buildFuncMap(loc *time.Location, authEnabled bool, version string, static f
 
 var urlRe = regexp.MustCompile(`https?://[^\s<>"` + "`" + `]+`)
 
+// navCurrent reports whether the page at current belongs to the nav link
+// path: "/" matches only itself, other links match their subtree. current is
+// any because pages that do not set CurrentPath pass nil.
+func navCurrent(path string, current any) bool {
+	cur, _ := current.(string)
+	if path == "/" {
+		return cur == "/"
+	}
+	return cur == path || strings.HasPrefix(cur, path+"/")
+}
+
+// templateSet is every parsed template: core pages by file name, module pages
+// by "<module-id>/<file>", and the standalone login page.
+type templateSet struct {
+	assets  *staticAssets
+	core    map[string]*template.Template
+	modules map[string]*template.Template
+	login   *template.Template
+}
+
 // loadTemplates parses the page templates and the standalone login page.
-func loadTemplates(cfg *config.Config, version string) (*staticAssets, map[string]*template.Template, *template.Template, error) {
+func loadTemplates(cfg *config.Config, version string, reg *module.Registry) (templateSet, error) {
+	var set templateSet
 	staticSub, err := fs.Sub(web.StaticFS, "static")
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("static assets: %w", err)
+		return set, fmt.Errorf("static assets: %w", err)
 	}
-	assets, err := newStaticAssets(staticSub)
-	if err != nil {
-		return nil, nil, nil, err
+	if set.assets, err = newStaticAssets(staticSub); err != nil {
+		return set, err
 	}
 	tokens, err := loadThemeTokens(staticSub)
 	if err != nil {
-		return nil, nil, nil, err
+		return set, err
 	}
-	templates, err := parseTemplates(buildFuncMap(cfg.Location, cfg.AuthEnabled(), version, assets.URL, tokens))
+	set.core, set.modules, err = parseTemplates(buildFuncMap(cfg.Location, cfg.AuthEnabled(), version, set.assets.URL, tokens, reg), reg)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parsing templates: %w", err)
+		return set, fmt.Errorf("parsing templates: %w", err)
 	}
-	loginTmpl, err := template.New("login.html").Funcs(template.FuncMap{"static": assets.URL}).ParseFS(web.TemplateFS, "templates/login.html")
+	set.login, err = template.New("login.html").Funcs(template.FuncMap{"static": set.assets.URL}).ParseFS(web.TemplateFS, "templates/login.html")
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parsing login template: %w", err)
+		return set, fmt.Errorf("parsing login template: %w", err)
 	}
-	return assets, templates, loginTmpl, nil
+	return set, nil
 }
 
-func parseTemplates(fm template.FuncMap) (map[string]*template.Template, error) {
-	layout, err := template.New("layout.html").Funcs(fm).ParseFS(web.TemplateFS, "templates/layout.html")
+// parseTemplates clones the layout plus shared components for every core
+// page and every file in each registered module's template directory.
+func parseTemplates(fm template.FuncMap, reg *module.Registry) (core, modules map[string]*template.Template, err error) {
+	base, err := template.New("layout.html").Funcs(fm).ParseFS(web.TemplateFS, "templates/layout.html", "templates/_components/*.html")
 	if err != nil {
-		return nil, fmt.Errorf("parsing layout: %w", err)
+		return nil, nil, fmt.Errorf("parsing layout: %w", err)
 	}
 
 	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "homepage.html", "digest.html", "calendar.html", "admin-users.html", "admin-user-form.html", "admin-password.html", "account.html", "house.html"}
-	templates := make(map[string]*template.Template, len(pages))
-
+	core = make(map[string]*template.Template, len(pages))
 	for _, page := range pages {
-		t, err := template.Must(layout.Clone()).ParseFS(web.TemplateFS, "templates/"+page)
+		t, err := template.Must(base.Clone()).ParseFS(web.TemplateFS, "templates/"+page)
 		if err != nil {
-			return nil, fmt.Errorf("parsing %s: %w", page, err)
+			return nil, nil, fmt.Errorf("parsing %s: %w", page, err)
 		}
-		templates[page] = t
+		core[page] = t
 	}
 
-	return templates, nil
+	modules = map[string]*template.Template{}
+	for _, m := range reg.Modules() {
+		id := m.Manifest().ID
+		files, err := fs.Glob(web.TemplateFS, "templates/"+id+"/*.html")
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, f := range files {
+			t, err := template.Must(base.Clone()).ParseFS(web.TemplateFS, f)
+			if err != nil {
+				return nil, nil, fmt.Errorf("parsing %s: %w", f, err)
+			}
+			modules[id+"/"+path.Base(f)] = t
+		}
+	}
+	return core, modules, nil
 }
 
 // templateDict passes several values to a sub-template:

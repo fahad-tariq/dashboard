@@ -1,0 +1,61 @@
+{{/*
+Shared partials for core and module pages. Pass several values with dict:
+{{template "page-header" (dict "Title" "Ideas" "Subtitle" "3 untriaged")}}
+None of them use inline event handlers.
+*/}}
+
+{{define "page-header"}}
+<header class="page-header">
+    <h1>{{.Title}}</h1>
+    {{with .Subtitle}}<p class="meta-dim page-header-sub">{{.}}</p>{{end}}
+</header>
+{{end}}
+
+{{/* empty-state takes the message string. */}}
+{{define "empty-state"}}<p class="empty">{{.}}</p>{{end}}
+
+{{/* error-banner takes the message string. */}}
+{{define "error-banner"}}<div class="flash-msg flash-msg-error" role="alert">{{.}}</div>{{end}}
+
+{{/* item-row: ID, Title, URL (optional), Meta (optional). */}}
+{{define "item-row"}}
+<div class="item-row"{{with .ID}} id="{{.}}"{{end}}>
+    {{if .URL}}<a href="{{.URL}}">{{.Title}}</a>{{else}}<span>{{.Title}}</span>{{end}}
+    {{with .Meta}}<span class="meta-dim">{{.}}</span>{{end}}
+</div>
+{{end}}
+
+{{/* quick-add: Summary, Action, Name (field name), Label, Placeholder. */}}
+{{define "quick-add"}}
+<details class="quick-add">
+    <summary>{{.Summary}}</summary>
+    <form method="POST" action="{{.Action}}" class="quick-add-form">
+        <label for="quick-add-{{.Name}}" class="sr-only">{{.Label}}</label>
+        <input type="text" name="{{.Name}}" id="quick-add-{{.Name}}" placeholder="{{.Placeholder}}" required class="form-input">
+        <button type="submit" class="action-btn">add</button>
+    </form>
+</details>
+{{end}}
+
+{{/* card: ID, Title, Link, Count, Severity, Items ([]{Label, URL}), EmptyText. */}}
+{{define "card"}}
+<section class="homepage-card" aria-labelledby="{{.ID}}-title">
+    <div class="homepage-card-header">
+        <h2 class="homepage-card-title" id="{{.ID}}-title">{{if .Link}}<a href="{{.Link}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</h2>
+        {{if .Count}}<span><span class="stat-value{{with .Severity}} stat-{{.}}{{end}}">{{.Count}}</span></span>{{end}}
+    </div>
+    <div class="homepage-card-body">
+        {{range .Items}}
+        <div class="homepage-task">{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}</div>
+        {{else}}
+        {{with .EmptyText}}<p class="empty">{{.}}</p>{{end}}
+        {{end}}
+    </div>
+</section>
+{{end}}
+
+{{/* widget renders a module's module.WidgetData on the homepage. */}}
+{{define "widget"}}{{template "card" (dict "ID" (printf "widget-%s" .ID) "Title" .Title "Link" .Link "Count" .Count "Severity" .Severity "Items" .Items "EmptyText" .EmptyText)}}{{end}}
+
+{{/* toast is the layout's single toast region; showToast fills it. */}}
+{{define "toast"}}<div id="toast" class="toast" hidden><span class="toast-text"></span></div>{{end}}

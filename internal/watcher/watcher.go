@@ -1,3 +1,4 @@
+// Package watcher turns external edits to data files into SSE events.
 package watcher
 
 import (
@@ -15,63 +16,57 @@ import (
 
 const debounceInterval = 500 * time.Millisecond
 
-// UserCallback receives file change events with user context and reports
-// whether the file really changed (as opposed to echoing the app's own write).
-// userID=0 means the change is for a shared resource (e.g. family list).
-type UserCallback func(userID int64, category string) bool
-
-// Watch monitors directories for file changes and broadcasts an SSE event when
-// a callback reports a real change. Callbacks return false for the app's own
-// writes, which services have already published.
-// dirCategories maps absolute directory paths to category names
-// (e.g. {"/data/ideas": "ideas"}).
-// fileCategories maps absolute file paths to category names
-// (e.g. {"/data/personal.md": "personal"}).
-func Watch(dirCategories, fileCategories map[string]string, broker *sse.Broker, callbacks map[string]func() bool) error {
-	return WatchWithUserCallbacks(dirCategories, fileCategories, "", broker, callbacks, nil)
+// Spec is one watched file. Exactly one of Path (a shared file) and UserFile
+// (a file name directly inside userDataDir/{id}/) is set. After an edit
+// settles, Reload re-reads the file for the user (0 for shared files) and
+// reports whether it really changed, as opposed to echoing the app's own
+// write; only then is Event sent with Data. A nil Reload always sends.
+type Spec struct {
+	Path     string
+	UserFile string
+	Event    string
+	Data     string
+	Reload   func(userID int64) bool
 }
 
-// WatchWithUserCallbacks monitors directories for file changes, including
-// per-user directories under userDataDir. Broadcasts SSE events and calls
-// both legacy callbacks (for shared resources) and user callbacks (for per-user changes).
-func WatchWithUserCallbacks(dirCategories, fileCategories map[string]string, userDataDir string, broker *sse.Broker, callbacks map[string]func() bool, userCallback UserCallback) error {
+// Watch starts watching the specs' files and returns once the watches are in
+// place; events are handled on a background goroutine for the life of the
+// process.
+func Watch(userDataDir string, specs []Spec, broker *sse.Broker) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
 	}
-
-	for dir := range dirCategories {
-		if err := addRecursive(w, dir); err != nil {
-			w.Close()
-			return err
+	dirs := map[string]bool{}
+	for i, s := range specs {
+		if s.Path != "" {
+			abs, _ := filepath.Abs(s.Path)
+			specs[i].Path = abs
+			dirs[filepath.Dir(abs)] = true
 		}
 	}
-
-	// Ensure parent directories of file-level categories are watched.
-	for filePath := range fileCategories {
-		dir := filepath.Dir(filePath)
-		if err := addRecursive(w, dir); err != nil {
-			slog.Warn("failed to watch file category directory", "path", dir, "error", err)
+	for dir := range dirs {
+		if err := w.Add(dir); err != nil {
+			slog.Warn("failed to watch directory", "path", dir, "error", err)
 		}
 	}
-
-	// Watch the user data directory if provided.
+	absUserDir := ""
 	if userDataDir != "" {
-		if err := addRecursive(w, userDataDir); err != nil {
-			slog.Warn("failed to watch user data directory", "path", userDataDir, "error", err)
+		absUserDir, _ = filepath.Abs(userDataDir)
+		if err := addRecursive(w, absUserDir); err != nil {
+			slog.Warn("failed to watch user data directory", "path", absUserDir, "error", err)
 		}
 	}
-
-	go run(w, dirCategories, fileCategories, userDataDir, broker, callbacks, userCallback)
+	go run(w, absUserDir, specs, broker)
 	return nil
 }
 
 type pendingEvent struct {
-	userID   int64
-	category string
+	spec   int
+	userID int64
 }
 
-func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, userDataDir string, broker *sse.Broker, callbacks map[string]func() bool, userCallback UserCallback) {
+func run(w *fsnotify.Watcher, userDataDir string, specs []Spec, broker *sse.Broker) {
 	defer w.Close()
 
 	timer := time.NewTimer(0)
@@ -86,28 +81,17 @@ func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, u
 			if !ok {
 				return
 			}
-
-			if event.Op == fsnotify.Chmod {
-				continue
+			if pe, ok := handle(w, event, userDataDir, specs); ok {
+				pending[pe] = true
+				timer.Reset(debounceInterval)
 			}
-
-			if event.Op&fsnotify.Create != 0 {
-				watchNewPath(w, event.Name)
-			}
-
-			userID, category := classifyEventWithUser(event.Name, dirCategories, fileCategories, userDataDir)
-			if category == "" {
-				continue
-			}
-
-			pending[pendingEvent{userID: userID, category: category}] = true
-			timer.Reset(debounceInterval)
 
 		case <-timer.C:
 			for pe := range pending {
-				if handleEvent(pe, callbacks, userCallback) {
-					slog.Info("external file change", "type", pe.category, "user_id", pe.userID)
-					broker.Send("file-changed", pe.category)
+				s := specs[pe.spec]
+				if s.Reload == nil || s.Reload(pe.userID) {
+					slog.Info("external file change", "event", s.Event, "data", s.Data, "user_id", pe.userID)
+					broker.Send(s.Event, s.Data)
 				}
 			}
 			pending = map[pendingEvent]bool{}
@@ -121,88 +105,56 @@ func run(w *fsnotify.Watcher, dirCategories, fileCategories map[string]string, u
 	}
 }
 
-// handleEvent runs the callbacks for an event, before any broadcast, and
-// reports whether the file really changed. With no callback to ask, it
-// assumes a change so clients still refresh.
-func handleEvent(pe pendingEvent, callbacks map[string]func() bool, userCallback UserCallback) bool {
-	asked, changed := false, false
-	if pe.userID == 0 {
-		if cb, ok := callbacks[pe.category]; ok {
-			asked = true
-			changed = cb() || changed
+// handle watches a newly created user directory and reports which spec, if
+// any, the event belongs to.
+func handle(w *fsnotify.Watcher, event fsnotify.Event, userDataDir string, specs []Spec) (pendingEvent, bool) {
+	if event.Op == fsnotify.Chmod {
+		return pendingEvent{}, false
+	}
+	if event.Op&fsnotify.Create != 0 && userDataDir != "" && strings.HasPrefix(event.Name, userDataDir+string(filepath.Separator)) {
+		if err := addRecursive(w, event.Name); err != nil {
+			slog.Warn("watching new path", "path", event.Name, "error", err)
 		}
 	}
-	if userCallback != nil && pe.userID != 0 {
-		asked = true
-		changed = userCallback(pe.userID, pe.category) || changed
-	}
-	return changed || !asked
+	spec, userID, ok := Classify(event.Name, userDataDir, specs)
+	return pendingEvent{spec: spec, userID: userID}, ok
 }
 
-// ClassifyEventWithUser determines the category and user ID from a file path.
-// Exported for testing.
-func ClassifyEventWithUser(path string, dirCategories, fileCategories map[string]string, userDataDir string) (int64, string) {
-	return classifyEventWithUser(path, dirCategories, fileCategories, userDataDir)
-}
-
-func classifyEventWithUser(path string, dirCategories, fileCategories map[string]string, userDataDir string) (int64, string) {
-	name := filepath.Base(path)
-
-	if !strings.HasSuffix(name, ".md") {
-		return 0, ""
+// Classify returns the index of the spec that owns path and the user it
+// belongs to (0 for shared files). Only exact file names match: a shared
+// spec's absolute path, or userDataDir/{id}/{UserFile}. userDataDir must be
+// absolute; specs' Paths must be absolute.
+func Classify(path, userDataDir string, specs []Spec) (spec int, userID int64, ok bool) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return 0, 0, false
 	}
-
-	if strings.Contains(path, string(filepath.Separator)+".git"+string(filepath.Separator)) {
-		return 0, ""
-	}
-
-	// Check file-level categories first (most specific match).
-	absPath, _ := filepath.Abs(path)
-	for filePath, category := range fileCategories {
-		absFile, _ := filepath.Abs(filePath)
-		if absPath == absFile {
-			return 0, category
+	for i, s := range specs {
+		if s.Path != "" && s.Path == abs {
+			return i, 0, true
 		}
 	}
-
-	// Check per-user data directory.
-	if userDataDir != "" {
-		absUserDir, _ := filepath.Abs(userDataDir)
-		if strings.HasPrefix(absPath, absUserDir+string(filepath.Separator)) {
-			rel := absPath[len(absUserDir)+1:]
-			// Expected format: {user_id}/...
-			parts := strings.SplitN(rel, string(filepath.Separator), 2)
-			if len(parts) >= 2 {
-				uid, err := strconv.ParseInt(parts[0], 10, 64)
-				if err == nil {
-					subpath := parts[1]
-					switch {
-					case subpath == "personal.md" || strings.HasPrefix(subpath, "personal"):
-						return uid, "personal"
-					case strings.HasPrefix(subpath, "ideas"):
-						return uid, "ideas"
-					}
-				}
-			}
+	if userDataDir == "" {
+		return 0, 0, false
+	}
+	rel, err := filepath.Rel(userDataDir, abs)
+	if err != nil {
+		return 0, 0, false
+	}
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	uid, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || uid <= 0 {
+		return 0, 0, false
+	}
+	for i, s := range specs {
+		if s.UserFile != "" && s.UserFile == parts[1] {
+			return i, uid, true
 		}
 	}
-
-	// Fall back to directory-level categories.
-	for dir, category := range dirCategories {
-		absDir, _ := filepath.Abs(dir)
-		if strings.HasPrefix(absPath, absDir+string(filepath.Separator)) {
-			return 0, category
-		}
-	}
-
-	return 0, ""
-}
-
-// watchNewPath adds a newly created file or directory tree to the watcher.
-func watchNewPath(w *fsnotify.Watcher, path string) {
-	if err := addRecursive(w, path); err != nil {
-		slog.Warn("watching new path", "path", path, "error", err)
-	}
+	return 0, 0, false
 }
 
 func addRecursive(w *fsnotify.Watcher, path string) error {
@@ -211,11 +163,7 @@ func addRecursive(w *fsnotify.Watcher, path string) error {
 			return nil
 		}
 		if d.IsDir() {
-			base := filepath.Base(p)
-			if strings.HasPrefix(base, ".") && p != path {
-				return filepath.SkipDir
-			}
-			if base == "node_modules" || base == "__pycache__" {
+			if base := filepath.Base(p); strings.HasPrefix(base, ".") && p != path {
 				return filepath.SkipDir
 			}
 			if err := w.Add(p); err != nil {

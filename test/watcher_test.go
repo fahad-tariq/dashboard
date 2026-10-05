@@ -8,100 +8,45 @@ import (
 	"github.com/fahad/dashboard/internal/watcher"
 )
 
-func TestClassifyEventPerUserPersonal(t *testing.T) {
-	tmpDir := t.TempDir()
-	userDataDir := filepath.Join(tmpDir, "users")
-	if err := os.MkdirAll(filepath.Join(userDataDir, "3"), 0o755); err != nil {
-		t.Fatal(err)
+// Classify matches exact file names only: a shared spec's path, or
+// USER_DATA_DIR/{id}/{UserFile}.
+func TestWatcherClassify(t *testing.T) {
+	dir := t.TempDir()
+	users := filepath.Join(dir, "users")
+	family := filepath.Join(dir, "family.md")
+	specs := []watcher.Spec{
+		{Path: family, Data: "family"},
+		{UserFile: "personal.md", Data: "personal"},
+		{UserFile: "ideas.md", Data: "ideas"},
 	}
-
-	path := filepath.Join(userDataDir, "3", "personal.md")
-	if err := os.WriteFile(path, []byte("# Personal\n"), 0o644); err != nil {
-		t.Fatal(err)
+	tests := map[string]struct {
+		path     string
+		wantOK   bool
+		wantData string
+		wantUser int64
+	}{
+		"shared file":                       {path: family, wantOK: true, wantData: "family"},
+		"per-user personal":                 {path: filepath.Join(users, "3", "personal.md"), wantOK: true, wantData: "personal", wantUser: 3},
+		"per-user ideas":                    {path: filepath.Join(users, "5", "ideas.md"), wantOK: true, wantData: "ideas", wantUser: 5},
+		"prefix-only name no longer counts": {path: filepath.Join(users, "3", "personal-old.md")},
+		"nested legacy ideas dir ignored":   {path: filepath.Join(users, "2", "ideas", "untriaged", "x.md")},
+		"temp file from an atomic write":    {path: filepath.Join(users, "3", ".personal.md.atomic-123.tmp")},
+		"non-numeric user dir":              {path: filepath.Join(users, "legacy", "personal.md")},
+		"unrelated file":                    {path: filepath.Join(dir, "other.md")},
 	}
-
-	uid, category := watcher.ClassifyEventWithUser(path, nil, nil, userDataDir)
-	if uid != 3 {
-		t.Errorf("expected userID=3, got %d", uid)
-	}
-	if category != "personal" {
-		t.Errorf("expected category=personal, got %q", category)
-	}
-}
-
-func TestClassifyEventPerUserIdeas(t *testing.T) {
-	tmpDir := t.TempDir()
-	userDataDir := filepath.Join(tmpDir, "users")
-	if err := os.MkdirAll(filepath.Join(userDataDir, "2", "ideas", "untriaged"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	path := filepath.Join(userDataDir, "2", "ideas", "untriaged", "test-idea.md")
-	if err := os.WriteFile(path, []byte("# Test\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	uid, category := watcher.ClassifyEventWithUser(path, nil, nil, userDataDir)
-	if uid != 2 {
-		t.Errorf("expected userID=2, got %d", uid)
-	}
-	if category != "ideas" {
-		t.Errorf("expected category=ideas, got %q", category)
-	}
-}
-
-func TestClassifyEventPerUserIdeasFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	userDataDir := filepath.Join(tmpDir, "users")
-	if err := os.MkdirAll(filepath.Join(userDataDir, "5"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	path := filepath.Join(userDataDir, "5", "ideas.md")
-	if err := os.WriteFile(path, []byte("# Ideas\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	uid, category := watcher.ClassifyEventWithUser(path, nil, nil, userDataDir)
-	if uid != 5 {
-		t.Errorf("expected userID=5, got %d", uid)
-	}
-	if category != "ideas" {
-		t.Errorf("expected category=ideas, got %q", category)
-	}
-}
-
-func TestClassifyEventFamilyWithUserID0(t *testing.T) {
-	tmpDir := t.TempDir()
-	familyPath := filepath.Join(tmpDir, "family.md")
-	if err := os.WriteFile(familyPath, []byte("# Family\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	fileCategories := map[string]string{
-		familyPath: "family",
-	}
-
-	uid, category := watcher.ClassifyEventWithUser(familyPath, nil, fileCategories, "")
-	if uid != 0 {
-		t.Errorf("expected userID=0 for family, got %d", uid)
-	}
-	if category != "family" {
-		t.Errorf("expected category=family, got %q", category)
-	}
-}
-
-func TestClassifyEventNonMarkdownIgnored(t *testing.T) {
-	tmpDir := t.TempDir()
-	userDataDir := filepath.Join(tmpDir, "users")
-	if err := os.MkdirAll(filepath.Join(userDataDir, "1"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	path := filepath.Join(userDataDir, "1", "something.txt")
-	uid, category := watcher.ClassifyEventWithUser(path, nil, nil, userDataDir)
-	if category != "" {
-		t.Errorf("expected empty category for .txt file, got %q (uid=%d)", category, uid)
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			i, uid, ok := watcher.Classify(tc.path, users, specs)
+			if ok != tc.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
+			}
+			if !ok {
+				return
+			}
+			if specs[i].Data != tc.wantData || uid != tc.wantUser {
+				t.Errorf("got %s for user %d, want %s for user %d", specs[i].Data, uid, tc.wantData, tc.wantUser)
+			}
+		})
 	}
 }
 

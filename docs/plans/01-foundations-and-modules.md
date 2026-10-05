@@ -341,7 +341,7 @@ type HomeWidget interface { Widget(ctx context.Context, userID int64, now time.T
 
 Modules receive one `module.Deps` struct: location, templates, change publisher, service registry, config and data paths. Do not use globals.
 
-- [ ] **Registry and validation.** At startup the registry rejects:
+- [x] **Registry and validation.** At startup the registry rejects:
   - duplicate module IDs
   - duplicate or overlapping route prefixes
   - reserved prefixes (`/api`, `/login`, `/logout`, `/admin`, `/account`, `/static`, `/uploads`, `/events`, `/search`, `/plan`, `/digest`)
@@ -349,28 +349,28 @@ Modules receive one `module.Deps` struct: location, templates, change publisher,
   - keys reserved by core: `h c d / ? n k`, Escape and the arrows. `n` is held for Plan 3 quick capture.
 
   Ordering is deterministic.
-- [ ] **Templates and shared components.**
+- [x] **Templates and shared components.**
   - Module templates live in `web/templates/<module-id>/`. Widen the embed pattern.
   - Add `web/templates/_components/` with partials for: page header, empty state, item row, quick-add disclosure, card, error banner and toast.
   - A render helper injects the layout data (`auth.TemplateData`, nav, flash).
   - Module templates MUST NOT use inline `on*` handlers.
   - FuncMap functions returning `template.HTML` stay limited to core sanitised markdown and `linkify`.
-- [ ] **Nav and shortcuts.**
+- [x] **Nav and shortcuts.**
   - The layout renders nav from the registry. `aria-current="page"` is set by path prefix, so `/ideas/x` highlights ideas.
   - `Group` is primary or more. At most 6 primary links; the rest go behind a "more" disclosure button.
   - Links carry `data-shortcut`. `shortcuts.js` builds the `g x` map from those attributes, and `?` help lists them.
   - The hamburger closes on Escape and returns focus.
   - Check the nav at 320px.
-- [ ] **Watcher and SSE.**
+- [x] **Watcher and SSE.**
   - The watcher is driven by `WatchSpec`s with exact filenames, replacing the `HasPrefix(subpath, "personal")` matching.
   - Events are named `changed:<module-id>` and carry no item content.
   - No per-user SSE routing (single user; record this as a known limitation).
   - Services publish through `Deps`.
-- [ ] **Search.** Search iterates registered `Searcher`s sequentially and never holds two module locks at once. Remove `search.ServiceResolver`.
-- [ ] **Home widgets.**
+- [x] **Search.** Search iterates registered `Searcher`s sequentially and never holds two module locks at once. Remove `search.ServiceResolver`.
+- [x] **Home widgets.**
   - `WidgetData` is data, not HTML: title, count, up to 5 items, link, empty text and severity.
   - One core partial renders each widget as `<section aria-labelledby>` with an `<h2>`, below the plan section, in registry order.
-- [ ] **Fixture module.**
+- [x] **Fixture module.**
   - Add `internal/module/moduletest`, a permanent fixture with one page using the shared partials, one nav item, one shortcut, one search result, one home widget and one watched file.
   - The contract test asserts:
     - each capability appears in the right place
@@ -663,6 +663,19 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - First `main` run after merge (`aaea9da`): e2e failed once on axe `color-contrast` for `#confirm-modal-title` (light theme, confirm modal open). It passed on the PR runs. The modal fades in from opacity 0 over 150ms and the scan started as soon as `.visible` was set, so axe measured a blended colour. The final colours pass. `expectNoSeriousViolations` now waits for every finite animation to finish before scanning. The next `main` run (`a704381`) passed.
 - Deployed to fliptronic 2026-10-05 00:00 UTC from image `f8143ab`, which is Phase 5 plus Dependabot's alpine 3.21 to 3.24 runtime bump (PR #5). A backup was taken first (`backups/dashboard-backup-20261004-235950.tar.gz`). Verified through Caddy: `/login` 200; `/`, `/todos`, `/account` and `/admin/users` redirect to login with `next`; `/events` 401; `/api/v1/*` 404; CSP and HSTS present; cross-site login POST 403; `verify-stack.sh` all green. Dependabot PRs #2 (`@types/node` 26) and #3 (pip group, including mcp 2.x) were closed, and `dependabot.yml` now ignores major bumps of both.
 - From Phase 6 on, work is committed directly to `main` (owner decision 2026-10-05); there are no more phase branches or PRs.
+
+### Phase 6 notes
+
+- Contract (`internal/module`): `Module` (`Manifest`, `Routes`) plus optional `APIRouter`, `Watcher`, `Searcher`, `HomeWidget`. `Manifest` carries the ID, title, nav items, route `Prefixes` (what validation checks; chi cannot report a group's routes) and flash messages. Modules get one `module.Deps` (location, config, service registry, renderer, `DataDir` = the directory of `FAMILY_PATH`, and `Publish(id)`, which sends a debounced `changed:<id>`). `app.modules` is the built-in list and is empty until Phase 7; `app.NewRouterWith(..., app.Options{Modules, Broker})` lets tests add modules and listen to the broker. `NewRouter` is unchanged for `main` and the other tests.
+- Validation (`module.NewRegistry`, table-tested in `test/module_registry_test.go`): it rejects malformed or duplicate IDs, overlapping prefixes at a path-segment boundary (`/a` overlaps `/a/b`, not `/ab`), reserved prefixes, core nav paths and `/personal` and `/exploration`, duplicate or reserved keys (`h c d / ? n k`), multi-letter keys, unknown groups and more than 6 primary links. `/commentary` and `/upload` were added to the plan's reserved list, because the core owns them too. Nav is sorted by `Order`; ties keep core first, then registration order.
+- Core nav until Phase 7: home, todos, goals, ideas, house and family are primary; digest and calendar sit behind "more". Calendar has a nav link for the first time (before, it was reachable only by `g c`). Digest moved behind "more" because the plan caps primary links at 6; revisit in Phase 9.
+- Templates: the embed is now `templates/*.html templates/_components/*.html templates/*/*.html`. Every page, core or module, clones the layout plus `_components/components.html` (`page-header`, `empty-state`, `error-banner`, `item-row`, `quick-add`, `card`, `widget`, `toast`), so Phase 9 can move core pages onto them. Module pages render through `Deps.Render.Page(w, r, manifest, file, data)`, which merges `auth.TemplateData` and resolves `?msg=` through the manifest. `auth.TemplateData` now includes `CurrentPath`, which the layout uses for `aria-current="page"` by path prefix; the JS nav highlighter is gone. Guard tests: no inline `on*` handlers in module or component templates, and only `linkify` returns `template.HTML` from the func map (checked by parsing `templates.go`).
+- Nav and shortcuts: links carry `data-shortcut`; `shortcuts.js` builds the `g x` map from them, and the `?` help rows render from the same registry. The "more" disclosure is a button with `aria-expanded`; it closes on outside click or Escape, which returns focus to it. Escape on the open hamburger menu now returns focus to the hamburger. In the open mobile menu, "more" links list inline and the button is hidden. Playwright: `e2e/tests/nav.spec.ts` and an axe state for the open "more" menu (type-checked; first run in CI).
+- Watcher: `watcher.Watch(userDataDir, []Spec, broker)` matches exact files only, either a shared `Path` or `USER_DATA_DIR/{id}/{UserFile}`. The prefix matching is gone, so `personal-old.md`, temp files from atomic writes and the legacy nested `ideas/untriaged/*.md` layout no longer trigger anything (table test `TestWatcherClassify`). Core lists still send `file-changed` with their category; module files send `changed:<id>` with the ID as data and no item content. Phase 7 renames the core events. Known limitation: events go to every connected client, with no per-user SSE routing (single user).
+- Search: `search.NewHandler([]module.Searcher)` queries searchers one at a time, so no two services' locks are held together. `search.ServiceResolver` is gone. The lists that are not modules yet use adapters (`search.Tracker`, `search.Maintenance`, `search.Ideas`) in the old order, which Phase 7 moves into the modules.
+- Home widgets: `home.Handler.SetWidgets(reg.Widgets)`. Each widget is `module.WidgetData` (title, count, up to 5 items, link, empty text, severity), rendered by the `widget` partial as `<section aria-labelledby>` with an `<h2>`, below the plan section. Deviation: widgets also render under the empty-homepage message, which has no plan section; otherwise a module's data would be invisible until the user adds a task. The contract test found this.
+- Fixture (`internal/module/moduletest`, template `web/templates/moduletest/page.html`, shipped in the binary but never registered in production): a line list in `DataDir/moduletest.md` with a page, quick-add, nav item under "more" with key `x`, search, widget, API route and watched file. `TestModuleContract` covers nav placement, `aria-current`, the help row, shared partials, the login redirect, the flash, search, widget placement, API token protection, `changed:moduletest` on its own write and on an external edit, and the error banner (the file replaced by a directory).
+- Verification: the route golden is unchanged; lint 0 issues; `INTEGRATION=1 go test -race ./...` green; gocyclo only lists the six accepted exclusions (`NewRegistry` was split into a validator to get there).
 
 - Follow-ups:
   - tighten CSP `script-src` after moving inline handlers

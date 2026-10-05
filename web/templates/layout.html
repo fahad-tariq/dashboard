@@ -28,13 +28,20 @@
     <nav class="nav" aria-label="Main navigation">
         <a href="/" class="nav-brand">dash&gt;_</a>
         <div class="nav-links" id="nav-links">
-            <a href="/">home</a>
-            <a href="/todos">todos</a>
-            <a href="/goals">goals</a>
-            <a href="/ideas">ideas</a>
-            <a href="/house">house</a>
-            <a href="/family">family</a>
-            <a href="/digest">digest</a>
+            {{- $path := .CurrentPath}}
+            {{- range navItems}}{{if eq .Group "primary"}}
+            <a href="{{.Path}}"{{with .Shortcut}} data-shortcut="{{.}}"{{end}}{{if navCurrent .Path $path}} class="nav-active" aria-current="page"{{end}}>{{.Label}}</a>
+            {{- end}}{{end}}
+            {{- if navHasMore}}
+            <div class="nav-more">
+                <button type="button" class="nav-more-btn" id="nav-more-btn" aria-expanded="false" aria-controls="nav-more-menu">more</button>
+                <div class="nav-more-menu" id="nav-more-menu" hidden>
+                    {{- range navItems}}{{if eq .Group "more"}}
+                    <a href="{{.Path}}"{{with .Shortcut}} data-shortcut="{{.}}"{{end}}{{if navCurrent .Path $path}} class="nav-active" aria-current="page"{{end}}>{{.Label}}</a>
+                    {{- end}}{{end}}
+                </div>
+            </div>
+            {{- end}}
         </div>
         <div class="nav-right">
             <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme" aria-label="Toggle theme"></button>
@@ -73,17 +80,6 @@
             btn.setAttribute('aria-expanded', String(open));
             btn.textContent = open ? '\u2715' : '\u2630';
         }
-        (function() {
-            var path = window.location.pathname;
-            document.querySelectorAll('.nav-links a').forEach(function(a) {
-                var href = a.getAttribute('href');
-                if (href === path || (href === '/' && path === '/')) {
-                    a.classList.add('nav-active');
-                } else if (href !== '/' && path.startsWith(href)) {
-                    a.classList.add('nav-active');
-                }
-            });
-        })();
     </script>
     {{if authEnabled}}<script>
         (function() {
@@ -138,21 +134,16 @@
                 <h2 class="shortcut-help-title" id="shortcut-help-heading">Keyboard shortcuts</h2>
                 <div class="shortcut-row"><span>Open search</span> <kbd>/</kbd> or <kbd>Ctrl+K</kbd></div>
                 <div class="shortcut-row"><span>Show shortcuts</span> <kbd>?</kbd></div>
-                <div class="shortcut-row"><span>Go to home</span> <kbd>g h</kbd></div>
-                <div class="shortcut-row"><span>Go to todos</span> <kbd>g t</kbd></div>
-                <div class="shortcut-row"><span>Go to goals</span> <kbd>g o</kbd></div>
-                <div class="shortcut-row"><span>Go to ideas</span> <kbd>g i</kbd></div>
-                <div class="shortcut-row"><span>Go to house</span> <kbd>g u</kbd></div>
-                <div class="shortcut-row"><span>Go to family</span> <kbd>g f</kbd></div>
-                <div class="shortcut-row"><span>Go to digest</span> <kbd>g d</kbd></div>
-                <div class="shortcut-row"><span>Go to calendar</span> <kbd>g c</kbd></div>
+                {{- range $n := navItems}}{{with $n.Shortcut}}
+                <div class="shortcut-row"><span>Go to {{$n.Label}}</span> <kbd>g {{.}}</kbd></div>
+                {{- end}}{{end}}
                 <div class="shortcut-row"><span>Exit select mode</span> <kbd>Esc</kbd></div>
             </div>
         </div>
     </div>
     <footer class="build-info">build {{buildVersion}} <span class="mcp-status" id="mcp-status" title="MCP: checking">[mcp]<span class="sr-only" id="mcp-status-text">: checking</span></span></footer>
     <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
-    <div id="toast" class="toast" hidden><span class="toast-text"></span></div>
+    {{template "toast"}}
     <script src="{{static "announce.js"}}"></script>
     <script src="{{static "dialog.js"}}"></script>
     <script src="{{static "tracker.js"}}"></script>

@@ -9,6 +9,8 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
@@ -23,6 +25,7 @@ import (
 	"github.com/fahad/dashboard/internal/home"
 	"github.com/fahad/dashboard/internal/house"
 	"github.com/fahad/dashboard/internal/ideas"
+	"github.com/fahad/dashboard/internal/module"
 	"github.com/fahad/dashboard/internal/search"
 	"github.com/fahad/dashboard/internal/services"
 	"github.com/fahad/dashboard/internal/sse"
@@ -57,19 +60,48 @@ const (
 		"img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
 )
 
+// modules are the feature modules every build registers, in nav and widget
+// order. Phase 7 moves the existing features here.
+var modules []module.Factory
+
+// coreNav is the core's nav: its own pages, plus the feature pages that are
+// not modules yet.
+var coreNav = []module.NavItem{
+	{Label: "home", Path: "/", Order: 0, Group: module.Primary, Shortcut: "h"},
+	{Label: "todos", Path: "/todos", Order: 10, Group: module.Primary, Shortcut: "t"},
+	{Label: "goals", Path: "/goals", Order: 20, Group: module.Primary, Shortcut: "o"},
+	{Label: "ideas", Path: "/ideas", Order: 30, Group: module.Primary, Shortcut: "i"},
+	{Label: "house", Path: "/house", Order: 40, Group: module.Primary, Shortcut: "u"},
+	{Label: "family", Path: "/family", Order: 50, Group: module.Primary, Shortcut: "f"},
+	{Label: "digest", Path: "/digest", Order: 60, Group: module.More, Shortcut: "d"},
+	{Label: "calendar", Path: "/plan/calendar", Order: 70, Group: module.More, Shortcut: "c"},
+}
+
+// Options adds wiring that only tests need.
+type Options struct {
+	// Modules are registered after the built-in ones.
+	Modules []module.Factory
+	// Broker, if set, is used instead of a new one so a test can listen.
+	Broker *sse.Broker
+}
+
 // NewRouter wires services, handlers and routes for cfg. Background goroutines
 // it starts stop when shutdownCtx is cancelled; the file watcher runs for the
 // life of the process.
 func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB, version string) (*chi.Mux, error) {
+	return NewRouterWith(shutdownCtx, cfg, database, version, Options{})
+}
+
+// NewRouterWith is NewRouter with extra modules or a given broker.
+func NewRouterWith(shutdownCtx context.Context, cfg *config.Config, database *sql.DB, version string, opts Options) (*chi.Mux, error) {
 	if err := prepareUsers(cfg, database); err != nil {
 		return nil, err
 	}
-	assets, templates, loginTmpl, err := loadTemplates(cfg, version)
-	if err != nil {
-		return nil, err
-	}
 
-	broker := sse.NewBroker()
+	broker := opts.Broker
+	if broker == nil {
+		broker = sse.NewBroker()
+	}
 	// End open event streams as soon as shutdown starts, so http.Server.Shutdown
 	// is not left waiting on them.
 	context.AfterFunc(shutdownCtx, broker.Close)
@@ -78,10 +110,20 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 	if err != nil {
 		return nil, err
 	}
+	reg, render, err := buildModules(cfg, svcs, broker, slices.Concat(modules, opts.Modules))
+	if err != nil {
+		return nil, err
+	}
+	tmpls, err := loadTemplates(cfg, version, reg)
+	if err != nil {
+		return nil, err
+	}
+	render.SetPages(tmpls.modules)
+	svcs.watch(cfg, broker, reg)
 	go runHourly(shutdownCtx, func() { svcs.purgeExpired(database) })
 
 	sm := newSessionManager(shutdownCtx, cfg, database)
-	h := svcs.handlers(cfg, database, sm, broker, templates, loginTmpl)
+	h := svcs.handlers(cfg, database, sm, broker, tmpls.core, tmpls.login, reg)
 
 	root := chi.NewRouter()
 	root.Use(securityHeaders)
@@ -91,10 +133,33 @@ func NewRouter(shutdownCtx context.Context, cfg *config.Config, database *sql.DB
 	// Every browser-facing route sits behind cross-origin protection; the
 	// bearer-token API is registered on root, outside it.
 	r := root.With(http.NewCrossOriginProtection().Handler)
-	r.Handle("/static/*", assets.Handler())
-	mountBrowserRoutes(r, cfg, database, sm, h)
-	mountAPIRoutes(root, cfg, h)
+	r.Handle("/static/*", tmpls.assets.Handler())
+	mountBrowserRoutes(r, cfg, database, sm, h, reg)
+	mountAPIRoutes(root, cfg, h, reg)
 	return root, nil
+}
+
+// buildModules constructs the modules and validates them against the core.
+// The renderer is filled once templates are parsed, which needs the nav.
+func buildModules(cfg *config.Config, svcs appServices, broker *sse.Broker, factories []module.Factory) (*module.Registry, *module.Renderer, error) {
+	render := &module.Renderer{}
+	deps := module.Deps{
+		Location: cfg.Location,
+		Config:   cfg,
+		Services: svcs.registry,
+		Render:   render,
+		DataDir:  filepath.Dir(cfg.FamilyPath),
+		Publish:  broker.DebouncedChanged(publishDebounce),
+	}
+	mods := make([]module.Module, 0, len(factories))
+	for _, f := range factories {
+		mods = append(mods, f(deps))
+	}
+	reg, err := module.NewRegistry(module.Core{Nav: coreNav, Prefixes: []string{"/personal", "/exploration"}}, mods...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("registering modules: %w", err)
+	}
+	return reg, render, nil
 }
 
 // prepareUsers creates the users start-up needs and refuses unsafe auth
@@ -165,44 +230,50 @@ func startServices(cfg *config.Config, database *sql.DB, broker *sse.Broker) (ap
 	publish := broker.Debounced(publishDebounce)
 	registry.SetPublisher(publish)
 	svcs.maintenance.OnChange(func() { publish("maintenance") })
-	svcs.watch(cfg, broker)
 	return svcs, nil
 }
 
-// watch starts the file watcher over the shared files and USER_DATA_DIR,
-// plus the owner's own files when they live outside it.
-func (s appServices) watch(cfg *config.Config, broker *sse.Broker) {
-	fileCategories := map[string]string{
-		cfg.FamilyPath:        "family",
-		cfg.HouseProjectsPath: "house-projects",
-		cfg.MaintenancePath:   "maintenance",
+// watch starts the file watcher over the core's files, the owner's files
+// when they live outside USER_DATA_DIR, and every module's watched files.
+// Core lists still send "file-changed" with their category until Phase 7.
+func (s appServices) watch(cfg *config.Config, broker *sse.Broker, reg *module.Registry) {
+	shared := func(path, category string, svc resyncer) watcher.Spec {
+		return watcher.Spec{Path: path, Event: "file-changed", Data: category, Reload: func(int64) bool { return resync(category, svc) }}
 	}
-	callbacks := map[string]func() bool{
-		"family":         resyncCallback("family", s.registry.Family()),
-		"house-projects": resyncCallback("house projects", s.registry.HouseProjects()),
-		"maintenance":    resyncCallback("maintenance", s.maintenance),
+	specs := []watcher.Spec{
+		shared(cfg.FamilyPath, "family", s.registry.Family()),
+		shared(cfg.HouseProjectsPath, "house-projects", s.registry.HouseProjects()),
+		shared(cfg.MaintenancePath, "maintenance", s.maintenance),
+		{UserFile: "personal.md", Event: "file-changed", Data: "personal", Reload: func(uid int64) bool {
+			return resync("personal", s.registry.ForUser(uid).Personal)
+		}},
+		{UserFile: "ideas.md", Event: "file-changed", Data: "ideas", Reload: func(uid int64) bool {
+			return resync("ideas", s.registry.ForUser(uid).Ideas)
+		}},
 	}
 	if cfg.AuthDisabled {
 		owner := s.registry.ForUser(ownerID)
-		fileCategories[cfg.PersonalPath] = "personal"
-		fileCategories[cfg.IdeasPath] = "ideas"
-		callbacks["personal"] = resyncCallback("personal", owner.Personal)
-		callbacks["ideas"] = resyncCallback("ideas", owner.Ideas)
+		specs = append(specs, shared(cfg.PersonalPath, "personal", owner.Personal), shared(cfg.IdeasPath, "ideas", owner.Ideas))
 	}
-	userCallback := func(userID int64, category string) bool {
-		if userID == 0 {
-			return false
+	for _, m := range reg.Modules() {
+		w, ok := m.(module.Watcher)
+		if !ok {
+			continue
 		}
-		svc := s.registry.ForUser(userID)
-		switch category {
-		case "personal":
-			return resyncCallback("personal", svc.Personal)()
-		case "ideas":
-			return resyncCallback("ideas", svc.Ideas)()
+		id := m.Manifest().ID
+		for _, ws := range w.Watches() {
+			reload := ws.Reload
+			specs = append(specs, watcher.Spec{Path: ws.Path, UserFile: ws.UserFile, Event: "changed:" + id, Data: id, Reload: func(uid int64) bool {
+				changed, err := reload(uid)
+				if err != nil {
+					slog.Error("module reload failed", "module", id, "user_id", uid, "error", err)
+					return false
+				}
+				return changed
+			}})
 		}
-		return false
 	}
-	if err := watcher.WatchWithUserCallbacks(nil, fileCategories, cfg.UserDataDir, broker, callbacks, userCallback); err != nil {
+	if err := watcher.Watch(cfg.UserDataDir, specs, broker); err != nil {
 		slog.Warn("file watcher failed to start", "error", err)
 	}
 }
@@ -249,7 +320,7 @@ func (s appServices) toTask(ctx context.Context, title, body string, tags []stri
 	}
 }
 
-func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.SessionManager, broker *sse.Broker, templates map[string]*template.Template, loginTmpl *template.Template) *handlers {
+func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.SessionManager, broker *sse.Broker, templates map[string]*template.Template, loginTmpl *template.Template, reg *module.Registry) *handlers {
 	commentaryStore := commentary.NewStore(database)
 	h := &handlers{
 		home:     home.NewHandler(s.lists, templates, cfg.Location),
@@ -259,10 +330,7 @@ func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.Sess
 		ideas: ideas.NewHandlerWithResolver(func(r *http.Request) *ideas.Service {
 			return s.registry.ForUser(auth.UserID(r.Context())).Ideas
 		}, s.toTask, templates, cfg.Location),
-		search: search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
-			l := s.lists(r)
-			return l.Personal, l.Family, l.HouseProjects, l.Maintenance, l.Ideas
-		}),
+		search:     search.NewHandler(slices.Concat(s.searchers(), reg.Searchers())),
 		upload:     upload.NewHandler(cfg.UploadsDir),
 		account:    account.NewHandler(database, sm, templates),
 		admin:      admin.NewHandler(database, s.registry, cfg.UserDataDir, templates),
@@ -276,7 +344,22 @@ func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.Sess
 	h.family.SetCommentaryStore(commentaryStore)
 	h.ideas.SetCommentaryStore(commentaryStore)
 	h.house.SetCommentaryStore(commentaryStore)
+	h.home.SetWidgets(reg.Widgets)
 	return h
+}
+
+// searchers search the lists that are not modules yet, in the old order.
+func (s appServices) searchers() []module.Searcher {
+	personal := func(uid int64) *tracker.Service { return s.registry.ForUser(uid).Personal }
+	family := func(int64) *tracker.Service { return s.registry.Family() }
+	houseProjects := func(int64) *tracker.Service { return s.registry.HouseProjects() }
+	return []module.Searcher{
+		search.Tracker("todos", "/todos#", personal),
+		search.Tracker("family", "/family#", family),
+		search.Tracker("house", "/house#item-", houseProjects),
+		search.Maintenance(s.maintenance),
+		search.Ideas(func(uid int64) *ideas.Service { return s.registry.ForUser(uid).Ideas }),
+	}
 }
 
 // purgeExpired removes items trashed more than trashRetentionDays ago from
@@ -343,15 +426,15 @@ func runHourly(ctx context.Context, fn func()) {
 	}
 }
 
-// resyncCallback adapts a service to the watcher: it re-reads the file only if
-// it differs from the service's own last write and reports whether it did.
-func resyncCallback(name string, svc interface{ ResyncIfChanged() (bool, error) }) func() bool {
-	return func() bool {
-		changed, err := svc.ResyncIfChanged()
-		if err != nil {
-			slog.Error("resync failed", "list", name, "error", err)
-			return false
-		}
-		return changed
+type resyncer interface{ ResyncIfChanged() (bool, error) }
+
+// resync re-reads a service's file only if it differs from the service's own
+// last write and reports whether it did.
+func resync(name string, svc resyncer) bool {
+	changed, err := svc.ResyncIfChanged()
+	if err != nil {
+		slog.Error("resync failed", "list", name, "error", err)
+		return false
 	}
+	return changed
 }

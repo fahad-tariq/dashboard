@@ -127,10 +127,14 @@ func TestOneEventPerChangeAndNoSelfResync(t *testing.T) {
 			return changed
 		}
 	}
-	err := watcher.Watch(nil,
-		map[string]string{personalPath: "personal", familyPath: "family"},
-		broker,
-		map[string]func() bool{"personal": callback(personal), "family": callback(family)})
+	reload := func(svc *tracker.Service) func(int64) bool {
+		cb := callback(svc)
+		return func(int64) bool { return cb() }
+	}
+	err := watcher.Watch("", []watcher.Spec{
+		{Path: personalPath, Event: "file-changed", Data: "personal", Reload: reload(personal)},
+		{Path: familyPath, Event: "file-changed", Data: "family", Reload: reload(family)},
+	}, broker)
 	if err != nil {
 		t.Fatal(err)
 	}

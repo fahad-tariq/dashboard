@@ -1,0 +1,11 @@
+{{define "content"}}
+<div class="moduletest-page"
+     hx-ext="sse" sse-connect="/events"
+     hx-get="/moduletest" hx-select=".moduletest-page" hx-target="this" hx-swap="outerHTML"
+     hx-trigger="sse:changed:moduletest">
+{{template "page-header" (dict "Title" "Fixture" "Subtitle" "Test module")}}
+{{with .Error}}{{template "error-banner" .}}{{end}}
+{{template "quick-add" (dict "Summary" "Add item" "Action" "/moduletest/add" "Name" "title" "Label" "Item" "Placeholder" "Item")}}
+{{range $i, $it := .Items}}{{template "item-row" (dict "ID" (printf "moduletest-%d" $i) "Title" $it)}}{{else}}{{if not .Error}}{{template "empty-state" "No fixture items yet."}}{{end}}{{end}}
+</div>
+{{end}}

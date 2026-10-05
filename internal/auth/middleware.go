@@ -12,10 +12,12 @@ import (
 )
 
 // TemplateData returns common template fields from the request context.
+// CurrentPath lets the layout mark the current nav link.
 func TemplateData(r *http.Request) map[string]any {
 	return map[string]any{
-		"UserName": UserName(r.Context()),
-		"IsAdmin":  IsAdmin(r.Context()),
+		"UserName":    UserName(r.Context()),
+		"IsAdmin":     IsAdmin(r.Context()),
+		"CurrentPath": r.URL.Path,
 	}
 }
 

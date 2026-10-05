@@ -135,11 +135,20 @@ document.addEventListener('keydown', function(e) {
             exitSelectMode();
             return;
         }
+        if (moreMenu && !moreMenu.hidden) {
+            setMoreOpen(false);
+            moreBtn.focus();
+            return;
+        }
         var navLinks = document.getElementById('nav-links');
         if (navLinks && navLinks.classList.contains('nav-links-open')) {
             navLinks.classList.remove('nav-links-open');
             var hamburger = document.getElementById('nav-hamburger');
-            if (hamburger) { hamburger.setAttribute('aria-expanded', 'false'); hamburger.textContent = '\u2630'; }
+            if (hamburger) {
+                hamburger.setAttribute('aria-expanded', 'false');
+                hamburger.textContent = '\u2630';
+                hamburger.focus();
+            }
             return;
         }
     }
@@ -185,15 +194,38 @@ document.addEventListener('keydown', function(e) {
 
     if (gPending) {
         gPending = false;
-        switch (e.key) {
-            case 'h': window.location.href = '/'; break;
-            case 't': window.location.href = '/todos'; break;
-            case 'o': window.location.href = '/goals'; break;
-            case 'i': window.location.href = '/ideas'; break;
-            case 'u': window.location.href = '/house'; break;
-            case 'f': window.location.href = '/family'; break;
-            case 'd': window.location.href = '/digest'; break;
-            case 'c': window.location.href = '/plan/calendar'; break;
-        }
+        var link = goTargets()[e.key];
+        if (link) window.location.href = link;
     }
 });
+
+// goTargets maps each "g" shortcut key to its nav link, read from the
+// data-shortcut attributes the server renders from the module registry.
+function goTargets() {
+    var map = {};
+    var links = document.querySelectorAll('#nav-links a[data-shortcut]');
+    for (var i = 0; i < links.length; i++) {
+        map[links[i].getAttribute('data-shortcut')] = links[i].getAttribute('href');
+    }
+    return map;
+}
+
+// "more" nav disclosure.
+var moreBtn = document.getElementById('nav-more-btn');
+var moreMenu = document.getElementById('nav-more-menu');
+
+function setMoreOpen(open) {
+    moreMenu.hidden = !open;
+    moreBtn.setAttribute('aria-expanded', String(open));
+}
+
+if (moreBtn && moreMenu) {
+    moreBtn.addEventListener('click', function() {
+        setMoreOpen(moreMenu.hidden);
+    });
+    document.addEventListener('click', function(e) {
+        if (!moreMenu.hidden && !moreBtn.contains(e.target) && !moreMenu.contains(e.target)) {
+            setMoreOpen(false);
+        }
+    });
+}

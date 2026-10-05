@@ -158,6 +158,72 @@ a:hover {
     padding-bottom: 2px;
 }
 
+.nav-more {
+    position: relative;
+}
+.nav-more-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--fg-dim);
+    cursor: pointer;
+}
+.nav-more-btn:hover,
+.nav-more-btn[aria-expanded="true"] {
+    color: var(--fg);
+}
+.nav-more-menu {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 8rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-card);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    z-index: 110;
+}
+.nav-more-menu[hidden] {
+    display: none;
+}
+
+/* --- Shared components (web/templates/_components) --- */
+.page-header {
+    margin-bottom: 1rem;
+}
+.page-header h1 {
+    margin-bottom: 0.25rem;
+}
+.item-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+}
+.quick-add-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+.homepage-widgets {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.stat-value.stat-warning {
+    color: var(--warning-fg);
+}
+.stat-value.stat-danger {
+    color: var(--danger-fg);
+}
+
 .nav-right {
     margin-left: auto;
     display: flex;
@@ -1286,6 +1352,17 @@ button.badge {
     }
     .nav-links a:last-child.nav-active { border-bottom: none; }
     .nav-hamburger { display: block; }
+    /* In the open hamburger menu, "more" links list inline. */
+    .nav-more-btn { display: none; }
+    .nav-more-menu,
+    .nav-more-menu[hidden] {
+        display: flex;
+        position: static;
+        gap: 0;
+        min-width: 0;
+        padding: 0;
+        border: none;
+    }
     .nav-user { font-size: 0; }
     .nav-user::after { content: "\2699"; font-size: 1.1rem; }
     /* Touch targets: min 44px as per WCAG */

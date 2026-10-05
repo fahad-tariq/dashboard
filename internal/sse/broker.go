@@ -135,24 +135,34 @@ func (b *Broker) Unsubscribe(ch chan string) {
 // Services publish their own writes through it so the tab that made a change
 // finishes its own request before the refresh arrives.
 func (b *Broker) Debounced(delay time.Duration) func(category string) {
+	return b.debounced(delay, func(category string) { b.Send("file-changed", category) })
+}
+
+// DebouncedChanged is Debounced for modules: it sends "changed:<id>" with
+// the module ID as data.
+func (b *Broker) DebouncedChanged(delay time.Duration) func(moduleID string) {
+	return b.debounced(delay, func(id string) { b.Send("changed:"+id, id) })
+}
+
+func (b *Broker) debounced(delay time.Duration, send func(key string)) func(key string) {
 	var mu sync.Mutex
 	timers := map[string]*time.Timer{}
-	return func(category string) {
+	return func(key string) {
 		mu.Lock()
 		defer mu.Unlock()
-		if t, ok := timers[category]; ok && t.Stop() {
+		if t, ok := timers[key]; ok && t.Stop() {
 			t.Reset(delay)
 			return
 		}
 		var t *time.Timer
 		t = time.AfterFunc(delay, func() {
 			mu.Lock()
-			if timers[category] == t {
-				delete(timers, category)
+			if timers[key] == t {
+				delete(timers, key)
 			}
 			mu.Unlock()
-			b.Send("file-changed", category)
+			send(key)
 		})
-		timers[category] = t
+		timers[key] = t
 	}
 }

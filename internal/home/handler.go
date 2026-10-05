@@ -1,6 +1,7 @@
 package home
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -17,6 +18,7 @@ import (
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/insights"
+	"github.com/fahad/dashboard/internal/module"
 	"github.com/fahad/dashboard/internal/tracker"
 )
 
@@ -32,14 +34,23 @@ type Lists struct {
 // Resolver returns the lists for the request's user.
 type Resolver func(r *http.Request) Lists
 
+// Widgets returns the module widgets shown below the plan section.
+type Widgets func(ctx context.Context, userID int64, now time.Time) []module.WidgetData
+
 type Handler struct {
 	resolve   Resolver
+	widgets   Widgets
 	templates map[string]*template.Template
 	loc       *time.Location
 }
 
 func NewHandler(resolve Resolver, templates map[string]*template.Template, loc *time.Location) *Handler {
 	return &Handler{resolve: resolve, templates: templates, loc: loc}
+}
+
+// SetWidgets adds module widgets to the homepage.
+func (h *Handler) SetWidgets(w Widgets) {
+	h.widgets = w
 }
 
 func (h *Handler) HomePage(w http.ResponseWriter, r *http.Request) {
@@ -243,6 +254,9 @@ func (h *Handler) renderHomePage(w http.ResponseWriter, r *http.Request, l Lists
 	data["TotalCompleted"] = totalCompleted
 	data["MilestoneBadge"] = insights.MilestoneBadge(totalCompleted)
 	data["TagSummaries"] = insights.TopN(insights.TagAggregation(tagInfos(personalItems, familyItems, allIdeas)), 5)
+	if h.widgets != nil {
+		data["Widgets"] = h.widgets(r.Context(), auth.UserID(r.Context()), now)
+	}
 
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
 		if flashMsg := resolvePlanFlash(msgKey, now); flashMsg != "" {

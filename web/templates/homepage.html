@@ -10,6 +10,7 @@
 
 {{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .TotalIdeaCount 0)}}
 <p class="empty">Nothing here yet. Add a task or capture an idea to get started.</p>
+{{template "home-widgets" .}}
 {{else}}
 
 {{if or .InsightLine.ThisWeek .InsightLine.LastWeek .StreakDays .MilestoneBadge}}
@@ -131,6 +132,8 @@
     </details>
     {{end}}
 </section>
+
+{{template "home-widgets" .}}
 
 <div class="homepage-grid">
 
@@ -286,3 +289,10 @@
     </div>
 </div>
 {{end}}
+
+{{/* Module widgets, in registry order. */}}
+{{define "home-widgets"}}{{if .Widgets}}
+<div class="homepage-widgets">
+{{range .Widgets}}{{template "widget" .}}{{end}}
+</div>
+{{end}}{{end}}

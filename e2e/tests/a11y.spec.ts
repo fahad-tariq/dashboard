@@ -194,6 +194,13 @@ for (const theme of THEMES) {
       await expectNoSeriousViolations(page, `mobile nav (${theme})`);
     });
 
+    test('nav "more" menu open', async ({ page }) => {
+      await gotoInTheme(page, '/todos', theme);
+      await page.getByRole('button', { name: 'more' }).click();
+      await expect(page.locator('#nav-more-menu')).toBeVisible();
+      await expectNoSeriousViolations(page, `more menu (${theme})`);
+    });
+
     test('toast visible', async ({ page }) => {
       await gotoInTheme(page, '/todos', theme);
       await page.evaluate(() => (window as unknown as { showToast: (msg: string) => void }).showToast('Saved'));

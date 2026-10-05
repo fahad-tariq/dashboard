@@ -20,6 +20,7 @@ import (
 	"github.com/fahad/dashboard/internal/house"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
+	"github.com/fahad/dashboard/internal/module"
 	"github.com/fahad/dashboard/internal/search"
 	"github.com/fahad/dashboard/internal/sse"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -48,7 +49,7 @@ type handlers struct {
 // mountBrowserRoutes registers the session-authenticated routes. With auth
 // disabled, every request is served as the owner instead of being sent to
 // /login, and the routes are otherwise identical.
-func mountBrowserRoutes(r chi.Router, cfg *config.Config, database *sql.DB, sm *scs.SessionManager, h *handlers) {
+func mountBrowserRoutes(r chi.Router, cfg *config.Config, database *sql.DB, sm *scs.SessionManager, h *handlers, reg *module.Registry) {
 	requireUser, requireUserAPI := auth.RequireAuth(sm), auth.RequireAuthAPI(sm)
 	if cfg.AuthDisabled {
 		requireUser = auth.InjectUser(database, ownerID)
@@ -88,6 +89,9 @@ func mountBrowserRoutes(r chi.Router, cfg *config.Config, database *sql.DB, sm *
 
 		mountAppRoutes(r, h)
 		r.Get("/commentary/{list}/{slug}", commentary.WebGetCommentary(h.commentary))
+		for _, m := range reg.Modules() {
+			r.Group(m.Routes)
+		}
 	})
 }
 
@@ -183,7 +187,7 @@ func mountTrackerRoutes(r chi.Router, personalHandler, familyHandler *tracker.Ha
 // mountAPIRoutes registers the bearer-token API, which acts as the owner
 // through the same handlers and resolvers as the browser routes. Without a
 // long enough DASHBOARD_API_TOKEN it is not mounted at all.
-func mountAPIRoutes(root chi.Router, cfg *config.Config, h *handlers) {
+func mountAPIRoutes(root chi.Router, cfg *config.Config, h *handlers, reg *module.Registry) {
 	if len(cfg.APIToken) < minAPITokenLength {
 		slog.Error("API not mounted: DASHBOARD_API_TOKEN must be set and at least 32 characters")
 		return
@@ -218,6 +222,11 @@ func mountAPIRoutes(root chi.Router, cfg *config.Config, h *handlers) {
 		r.Post("/todos/{slug}/substeps", tracker.APIAddSubStep(h.todosAPI))
 		r.Put("/todos/{slug}/substeps/{index}", tracker.APIToggleSubStep(h.todosAPI))
 		r.Delete("/todos/{slug}/substeps/{index}", tracker.APIRemoveSubStep(h.todosAPI))
+		for _, m := range reg.Modules() {
+			if a, ok := m.(module.APIRouter); ok {
+				r.Group(a.APIRoutes)
+			}
+		}
 	})
 }
 

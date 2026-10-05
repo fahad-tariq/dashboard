@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/fahad/dashboard/internal/db"
-	"github.com/fahad/dashboard/internal/house"
 	"github.com/fahad/dashboard/internal/ideas"
+	"github.com/fahad/dashboard/internal/module"
 	"github.com/fahad/dashboard/internal/search"
 	"github.com/fahad/dashboard/internal/tracker"
 )
@@ -100,9 +100,7 @@ func TestSearchHandler(t *testing.T) {
 	}
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 
-	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
-		return personalSvc, familySvc, nil, nil, ideaSvc
-	})
+	handler := listSearchHandler(personalSvc, familySvc, ideaSvc)
 
 	tests := []struct {
 		name       string
@@ -157,9 +155,7 @@ func TestSearchQueryTooLong(t *testing.T) {
 	}
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 
-	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
-		return personalSvc, familySvc, nil, nil, ideaSvc
-	})
+	handler := listSearchHandler(personalSvc, familySvc, ideaSvc)
 
 	longQuery := strings.Repeat("a", 201)
 	req := httptest.NewRequest("GET", "/search?q="+longQuery, nil)
@@ -202,9 +198,7 @@ func TestSearchExcludesDeletedItems(t *testing.T) {
 	}
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 
-	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
-		return personalSvc, familySvc, nil, nil, ideaSvc
-	})
+	handler := listSearchHandler(personalSvc, familySvc, ideaSvc)
 
 	// Search for "trashed" should return no results (both are soft-deleted).
 	req := httptest.NewRequest("GET", "/search?q=trashed", nil)
@@ -260,9 +254,7 @@ func TestSearchSnippetInResults(t *testing.T) {
 	}
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 
-	handler := search.NewHandler(func(r *http.Request) (*tracker.Service, *tracker.Service, *tracker.Service, *house.Service, *ideas.Service) {
-		return personalSvc, familySvc, nil, nil, ideaSvc
-	})
+	handler := listSearchHandler(personalSvc, familySvc, ideaSvc)
 
 	req := httptest.NewRequest("GET", "/search?q=fox", nil)
 	rec := httptest.NewRecorder()
@@ -275,4 +267,14 @@ func TestSearchSnippetInResults(t *testing.T) {
 	if !strings.Contains(body, "Research project") {
 		t.Errorf("expected result to contain title 'Research project', got: %s", body)
 	}
+}
+
+// listSearchHandler searches a personal list, a family list and ideas in the
+// production order.
+func listSearchHandler(personal, family *tracker.Service, ideaSvc *ideas.Service) *search.Handler {
+	return search.NewHandler([]module.Searcher{
+		search.Tracker("todos", "/todos#", func(int64) *tracker.Service { return personal }),
+		search.Tracker("family", "/family#", func(int64) *tracker.Service { return family }),
+		search.Ideas(func(int64) *ideas.Service { return ideaSvc }),
+	})
 }
