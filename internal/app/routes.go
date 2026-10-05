@@ -224,7 +224,7 @@ func mountAPIRoutes(root chi.Router, cfg *config.Config, h *handlers, reg *modul
 		r.Delete("/todos/{slug}/substeps/{index}", tracker.APIRemoveSubStep(h.todosAPI))
 		for _, m := range reg.Modules() {
 			if a, ok := m.(module.APIRouter); ok {
-				r.Group(a.APIRoutes)
+				r.Route("/"+m.Manifest().ID, a.APIRoutes)
 			}
 		}
 	})

@@ -173,6 +173,12 @@ a:hover {
 .nav-more-btn[aria-expanded="true"] {
     color: var(--fg);
 }
+.nav-more-btn.nav-active {
+    color: var(--fg);
+    font-weight: 600;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 2px;
+}
 .nav-more-menu {
     position: absolute;
     top: calc(100% + 0.5rem);

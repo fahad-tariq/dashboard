@@ -60,7 +60,7 @@ func (m *Module) Routes(r chi.Router) {
 }
 
 func (m *Module) APIRoutes(r chi.Router) {
-	r.Get("/moduletest", func(w http.ResponseWriter, _ *http.Request) {
+	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
 		items, err := m.items()
 		if err != nil {
 			httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "unreadable"})

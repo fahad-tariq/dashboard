@@ -27,12 +27,13 @@ type seasonalAccentCSS struct{ Light, Dark string }
 
 func buildFuncMap(loc *time.Location, authEnabled bool, version string, static func(string) (string, error), tokens theme.Tokens, reg *module.Registry) template.FuncMap {
 	return template.FuncMap{
-		"navItems":     reg.Nav,
-		"navHasMore":   reg.HasMore,
-		"navCurrent":   navCurrent,
-		"static":       static,
-		"authEnabled":  func() bool { return authEnabled },
-		"buildVersion": func() string { return version },
+		"navItems":       reg.Nav,
+		"navHasMore":     reg.HasMore,
+		"navCurrent":     navCurrent,
+		"navMoreCurrent": navMoreCurrent(reg),
+		"static":         static,
+		"authEnabled":    func() bool { return authEnabled },
+		"buildVersion":   func() string { return version },
 		"percentage": func(current, target float64) int {
 			if target == 0 {
 				return 0
@@ -150,6 +151,19 @@ func navCurrent(path string, current any) bool {
 		return cur == "/"
 	}
 	return cur == path || strings.HasPrefix(cur, path+"/")
+}
+
+// navMoreCurrent reports whether the current page's nav link sits behind
+// "more", so the closed menu's button can show the current section.
+func navMoreCurrent(reg *module.Registry) func(current any) bool {
+	return func(current any) bool {
+		for _, n := range reg.Nav() {
+			if n.Group == module.More && navCurrent(n.Path, current) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // templateSet is every parsed template: core pages by file name, module pages

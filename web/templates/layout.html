@@ -34,7 +34,7 @@
             {{- end}}{{end}}
             {{- if navHasMore}}
             <div class="nav-more">
-                <button type="button" class="nav-more-btn" id="nav-more-btn" aria-expanded="false" aria-controls="nav-more-menu">more</button>
+                <button type="button" class="nav-more-btn{{if navMoreCurrent $path}} nav-active{{end}}" id="nav-more-btn" aria-expanded="false" aria-controls="nav-more-menu">more</button>
                 <div class="nav-more-menu" id="nav-more-menu" hidden>
                     {{- range navItems}}{{if eq .Group "more"}}
                     <a href="{{.Path}}"{{with .Shortcut}} data-shortcut="{{.}}"{{end}}{{if navCurrent .Path $path}} class="nav-active" aria-current="page"{{end}}>{{.Label}}</a>

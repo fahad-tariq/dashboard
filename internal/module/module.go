@@ -53,7 +53,8 @@ type Module interface {
 	Routes(r chi.Router)
 }
 
-// APIRouter adds routes to the bearer-token API under /api/v1.
+// APIRouter adds routes to the bearer-token API. They are mounted under
+// /api/v1/<module-id>, so they cannot shadow core API routes.
 type APIRouter interface {
 	APIRoutes(r chi.Router)
 }

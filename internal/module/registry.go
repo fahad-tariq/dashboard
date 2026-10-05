@@ -125,6 +125,9 @@ func (v *validator) add(man Manifest) error {
 		}
 	}
 	for _, n := range man.Nav {
+		if !slices.ContainsFunc(man.Prefixes, func(p string) bool { return n.Path == p || strings.HasPrefix(n.Path, p+"/") }) {
+			return fmt.Errorf("nav %q path %q is not under the module's prefixes %v", n.Label, n.Path, man.Prefixes)
+		}
 		if err := v.addNav(n, "module "+man.ID); err != nil {
 			return err
 		}
