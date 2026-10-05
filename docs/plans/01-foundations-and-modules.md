@@ -823,3 +823,4 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - from 1100px the homepage is two columns, with the plan on the left and the widgets in a 22rem rail (a deviation from the single-column brief, on the owner's feedback)
   - list pages are 880px, up from 760px
   - the picker's list scrolls inside a 22rem box
+- Deployed `78671a6` to fliptronic 2026-10-05 22:35 UTC (backup `dashboard-backup-20261005-223519.tar.gz`). CI run 37364969858 passed on attempt 3; e2e showed "cancelled" after about 15 minutes in attempts 1 and 2 with no failed step recorded (cause not visible without authenticated log access). Verified through Caddy as before; the served `theme.css` has the new picker rule.
