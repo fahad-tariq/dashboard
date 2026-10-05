@@ -835,3 +835,4 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
      - a "stale" filter (two weeks old or more, from `insights.AgeBadge`) for tasks and ideas
      - goals as a two-column card grid on wide screens
   - Filter buttons carry `aria-pressed`, and "all" is found by its empty filter type, because labels now include counts. Counts come from a `filterCount` template func (reflection over Tags, Priority and Added).
+- Deployed `5306a02` to fliptronic 2026-10-05 23:16 UTC (backup `dashboard-backup-20261005-231603.tar.gz`). CI green first time. Verified through Caddy as before; the served `theme.css` has the list rail rules.
