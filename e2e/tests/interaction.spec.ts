@@ -203,7 +203,8 @@ test('search is a combobox: arrows set the active option, Escape returns focus',
   await expect(overlay).toHaveAttribute('open');
   await expect(input).toBeFocused();
   await input.fill('passport');
-  const option = page.getByRole('option').first();
+  // Scoped: the page's own <select>s hold options too.
+  const option = page.getByRole('listbox', { name: 'Search results' }).getByRole('option').first();
   await expect(option).toBeVisible();
   await expect(input).toHaveAttribute('aria-expanded', 'true');
 

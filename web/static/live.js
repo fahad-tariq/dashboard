@@ -10,7 +10,10 @@
      data-keep-attr="a b"    these attributes keep their current value
      data-morph-skip         the element and its contents are left alone
                              (client-built content, such as upload.js's
-                             image area or loaded commentary)
+                             image area or loaded commentary). It needs an
+                             id: idiomorph pairs an element without one with
+                             any new element of the same tag, whose content
+                             the skip would then swallow.
      data-client-*           attributes set by scripts are never removed
      edited text fields and changed checkboxes keep what the user entered
 

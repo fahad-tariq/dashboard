@@ -87,10 +87,14 @@ export function trackerSection(page: Page, summary: RegExp): Locator {
   });
 }
 
-/** Expands a tracker or idea row through its toggle button. */
+/**
+ * Expands a tracker or idea row through its toggle button. A row keeps its
+ * expanded state through morphs, including moves between lists (trash and
+ * restore, triage), so it may already be open.
+ */
 export async function expandTrackerItem(item: Locator): Promise<void> {
   const toggle = item.locator('.item-toggle');
-  await toggle.click();
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
   await expect(item).not.toHaveClass(/\bminimised\b/);
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
 }

@@ -1,6 +1,8 @@
 (function() {
     'use strict';
 
+    var uploadAreas = 0;
+
     function initImageUpload(formSelector) {
         document.querySelectorAll(formSelector).forEach(function(form) {
             setupForm(form);
@@ -26,6 +28,9 @@
         // Create upload area.
         var area = document.createElement('div');
         area.className = 'upload-area';
+        // The id stops idiomorph pairing this area with some other new
+        // <div> (see data-morph-skip in live.js).
+        area.id = 'upload-area-' + (++uploadAreas);
         area.setAttribute('data-morph-skip', '');
 
         var fileInput = document.createElement('input');

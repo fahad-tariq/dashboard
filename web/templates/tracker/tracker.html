@@ -100,7 +100,7 @@
                 <input type="text" name="text" placeholder="Add a step..." class="form-input substep-add-input" required aria-label="Add a sub-step">
                 <button type="submit" class="action-btn">add</button>
             </form>
-            <div class="commentary-slot" data-morph-skip data-commentary-url="/commentary/{{$.ListName}}/{{.Slug}}"></div>
+            <div class="commentary-slot" id="item-{{.Slug}}-commentary" data-morph-skip data-commentary-url="/commentary/{{$.ListName}}/{{.Slug}}"></div>
             <details class="item-actions-menu" open data-keep-attr="open">
                 <summary class="action-btn item-actions-toggle">more</summary>
                 <div class="tracker-item-actions item-actions-panel">
