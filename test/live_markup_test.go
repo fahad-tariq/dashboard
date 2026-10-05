@@ -72,3 +72,23 @@ func TestNoRefreshSuppressionFlags(t *testing.T) {
 		}
 	}
 }
+
+// idiomorph matches an element without an id to any new element of the same
+// tag. A data-morph-skip element matched that way swallows the new element's
+// content (it refuses the morph), so every one must carry an id.
+func TestMorphSkipElementsHaveIDs(t *testing.T) {
+	h, _ := renderRouter(t)
+	tag := regexp.MustCompile(`<[a-z]+\s[^>]*\sdata-morph-skip[\s>][^>]*>`)
+	found := 0
+	for _, path := range []string{"/", "/todos", "/goals", "/ideas", "/house"} {
+		for _, el := range tag.FindAllString(renderPage(t, h, path), -1) {
+			found++
+			if !regexp.MustCompile(`\sid="[^"]+"`).MatchString(el) {
+				t.Errorf("%s: data-morph-skip without an id: %s", path, el)
+			}
+		}
+	}
+	if found == 0 {
+		t.Error("no data-morph-skip elements rendered; the commentary slot should be one")
+	}
+}
