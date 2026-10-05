@@ -816,3 +816,6 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
     - dropping the mono `dash>_` wordmark (the owner chose to keep it)
     - one page width everywhere (three widths are deliberate)
     - the picker repeating tasks that also appear in the summary cards (a behaviour question, raised with the owner)
+- CI on `main` (`3e81500`) passed in full, including e2e and the separate screenshots job. Deployed to fliptronic 2026-10-05 14:25 UTC (backup `dashboard-backup-20261005-142445.tar.gz`, image revision `3e81500`). Verified through Caddy: `/login` 200 and serves the new markup (`data-style`, caret); `/` and `/todos` 303 to login; `/events` 401; `/api/v1/todos` 404; cross-site login POST 403; CSP and HSTS present; `verify-stack.sh` green.
+- Owner decision (2026-10-05): the homepage task picker may keep listing tasks that the summary cards below also show.
+- **Phase 9 STOP:** the owner uses the redesigned app (all three styles, both themes, phone and desktop) before Phase 10 starts. Still open in the Phase 9 checklist until then.
