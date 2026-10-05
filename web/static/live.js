@@ -181,9 +181,12 @@
 
     // A form's own successful submission clears what was typed, so the
     // server's values replace it instead of being kept as edits. The morph
-    // leaves the focused field alone (ignoreActiveValue), so a field focused
-    // in the submitted form is blurred first and refocused after the swap,
-    // or it would keep showing its old value.
+    // leaves the focused field alone (ignoreActiveValue), so whatever has
+    // focus in the submitted form is blurred first and refocused after the
+    // swap: a focused field would keep showing its old value, and idiomorph
+    // also pairs nodes differently around the focused element and its
+    // parents, which built a row moved between lists wrongly when its
+    // button kept focus (second Phase 8 CI run).
     var refocusAfterSwap = null;
 
     // An error flash (say an invalid cadence) means the form was not
@@ -203,7 +206,7 @@
         var elt = evt.detail.requestConfig && evt.detail.requestConfig.elt;
         if (!elt || elt.tagName !== 'FORM' || evt.detail.xhr.status >= 300 || flashIsError(evt.detail.xhr)) return;
         var active = document.activeElement;
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && elt.contains(active)) {
+        if (active && active !== elt && elt.contains(active)) {
             refocusAfterSwap = active;
             active.blur();
         }
