@@ -1,11 +1,10 @@
 {{define "content"}}
-<div class="homepage-page"
-     hx-ext="sse" sse-connect="/events"
-     hx-get="/" hx-select=".homepage-page" hx-target="this" hx-swap="outerHTML"
-     hx-trigger="{{homeTrigger}}">
+<div class="homepage-page" data-live
+     hx-get="/" hx-trigger="{{homeTrigger}}"
+     hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false">
 <span class="htmx-indicator meta-dim" aria-hidden="true">updating&hellip;</span>
 
-<h1 class="homepage-greeting">{{or .Greeting "Today"}}</h1>
+<h1 class="homepage-greeting" id="page-heading" tabindex="-1">{{or .Greeting "Today"}}</h1>
 {{if .DateLabel}}<p class="plan-date-label">{{.DateLabel}} &middot; <a href="/plan/calendar" class="meta-dim">calendar</a></p>{{end}}
 
 {{if .Empty}}
@@ -44,14 +43,14 @@
     {{if gt .CarriedOverCount 0}}
     <div class="plan-carried-banner">
         <span class="meta-dim">{{.CarriedOverCount}} task{{if gt .CarriedOverCount 1}}s{{end}} from previous days.</span>
-        <form method="POST" action="/plan/bulk/clear-carried" class="inline-form">
+        <form method="POST" action="/plan/bulk/clear-carried" class="inline-form" hx-boost="true">
             <button type="submit" class="action-btn action-btn-sm">drop all carried</button>
         </form>
     </div>
     {{end}}
 
     {{if or .PersonalPlanned .FamilyPlanned .HousePlanned}}
-    <div class="plan-today-tasks">
+    <div class="plan-today-tasks" id="plan-today" data-row-list data-row-heading="page-heading">
         {{if .PersonalPlanned}}
         {{if or .FamilyPlanned .HousePlanned}}<span class="plan-list-label meta-dim">Personal</span>{{end}}
         {{range .PersonalPlanned}}{{template "plan-row" (dict "Item" . "List" "todos" "Today" $.Today)}}{{end}}
@@ -71,23 +70,23 @@
 
     {{/* Task picker */}}
     {{if or .UnplannedPersonal .UnplannedFamily .UnplannedHouse}}
-    <details class="plan-picker" {{if and (not .PersonalPlanned) (not .FamilyPlanned) (not .HousePlanned)}}open{{end}}>
-        <summary class="plan-picker-toggle">{{if or .PersonalPlanned .FamilyPlanned .HousePlanned}}Add more tasks{{else}}{{.PlanPrompt}}{{end}}</summary>
+    <details class="plan-picker" id="plan-picker" data-row-list data-row-heading="plan-picker-summary" data-keep-attr="open" {{if and (not .PersonalPlanned) (not .FamilyPlanned) (not .HousePlanned)}}open{{end}}>
+        <summary class="plan-picker-toggle" id="plan-picker-summary">{{if or .PersonalPlanned .FamilyPlanned .HousePlanned}}Add more tasks{{else}}{{.PlanPrompt}}{{end}}</summary>
         <input type="text" class="plan-picker-filter form-input" placeholder="Filter tasks..." oninput="plannerFilter(this.value)" id="plan-filter" aria-label="Filter tasks">
         {{if .UnplannedPersonal}}
         <span class="plan-list-label meta-dim">Personal</span>
         {{range .UnplannedPersonal}}
-        <div class="plan-pick-item" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+        <div class="plan-pick-item" id="pick-todos-{{.Slug}}" data-row data-keep-attr="style" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
             <span class="plan-pick-title">{{.Title}}</span>
             <div class="plan-pick-meta">
                 {{if .Priority}}<span class="badge badge-priority-{{.Priority}}">{{.Priority}}</span>{{end}}
                 {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
             </div>
-            <form method="POST" action="/plan/set" class="inline-form">
+            <form method="POST" action="/plan/set" class="inline-form" hx-boost="true">
                 <input type="hidden" name="slug" value="{{.Slug}}">
                 <input type="hidden" name="list" value="todos">
                 <input type="hidden" name="date" value="{{$.Today}}">
-                <button type="submit" class="action-btn action-btn-sm">today</button>
+                <button type="submit" class="action-btn action-btn-sm" data-row-focus aria-label="Plan {{.Title}} for today">today</button>
             </form>
         </div>
         {{end}}
@@ -95,17 +94,17 @@
         {{if .UnplannedFamily}}
         <span class="plan-list-label meta-dim">Family</span>
         {{range .UnplannedFamily}}
-        <div class="plan-pick-item" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+        <div class="plan-pick-item" id="pick-family-{{.Slug}}" data-row data-keep-attr="style" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
             <span class="plan-pick-title">{{.Title}}</span>
             <div class="plan-pick-meta">
                 {{if .Priority}}<span class="badge badge-priority-{{.Priority}}">{{.Priority}}</span>{{end}}
                 {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
             </div>
-            <form method="POST" action="/plan/set" class="inline-form">
+            <form method="POST" action="/plan/set" class="inline-form" hx-boost="true">
                 <input type="hidden" name="slug" value="{{.Slug}}">
                 <input type="hidden" name="list" value="family">
                 <input type="hidden" name="date" value="{{$.Today}}">
-                <button type="submit" class="action-btn action-btn-sm">today</button>
+                <button type="submit" class="action-btn action-btn-sm" data-row-focus aria-label="Plan {{.Title}} for today">today</button>
             </form>
         </div>
         {{end}}
@@ -113,17 +112,17 @@
         {{if .UnplannedHouse}}
         <span class="plan-list-label meta-dim">House</span>
         {{range .UnplannedHouse}}
-        <div class="plan-pick-item" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+        <div class="plan-pick-item" id="pick-house-{{.Slug}}" data-row data-keep-attr="style" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
             <span class="plan-pick-title">{{.Title}}</span>
             <div class="plan-pick-meta">
                 {{if .Priority}}<span class="badge badge-priority-{{.Priority}}">{{.Priority}}</span>{{end}}
                 {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
             </div>
-            <form method="POST" action="/plan/set" class="inline-form">
+            <form method="POST" action="/plan/set" class="inline-form" hx-boost="true">
                 <input type="hidden" name="slug" value="{{.Slug}}">
                 <input type="hidden" name="list" value="house">
                 <input type="hidden" name="date" value="{{$.Today}}">
-                <button type="submit" class="action-btn action-btn-sm">today</button>
+                <button type="submit" class="action-btn action-btn-sm" data-row-focus aria-label="Plan {{.Title}} for today">today</button>
             </form>
         </div>
         {{end}}
@@ -163,9 +162,9 @@
 {{end}}
 
 {{define "plan-row"}}{{$i := .Item}}{{$id := printf "plan-%s-%s" .List $i.Slug}}
-<div class="plan-item minimised{{if $i.Done}} plan-item-done{{end}}{{if ne $i.Planned .Today}} plan-item-carried{{end}}" id="{{$id}}" data-priority="{{$i.Priority}}" data-slug="{{$i.Slug}}" data-list="{{.List}}" {{if not $i.Done}}draggable="true"{{end}} onclick="planItemClick(event)">
-    <button type="button" class="plan-item-toggle" id="{{$id}}-toggle" aria-expanded="false" aria-controls="{{$id}}-detail">
-        <span class="plan-item-chevron" aria-hidden="true">&#x25B8;</span>
+<div class="plan-item minimised{{if $i.Done}} plan-item-done{{end}}{{if ne $i.Planned .Today}} plan-item-carried{{end}}" id="{{$id}}" data-row data-keep-class="minimised" data-priority="{{$i.Priority}}" data-slug="{{$i.Slug}}" data-list="{{.List}}" {{if not $i.Done}}draggable="true"{{end}} onclick="planItemClick(event)">
+    <button type="button" class="plan-item-toggle" id="{{$id}}-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="{{$id}}-detail">
+        <span class="plan-item-chevron" aria-hidden="true"></span>
         <span class="plan-item-title">{{$i.Title}}</span>
     </button>
     {{if ne $i.Planned .Today}}<span class="plan-item-date meta-dim">from {{relativeDate $i.Planned}}</span>{{end}}
@@ -173,12 +172,12 @@
         {{if not $i.Done}}
         <button type="button" class="plan-reorder-btn" id="{{$id}}-up" aria-label="Move {{$i.Title}} up" title="Move up" onclick="planMoveUp(this)">&uarr;</button>
         <button type="button" class="plan-reorder-btn" id="{{$id}}-down" aria-label="Move {{$i.Title}} down" title="Move down" onclick="planMoveDown(this)">&darr;</button>
-        <form method="POST" action="/plan/{{$i.Slug}}/complete" class="inline-form" onsubmit="return celebrateComplete(this)">
+        <form method="POST" action="/plan/{{$i.Slug}}/complete" class="inline-form" data-submit="celebrate" hx-boost="true" hx-swap="morph swap:400ms">
             <input type="hidden" name="list" value="{{.List}}">
             <button type="submit" class="item-complete-btn" id="{{$id}}-done" title="Complete">done<span class="sr-only"> {{$i.Title}}</span></button>
         </form>
         {{end}}
-        <form method="POST" action="/plan/clear" class="inline-form">
+        <form method="POST" action="/plan/clear" class="inline-form" hx-boost="true">
             <input type="hidden" name="slug" value="{{$i.Slug}}">
             <input type="hidden" name="list" value="{{.List}}">
             <button type="submit" class="plan-remove-btn" id="{{$id}}-drop" title="Remove from plan">drop<span class="sr-only"> {{$i.Title}}</span></button>

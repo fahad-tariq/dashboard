@@ -1,21 +1,20 @@
 {{define "content"}}
 
-<div class="house-page"
-     hx-ext="sse" sse-connect="/events"
-     hx-get="/house" hx-select=".house-page" hx-target="this" hx-swap="outerHTML"
-     hx-trigger="sse:changed:house">
+<div class="house-page" data-live
+     hx-get="/house" hx-trigger="sse:changed:house"
+     hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false">
 <span class="htmx-indicator meta-dim" aria-hidden="true">updating&hellip;</span>
 
-<h1>House</h1>
+<h1 id="page-heading" tabindex="-1">House</h1>
 
 {{if or .Maintenance .Projects}}
 <div class="house-filters">
-    <button class="filter-tag active" data-action="house-filter" data-filter="all">all</button>
-    <button class="filter-tag" data-action="house-filter" data-filter="overdue">overdue</button>
-    <button class="filter-tag" data-action="house-filter" data-filter="due-week">due this week</button>
-    <button class="filter-tag" data-action="house-filter" data-filter="due-month">due this month</button>
-    <button class="filter-tag" data-action="house-filter" data-filter="todo">todo</button>
-    <button class="filter-tag" data-action="house-filter" data-filter="active">active</button>
+    <button data-keep-class="active" class="filter-tag active" data-action="house-filter" data-filter="all">all</button>
+    <button data-keep-class="active" class="filter-tag" data-action="house-filter" data-filter="overdue">overdue</button>
+    <button data-keep-class="active" class="filter-tag" data-action="house-filter" data-filter="due-week">due this week</button>
+    <button data-keep-class="active" class="filter-tag" data-action="house-filter" data-filter="due-month">due this month</button>
+    <button data-keep-class="active" class="filter-tag" data-action="house-filter" data-filter="todo">todo</button>
+    <button data-keep-class="active" class="filter-tag" data-action="house-filter" data-filter="active">active</button>
 </div>
 <div class="house-table-wrap">
 <table class="house-table">
@@ -27,23 +26,23 @@
             <th>Actions</th>
         </tr>
     </thead>
-    <tbody>
+    <tbody id="house-items" data-row-list data-row-heading="page-heading">
         {{range .Maintenance}}
-        <tr class="house-row house-row-maint{{if .IsOverdue}} house-row-overdue{{end}}" id="maint-{{.Slug}}" data-type="maintenance" data-days="{{.DaysUntilDue}}" data-status="{{if .IsOverdue}}overdue{{else}}due{{end}}" data-action="house-row">
-            <td class="house-cell-title"><button type="button" class="house-row-toggle" aria-expanded="false" aria-controls="maint-{{.Slug}}-detail"><span class="house-row-chevron" aria-hidden="true">&#x25B8;</span> {{.Title}}</button></td>
+        <tr class="house-row house-row-maint{{if .IsOverdue}} house-row-overdue{{end}}" id="maint-{{.Slug}}" data-type="maintenance" data-days="{{.DaysUntilDue}}" data-status="{{if .IsOverdue}}overdue{{else}}due{{end}}" data-action="house-row" data-row data-keep-attr="style">
+            <td class="house-cell-title"><button type="button" class="house-row-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="maint-{{.Slug}}-detail"><span class="house-row-chevron" aria-hidden="true"></span> {{.Title}}</button></td>
             <td>{{if .IsOverdue}}<span class="badge badge-overdue">overdue</span>{{else}}<span class="badge badge-status-due">{{.DueLabel}}</span>{{end}}</td>
             <td class="house-cell-notes meta-dim">{{if .Notes}}{{truncateBody .Notes}}{{end}}</td>
             <td class="house-cell-actions" data-stop-click>
-                <span class="house-note-popover">
+                <span class="house-note-popover" data-keep-class="open">
                     <button type="button" class="action-btn action-btn-sm" data-action="toggle-note-popover">done</button>
-                    <form method="POST" action="/house/maintenance/{{.Slug}}/log" class="house-note-dropdown">
+                    <form method="POST" action="/house/maintenance/{{.Slug}}/log" class="house-note-dropdown" hx-boost="true">
                         <input type="text" name="note" placeholder="optional note" class="form-input form-input-sm" aria-label="Completion note">
                         <button type="submit" class="form-btn">log</button>
                     </form>
                 </span>
             </td>
         </tr>
-        <tr class="house-detail-row house-detail-hidden" id="maint-{{.Slug}}-detail">
+        <tr class="house-detail-row house-detail-hidden" id="maint-{{.Slug}}-detail" data-row-of="maint-{{.Slug}}" data-keep-class="house-detail-hidden" data-keep-attr="style">
             <td colspan="4">
                 <div class="house-detail-panel">
                     <div class="house-detail-grid">
@@ -71,7 +70,7 @@
                     </div>
                     {{end}}
                     {{if .Log}}
-                    <details class="house-log-section">
+                    <details class="house-log-section" data-keep-attr="open">
                         <summary class="meta-dim">View log history</summary>
                         <div class="house-log-entries">
                             {{range .Log}}
@@ -80,9 +79,9 @@
                         </div>
                     </details>
                     {{end}}
-                    <details class="house-edit-section" data-stop-click>
+                    <details class="house-edit-section" data-stop-click data-keep-attr="open">
                         <summary class="action-btn action-btn-sm">edit</summary>
-                        <form method="POST" action="/house/maintenance/{{.Slug}}/edit" class="house-edit-form">
+                        <form method="POST" action="/house/maintenance/{{.Slug}}/edit" class="house-edit-form" hx-boost="true">
                             <label class="house-edit-label" for="maint-edit-title-{{.Slug}}">Title</label>
                             <input type="text" name="title" id="maint-edit-title-{{.Slug}}" value="{{.Title}}" class="form-input">
                             <label class="house-edit-label" for="maint-edit-notes-{{.Slug}}">Notes</label>
@@ -92,7 +91,7 @@
                             <button type="submit" class="form-btn form-btn-sm">save</button>
                         </form>
                     </details>
-                    <form method="POST" action="/house/maintenance/{{.Slug}}/delete" class="inline-form" data-stop-click data-confirm="Move this item to trash?">
+                    <form method="POST" action="/house/maintenance/{{.Slug}}/delete" class="inline-form" data-stop-click hx-boost="true">
                         <button type="submit" class="action-btn action-btn-sm action-drop">trash</button>
                     </form>
                 </div>
@@ -100,12 +99,12 @@
         </tr>
         {{end}}
         {{range .Projects}}
-        <tr class="house-row house-row-proj" id="item-{{.Slug}}" data-type="project" data-status="{{.Status}}" data-action="house-row">
-            <td class="house-cell-title"><button type="button" class="house-row-toggle" aria-expanded="false" aria-controls="item-{{.Slug}}-detail"><span class="house-row-chevron" aria-hidden="true">&#x25B8;</span> {{.Title}}</button></td>
+        <tr class="house-row house-row-proj" id="item-{{.Slug}}" data-type="project" data-status="{{.Status}}" data-action="house-row" data-row data-keep-attr="style">
+            <td class="house-cell-title"><button type="button" class="house-row-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="item-{{.Slug}}-detail"><span class="house-row-chevron" aria-hidden="true"></span> {{.Title}}</button></td>
             <td>{{if .Status}}<span class="badge badge-status-{{.Status}}">{{.Status}}</span>{{end}}</td>
             <td class="house-cell-notes meta-dim">{{if .Body}}{{truncateBody .Body}}{{end}}</td>
             <td class="house-cell-actions" data-stop-click>{{if .Status}}{{$itemStatus := .Status}}
-                <form method="POST" action="/house/projects/{{.Slug}}/status" class="inline-form">
+                <form method="POST" action="/house/projects/{{.Slug}}/status" class="inline-form" hx-boost="true">
                     <select name="status" class="house-action-select" aria-label="Project status" data-autosubmit>
                         {{range $.AllStatuses}}
                         <option value="{{.}}"{{if eq . $itemStatus}} selected{{end}}>{{.}}</option>
@@ -115,7 +114,7 @@
                 {{end}}
             </td>
         </tr>
-        <tr class="house-detail-row house-detail-hidden" id="item-{{.Slug}}-detail">
+        <tr class="house-detail-row house-detail-hidden" id="item-{{.Slug}}-detail" data-row-of="item-{{.Slug}}" data-keep-class="house-detail-hidden" data-keep-attr="style">
             <td colspan="4">
                 <div class="house-detail-panel">
                     <div class="house-detail-grid">
@@ -142,9 +141,9 @@
                         <div class="house-detail-body-text">{{linkify .Body}}</div>
                     </div>
                     {{end}}
-                    <details class="house-edit-section" data-stop-click>
+                    <details class="house-edit-section" data-stop-click data-keep-attr="open">
                         <summary class="action-btn action-btn-sm">edit</summary>
-                        <form method="POST" action="/house/projects/{{.Slug}}/edit" class="house-edit-form">
+                        <form method="POST" action="/house/projects/{{.Slug}}/edit" class="house-edit-form" hx-boost="true">
                             <label class="house-edit-label" for="proj-edit-title-{{.Slug}}">Title</label>
                             <input type="text" name="title" id="proj-edit-title-{{.Slug}}" value="{{.Title}}" class="form-input">
                             <label class="house-edit-label" for="proj-edit-body-{{.Slug}}">Notes</label>
@@ -154,7 +153,7 @@
                             <button type="submit" class="form-btn form-btn-sm">save</button>
                         </form>
                     </details>
-                    <form method="POST" action="/house/projects/{{.Slug}}/delete" class="inline-form" data-stop-click data-confirm="Move this item to trash?">
+                    <form method="POST" action="/house/projects/{{.Slug}}/delete" class="inline-form" data-stop-click hx-boost="true">
                         <button type="submit" class="action-btn action-btn-sm action-drop">trash</button>
                     </form>
                 </div>
@@ -169,18 +168,18 @@
 {{end}}
 
 {{if .DoneProjects}}
-<details class="tracker-done-section">
-    <summary class="meta-dim">{{len .DoneProjects}} completed/dropped</summary>
+<details class="tracker-done-section" data-keep-attr="open">
+    <summary class="meta-dim" id="house-done-summary">{{len .DoneProjects}} completed/dropped</summary>
     <div class="house-table-wrap">
     <table class="house-table house-table-done">
-        <tbody>
+        <tbody id="house-done" data-row-list data-row-heading="house-done-summary">
             {{range .DoneProjects}}
-            <tr class="house-row house-row-done" id="item-{{.Slug}}" data-action="house-row">
-                <td class="house-cell-title"><button type="button" class="house-row-toggle" aria-expanded="false" aria-controls="item-{{.Slug}}-detail"><span class="house-row-chevron" aria-hidden="true">&#x25B8;</span> {{.Title}}</button></td>
+            <tr class="house-row house-row-done" id="item-{{.Slug}}" data-action="house-row" data-row data-keep-attr="style">
+                <td class="house-cell-title"><button type="button" class="house-row-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="item-{{.Slug}}-detail"><span class="house-row-chevron" aria-hidden="true"></span> {{.Title}}</button></td>
                 <td>{{if .Status}}<span class="badge badge-status-{{.Status}}">{{.Status}}</span>{{end}}</td>
                 <td>{{if .Budget}}${{formatNum .Budget}}{{end}}</td>
                 <td class="house-cell-actions" data-stop-click>{{if .Status}}{{$itemStatus := .Status}}
-                    <form method="POST" action="/house/projects/{{.Slug}}/status" class="inline-form">
+                    <form method="POST" action="/house/projects/{{.Slug}}/status" class="inline-form" hx-boost="true">
                         <select name="status" class="house-action-select" aria-label="Project status" data-autosubmit>
                             {{range $.AllStatuses}}
                             <option value="{{.}}"{{if eq . $itemStatus}} selected{{end}}>{{.}}</option>
@@ -190,7 +189,7 @@
                     {{end}}
                 </td>
             </tr>
-            <tr class="house-detail-row house-detail-hidden" id="item-{{.Slug}}-detail">
+            <tr class="house-detail-row house-detail-hidden" id="item-{{.Slug}}-detail" data-row-of="item-{{.Slug}}" data-keep-class="house-detail-hidden" data-keep-attr="style">
                 <td colspan="4">
                     <div class="house-detail-panel">
                         <div class="house-detail-grid">
@@ -213,7 +212,7 @@
                             <div class="house-detail-body-text">{{linkify .Body}}</div>
                         </div>
                         {{end}}
-                        <form method="POST" action="/house/projects/{{.Slug}}/delete" class="inline-form" data-stop-click data-confirm="Move this item to trash?">
+                        <form method="POST" action="/house/projects/{{.Slug}}/delete" class="inline-form" data-stop-click hx-boost="true">
                             <button type="submit" class="action-btn action-btn-sm action-drop">trash</button>
                         </form>
                     </div>
@@ -227,28 +226,28 @@
 {{end}}
 
 {{if or .DeletedMaintenance .DeletedProjects}}
-<details class="tracker-done-section">
-    <summary class="meta-dim">Recently deleted</summary>
+<details class="tracker-done-section" id="house-deleted" data-row-list data-row-heading="house-deleted-summary" data-keep-attr="open">
+    <summary class="meta-dim" id="house-deleted-summary">Recently deleted</summary>
     {{range .DeletedMaintenance}}
-    <div class="house-item-deleted">
+    <div class="house-item-deleted" id="deleted-maint-{{.Slug}}" data-row>
         <span class="house-item-title">{{.Title}}</span>
         <span class="meta-dim">(maintenance)</span>
-        <form method="POST" action="/house/maintenance/{{.Slug}}/restore" class="inline-form">
-            <button type="submit" class="action-btn action-btn-sm">restore</button>
+        <form method="POST" action="/house/maintenance/{{.Slug}}/restore" class="inline-form" hx-boost="true">
+            <button type="submit" class="action-btn action-btn-sm" data-row-focus>restore</button>
         </form>
-        <form method="POST" action="/house/maintenance/{{.Slug}}/purge" class="inline-form" data-confirm="Permanently delete this item?">
+        <form method="POST" action="/house/maintenance/{{.Slug}}/purge" class="inline-form" data-confirm="Permanently delete this item? This cannot be undone." hx-boost="true">
             <button type="submit" class="action-btn action-btn-sm action-drop">purge</button>
         </form>
     </div>
     {{end}}
     {{range .DeletedProjects}}
-    <div class="house-item-deleted">
+    <div class="house-item-deleted" id="deleted-item-{{.Slug}}" data-row>
         <span class="house-item-title">{{.Title}}</span>
         <span class="meta-dim">(project)</span>
-        <form method="POST" action="/house/projects/{{.Slug}}/restore" class="inline-form">
-            <button type="submit" class="action-btn action-btn-sm">restore</button>
+        <form method="POST" action="/house/projects/{{.Slug}}/restore" class="inline-form" hx-boost="true">
+            <button type="submit" class="action-btn action-btn-sm" data-row-focus>restore</button>
         </form>
-        <form method="POST" action="/house/projects/{{.Slug}}/purge" class="inline-form" data-confirm="Permanently delete this item?">
+        <form method="POST" action="/house/projects/{{.Slug}}/purge" class="inline-form" data-confirm="Permanently delete this item? This cannot be undone." hx-boost="true">
             <button type="submit" class="action-btn action-btn-sm action-drop">purge</button>
         </form>
     </div>
@@ -257,9 +256,9 @@
 {{end}}
 
 <div class="house-add-forms">
-    <details class="quick-add tracker-add-form">
+    <details class="quick-add tracker-add-form" data-keep-attr="open">
         <summary>Add maintenance item</summary>
-        <form method="POST" action="/house/maintenance/add" class="tracker-goal-form">
+        <form method="POST" action="/house/maintenance/add" class="tracker-goal-form" hx-boost="true">
             <label for="maint-title" class="sr-only">Item name</label>
             <input type="text" name="title" id="maint-title" placeholder="Item name" required class="form-input">
             <div class="goal-form-row">
@@ -271,9 +270,9 @@
             <button type="submit" class="form-btn">add</button>
         </form>
     </details>
-    <details class="quick-add tracker-add-form">
+    <details class="quick-add tracker-add-form" data-keep-attr="open">
         <summary>Add project</summary>
-        <form method="POST" action="/house/projects/add" class="tracker-goal-form">
+        <form method="POST" action="/house/projects/add" class="tracker-goal-form" hx-boost="true">
             <label for="proj-title" class="sr-only">Project name</label>
             <input type="text" name="title" id="proj-title" placeholder="Project name" required class="form-input">
             <div class="goal-form-row">

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="htmx-config" content='{"allowEval":false}'>
+    <meta name="htmx-config" content='{"allowEval":false,"scrollIntoViewOnBoost":false}'>
     <meta name="color-scheme" content="light dark">
     <title>{{.Title}} - dash</title>
     <link rel="stylesheet" href="{{static "theme.css"}}">
@@ -21,9 +21,12 @@
         })();
     </script>
     <script defer src="{{static "htmx.min.js"}}"></script>
+    <script defer src="{{static "idiomorph-ext.min.js"}}"></script>
     <script defer src="{{static "htmx-sse.js"}}"></script>
 </head>
-<body>
+{{/* One SSE connection per page, on an element no swap replaces. Live
+     containers inside it refresh on their modules' events by morphing. */}}
+<body hx-ext="sse,morph" sse-connect="/events">
     <a class="skip-link" href="#main">Skip to content</a>
     <nav class="nav" aria-label="Main navigation">
         <a href="/" class="nav-brand">dash&gt;_</a>
@@ -50,7 +53,7 @@
         </div>
     </nav>
     <main id="main" class="container" tabindex="-1">
-        {{if .FlashMsg}}<div class="flash-msg{{if .FlashError}} flash-msg-error{{end}}" role="{{if .FlashError}}alert{{else}}status{{end}}">{{.FlashMsg}}</div>{{end}}
+        {{if .FlashMsg}}<div id="flash" class="flash-msg{{if .FlashError}} flash-msg-error{{end}}" data-error="{{if .FlashError}}true{{else}}false{{end}}" role="{{if .FlashError}}alert{{else}}status{{end}}">{{.FlashMsg}}</div>{{end}}
         {{template "content" .}}
     </main>
     <script>
@@ -103,32 +106,30 @@
             });
         })();
     </script>{{end}}
-    <div class="modal-overlay" id="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+    <dialog class="modal" id="confirm-modal" role="alertdialog" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-warning">
         <div class="modal-content">
             <h2 id="confirm-modal-title">Are you sure?</h2>
             <p class="confirm-warning" id="confirm-modal-warning">This cannot be undone.</p>
             <div class="confirm-actions">
-                <button type="button" class="action-btn" id="confirm-modal-cancel" onclick="confirmModalCancel()">Cancel</button>
-                <button type="button" class="action-btn" id="confirm-modal-ok" onclick="confirmModalOk()">Confirm</button>
+                <button type="button" class="action-btn" id="confirm-modal-cancel">Cancel</button>
+                <button type="button" class="action-btn" id="confirm-modal-ok">Confirm</button>
             </div>
         </div>
-    </div>
-    <!-- Search overlay -->
-    <div id="search-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Search" onclick="if(event.target===this)closeSearch()">
+    </dialog>
+    <dialog id="search-overlay" class="modal modal-search" aria-label="Search">
         <div class="modal-content">
             <div class="search-input-wrap">
-                <input type="text" id="search-input" class="search-input" placeholder="Search todos, family, ideas..." autocomplete="off" aria-label="Search tasks, ideas, and house items">
+                <input type="text" id="search-input" class="search-input" placeholder="Search todos, family, ideas..." autocomplete="off" aria-label="Search tasks, ideas, and house items" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-results">
             </div>
-            <div id="search-results" class="search-results"></div>
+            <div id="search-results" class="search-results" role="listbox" aria-label="Search results"></div>
             <div class="search-hint">
                 <span><kbd>Esc</kbd> close</span>
                 <span><kbd>&uarr;&darr;</kbd> navigate</span>
                 <span><kbd>Enter</kbd> open</span>
             </div>
         </div>
-    </div>
-    <!-- Shortcut help modal -->
-    <div id="shortcut-help" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="shortcut-help-heading" onclick="if(event.target===this)closeShortcutHelp()">
+    </dialog>
+    <dialog id="shortcut-help" class="modal" aria-labelledby="shortcut-help-heading">
         <div class="modal-content">
             <div class="shortcut-help-body">
                 <h2 class="shortcut-help-title" id="shortcut-help-heading">Keyboard shortcuts</h2>
@@ -137,28 +138,33 @@
                 {{- range $n := navItems}}{{with $n.Shortcut}}
                 <div class="shortcut-row"><span>Go to {{$n.Label}}</span> <kbd>g {{.}}</kbd></div>
                 {{- end}}{{end}}
+                <div class="shortcut-row"><span>Undo the last change offered</span> <kbd>u</kbd></div>
                 <div class="shortcut-row"><span>Exit select mode</span> <kbd>Esc</kbd></div>
             </div>
+            <div class="confirm-actions"><button type="button" class="action-btn" data-close-dialog>Close</button></div>
         </div>
-    </div>
+    </dialog>
     <footer class="build-info">build {{buildVersion}} <span class="mcp-status" id="mcp-status" title="MCP: checking">[mcp]<span class="sr-only" id="mcp-status-text">: checking</span></span></footer>
     <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
     {{template "toast"}}
+    <script src="{{static "live.js"}}"></script>
     <script src="{{static "announce.js"}}"></script>
     <script src="{{static "dialog.js"}}"></script>
     <script src="{{static "tracker.js"}}"></script>
     <script src="{{static "upload.js"}}"></script>
     <script>
         (function() {
-            function collapseActionsOnMobile() {
-                if (window.innerWidth <= 768) {
-                    document.querySelectorAll('.item-actions-menu').forEach(function(el) {
+            // Swaps keep each menu's open state; only menus that arrive
+            // with a swap (new rows) are collapsed again.
+            function collapseActionsOnMobile(root) {
+                if (window.innerWidth <= 768 && root.querySelectorAll) {
+                    root.querySelectorAll('.item-actions-menu').forEach(function(el) {
                         el.removeAttribute('open');
                     });
                 }
             }
-            collapseActionsOnMobile();
-            document.body.addEventListener('htmx:afterSwap', collapseActionsOnMobile);
+            collapseActionsOnMobile(document);
+            document.addEventListener('live:added', function(e) { collapseActionsOnMobile(e.detail); });
         })();
     </script>
     <script src="{{static "shortcuts.js"}}"></script>

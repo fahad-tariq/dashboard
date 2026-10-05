@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -153,7 +154,7 @@ func TestHTMXEvalDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(layout), `<meta name="htmx-config" content='{"allowEval":false}'>`) {
-		t.Error(`layout.html lacks <meta name="htmx-config" content='{"allowEval":false}'>`)
+	if !regexp.MustCompile(`<meta name="htmx-config" content='\{"allowEval":false[,}]`).Match(layout) {
+		t.Error(`layout.html's htmx-config meta must set "allowEval":false`)
 	}
 }

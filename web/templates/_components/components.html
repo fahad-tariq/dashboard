@@ -74,4 +74,4 @@ A Count above the rows shown adds a "+N more" link. */}}
 {{define "widget"}}{{template "card" (dict "ID" (printf "widget-%s" .ID) "Title" .Title "Link" .Link "Count" .Count "CountLabel" .CountLabel "Note" .Note "Severity" .Severity "Items" .Items "EmptyText" .EmptyText)}}{{end}}
 
 {{/* toast is the layout's single toast region; showToast fills it. */}}
-{{define "toast"}}<div id="toast" class="toast" hidden><span class="toast-text"></span></div>{{end}}
+{{define "toast"}}<div id="toast" class="toast" hidden><span class="toast-text"></span><button type="button" class="action-btn toast-undo" hidden>undo</button><button type="button" class="toast-close" aria-label="Dismiss">&#x2715;</button></div>{{end}}

@@ -129,7 +129,7 @@ func TestSSEDebouncedPublisherCoalesces(t *testing.T) {
 		t.Fatalf("extra event %q", msg)
 	default:
 	}
-	if got["event: changed:todos\ndata: todos\n\n"] != 1 || got["event: changed:family\ndata: family\n\n"] != 1 {
+	if got["event: changed:todos\ndata: todos 3\n\n"] != 1 || got["event: changed:family\ndata: family 1\n\n"] != 1 {
 		t.Errorf("events = %v, want one per module", got)
 	}
 }

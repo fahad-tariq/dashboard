@@ -1,14 +1,12 @@
 // House page: expandable rows, table filters, and completion note popovers.
-// Loaded from inside .house-page, so htmx re-runs it after each SSE swap;
-// function declarations are idempotent and listeners are bound once.
+// Loaded from inside .house-page; morph swaps keep the script element, so it
+// runs once per page load, and the guard keeps listeners bound once anyway.
 
 // Toggle detail row visibility.
 function houseToggleDetail(row) {
     var detail = row.nextElementSibling;
     if (!detail || !detail.classList.contains("house-detail-row")) return;
     var hidden = detail.classList.toggle("house-detail-hidden");
-    var chevron = row.querySelector(".house-row-chevron");
-    if (chevron) chevron.textContent = hidden ? "\u25B8" : "\u25BE";
     var toggle = row.querySelector(".house-row-toggle");
     if (toggle) toggle.setAttribute("aria-expanded", String(!hidden));
 }
@@ -84,6 +82,11 @@ window.clickActions["toggle-note-popover"] = function(el) {
 // them alone, as they did when those regions stopped propagation inline.
 if (!window.houseListenersBound) {
     window.houseListenersBound = true;
+    // A logged completion closes its note popover.
+    document.addEventListener("htmx:afterRequest", function(e) {
+        var pop = e.detail.successful && e.detail.elt && e.detail.elt.closest && e.detail.elt.closest(".house-note-popover");
+        if (pop) pop.classList.remove("open");
+    });
     document.addEventListener("click", function(e) {
         if (e.target.closest && e.target.closest("[data-stop-click]")) return;
         var pops = document.querySelectorAll(".house-note-popover.open");

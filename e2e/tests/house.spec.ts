@@ -1,4 +1,4 @@
-import { expect, test, uniqueTitle, waitForSseSettle } from './helpers';
+import { expect, expectNoReload, markNoReload, test, uniqueTitle, waitForSseSettle } from './helpers';
 
 test('add a maintenance item and log a completion', async ({ page }) => {
   const title = uniqueTitle('Flush hot water tank');
@@ -15,14 +15,19 @@ test('add a maintenance item and log a completion', async ({ page }) => {
   await expect(row).toHaveClass(/house-row-overdue/);
   await expect(row.locator('.badge-overdue')).toHaveText('overdue');
 
+  await markNoReload(page);
   await row.getByRole('button', { name: 'done' }).click();
   await row.getByLabel('Completion note').fill('drained and refilled');
   await row.getByRole('button', { name: 'log' }).click();
 
   await expect(page).toHaveURL(/\/house/);
+  await expect(page.locator('#toast')).toBeVisible();
   const loggedRow = page.locator('tr.house-row-maint', { hasText: title });
   await expect(loggedRow).not.toHaveClass(/house-row-overdue/);
   await expect(loggedRow.locator('.badge-status-due')).toBeVisible();
+  // The logged completion closes the note popover, and the page never reloaded.
+  await expect(loggedRow.getByLabel('Completion note')).toBeHidden();
+  await expectNoReload(page);
 
   await waitForSseSettle(page);
   const toggle = loggedRow.locator('button.house-row-toggle');

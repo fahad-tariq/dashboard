@@ -53,12 +53,14 @@ export function appendLine(path: string, line: string): void {
 }
 
 /**
- * Every write to a watched markdown file (including the app's own) triggers an
- * SSE `changed:<module>` event after a 500ms debounce, which outerHTML-swaps the
- * page container: open <details> close, rows collapse, and a form held by the
- * confirm modal is detached so submitting it does nothing. Wait until the page
- * has been quiet for longer than the debounce plus a round trip. Plan 1 Phase 3
- * stops the app's own writes from broadcasting, after which this mostly no-ops.
+ * A form submitted through htmx gets the updated page back in the same
+ * response and morphs the page's live container ([data-live]); the tab then
+ * skips the SSE echo of its own write by revision. Writes from elsewhere
+ * (other tabs, the API, an external editor) still send a `changed:<module>`
+ * event after a 500ms debounce, which morphs the container again. Morphs keep
+ * expanded rows, open <details> and typed text, so this wait is about not
+ * racing an in-flight refresh, not about lost state. It returns once the page
+ * has been quiet for longer than the debounce plus a round trip.
  */
 export async function waitForSseSettle(page: Page, quietMs = 1200): Promise<void> {
   await page.waitForFunction(
@@ -165,4 +167,18 @@ export async function tabTo(page: Page, id: string, maxPresses = 400): Promise<v
     await page.keyboard.press('Tab');
   }
   throw new Error(`#${id} not reached after ${maxPresses} Tab presses`);
+}
+
+type MarkedWindow = Window & { __e2eNoReload?: boolean };
+
+/** Marks the current document so expectNoReload can tell it was not replaced. */
+export async function markNoReload(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    (window as MarkedWindow).__e2eNoReload = true;
+  });
+}
+
+/** Fails if the page navigated or reloaded since markNoReload. */
+export async function expectNoReload(page: Page): Promise<void> {
+  expect(await page.evaluate(() => (window as MarkedWindow).__e2eNoReload)).toBe(true);
 }

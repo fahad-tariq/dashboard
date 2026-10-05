@@ -137,7 +137,7 @@ func TestFlashRenderedOnceWithRole(t *testing.T) {
 	if n := strings.Count(body, `class="flash-msg`); n != 1 {
 		t.Errorf("flash rendered %d times, want 1", n)
 	}
-	if !strings.Contains(body, `class="flash-msg" role="status"`) {
+	if !strings.Contains(body, `class="flash-msg" data-error="false" role="status"`) {
 		t.Error(`success flash should be role="status"`)
 	}
 }
@@ -168,7 +168,7 @@ func TestPlanRowMarkup(t *testing.T) {
 	body := renderPage(t, h, "/")
 	for _, want := range []string{
 		`id="plan-todos-renew-passport"`,
-		`<button type="button" class="plan-item-toggle" id="plan-todos-renew-passport-toggle" aria-expanded="false" aria-controls="plan-todos-renew-passport-detail">`,
+		`<button type="button" class="plan-item-toggle" id="plan-todos-renew-passport-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="plan-todos-renew-passport-detail">`,
 		`class="plan-item-detail" id="plan-todos-renew-passport-detail"`,
 		`id="plan-todos-renew-passport-up" aria-label="Move Renew passport up"`,
 		`id="plan-todos-renew-passport-down" aria-label="Move Renew passport down"`,
@@ -186,7 +186,7 @@ func TestTrackerRowMarkup(t *testing.T) {
 	body := renderPage(t, h, "/todos")
 	for _, want := range []string{
 		`id="item-plan-weekend-hike"`,
-		`id="item-plan-weekend-hike-toggle" aria-expanded="false" aria-controls="item-plan-weekend-hike-detail" aria-label="Plan weekend hike"`,
+		`id="item-plan-weekend-hike-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="item-plan-weekend-hike-detail" aria-label="Plan weekend hike"`,
 		`class="tracker-item-detail" id="item-plan-weekend-hike-detail"`,
 		`id="item-plan-weekend-hike-substep-0-toggle" aria-label="Mark step not done: Pick a trail"`,
 		`id="item-plan-weekend-hike-substep-1-toggle" aria-label="Mark step done: Check the weather"`,

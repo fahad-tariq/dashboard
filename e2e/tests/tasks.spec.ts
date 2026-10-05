@@ -21,15 +21,14 @@ test('add, complete, move to trash and restore a task', async ({ page }) => {
   await done.locator('summary').click();
   await expect(done.locator('.tracker-item', { hasText: doneTitle })).toBeVisible();
 
-  // Trash via the item's actions panel, which asks for confirmation first.
+  // Trash via the item's actions panel: no confirmation, an undo toast instead.
   const trashTitle = uniqueTitle('Return library books');
   const item = await addTask(page, trashTitle);
   await expandTrackerItem(item);
   await item.getByRole('button', { name: 'trash' }).click();
-  const modal = page.locator('#confirm-modal');
-  await expect(modal).toHaveClass(/\bvisible\b/);
-  await expect(modal.getByRole('heading')).toHaveText('Move this item to trash?');
-  await modal.getByRole('button', { name: 'Confirm' }).click();
+  await expect(page.locator('#confirm-modal')).not.toHaveAttribute('open');
+  await expect(page.locator('#toast .toast-text')).toHaveText('Item moved to trash.');
+  await expect(page.locator('#toast .toast-undo')).toBeVisible();
 
   await expect(page).toHaveURL(/\/todos/);
   await expect(trackerItem(page, trashTitle)).toHaveCount(0);
@@ -50,7 +49,7 @@ test('add, toggle and remove a sub-step', async ({ page }) => {
   const item = await addTask(page, title);
   await expandTrackerItem(item);
 
-  // Sub-step forms swap only this item via htmx; the page does not reload.
+  // Sub-step forms post through htmx and morph the page; it does not reload.
   await page.evaluate(() => {
     (window as unknown as { __e2eNoReload: boolean }).__e2eNoReload = true;
   });

@@ -1,4 +1,9 @@
-// Keyboard shortcuts and search overlay (ES5).
+// Keyboard shortcuts and search (ES5).
+//
+// Search and shortcut help are native <dialog>s opened with showModal(), so
+// the browser traps focus, closes them on Escape and returns focus. Search
+// is a combobox: focus stays in the input and aria-activedescendant points
+// at the highlighted result.
 
 var searchOverlay = document.getElementById('search-overlay');
 var searchInput = document.getElementById('search-input');
@@ -16,50 +21,41 @@ function isInputFocused() {
     return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
 }
 
+function anyDialogOpen() {
+    return !!document.querySelector('dialog[open]');
+}
+
 function openSearch() {
+    if (searchOverlay.open) return;
     searchReturnFocus = document.activeElement;
-    searchOverlay.classList.add('visible');
+    clearResults();
     searchInput.value = '';
-    searchResults.innerHTML = '';
-    searchActiveIdx = -1;
-    setTimeout(function() { searchInput.focus(); }, 10);
+    searchOverlay.showModal();
+    searchInput.focus();
 }
 
 function closeSearch() {
-    searchOverlay.classList.remove('visible');
-    searchInput.value = '';
+    if (searchOverlay.open) searchOverlay.close();
+}
+
+function clearResults() {
     searchResults.innerHTML = '';
-    searchActiveIdx = -1;
-    // Leaving focus on the hidden input would make isInputFocused() swallow
-    // the next shortcut.
-    if (document.activeElement === searchInput) searchInput.blur();
-    if (searchReturnFocus && searchReturnFocus !== searchInput && document.body.contains(searchReturnFocus)) {
-        // preventScroll: a same-page result link has just set the hash.
-        searchReturnFocus.focus({ preventScroll: true });
-    }
-    searchReturnFocus = null;
-}
-
-function openShortcutHelp() {
-    shortcutHelp.classList.add('visible');
-}
-
-function closeShortcutHelp() {
-    shortcutHelp.classList.remove('visible');
+    setActiveResult(-1);
+    searchInput.setAttribute('aria-expanded', 'false');
 }
 
 function doSearch(query) {
     if (!query) {
-        searchResults.innerHTML = '';
-        searchActiveIdx = -1;
+        clearResults();
         return;
     }
     var xhr = new XMLHttpRequest();
     xhr.open('GET', '/search?q=' + encodeURIComponent(query), true);
     xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4 && xhr.status === 200) {
+        if (xhr.readyState === 4 && xhr.status === 200 && searchOverlay.open) {
             searchResults.innerHTML = xhr.responseText;
-            searchActiveIdx = -1;
+            setActiveResult(-1);
+            searchInput.setAttribute('aria-expanded', String(getSearchLinks().length > 0));
         }
     };
     xhr.send();
@@ -73,15 +69,36 @@ function setActiveResult(idx) {
     var links = getSearchLinks();
     for (var i = 0; i < links.length; i++) {
         links[i].classList.remove('search-result-active');
+        links[i].setAttribute('aria-selected', 'false');
     }
     searchActiveIdx = idx;
     if (idx >= 0 && idx < links.length) {
         links[idx].classList.add('search-result-active');
+        links[idx].setAttribute('aria-selected', 'true');
         links[idx].scrollIntoView({ block: 'nearest' });
+        searchInput.setAttribute('aria-activedescendant', links[idx].id);
+    } else {
+        searchInput.removeAttribute('aria-activedescendant');
     }
 }
 
-if (searchInput) {
+if (searchOverlay) {
+    searchOverlay.addEventListener('close', function() {
+        searchInput.value = '';
+        clearResults();
+        var back = searchReturnFocus;
+        searchReturnFocus = null;
+        if (back && back !== searchInput && document.body.contains(back)) {
+            // preventScroll: a same-page result link has just set the hash.
+            back.focus({ preventScroll: true });
+        }
+    });
+    searchOverlay.addEventListener('click', function(e) {
+        // The backdrop belongs to the dialog element itself; a result link
+        // navigates, so the dialog closes behind it.
+        if (e.target === searchOverlay || e.target.closest('.search-result')) closeSearch();
+    });
+
     searchInput.addEventListener('input', function() {
         var val = searchInput.value;
         if (searchDebounce) clearTimeout(searchDebounce);
@@ -94,43 +111,53 @@ if (searchInput) {
         var links = getSearchLinks();
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            var next = searchActiveIdx + 1;
-            if (next >= links.length) next = 0;
-            setActiveResult(next);
+            if (links.length) setActiveResult(searchActiveIdx + 1 >= links.length ? 0 : searchActiveIdx + 1);
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            var prev = searchActiveIdx - 1;
-            if (prev < 0) prev = links.length - 1;
-            setActiveResult(prev);
+            if (links.length) setActiveResult(searchActiveIdx - 1 < 0 ? links.length - 1 : searchActiveIdx - 1);
         } else if (e.key === 'Enter') {
             e.preventDefault();
             if (searchActiveIdx >= 0 && searchActiveIdx < links.length) {
-                window.location.href = links[searchActiveIdx].getAttribute('href');
+                var href = links[searchActiveIdx].getAttribute('href');
                 closeSearch();
+                window.location.href = href;
             }
-        } else if (e.key === 'Escape') {
-            e.preventDefault();
-            closeSearch();
         }
     });
 }
 
+function openShortcutHelp() {
+    if (!shortcutHelp.open) shortcutHelp.showModal();
+}
+
+function closeShortcutHelp() {
+    if (shortcutHelp.open) shortcutHelp.close();
+}
+
+if (shortcutHelp) {
+    shortcutHelp.addEventListener('click', function(e) {
+        if (e.target === shortcutHelp || e.target.closest('[data-close-dialog]')) closeShortcutHelp();
+    });
+}
+
 document.addEventListener('keydown', function(e) {
-    // Close overlays on Escape. Priority: confirm modal > search > shortcut help > select mode.
-    if (e.key === 'Escape') {
-        var confirmModal = document.getElementById('confirm-modal');
-        if (confirmModal && confirmModal.classList.contains('visible')) {
-            // Confirm modal handled by dialog.js.
-            return;
-        }
-        if (searchOverlay.classList.contains('visible')) {
+    // Ctrl+K / Cmd+K toggles search, even from a text field.
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        if (searchOverlay.open) {
             closeSearch();
-            return;
+        } else if (!anyDialogOpen()) {
+            openSearch();
         }
-        if (shortcutHelp.classList.contains('visible')) {
-            closeShortcutHelp();
-            return;
-        }
+        return;
+    }
+
+    // An open dialog handles its own keys, Escape included.
+    if (anyDialogOpen()) return;
+
+    // Escape closes the innermost open thing: select mode, the "more" menu,
+    // then the mobile nav.
+    if (e.key === 'Escape') {
         if (typeof bulkSelectActive !== 'undefined' && bulkSelectActive) {
             exitSelectMode();
             return;
@@ -149,39 +176,29 @@ document.addEventListener('keydown', function(e) {
                 hamburger.textContent = '\u2630';
                 hamburger.focus();
             }
-            return;
-        }
-    }
-
-    // Ctrl+K / Cmd+K to open search (works even when input focused).
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        if (searchOverlay.classList.contains('visible')) {
-            closeSearch();
-        } else {
-            openSearch();
         }
         return;
     }
 
-    // All remaining shortcuts require no input focus.
-    if (isInputFocused()) return;
+    // All remaining shortcuts require no input focus and no modifier.
+    if (isInputFocused() || e.ctrlKey || e.metaKey || e.altKey) return;
 
-    // "/" opens search.
     if (e.key === '/') {
         e.preventDefault();
         openSearch();
         return;
     }
 
-    // "?" opens shortcut help.
     if (e.key === '?') {
         e.preventDefault();
-        if (shortcutHelp.classList.contains('visible')) {
-            closeShortcutHelp();
-        } else {
-            openShortcutHelp();
-        }
+        openShortcutHelp();
+        return;
+    }
+
+    // "u" undoes the change the toast offers to undo.
+    if (e.key === 'u' && !gPending && typeof toastUndoAvailable === 'function' && toastUndoAvailable()) {
+        e.preventDefault();
+        runToastUndo();
         return;
     }
 

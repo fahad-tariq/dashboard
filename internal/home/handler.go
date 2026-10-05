@@ -351,6 +351,10 @@ func (h *Handler) SetPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if isPlannerXHR(r) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	http.Redirect(w, r, "/?msg=plan-set", http.StatusSeeOther)
 }
 
@@ -467,11 +471,17 @@ func (h *Handler) ReorderPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Header.Get("HX-Request") == "true" || r.Header.Get("X-Requested-With") == "XMLHttpRequest" {
+	if isPlannerXHR(r) || r.Header.Get("HX-Request") == "true" {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	http.Redirect(w, r, "/?msg=plan-reordered", http.StatusSeeOther)
+}
+
+// isPlannerXHR reports a request from planner.js's own fetches (calendar
+// drag, reorder), which update the page themselves and want no body.
+func isPlannerXHR(r *http.Request) bool {
+	return r.Header.Get("X-Requested-With") == "XMLHttpRequest"
 }
 
 // ClearCarriedOver handles POST /plan/bulk/clear-carried -- drops all overdue planned items.

@@ -1,13 +1,13 @@
 {{if .Results}}
-{{range .Results}}
-<a href="{{.URL}}" class="search-result" onclick="closeSearch()">
+{{range $i, $r := .Results}}{{with $r}}
+<a href="{{.URL}}" class="search-result" id="search-result-{{$i}}" role="option" aria-selected="false">
     <span class="search-result-title">{{.Title}}</span>
     <span class="search-result-meta">
         <span class="badge badge-tag">{{.Category}}</span>
     </span>
     {{if .Snippet}}<span class="search-result-snippet">{{.Snippet}}</span>{{end}}
 </a>
-{{end}}
+{{end}}{{end}}
 {{else}}
-{{if .Query}}<div class="search-empty">No results for "{{.Query}}"</div>{{end}}
+{{if .Query}}<div class="search-empty" role="option" aria-disabled="true" aria-selected="false">No results for "{{.Query}}"</div>{{end}}
 {{end}}

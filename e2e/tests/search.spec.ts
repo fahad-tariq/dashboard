@@ -1,12 +1,12 @@
 import { expect, test } from './helpers';
 
-test('search overlay opens with "/", finds a task and navigates to it', async ({ page }) => {
+test('search dialog opens with "/", finds a task and navigates to it', async ({ page }) => {
   await page.goto('/ideas');
   const overlay = page.locator('#search-overlay');
   const input = page.getByLabel('Search tasks, ideas, and house items');
 
   await page.keyboard.press('/');
-  await expect(overlay).toHaveClass(/\bvisible\b/);
+  await expect(overlay).toHaveAttribute('open');
   await expect(input).toBeFocused();
 
   await input.fill('passport');
@@ -22,20 +22,20 @@ test('search overlay opens with "/", finds a task and navigates to it', async ({
   await expect(page.locator('#item-renew-passport')).not.toHaveClass(/\bminimised\b/);
 });
 
-test('search shows an empty state, and Escape and Ctrl+K toggle the overlay', async ({ page }) => {
+test('search shows an empty state, and Escape and Ctrl+K toggle the dialog', async ({ page }) => {
   await page.goto('/');
   const overlay = page.locator('#search-overlay');
   const input = page.getByLabel('Search tasks, ideas, and house items');
 
   await page.keyboard.press('Control+k');
-  await expect(overlay).toHaveClass(/\bvisible\b/);
+  await expect(overlay).toHaveAttribute('open');
   await input.fill('zzqx-no-such-thing');
   await expect(overlay.locator('.search-empty')).toHaveText('No results for "zzqx-no-such-thing"');
 
   await input.press('Escape');
-  await expect(overlay).not.toHaveClass(/\bvisible\b/);
-  // Focus must leave the hidden input, or the "/" shortcut below is swallowed
-  // by the typing guard until the browser's own focus fixup runs.
+  await expect(overlay).not.toHaveAttribute('open');
+  // Focus must leave the closed dialog's input, or the "/" shortcut below is
+  // swallowed by the typing guard.
   await expect(input).not.toBeFocused();
 
   // Results span lists: the seeded idea and family task are searchable too.

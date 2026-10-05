@@ -231,6 +231,7 @@ func (h *Handler) DeleteMaintenance(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
+	httputil.OfferUndo(w, "/house/maintenance/"+slug+"/restore")
 	http.Redirect(w, r, "/house?msg=item-deleted", http.StatusSeeOther)
 }
 
@@ -375,6 +376,7 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
+	httputil.OfferUndo(w, "/house/projects/"+slug+"/restore")
 	http.Redirect(w, r, "/house?msg=item-deleted", http.StatusSeeOther)
 }
 

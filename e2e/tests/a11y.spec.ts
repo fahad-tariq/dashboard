@@ -155,23 +155,32 @@ for (const theme of THEMES) {
       await expectNoSeriousViolations(page, `/todos select mode (${theme})`);
     });
 
-    test('confirm modal open', async ({ page }) => {
+    test('confirm dialog open', async ({ page }) => {
       await gotoInTheme(page, '/todos', theme);
       const item = trackerItem(page, 'Plan weekend hike');
       await expandTrackerItem(item);
-      await item.getByRole('button', { name: 'trash' }).click();
+      await item.getByRole('button', { name: 'move to family' }).click();
       const modal = page.locator('#confirm-modal');
-      await expect(modal).toHaveClass(/\bvisible\b/);
-      await expectNoSeriousViolations(page, `/todos confirm modal (${theme})`);
+      await expect(modal).toHaveAttribute('open');
+      await expectNoSeriousViolations(page, `/todos confirm dialog (${theme})`);
       await modal.getByRole('button', { name: 'Cancel' }).click();
-      await expect(modal).not.toHaveClass(/\bvisible\b/);
+      await expect(modal).not.toHaveAttribute('open');
+    });
+
+    test('undo toast after trash', async ({ page }) => {
+      const title = uniqueTitle(`Toast scan ${theme}`);
+      const item = await addTask(page, title);
+      await expandTrackerItem(item);
+      await item.getByRole('button', { name: 'trash' }).click();
+      await expect(page.locator('#toast .toast-undo')).toBeVisible();
+      await expectNoSeriousViolations(page, `undo toast (${theme})`);
     });
 
     test('search overlay with results', async ({ page }) => {
       await gotoInTheme(page, '/todos', theme);
       await page.keyboard.press('/');
       const overlay = page.locator('#search-overlay');
-      await expect(overlay).toHaveClass(/\bvisible\b/);
+      await expect(overlay).toHaveAttribute('open');
       await page.getByLabel('Search tasks, ideas, and house items').fill('passport');
       await expect(overlay.locator('.search-result').first()).toBeVisible();
       await expectNoSeriousViolations(page, `search overlay (${theme})`);
@@ -180,7 +189,7 @@ for (const theme of THEMES) {
     test('shortcut help', async ({ page }) => {
       await gotoInTheme(page, '/todos', theme);
       await page.keyboard.press('?');
-      await expect(page.locator('#shortcut-help')).toHaveClass(/\bvisible\b/);
+      await expect(page.locator('#shortcut-help')).toHaveAttribute('open');
       await expectNoSeriousViolations(page, `shortcut help (${theme})`);
     });
 
@@ -328,8 +337,8 @@ test('keyboard only: expand, reorder and complete a plan item', async ({ page })
     await expect(page.locator('#announcer')).toHaveText(new RegExp(`Moved .+ to position ${index} of \\d+`));
     await expect(page.locator('#announcer')).toContainText(title);
     expect((await personalTitles()).indexOf(title)).toBe(index - 1);
-    // Focus returns to the pressed button and survives the SSE refresh that
-    // the write triggers.
+    // Focus returns to the pressed button and stays there once any refresh
+    // has settled.
     await expect.poll(() => activeElementId(page)).toBe(`${rowId}-up`);
     await waitForSseSettle(page);
     expect(await activeElementId(page)).toBe(`${rowId}-up`);

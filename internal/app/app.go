@@ -136,7 +136,7 @@ func NewRouterWith(shutdownCtx context.Context, cfg *config.Config, database *sq
 
 	// Every browser-facing route sits behind cross-origin protection; the
 	// bearer-token API is registered on root, outside it.
-	r := root.With(http.NewCrossOriginProtection().Handler)
+	r := root.With(http.NewCrossOriginProtection().Handler, fragmentResponses(func() http.Handler { return root }, broker.Revisions))
 	r.Handle("/static/*", tmpls.assets.Handler())
 	if err := mountBrowserRoutes(r, cfg, database, sm, h, reg); err != nil {
 		return nil, err

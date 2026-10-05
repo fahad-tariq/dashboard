@@ -3,6 +3,7 @@ package sse
 import (
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"sync"
 	"time"
@@ -19,6 +20,9 @@ type Broker struct {
 	heartbeat time.Duration
 	done      chan struct{}
 	closeOnce sync.Once
+
+	revMu     sync.Mutex
+	revisions map[string]uint64
 }
 
 func NewBroker() *Broker {
@@ -31,6 +35,7 @@ func NewBrokerWithHeartbeat(interval time.Duration) *Broker {
 		clients:   make(map[chan string]struct{}),
 		heartbeat: interval,
 		done:      make(chan struct{}),
+		revisions: make(map[string]uint64),
 	}
 }
 
@@ -130,12 +135,35 @@ func (b *Broker) Unsubscribe(ch chan string) {
 	slog.Debug("sse client disconnected", "total", len(b.clients))
 }
 
-// DebouncedChanged returns a publisher that sends one "changed:<id>" event,
-// with the module ID as data, once delay has passed without another call for
-// that module. Services publish their own writes through it so the tab that
-// made a change finishes its own request before the refresh arrives.
+// DebouncedChanged returns a publisher that sends one "changed:<id>" event
+// once delay has passed without another call for that module. Services
+// publish their own writes through it so the tab that made a change finishes
+// its own request before the refresh arrives.
+//
+// Each call bumps the module's revision at once, and the event data is
+// "<id> <revision>". A fragment response reports the revisions after its own
+// write (see Revisions), so the tab that made the change can skip the echo
+// while every other tab refreshes.
 func (b *Broker) DebouncedChanged(delay time.Duration) func(moduleID string) {
-	return b.debounced(delay, func(id string) { b.Send("changed:"+id, id) })
+	send := b.debounced(delay, func(id string) {
+		b.revMu.Lock()
+		rev := b.revisions[id]
+		b.revMu.Unlock()
+		b.Send("changed:"+id, fmt.Sprintf("%s %d", id, rev))
+	})
+	return func(id string) {
+		b.revMu.Lock()
+		b.revisions[id]++
+		b.revMu.Unlock()
+		send(id)
+	}
+}
+
+// Revisions returns a copy of each module's current change revision.
+func (b *Broker) Revisions() map[string]uint64 {
+	b.revMu.Lock()
+	defer b.revMu.Unlock()
+	return maps.Clone(b.revisions)
 }
 
 func (b *Broker) debounced(delay time.Duration, send func(key string)) func(key string) {

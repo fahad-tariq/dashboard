@@ -1,21 +1,21 @@
 {{define "content"}}
 
-<div class="tracker-page"
-     hx-ext="sse" sse-connect="/events"
-     hx-get="/{{.ListName}}" hx-select=".tracker-page" hx-target="this" hx-swap="outerHTML"
-     hx-trigger="sse:changed:{{.ListName}}">
+<div class="tracker-page" id="open-items" data-live data-keep-class="select-mode"
+     data-row-list data-row-heading="page-heading"
+     hx-get="/{{.ListName}}" hx-trigger="sse:changed:{{.ListName}}"
+     hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false">
 <span class="htmx-indicator" aria-hidden="true">updating&hellip;</span>
 
-<h1>{{.Title}}</h1>
+<h1 id="page-heading" tabindex="-1">{{.Title}}</h1>
 {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
 <div class="summary-stats">
     <span class="stat-item"><span class="stat-value">{{len .Tasks}}</span> open</span>
     {{if .DoneTasks}}<span class="stat-item"><span class="stat-value">{{len .DoneTasks}}</span> done</span>{{end}}
 </div>
 
-<details class="quick-add tracker-add-form">
+<details class="quick-add tracker-add-form" data-keep-attr="open">
     <summary>Add task</summary>
-    <form method="POST" action="/{{.ListName}}/add" class="tracker-goal-form" data-submit="clear-filter">
+    <form method="POST" action="/{{.ListName}}/add" class="tracker-goal-form" data-submit="clear-filter" hx-boost="true">
         <label for="task-title" class="sr-only">Task title</label>
         <input type="text" name="title" id="task-title" placeholder="Task title" required class="form-input">
         <div class="goal-form-row">
@@ -37,35 +37,35 @@
 <p class="section-help">Todos are actionable items you want to complete. Use tags and priorities to organise them.</p>
 
 <div class="tracker-filters">
-    <button class="filter-tag active" data-action="filter" data-filter-type="" data-filter-value="">all</button>
+    <button data-keep-class="active" class="filter-tag active" data-action="filter" data-filter-type="" data-filter-value="">all</button>
     {{range .Categories}}
-    <button class="filter-tag filter-cat" data-value="{{.}}" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>
+    <button data-keep-class="active" class="filter-tag filter-cat" data-value="{{.}}" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>
     {{end}}
     {{if .Priorities}}<span class="filter-sep"></span>{{end}}
     {{range .Priorities}}
-    <button class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" data-action="filter" data-filter-type="priority" data-filter-value="{{.}}">{{.}}</button>
+    <button data-keep-class="active" class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" data-action="filter" data-filter-type="priority" data-filter-value="{{.}}">{{.}}</button>
     {{end}}
     <span class="filter-sep"></span>
-    <button class="filter-tag filter-toggle" data-action="toggle-all-items" title="Expand/collapse all">expand</button>
+    <button data-keep-class="active" class="filter-tag filter-toggle" data-action="toggle-all-items" title="Expand/collapse all">expand</button>
     <span class="filter-sep"></span>
-    <button class="select-toggle-btn" id="select-toggle" data-action="toggle-select-mode">select</button>
+    <button class="select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button>
 </div>
 
 {{range .Tasks}}
-<div class="tracker-item minimised" id="item-{{.Slug}}" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+<div class="tracker-item minimised" id="item-{{.Slug}}" data-row data-keep-class="minimised" data-keep-attr="style" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
     <div class="tracker-item-header" data-action="item-header">
         <input type="checkbox" class="bulk-checkbox" data-action="bulk-checkbox" aria-label="Select {{.Title}}">
-        <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand">&#x25B8;</button>
+        <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand"></button>
         <span class="tracker-item-title">{{linkify .Title}}</span>
         <div class="tracker-item-meta">
             {{range .Tags}}<button type="button" class="badge badge-tag badge-clickable" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>{{end}}
             {{if .Priority}}<button type="button" class="badge badge-priority-{{.Priority}} badge-clickable" data-action="filter" data-filter-type="priority" data-filter-value="{{.Priority}}">{{.Priority}}</button>{{end}}
             {{if .SubStepsTotal}}<span class="badge badge-substeps">{{.SubStepsDone}}/{{.SubStepsTotal}}</span>{{end}}
             {{if .Added}}{{$age := ageBadge .Added}}{{if index $age 0}}<span class="badge badge-age badge-age-{{index $age 1}}">{{index $age 0}}</span>{{end}}<span class="tracker-item-date">{{.Added}}</span>{{end}}
-            {{if not .Planned}}<form method="POST" action="/{{$.ListName}}/{{.Slug}}/plan" class="item-complete-form" data-stop-click>
+            {{if not .Planned}}<form method="POST" action="/{{$.ListName}}/{{.Slug}}/plan" class="item-complete-form" data-stop-click hx-boost="true">
                 <button type="submit" class="item-plan-btn" aria-label="Do today: {{.Title}}" title="Do today">&#x2606;</button>
             </form>{{end}}
-            <form method="POST" action="/{{$.ListName}}/{{.Slug}}/complete" class="item-complete-form" data-stop-click data-submit="celebrate">
+            <form method="POST" action="/{{$.ListName}}/{{.Slug}}/complete" class="item-complete-form" data-stop-click data-submit="celebrate" hx-boost="true" hx-swap="morph swap:400ms">
                 <button type="submit" class="item-complete-btn" aria-label="Complete {{.Title}}" title="Complete">&#x2713;</button>
             </form>
         </div>
@@ -79,16 +79,16 @@
             <div class="substep-list">
                 {{range $i, $s := $steps}}
                 <div class="substep-item {{if $s.Done}}substep-item-done{{end}}">
-                    <form method="POST" action="/{{$.ListName}}/{{$slug}}/substep/toggle" class="substep-form" hx-post="/{{$.ListName}}/{{$slug}}/substep/toggle" hx-target="#item-{{$slug}}" hx-select="#item-{{$slug}}" hx-swap="outerHTML">
+                    <form method="POST" action="/{{$.ListName}}/{{$slug}}/substep/toggle" class="substep-form" hx-boost="true">
                         <input type="hidden" name="index" value="{{$i}}">
                         <button type="submit" class="substep-check" id="item-{{$slug}}-substep-{{$i}}-toggle" aria-label="{{if $s.Done}}Mark step not done{{else}}Mark step done{{end}}: {{$s.Text}}" title="Toggle">{{if $s.Done}}&#x2611;{{else}}&#x2610;{{end}}</button>
                     </form>
                     <span class="substep-text">{{$s.Text}}</span>
-                    <form method="POST" action="/{{$.ListName}}/{{$slug}}/substep/promote" class="substep-form" hx-post="/{{$.ListName}}/{{$slug}}/substep/promote" hx-target="#item-{{$slug}}" hx-select="#item-{{$slug}}" hx-swap="outerHTML">
+                    <form method="POST" action="/{{$.ListName}}/{{$slug}}/substep/promote" class="substep-form" hx-boost="true">
                         <input type="hidden" name="index" value="{{$i}}">
                         <button type="submit" class="substep-promote" id="item-{{$slug}}-substep-{{$i}}-promote" aria-label="Promote step to task: {{$s.Text}}" title="Promote to task">&#x2197;</button>
                     </form>
-                    <form method="POST" action="/{{$.ListName}}/{{$slug}}/substep/remove" class="substep-form" hx-post="/{{$.ListName}}/{{$slug}}/substep/remove" hx-target="#item-{{$slug}}" hx-select="#item-{{$slug}}" hx-swap="outerHTML">
+                    <form method="POST" action="/{{$.ListName}}/{{$slug}}/substep/remove" class="substep-form" hx-boost="true">
                         <input type="hidden" name="index" value="{{$i}}">
                         <button type="submit" class="substep-remove" id="item-{{$slug}}-substep-{{$i}}-remove" aria-label="Remove step: {{$s.Text}}" title="Remove">&#x2715;</button>
                     </form>
@@ -96,15 +96,15 @@
                 {{end}}
             </div>
             {{end}}
-            <form method="POST" action="/{{$.ListName}}/{{.Slug}}/substep/add" class="substep-add-form" hx-post="/{{$.ListName}}/{{.Slug}}/substep/add" hx-target="#item-{{.Slug}}" hx-select="#item-{{.Slug}}" hx-swap="outerHTML">
+            <form method="POST" action="/{{$.ListName}}/{{.Slug}}/substep/add" class="substep-add-form" hx-boost="true">
                 <input type="text" name="text" placeholder="Add a step..." class="form-input substep-add-input" required aria-label="Add a sub-step">
                 <button type="submit" class="action-btn">add</button>
             </form>
             <div class="commentary-slot" data-commentary-url="/commentary/{{$.ListName}}/{{.Slug}}"></div>
-            <details class="item-actions-menu" open>
+            <details class="item-actions-menu" open data-keep-attr="open">
                 <summary class="action-btn item-actions-toggle">more</summary>
                 <div class="tracker-item-actions item-actions-panel">
-                    <form method="POST" action="/{{$.ListName}}/{{.Slug}}/priority" class="inline-triage">
+                    <form method="POST" action="/{{$.ListName}}/{{.Slug}}/priority" class="inline-triage" hx-boost="true">
                         <select name="priority" class="form-select-sm" aria-label="Priority">
                             <option value="" {{if eq .Priority ""}}selected{{end}}>--</option>
                             <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
@@ -113,10 +113,10 @@
                         </select>
                         <button type="submit" class="action-btn">apply</button>
                     </form>
-                    <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="inline-triage" data-confirm="Move this item to trash?">
+                    <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="inline-triage" hx-boost="true">
                         <button type="submit" class="action-btn action-drop">trash</button>
                     </form>
-                    <form method="POST" action="/{{$.ListName}}/{{.Slug}}/move" class="inline-triage" data-confirm="Move to {{$.OtherListName}}?">
+                    <form method="POST" action="/{{$.ListName}}/{{.Slug}}/move" class="inline-triage" data-confirm="Move to {{$.OtherListName}}?" hx-boost="true">
                         <button type="submit" class="action-btn">move to {{$.OtherListName}}</button>
                     </form>
                 </div>
@@ -126,9 +126,9 @@
                 {{range .Images}}{{$parts := splitImageCaption .}}<div class="image-thumb-wrap"><img src="/uploads/{{index $parts 0}}" class="image-thumb" loading="lazy" alt="{{if index $parts 1}}{{index $parts 1}}{{else}}Attached image{{end}}">{{if index $parts 1}}<span class="image-caption">{{index $parts 1}}</span>{{end}}</div>{{end}}
             </div>
             {{end}}
-            <details class="tracker-notes-edit">
+            <details class="tracker-notes-edit" data-keep-attr="open">
                 <summary>edit</summary>
-                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/edit" class="tracker-notes-form">
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/edit" class="tracker-notes-form" hx-boost="true">
                     <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input" aria-label="Title">
                     <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context..." aria-label="Notes">{{.Body}}</textarea>
                     <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input" aria-label="Tags">
@@ -142,21 +142,21 @@
 {{end}}
 
 {{if .DoneTasks}}
-<details class="tracker-done-section">
-    <summary class="tracker-done-summary">Done ({{len .DoneTasks}})</summary>
+<details class="tracker-done-section" id="done-items" data-row-list data-row-heading="done-summary" data-keep-attr="open">
+    <summary class="tracker-done-summary" id="done-summary">Done ({{len .DoneTasks}})</summary>
     {{range .DoneTasks}}
-    <div class="tracker-item tracker-item-done minimised" id="item-{{.Slug}}" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+    <div class="tracker-item tracker-item-done minimised" id="item-{{.Slug}}" data-row data-keep-class="minimised" data-keep-attr="style" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
         <div class="tracker-item-header" data-action="item-header">
-            <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand">&#x25B8;</button>
+            <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand"></button>
             <span class="tracker-item-title">{{linkify .Title}}</span>
             <div class="tracker-item-meta">
                 {{range .Tags}}<span class="badge badge-tag">{{.}}</span>{{end}}
                 {{if .Completed}}<span class="tracker-item-date">{{.Completed}}</span>{{end}}
-                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/uncomplete" class="item-complete-form" data-stop-click>
-                    <button type="submit" class="item-undo-btn" title="Undo">&#x21A9;</button>
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/uncomplete" class="item-complete-form" data-stop-click hx-boost="true">
+                    <button type="submit" class="item-undo-btn" title="Undo" aria-label="Mark {{.Title}} not done">&#x21A9;</button>
                 </form>
-                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="item-complete-form" data-stop-click data-confirm="Delete this item?">
-                    <button type="submit" class="item-undo-btn" title="Delete">&#x2715;</button>
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/delete" class="item-complete-form" data-stop-click hx-boost="true">
+                    <button type="submit" class="item-undo-btn" title="Move to trash" aria-label="Move {{.Title}} to trash">&#x2715;</button>
                 </form>
             </div>
         </div>
@@ -174,20 +174,20 @@
 {{end}}
 
 {{if .DeletedTasks}}
-<details class="tracker-done-section">
-    <summary class="tracker-done-summary">Recently Deleted ({{len .DeletedTasks}})</summary>
+<details class="tracker-done-section" id="deleted-items" data-row-list data-row-heading="deleted-summary" data-keep-attr="open">
+    <summary class="tracker-done-summary" id="deleted-summary">Recently Deleted ({{len .DeletedTasks}})</summary>
     {{range .DeletedTasks}}
-    <div class="tracker-item tracker-item-done minimised" id="item-{{.Slug}}" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+    <div class="tracker-item tracker-item-done minimised" id="item-{{.Slug}}" data-row data-keep-class="minimised" data-keep-attr="style" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
         <div class="tracker-item-header" data-action="item-header">
-            <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand">&#x25B8;</button>
+            <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand"></button>
             <span class="tracker-item-title">{{linkify .Title}}</span>
             <div class="tracker-item-meta">
                 {{if .DeletedAt}}<span class="tracker-item-date">deleted {{.DeletedAt}}</span>{{end}}
-                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/restore" class="item-complete-form" data-stop-click>
-                    <button type="submit" class="item-undo-btn" title="Restore">&#x21A9;</button>
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/restore" class="item-complete-form" data-stop-click hx-boost="true">
+                    <button type="submit" class="item-undo-btn" title="Restore" aria-label="Restore {{.Title}}">&#x21A9;</button>
                 </form>
-                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/purge" class="item-complete-form" data-stop-click data-confirm="Permanently delete this item? This cannot be undone.">
-                    <button type="submit" class="item-undo-btn" title="Permanently delete">&#x2715;</button>
+                <form method="POST" action="/{{$.ListName}}/{{.Slug}}/purge" class="item-complete-form" data-stop-click data-confirm="Permanently delete this item? This cannot be undone." hx-boost="true">
+                    <button type="submit" class="item-undo-btn" title="Permanently delete" aria-label="Permanently delete {{.Title}}">&#x2715;</button>
                 </form>
             </div>
         </div>
@@ -206,9 +206,9 @@
 {{if and (not .Tasks) (not .DoneTasks)}}
 <p class="empty">{{if eq .ListName "family"}}No family tasks yet. Add shared tasks here.{{else}}No tasks yet. Add one above to get started.{{end}}</p>
 {{end}}
-<p class="empty filter-empty" style="display:none">No tasks match the current filter.</p>
+<p class="empty filter-empty" style="display:none" data-keep-attr="style">No tasks match the current filter.</p>
 
-<div class="bulk-bar" id="bulk-bar" role="toolbar" aria-label="Bulk actions">
+<div class="bulk-bar" id="bulk-bar" data-keep-class="visible" role="toolbar" aria-label="Bulk actions">
     <span class="bulk-bar-count" id="bulk-bar-count" aria-live="polite">0 selected</span>
     <button type="button" class="action-btn" data-action="select-all">select all</button>
     <button type="button" class="action-btn" data-action="deselect-all">deselect</button>

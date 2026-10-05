@@ -1,10 +1,9 @@
 /* planner.js -- client-side picker filter + drag-and-drop (ES5 compatible) */
-/* All DnD events are delegated from document so they survive SSE outerHTML swaps. */
+/* All DnD events are delegated from document, so no listener depends on
+   which elements a swap kept. Live refreshes wait while a drag is in
+   progress (liveRefresh in live.js) and apply when it ends. */
 
-/* global window, document, fetch, htmx, announce */
-
-window.planDragInProgress = false;
-window.planDetailExpanded = false;
+/* global window, document, fetch, announce */
 
 // planItemClick toggles a plan row. The row's toggle button is the
 // keyboard and screen reader control; a click anywhere else on the row (but
@@ -15,19 +14,29 @@ function planItemClick(e) {
     if (!e.target.closest('.plan-item-toggle') && e.target.closest('a, button, input, select, textarea, label, form')) return;
     var wasMinimised = item.classList.contains('minimised');
     item.classList.toggle('minimised');
-    var chevron = item.querySelector('.plan-item-chevron');
-    if (chevron) chevron.innerHTML = wasMinimised ? '\u25BE' : '\u25B8';
     var toggle = item.querySelector('.plan-item-toggle');
     if (toggle) toggle.setAttribute('aria-expanded', String(wasMinimised));
-    // Disable drag on expanded item to prevent accidental drag.
-    if (wasMinimised) {
-        item.setAttribute('draggable', 'false');
-    } else if (!item.classList.contains('plan-item-done')) {
-        item.setAttribute('draggable', 'true');
+    syncDraggable();
+}
+
+// syncDraggable lets open plan rows be dragged while minimised; an expanded
+// row is not draggable, so text in its detail can be selected.
+function syncDraggable() {
+    var items = document.querySelectorAll('.plan-today-tasks .plan-item');
+    for (var i = 0; i < items.length; i++) {
+        var on = !items[i].classList.contains('plan-item-done') && items[i].classList.contains('minimised');
+        items[i].setAttribute('draggable', String(on));
     }
-    // Update global flag: true if any item is expanded.
-    var expanded = document.querySelectorAll('.plan-item:not(.minimised)');
-    window.planDetailExpanded = expanded.length > 0;
+}
+
+document.addEventListener('htmx:afterSettle', syncDraggable);
+
+function holdRefresh() {
+    if (window.liveRefresh) window.liveRefresh.hold('drag');
+}
+
+function releaseRefresh() {
+    if (window.liveRefresh) window.liveRefresh.release('drag');
 }
 
 function plannerFilter(query) {
@@ -47,6 +56,9 @@ function plannerFilter(query) {
 // --- Homepage plan reorder (drag within .plan-today-tasks) ---
 
 var draggedEl = null;
+// The save started by a drop; refreshes wait for it, or they could fetch
+// the old order.
+var dropSave = null;
 
 function clearDropIndicators() {
     var all = document.querySelectorAll('.plan-drop-above, .plan-drop-below');
@@ -67,13 +79,14 @@ function collectSlugs(list) {
     return slugs;
 }
 
+// postReorder saves list's order and returns the request's promise.
 function postReorder(list) {
     var slugs = collectSlugs(list);
-    if (slugs.length === 0) return;
+    if (slugs.length === 0) return null;
     var body = 'slugs=' + encodeURIComponent(slugs.join(', ')) + '&list=' + encodeURIComponent(list);
-    fetch('/plan/reorder', {
+    return fetch('/plan/reorder', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'HX-Request': 'true' },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
         credentials: 'same-origin',
         body: body
     });
@@ -86,7 +99,7 @@ document.addEventListener('dragstart', function(e) {
     if (item && !item.classList.contains('plan-item-done')) {
         draggedEl = item;
         item.classList.add('plan-item-dragging');
-        window.planDragInProgress = true;
+        holdRefresh();
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', item.getAttribute('data-slug'));
         return;
@@ -99,7 +112,7 @@ document.addEventListener('dragstart', function(e) {
         e.dataTransfer.setData('text/plain', task.getAttribute('data-slug'));
         e.dataTransfer.setData('application/x-list', task.getAttribute('data-list'));
         task.classList.add('plan-item-dragging');
-        window.planDragInProgress = true;
+        holdRefresh();
     }
 });
 
@@ -160,7 +173,7 @@ document.addEventListener('drop', function(e) {
         } else {
             target.parentNode.insertBefore(draggedEl, target.nextSibling);
         }
-        postReorder(draggedEl.getAttribute('data-list'));
+        dropSave = postReorder(draggedEl.getAttribute('data-list'));
         return;
     }
 
@@ -180,7 +193,7 @@ document.addEventListener('drop', function(e) {
     var body = 'slug=' + encodeURIComponent(slug) + '&list=' + encodeURIComponent(list) + '&date=' + encodeURIComponent(date);
     fetch('/plan/set', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'HX-Request': 'true' },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
         credentials: 'same-origin',
         body: body
     }).then(function() {
@@ -194,7 +207,6 @@ document.addEventListener('dragend', function() {
     }
     draggedEl = null;
     clearDropIndicators();
-    window.planDragInProgress = false;
 
     // Clean up calendar highlights.
     var cells = document.querySelectorAll('.calendar-cell-drop-target');
@@ -204,6 +216,13 @@ document.addEventListener('dragend', function() {
     var tasks = document.querySelectorAll('.plan-item-dragging');
     for (var j = 0; j < tasks.length; j++) {
         tasks[j].classList.remove('plan-item-dragging');
+    }
+    var save = dropSave;
+    dropSave = null;
+    if (save) {
+        save.then(releaseRefresh, releaseRefresh);
+    } else {
+        releaseRefresh();
     }
 });
 

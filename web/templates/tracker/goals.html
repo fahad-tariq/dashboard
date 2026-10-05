@@ -1,20 +1,20 @@
 {{define "content"}}
 
-<div class="tracker-page"
-     hx-ext="sse" sse-connect="/events"
-     hx-get="/goals" hx-select=".tracker-page" hx-target="this" hx-swap="outerHTML"
-     hx-trigger="sse:changed:todos">
+<div class="tracker-page" id="open-items" data-live data-keep-class="select-mode"
+     data-row-list data-row-heading="page-heading"
+     hx-get="/goals" hx-trigger="sse:changed:todos"
+     hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false">
 <span class="htmx-indicator" aria-hidden="true">updating&hellip;</span>
 
-<h1>Goals</h1>
+<h1 id="page-heading" tabindex="-1">Goals</h1>
 {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
 <div class="summary-stats">
     <span class="stat-item"><span class="stat-value">{{len .Goals}}</span> active</span>
 </div>
 
-<details class="quick-add tracker-add-form">
+<details class="quick-add tracker-add-form" data-keep-attr="open">
     <summary>Add goal</summary>
-    <form method="POST" action="/todos/add-goal" class="tracker-goal-form" data-submit="clear-filter">
+    <form method="POST" action="/todos/add-goal" class="tracker-goal-form" data-submit="clear-filter" hx-boost="true">
         <label for="goal-title" class="sr-only">Goal title</label>
         <input type="text" name="title" id="goal-title" placeholder="Goal title" required class="form-input">
         <div class="goal-form-row">
@@ -50,28 +50,28 @@
 
 {{if or .Categories .Priorities}}
 <div class="tracker-filters">
-    <button class="filter-tag active" data-action="filter" data-filter-type="" data-filter-value="">all</button>
+    <button data-keep-class="active" class="filter-tag active" data-action="filter" data-filter-type="" data-filter-value="">all</button>
     {{range .Categories}}
-    <button class="filter-tag filter-cat" data-value="{{.}}" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>
+    <button data-keep-class="active" class="filter-tag filter-cat" data-value="{{.}}" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>
     {{end}}
     {{if .Priorities}}<span class="filter-sep"></span>{{end}}
     {{range .Priorities}}
-    <button class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" data-action="filter" data-filter-type="priority" data-filter-value="{{.}}">{{.}}</button>
+    <button data-keep-class="active" class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" data-action="filter" data-filter-type="priority" data-filter-value="{{.}}">{{.}}</button>
     {{end}}
     <span class="filter-sep"></span>
-    <button class="select-toggle-btn" id="select-toggle" data-action="toggle-select-mode">select</button>
+    <button class="select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button>
 </div>
 {{else}}
 <div class="tracker-filters">
-    <button class="select-toggle-btn" id="select-toggle" data-action="toggle-select-mode">select</button>
+    <button class="select-toggle-btn" id="select-toggle" data-keep-class="active" data-action="toggle-select-mode">select</button>
 </div>
 {{end}}
 
 {{range .Goals}}
-<div class="tracker-item" id="item-{{.Slug}}" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+<div class="tracker-item" id="item-{{.Slug}}" data-row data-keep-attr="style" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
     <div class="tracker-item-header">
         <input type="checkbox" class="bulk-checkbox" data-action="bulk-checkbox" aria-label="Select {{.Title}}">
-        <span class="tracker-item-title">{{linkify .Title}}</span>
+        <span class="tracker-item-title" data-row-focus tabindex="-1">{{linkify .Title}}</span>
         <div class="tracker-item-meta">
             {{range .Tags}}<button type="button" class="badge badge-tag badge-clickable" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>{{end}}
             {{if .Priority}}<button type="button" class="badge badge-priority-{{.Priority}} badge-clickable" data-action="filter" data-filter-type="priority" data-filter-value="{{.Priority}}">{{.Priority}}</button>{{end}}
@@ -94,24 +94,24 @@
     {{if .Added}}<div class="tracker-item-date mt-xs">added {{.Added}}{{if .Deadline}} &middot; deadline {{.Deadline}}{{end}}</div>{{end}}
     <div class="tracker-item-actions">
         {{if gt .Target 0.0}}
-        <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage">
+        <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage" hx-boost="true">
             <input type="hidden" name="delta" value="-1">
             <button type="submit" class="action-btn">-1</button>
         </form>
-        <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage">
+        <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage" hx-boost="true">
             <input type="hidden" name="delta" value="1">
             <button type="submit" class="action-btn action-assign">+1</button>
         </form>
-        <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage goal-set-form">
+        <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage goal-set-form" hx-boost="true">
             <input type="number" name="delta" step="any" placeholder="set" class="form-input goal-set-input" required aria-label="Set progress for {{.Title}}">
             <input type="hidden" name="set" value="1">
             <button type="submit" class="action-btn">set</button>
         </form>
         {{end}}
-        <details class="item-actions-menu" open>
+        <details class="item-actions-menu" open data-keep-attr="open">
             <summary class="action-btn item-actions-toggle">more</summary>
             <div class="item-actions-panel">
-                <form method="POST" action="/todos/{{.Slug}}/priority" class="inline-triage">
+                <form method="POST" action="/todos/{{.Slug}}/priority" class="inline-triage" hx-boost="true">
                     <select name="priority" class="form-select-sm" aria-label="Priority">
                         <option value="" {{if eq .Priority ""}}selected{{end}}>--</option>
                         <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
@@ -120,7 +120,7 @@
                     </select>
                     <button type="submit" class="action-btn">apply</button>
                 </form>
-                <form method="POST" action="/todos/{{.Slug}}/delete" class="inline-triage" data-confirm="Move this goal to trash?">
+                <form method="POST" action="/todos/{{.Slug}}/delete" class="inline-triage" hx-boost="true">
                     <button type="submit" class="action-btn action-drop">trash</button>
                 </form>
             </div>
@@ -131,9 +131,9 @@
         {{range .Images}}{{$parts := splitImageCaption .}}<div class="image-thumb-wrap"><img src="/uploads/{{index $parts 0}}" class="image-thumb" loading="lazy" alt="{{if index $parts 1}}{{index $parts 1}}{{else}}Attached image{{end}}">{{if index $parts 1}}<span class="image-caption">{{index $parts 1}}</span>{{end}}</div>{{end}}
     </div>
     {{end}}
-    <details class="tracker-notes-edit">
+    <details class="tracker-notes-edit" data-keep-attr="open">
         <summary>edit</summary>
-        <form method="POST" action="/todos/{{.Slug}}/edit" class="tracker-notes-form">
+        <form method="POST" action="/todos/{{.Slug}}/edit" class="tracker-notes-form" hx-boost="true">
             <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input" aria-label="Title">
             <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context..." aria-label="Notes">{{.Body}}</textarea>
             <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input" aria-label="Tags">
@@ -145,20 +145,20 @@
 {{end}}
 
 {{if .DeletedGoals}}
-<details class="tracker-done-section">
-    <summary class="tracker-done-summary">Recently Deleted ({{len .DeletedGoals}})</summary>
+<details class="tracker-done-section" id="deleted-items" data-row-list data-row-heading="deleted-summary" data-keep-attr="open">
+    <summary class="tracker-done-summary" id="deleted-summary">Recently Deleted ({{len .DeletedGoals}})</summary>
     {{range .DeletedGoals}}
-    <div class="tracker-item tracker-item-done minimised" id="item-{{.Slug}}" data-slug="{{.Slug}}">
+    <div class="tracker-item tracker-item-done minimised" id="item-{{.Slug}}" data-row data-keep-class="minimised" data-slug="{{.Slug}}">
         <div class="tracker-item-header" data-action="item-header">
-            <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand">&#x25B8;</button>
+            <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand"></button>
             <span class="tracker-item-title">{{linkify .Title}}</span>
             <div class="tracker-item-meta">
                 {{if .DeletedAt}}<span class="tracker-item-date">deleted {{.DeletedAt}}</span>{{end}}
-                <form method="POST" action="/todos/{{.Slug}}/restore" class="item-complete-form" data-stop-click>
-                    <button type="submit" class="item-undo-btn" title="Restore">&#x21A9;</button>
+                <form method="POST" action="/todos/{{.Slug}}/restore" class="item-complete-form" data-stop-click hx-boost="true">
+                    <button type="submit" class="item-undo-btn" title="Restore" aria-label="Restore {{.Title}}">&#x21A9;</button>
                 </form>
-                <form method="POST" action="/todos/{{.Slug}}/purge" class="item-complete-form" data-stop-click data-confirm="Permanently delete this goal? This cannot be undone.">
-                    <button type="submit" class="item-undo-btn" title="Permanently delete">&#x2715;</button>
+                <form method="POST" action="/todos/{{.Slug}}/purge" class="item-complete-form" data-stop-click data-confirm="Permanently delete this goal? This cannot be undone." hx-boost="true">
+                    <button type="submit" class="item-undo-btn" title="Permanently delete" aria-label="Permanently delete {{.Title}}">&#x2715;</button>
                 </form>
             </div>
         </div>
@@ -177,9 +177,9 @@
 {{if not .Goals}}
 <p class="empty">No goals yet. Track something measurable -- fitness, reading, savings.</p>
 {{end}}
-<p class="empty filter-empty" style="display:none">No goals match the current filter.</p>
+<p class="empty filter-empty" style="display:none" data-keep-attr="style">No goals match the current filter.</p>
 
-<div class="bulk-bar" id="bulk-bar" role="toolbar" aria-label="Bulk actions">
+<div class="bulk-bar" id="bulk-bar" data-keep-class="visible" role="toolbar" aria-label="Bulk actions">
     <span class="bulk-bar-count" id="bulk-bar-count" aria-live="polite">0 selected</span>
     <button type="button" class="action-btn" data-action="select-all">select all</button>
     <button type="button" class="action-btn" data-action="deselect-all">deselect</button>

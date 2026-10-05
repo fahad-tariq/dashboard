@@ -458,6 +458,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
+	httputil.OfferUndo(w, "/"+h.listName+"/"+slug+"/restore")
 	h.redirectBack(w, r, "", "item-deleted")
 }
 

@@ -298,6 +298,7 @@ func (h *Handler) DeleteIdea(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	httputil.OfferUndo(w, "/ideas/"+slug+"/restore")
 	http.Redirect(w, r, "/ideas?msg=idea-deleted", http.StatusSeeOther)
 }
 

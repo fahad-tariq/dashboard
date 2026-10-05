@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expandTrackerItem, expect, test, uniqueTitle, waitForSseSettle } from './helpers';
+import { expandTrackerItem, expect, expectNoReload, markNoReload, test, uniqueTitle, waitForSseSettle } from './helpers';
 
 function ideaSection(page: Page, heading: string) {
   return page.locator('.ideas-page section').filter({
@@ -26,11 +26,13 @@ test('add an idea and triage it', async ({ page }) => {
 
   await expandTrackerItem(untriagedCard);
 
-  // Triage posts via fetch then reloads the page.
+  // Triage posts through htmx and morphs the page; it does not reload.
+  await markNoReload(page);
   await untriagedCard.getByRole('button', { name: 'park' }).click();
   const parkedCard = ideaSection(page, 'Parked').locator('.tracker-item', { hasText: title });
   await expect(parkedCard).toBeVisible();
   await expect(ideaSection(page, 'Untriaged').locator('.tracker-item', { hasText: title })).toHaveCount(0);
+  await expectNoReload(page);
 });
 
 test('seeded idea keeps blank lines in its body', async ({ page }) => {

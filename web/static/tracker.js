@@ -82,9 +82,6 @@ function applyFilter() {
     updateFilterBadge();
 }
 
-// Persistent set of expanded item slugs -- survives SSE swaps.
-var trackerExpandedItems = {};
-
 // itemHeaderClick toggles a row when its header is clicked. The row's
 // .item-toggle button is the keyboard and screen reader control; clicks on
 // other controls in the header (badges, checkbox, forms, links) are theirs.
@@ -97,23 +94,19 @@ function itemHeaderClick(e, header) {
     }
 }
 
+// setExpanded opens or closes a row. The chevron follows aria-expanded in
+// CSS, and morph swaps keep both (data-keep-class, data-keep-attr).
+function setExpanded(item, expanded) {
+    item.classList.toggle('minimised', !expanded);
+    var toggle = item.querySelector('.item-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', String(expanded));
+    if (expanded) loadCommentary(item);
+}
+
 function toggleItem(btn) {
     if (!btn) return;
     var item = btn.closest('.tracker-item');
-    item.classList.toggle('minimised');
-    var minimised = item.classList.contains('minimised');
-    btn.textContent = minimised ? '\u25B8' : '\u25BE';
-    var toggle = item.querySelector('.item-toggle');
-    if (toggle) toggle.setAttribute('aria-expanded', String(!minimised));
-    var slug = item.getAttribute('data-slug');
-    if (slug) {
-        if (minimised) {
-            delete trackerExpandedItems[slug];
-        } else {
-            trackerExpandedItems[slug] = true;
-            loadCommentary(item);
-        }
-    }
+    setExpanded(item, item.classList.contains('minimised'));
 }
 
 function loadCommentary(item) {
@@ -139,25 +132,7 @@ function trackerToggleAll() {
         if (el.classList.contains('minimised')) anyMinimised = true;
     });
     var shouldMinimise = !anyMinimised;
-    items.forEach(function(el) {
-        if (shouldMinimise) {
-            el.classList.add('minimised');
-        } else {
-            el.classList.remove('minimised');
-        }
-        var btn = el.querySelector('.item-toggle');
-        if (btn) btn.textContent = shouldMinimise ? '\u25B8' : '\u25BE';
-        var toggle = el.querySelector('.item-toggle');
-        if (toggle) toggle.setAttribute('aria-expanded', String(!shouldMinimise));
-        var slug = el.getAttribute('data-slug');
-        if (slug) {
-            if (shouldMinimise) {
-                delete trackerExpandedItems[slug];
-            } else {
-                trackerExpandedItems[slug] = true;
-            }
-        }
-    });
+    items.forEach(function(el) { setExpanded(el, !shouldMinimise); });
     var toggleBtn = document.querySelector('.filter-toggle');
     if (toggleBtn) toggleBtn.textContent = shouldMinimise ? 'expand' : 'collapse';
 }
@@ -177,26 +152,12 @@ function celebrateComplete(form) {
     return true;
 }
 
-// Idea triage transition animation.
+// Idea triage fades the card out while the request runs; the swap waits
+// for the fade (hx-swap="morph swap:300ms" on the form).
 function triageAnimate(form) {
     var item = form.closest('.tracker-item');
-    var action = form.getAttribute('action');
-    var method = form.getAttribute('method') || 'POST';
-    if (item) {
-        item.classList.add('idea-transitioning');
-    }
-    setTimeout(function() {
-        fetch(action, {
-            method: method,
-            body: new FormData(form),
-            credentials: 'same-origin'
-        }).then(function() {
-            window.location.reload();
-        }).catch(function() {
-            window.location.reload();
-        });
-    }, 250);
-    return false;
+    if (item) item.classList.add('idea-transitioning');
+    return true;
 }
 
 // On page load: restore filter, expand hash target.
@@ -210,18 +171,15 @@ function triageAnimate(form) {
         applyFilter();
     }
 
-    var hash = window.location.hash.replace('#', '');
+    // Expand and scroll to the row named by the hash: /todos#item-slug,
+    // or the older /todos#slug.
+    var hash = window.location.hash.slice(1);
     if (!hash) return;
-    var el = document.getElementById('item-' + hash);
-    if (!el) return;
-    el.classList.remove('minimised');
-    var btn = el.querySelector('.item-toggle');
-    if (btn) btn.textContent = '\u25BE';
-    var toggle = el.querySelector('.item-toggle');
-    if (toggle) toggle.setAttribute('aria-expanded', 'true');
-    var slug = el.getAttribute('data-slug');
-    if (slug) trackerExpandedItems[slug] = true;
-    el.scrollIntoView({block: 'nearest'});
+    var el = document.getElementById(hash);
+    if (!el || !el.classList.contains('tracker-item')) el = document.getElementById('item-' + hash);
+    if (!el || !el.classList.contains('tracker-item')) return;
+    setExpanded(el, true);
+    el.scrollIntoView({ block: 'center' });
 })();
 
 // --- Bulk select mode ---
@@ -323,7 +281,7 @@ function confirmBulkDelete(form) {
     if (slugs.length === 0) return false;
     var input = form.querySelector('input[name="slugs"]');
     if (input) input.value = slugs.join(', ');
-    return confirmAction(form, 'Delete ' + slugs.length + ' items? This cannot be undone.');
+    return confirmAction(form, 'Move ' + slugs.length + ' items to trash?');
 }
 
 // --- Delegated event dispatch ---
@@ -336,7 +294,8 @@ function confirmBulkDelete(form) {
 //   data-stop-click      clicks inside do not reach data-action ancestors
 //                        (stands in for the old inline stopPropagation, e.g.
 //                        controls inside a row that toggles on click).
-//   data-confirm="msg"   form submit asks via the confirm modal first.
+//   data-confirm="msg"   form submit asks via the confirm modal first
+//                        (dialog.js handles htmx forms through htmx:confirm).
 //   data-submit="name"   form submit handler from submitActions; returning
 //                        false cancels the native submit.
 //   data-autosubmit      a select that submits its form on change.
@@ -381,12 +340,14 @@ document.addEventListener('click', function(evt) {
 });
 
 // Form submissions from the confirm modal use form.submit(), which fires no
-// submit event, so a confirmed form is not intercepted a second time.
+// submit event, so a confirmed form is not intercepted a second time. htmx
+// has already cancelled the native submit of its own forms (and asks through
+// htmx:confirm), so only plain forms are confirmed here.
 document.addEventListener('submit', function(evt) {
     var form = evt.target;
     if (!form || !form.getAttribute) return;
     var message = form.getAttribute('data-confirm');
-    if (message !== null && !confirmAction(form, message)) {
+    if (message !== null && !evt.defaultPrevented && !confirmAction(form, message)) {
         evt.preventDefault();
         return;
     }
@@ -397,139 +358,31 @@ document.addEventListener('submit', function(evt) {
 document.addEventListener('change', function(evt) {
     var el = evt.target;
     if (el && el.hasAttribute && el.hasAttribute('data-autosubmit') && el.form) {
-        el.form.submit();
+        // requestSubmit fires the submit event, so htmx forms stay htmx.
+        if (el.form.requestSubmit) {
+            el.form.requestSubmit();
+        } else {
+            el.form.submit();
+        }
     }
 });
 
-// Re-apply filter, badge, and select state after HTMX SSE swap.
-document.addEventListener('htmx:afterSwap', function() {
-    if (activeFilterType) {
-        applyFilter();
-    }
+// A swap brings rows the filter has not seen and drops the "filtered" badge.
+// In select mode it also resets the toggle's label and the bulk bar's count
+// (the morph keeps the classes and the ticked boxes).
+document.addEventListener('htmx:afterSettle', function() {
+    if (activeFilterType) applyFilter();
     updateFilterBadge();
-    // Reset select mode after swap (page was replaced).
     if (bulkSelectActive) {
-        exitSelectMode();
+        var btn = document.getElementById('select-toggle');
+        if (btn) btn.textContent = 'cancel';
+        updateBulkBar();
     }
-    // Reset plan detail flag after swap (expanded state is ephemeral).
-    window.planDetailExpanded = false;
 });
 
-// Re-expand items from the persistent tracker. This must run after settle:
-// htmx re-applies the swapped-in element's class attribute ("minimised")
-// during the settle step, which would undo an expansion done in afterSwap.
-document.addEventListener('htmx:afterSettle', function() {
-    Object.keys(trackerExpandedItems).forEach(function(slug) {
-        var el = document.getElementById('item-' + slug);
-        if (el && el.classList.contains('minimised')) {
-            el.classList.remove('minimised');
-            var btn = el.querySelector('.item-toggle');
-            if (btn) btn.textContent = '\u25BE';
-            var toggle = el.querySelector('.item-toggle');
-            if (toggle) toggle.setAttribute('aria-expanded', 'true');
-        }
-    });
+// A failed request leaves the row in place, so undo its animation.
+document.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail.successful || !evt.detail.elt || !evt.detail.elt.closest) return;
+    var item = evt.detail.elt.closest('.tracker-item, .plan-item');
+    if (item) item.classList.remove('idea-transitioning', 'tracker-item-completing', 'plan-item-completing');
 });
-
-// A refresh replaces the focused control with a fresh copy. Remember its id
-// (see the id scheme in the plan) so focus can move to the new copy instead
-// of falling back to <body>.
-var focusBeforeRefresh = null;
-
-function rememberFocus(target) {
-    var active = document.activeElement;
-    focusBeforeRefresh = active && active.id && target.contains(active) ? active.id : null;
-}
-
-document.addEventListener('htmx:afterSettle', function() {
-    if (!focusBeforeRefresh) return;
-    var id = focusBeforeRefresh;
-    focusBeforeRefresh = null;
-    var active = document.activeElement;
-    if (active && active !== document.body) return;
-    var el = document.getElementById(id);
-    if (el) el.focus();
-});
-
-function isSSERefresh(evt) {
-    var elt = evt.detail.elt;
-    var trigger = elt && elt.getAttribute && elt.getAttribute('hx-trigger');
-    return !!trigger && trigger.indexOf('sse:') !== -1;
-}
-
-// True while an inline note popover is open, or a text field inside container
-// has focus and holds typed text.
-function userIsEditing(container) {
-    if (!container.querySelector) return false;
-    if (container.querySelector('.house-note-popover.open')) return true;
-    var active = document.activeElement;
-    if (!active || !container.contains(active)) return false;
-    var tag = active.tagName;
-    return (tag === 'INPUT' || tag === 'TEXTAREA') && active.value !== '';
-}
-
-// Delay SSE swap when a completion celebration is in progress so the
-// green flash animation is visible before the DOM is replaced.
-var pendingSwap = null;
-
-document.addEventListener('htmx:beforeSwap', function(evt) {
-    var target = evt.detail.target;
-    if (!target) return;
-
-    // Suppress SSE swaps of a list page while select mode, drag, plan
-    // detail, or any tracker item is expanded, and of the homepage while a
-    // plan item is expanded or dragged.
-    var cls = target.classList;
-    var isTrackerSwap = cls && cls.contains('tracker-page');
-    var isHomeSwap = cls && cls.contains('homepage-page');
-    if (isTrackerSwap && (bulkSelectActive || window.planDragInProgress || window.planDetailExpanded || Object.keys(trackerExpandedItems).length > 0)) {
-        evt.detail.shouldSwap = false;
-        return;
-    }
-    if (isHomeSwap && (window.planDragInProgress || window.planDetailExpanded)) {
-        evt.detail.shouldSwap = false;
-        return;
-    }
-    if (isSSERefresh(evt)) rememberFocus(target);
-
-    // On any SSE-refreshed page, never replace a form the user is filling in.
-    if (isSSERefresh(evt) && userIsEditing(target)) {
-        evt.detail.shouldSwap = false;
-        return;
-    }
-
-    var completing = target.querySelector && (target.querySelector('.tracker-item-completing') || target.querySelector('.plan-item-completing'));
-    if (!completing) return;
-
-    // Store swap details and prevent the immediate swap.
-    var elt = evt.detail.elt;
-    pendingSwap = {
-        elt: elt,
-        target: target
-    };
-    evt.detail.shouldSwap = false;
-
-    // After the animation delay, re-trigger the SSE refresh with the first
-    // event the element listens for (e.g. sse:changed:todos).
-    setTimeout(function() {
-        pendingSwap = null;
-        var trigger = elt && elt.getAttribute && elt.getAttribute('hx-trigger');
-        var match = trigger && trigger.match(/sse:[^\s,]+/);
-        if (typeof htmx !== 'undefined' && match) {
-            htmx.trigger(elt, match[0]);
-        }
-    }, 400);
-});
-
-// Auto-expand and scroll to item when navigating via hash (e.g. /todos#item-slug).
-(function() {
-    if (!window.location.hash) return;
-    var el = document.getElementById(window.location.hash.slice(1));
-    if (!el || !el.classList.contains('tracker-item')) return;
-    if (el.classList.contains('minimised')) {
-        var btn = el.querySelector('.item-toggle');
-        if (btn) toggleItem(btn); // toggleItem already tracks in trackerExpandedItems
-    }
-    el.scrollIntoView({ block: 'center' });
-})();
-
