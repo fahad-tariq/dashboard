@@ -1981,7 +1981,10 @@
         .calendar-grid-week .calendar-cell { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-2); min-height: auto; }
         .calendar-grid-week .calendar-day-num { min-width: 5rem; }
         .calendar-grid-week .calendar-day-num::after { content: attr(data-weekday); margin-left: var(--sp-1); font-weight: 400; }
-        .calendar-grid-week .calendar-tasks { flex: 1; margin-top: 0; }
+        /* Titles do not wrap, so the list must be allowed to shrink below
+           its longest title or it pushes the page sideways. */
+        .calendar-grid-week .calendar-tasks { flex: 1 1 10rem; min-width: 0; margin-top: 0; }
+        .calendar-task { min-width: 0; }
         .calendar-weekday-row,
         .calendar-month-grid { gap: var(--sp-1); }
         .calendar-cell-month { min-height: 3rem; padding: var(--sp-1); }

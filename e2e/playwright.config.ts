@@ -3,6 +3,8 @@ import { authFile } from './tests/paths';
 
 export default defineConfig({
   testDir: './tests',
+  // CI runs the screenshot spec as its own job.
+  testIgnore: process.env.E2E_SKIP_SCREENSHOTS ? /screenshots\.spec\.ts/ : undefined,
   // One server with shared state: run everything serially in a single worker.
   fullyParallel: false,
   workers: 1,

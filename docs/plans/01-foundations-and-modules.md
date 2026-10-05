@@ -782,3 +782,13 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - The footer MCP badge and its health poll are gone.
   - The style selector (`#style-select`) sits at the end of the nav links, so it moves into the hamburger menu on phones. The choice is stored per device in `localStorage.style` and applied with the theme by the shared `appearance-script` partial, which the login page also uses.
 - CI: the e2e job's timeout rose from 15 to 30 minutes, because axe and screenshots now run in three styles.
+- **CI fixes and feedback loop.**
+  - Three CI runs to green. Failures, in order:
+    - Stale assertions (old class name, old progress text).
+    - Phone screenshots not opening the folded row actions.
+    - Axe `target-size` on filter chips half under the sticky nav after focus-after-change scrolled the page. Axe scans now set the nav static.
+    - One real bug: at 320px the calendar week's unwrapped titles widened the page. Fixed with `min-width: 0` on the task list.
+  - `TestE2ESelectorsExist` (Go, runs locally) fails when a spec selects a class or id that no template or app JS defines. It would have caught the stale class before a push.
+  - Screenshots are their own CI job (`screenshots`, not gating the image build). The `e2e` job sets `E2E_SKIP_SCREENSHOTS`.
+  - `.github/workflows/e2e-grep.yml` re-runs only the tests matching a `--grep` pattern on a pushed ref: `gh workflow run e2e-grep.yml -f grep="..."`.
+  - Locally, `bash e2e/run.sh <spec or --grep ...>` works outside the nono sandbox.
