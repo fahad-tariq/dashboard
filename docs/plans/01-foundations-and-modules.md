@@ -8,7 +8,7 @@ This is the first of three plans:
 
 | Plan | Scope | Status |
 |---|---|---|
-| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | In progress: Phases 1-6 deployed; Phase 7 on `main`, awaiting owner review |
+| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | In progress: Phases 1-7 deployed; Phase 7 awaiting owner review |
 | 2 | Exercise module on the framework, plus the SQLite migration hook it needs. Exercise scope is not yet decided | Not written |
 | 3 | Product features: quick capture, stable item IDs (which also fix slug collisions), due dates, recurring tasks merged with maintenance cadence, agent-proposed daily plan, reminders, weekly review, MCP tooling and possibly a Go MCP server | Not written; write after Phase 7 lands |
 
@@ -718,4 +718,5 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - So a new module needs only its package, its template directory and one registration line, unless it needs page JS (a file in `web/static/`), plannable items (Plan 2) or commentary.
 - Self-review (independent reviewer): no user-facing regressions found. Fixed in `3acc5e9`: `search.spec.ts` still expected `/todos#renew-passport`; the homepage trigger only covered widget modules, so a list the planner reads would stop refreshing if its module dropped its widget; core pages were detected by matching the text `{{define "content"}}`, so a differently spaced define would have skipped a page until request time (now parsed and checked with `Lookup`).
 - Verification: lint 0 issues; `INTEGRATION=1 go test -race ./...` green; route goldens unchanged; gocyclo only lists the six accepted exclusions; e2e type-checks. Playwright runs in CI on push, and is the first browser run of the handler conversion.
+- CI on `main` (`06214b1`) passed in full, including e2e, so the handler conversion and the new `ideas.md` refresh test pass in a browser. Deployed to fliptronic 2026-10-05 03:56 UTC (backup `dashboard-backup-20261005-035538.tar.gz`, image revision `06214b1`). Verified through Caddy: `/login` 200; `/`, `/todos`, `/goals`, `/ideas`, `/house` and `/family` redirect to login with `next`; `/events` 401; `/api/v1/todos` 404; `/static/house.js` 200; cross-site login POST 403; CSP and HSTS present; `verify-stack.sh` green.
 - Follow-ups: per-module static assets if a module needs JS; the capabilities above; the remaining inline handlers in core templates; remove the test-only static `tracker.NewHandler`/`ideas.NewHandler` (still open).
