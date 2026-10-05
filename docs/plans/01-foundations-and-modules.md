@@ -8,7 +8,7 @@ This is the first of three plans:
 
 | Plan | Scope | Status |
 |---|---|---|
-| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | In progress: Phases 1-5 merged and deployed |
+| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | In progress: Phases 1-6 merged and deployed |
 | 2 | Exercise module on the framework, plus the SQLite migration hook it needs. Exercise scope is not yet decided | Not written |
 | 3 | Product features: quick capture, stable item IDs (which also fix slug collisions), due dates, recurring tasks merged with maintenance cadence, agent-proposed daily plan, reminders, weekly review, MCP tooling and possibly a Go MCP server | Not written; write after Phase 7 lands |
 
@@ -679,6 +679,8 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 - Self-review (independent reviewer, no production defects found) led to two changes, each test-first:
   - With digest behind "more", `/digest` and `/plan/calendar` lost their visible current-section marker, because their links sit in the closed menu. The "more" button now takes the `nav-active` style when one of its links is current (`TestMoreButtonMarksCurrentSection`).
   - A module could point a nav link at a core page, or register an API path that silently replaced a core handler (chi lets a later route win). Nav paths must now sit under the module's own prefixes, and `APIRoutes` mount under `/api/v1/<module-id>`, which closes off API clashes by construction.
+- CI on `main` (`4a54f43`) passed in full, including the new Playwright nav spec and the "more" menu axe state. Deployed to fliptronic 2026-10-05 01:58 UTC (backup `dashboard-backup-20261005-015758.tar.gz`). Verified through Caddy: auth redirects, `/events` 401, `/moduletest` 404 (fixture not registered in production), cross-site login POST 403, `verify-stack.sh` green.
+- Dependabot opened PR #9, the pip group with mcp 2.x again, despite the `update-types` ignore. The ignores now name version ranges (`mcp >=2`, `@types/node >=25`).
 
 - Follow-ups:
   - tighten CSP `script-src` after moving inline handlers
