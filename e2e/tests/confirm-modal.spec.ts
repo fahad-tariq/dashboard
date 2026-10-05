@@ -43,7 +43,7 @@ test('confirm dialog cancels, closes on Escape and confirms a permanent delete',
   await expect(modal).toHaveAttribute('open');
   await expect(modal.getByRole('heading')).toHaveText('Permanently delete this item? This cannot be undone.');
   await expect(page.locator('#confirm-modal-warning')).toBeVisible();
-  await expect(page.locator('#confirm-modal-ok')).toHaveClass(/confirm-btn-danger/);
+  await expect(page.locator('#confirm-modal-ok')).toHaveClass(/btn-solid-danger/);
 
   await page.keyboard.press('Escape');
   await expect(modal).not.toHaveAttribute('open');

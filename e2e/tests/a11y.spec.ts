@@ -55,9 +55,12 @@ async function expectNoSeriousViolations(page: Page, label: string): Promise<voi
   // blended colours (seen on the confirm modal title). Infinite animations,
   // such as loading pulses, never finish and are skipped.
   // A target half-hidden under the sticky nav counts as undersized, so a
-  // scan after scrolling to a row depends on where the page happens to stop.
-  // Every node is still scanned from the top.
-  await page.evaluate(() => window.scrollTo(0, 0));
+  // scan would depend on where the page last scrolled (focus moving after a
+  // change scrolls too). The nav is unstuck for the scan; nothing else moves.
+  await page.evaluate(() => {
+    const nav = document.querySelector<HTMLElement>('.nav');
+    if (nav) nav.style.position = 'static';
+  });
   await page.evaluate(() =>
     Promise.all(
       document
