@@ -26,11 +26,19 @@ type contractEnv struct {
 	file   string // the fixture's watched file
 	events chan string
 	token  string
+	cfg    *config.Config
 }
 
 // newContractEnv builds the real router in auth mode with the fixture module
 // registered and a broker the test listens to.
 func newContractEnv(t *testing.T) *contractEnv {
+	t.Helper()
+	return newAppEnv(t, moduletest.New)
+}
+
+// newAppEnv builds the real router in auth mode, logged in as the owner
+// (user 1), with extra modules registered and a broker the test listens to.
+func newAppEnv(t *testing.T, extra ...module.Factory) *contractEnv {
 	t.Helper()
 	paths := tempPaths(t)
 	paths["DASHBOARD_PASSWORD_HASH"] = ""
@@ -52,7 +60,7 @@ func newContractEnv(t *testing.T) *contractEnv {
 	}
 	broker := sse.NewBroker()
 	h, err := app.NewRouterWith(t.Context(), cfg, database, "test", app.Options{
-		Modules: []module.Factory{moduletest.New},
+		Modules: extra,
 		Broker:  broker,
 	})
 	if err != nil {
@@ -67,6 +75,41 @@ func newContractEnv(t *testing.T) *contractEnv {
 		file:   filepath.Join(filepath.Dir(cfg.FamilyPath), "moduletest.md"),
 		events: events,
 		token:  token,
+		cfg:    cfg,
+	}
+}
+
+// post submits a form as the logged-in owner.
+func (e *contractEnv) post(t *testing.T, path string, form url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest("POST", path, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(e.cookie)
+	rr := httptest.NewRecorder()
+	e.h.ServeHTTP(rr, req)
+	return rr
+}
+
+// drainEvents waits out pending debounced events, then discards them.
+func (e *contractEnv) drainEvents() {
+	time.Sleep(700 * time.Millisecond)
+	for len(e.events) > 0 {
+		<-e.events
+	}
+}
+
+// eventsWithin collects the names of the events sent within d.
+func (e *contractEnv) eventsWithin(d time.Duration) []string {
+	var names []string
+	deadline := time.After(d)
+	for {
+		select {
+		case msg := <-e.events:
+			name, _, _ := strings.Cut(strings.TrimPrefix(msg, "event: "), "\n")
+			names = append(names, name)
+		case <-deadline:
+			return names
+		}
 	}
 }
 
