@@ -151,6 +151,8 @@ export async function expandPlanItem(item: Locator): Promise<void> {
 }
 
 export type Theme = 'dark' | 'light';
+export type Style = 'cards' | 'paper' | 'document';
+export const STYLES: Style[] = ['cards', 'paper', 'document'];
 
 /** Stores the theme before any page script runs, as a returning visitor would have it. */
 export async function useTheme(page: Page, theme: Theme): Promise<void> {
@@ -159,18 +161,25 @@ export async function useTheme(page: Page, theme: Theme): Promise<void> {
   }, theme);
 }
 
+/** Stores the style before any page script runs, as the style selector would. */
+export async function useStyle(page: Page, style: Style): Promise<void> {
+  await page.addInitScript((s) => {
+    localStorage.setItem('style', s);
+  }, style);
+}
+
 /** Id of the focused element, or '' when nothing with an id has focus. */
 export function activeElementId(page: Page): Promise<string> {
   return page.evaluate(() => document.activeElement?.id ?? '');
 }
 
 /** Presses Tab until the element with the given id has focus. */
-export async function tabTo(page: Page, id: string, maxPresses = 400): Promise<void> {
+export async function tabTo(page: Page, id: string, maxPresses = 400, key: 'Tab' | 'Shift+Tab' = 'Tab'): Promise<void> {
   for (let i = 0; i < maxPresses; i++) {
     if ((await activeElementId(page)) === id) return;
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(key);
   }
-  throw new Error(`#${id} not reached after ${maxPresses} Tab presses`);
+  throw new Error(`#${id} not reached after ${maxPresses} ${key} presses`);
 }
 
 type MarkedWindow = Window & { __e2eNoReload?: boolean };

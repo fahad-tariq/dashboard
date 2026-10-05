@@ -1,0 +1,16 @@
+{{/* appearance-script applies the saved theme and style before first paint.
+The theme follows the system until one is chosen; the style defaults to
+cards. Shared by the layout and the standalone login page. */}}
+{{define "appearance-script"}}<script>
+        (function() {
+            var root = document.documentElement;
+            var t = localStorage.getItem('theme');
+            if (t !== 'light' && t !== 'dark') {
+                t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            root.setAttribute('data-theme', t);
+            var s = localStorage.getItem('style');
+            if (s !== 'cards' && s !== 'paper' && s !== 'document') s = 'cards';
+            root.setAttribute('data-style', s);
+        })();
+    </script>{{end}}

@@ -43,49 +43,41 @@ func mustColour(t *testing.T, tokens theme.Tokens, themeName, token string) them
 	return c
 }
 
-func TestSeasonalAccentContrastEveryDayOfLeapYear(t *testing.T) {
+// Every text colour must pass on each of these, in every style and theme.
+var textBackgrounds = []string{"--bg", "--surface", "--surface-2"}
+
+func TestSeasonalColourContrastEveryDayOfLeapYear(t *testing.T) {
 	tokens := loadThemeTokens(t)
-	for _, themeName := range []string{theme.Light, theme.Dark} {
-		base := mustColour(t, tokens, themeName, "--base")
-		mantle := mustColour(t, tokens, themeName, "--mantle")
-		onAccent := mustColour(t, tokens, themeName, "--on-accent")
-		for day := time.Date(2028, 1, 1, 12, 0, 0, 0, time.UTC); day.Year() == 2028; day = day.AddDate(0, 0, 1) {
-			acc, err := seasonal.AccentFor(day, tokens)
-			if err != nil {
-				t.Fatalf("%s: %v", day.Format("2006-01-02"), err)
+	for day := time.Date(2028, 1, 1, 12, 0, 0, 0, time.UTC); day.Year() == 2028; day = day.AddDate(0, 0, 1) {
+		c, err := seasonal.ColourFor(day, tokens)
+		if err != nil {
+			t.Fatalf("%s: %v", day.Format("2006-01-02"), err)
+		}
+		for _, block := range theme.Blocks() {
+			colour := c.Light
+			if theme.ThemeOf(block) == theme.Dark {
+				colour = c.Dark
 			}
-			c := acc.Light
-			if themeName == theme.Dark {
-				c = acc.Dark
-			}
-			checks := map[string]struct {
-				ratio, want float64
-			}{
-				"text on --base":       {theme.Contrast(c, base), minTextContrast},
-				"text on --mantle":     {theme.Contrast(c, mantle), minTextContrast},
-				"--on-accent on fill":  {theme.Contrast(onAccent, c), minTextContrast},
-				"focus ring on base":   {theme.Contrast(c, base), minNonTextContrast},
-				"focus ring on mantle": {theme.Contrast(c, mantle), minNonTextContrast},
-			}
-			for name, ch := range checks {
-				if ch.ratio < ch.want {
-					t.Errorf("%s %s accent %s: %s %.2f:1, want >= %.1f", day.Format("2006-01-02"), themeName, c.Hex(), name, ch.ratio, ch.want)
+			for _, bg := range textBackgrounds {
+				bgc := mustColour(t, tokens, block, bg)
+				if r := theme.Contrast(colour, bgc); r < minTextContrast {
+					t.Errorf("%s %s seasonal %s on %s: %.2f:1, want >= %.1f", day.Format("2006-01-02"), block, colour.Hex(), bg, r, minTextContrast)
 				}
 			}
 		}
 	}
 }
 
-func TestSeasonalAccentKeepsHue(t *testing.T) {
+func TestSeasonalColourKeepsHue(t *testing.T) {
 	tokens := loadThemeTokens(t)
-	acc, err := seasonal.AccentFor(time.Date(2028, 1, 15, 12, 0, 0, 0, time.UTC), tokens)
+	c, err := seasonal.ColourFor(time.Date(2028, 1, 15, 12, 0, 0, 0, time.UTC), tokens)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Mid-January is summer blue: blue must dominate in both themes.
-	for name, c := range map[string]theme.RGB{"light": acc.Light, "dark": acc.Dark} {
-		if c.B <= c.R || c.B <= c.G {
-			t.Errorf("%s accent %s is not blue", name, c.Hex())
+	for name, rgb := range map[string]theme.RGB{"light": c.Light, "dark": c.Dark} {
+		if rgb.B <= rgb.R || rgb.B <= rgb.G {
+			t.Errorf("%s seasonal colour %s is not blue", name, rgb.Hex())
 		}
 	}
 }
@@ -93,22 +85,49 @@ func TestSeasonalAccentKeepsHue(t *testing.T) {
 func TestThemeTextTokensContrast(t *testing.T) {
 	tokens := loadThemeTokens(t)
 	textTokens := []string{
-		"--fg", "--fg-dim", "--fg-muted",
-		"--success-fg", "--warning-fg", "--attention-fg", "--danger-fg", "--tag-fg",
-		"--priority-high", "--priority-medium-fg", "--priority-low",
-		"--accent",
+		"--text", "--text-muted", "--accent",
+		"--success", "--warning", "--danger", "--attention",
 	}
-	for _, themeName := range []string{theme.Light, theme.Dark} {
-		for _, bg := range []string{"--base", "--mantle"} {
-			bgc := mustColour(t, tokens, themeName, bg)
+	for _, block := range theme.Blocks() {
+		for _, bg := range textBackgrounds {
+			bgc := mustColour(t, tokens, block, bg)
 			for _, tok := range textTokens {
-				fg, err := tokens.Colour(themeName, tok)
-				if err != nil {
-					t.Errorf("%v", err)
-					continue
-				}
+				fg := mustColour(t, tokens, block, tok)
 				if r := theme.Contrast(fg, bgc); r < minTextContrast {
-					t.Errorf("%s %s %s on %s: %.2f:1, want >= %.1f", themeName, tok, fg.Hex(), bg, r, minTextContrast)
+					t.Errorf("%s %s %s on %s: %.2f:1, want >= %.1f", block, tok, fg.Hex(), bg, r, minTextContrast)
+				}
+			}
+		}
+		// Text set on a tinted fill.
+		for fg, bg := range map[string]string{
+			"--on-accent":  "--accent",
+			"--accent":     "--accent-soft",
+			"--success":    "--success-soft",
+			"--warning":    "--warning-soft",
+			"--danger":     "--danger-soft",
+			"--text":       "--pill",
+			"--text-muted": "--pill",
+		} {
+			f, b := mustColour(t, tokens, block, fg), mustColour(t, tokens, block, bg)
+			if r := theme.Contrast(f, b); r < minTextContrast {
+				t.Errorf("%s %s on %s: %.2f:1, want >= %.1f", block, fg, bg, r, minTextContrast)
+			}
+		}
+	}
+}
+
+// TestThemeNonTextTokensContrast covers what identifies a control or a
+// state without text: the tick's ring, the priority edges and the focus
+// ring (--accent).
+func TestThemeNonTextTokensContrast(t *testing.T) {
+	tokens := loadThemeTokens(t)
+	for _, block := range theme.Blocks() {
+		for _, bg := range textBackgrounds {
+			bgc := mustColour(t, tokens, block, bg)
+			for _, tok := range []string{"--ring", "--edge-high", "--edge-medium", "--accent"} {
+				c := mustColour(t, tokens, block, tok)
+				if r := theme.Contrast(c, bgc); r < minNonTextContrast {
+					t.Errorf("%s %s %s on %s: %.2f:1, want >= %.1f", block, tok, c.Hex(), bg, r, minNonTextContrast)
 				}
 			}
 		}
@@ -124,16 +143,15 @@ var (
 )
 
 // TestThemeRuleTextContrast checks every rule in theme.css that sets a text
-// colour: against its own background when it sets one, otherwise against
-// --base and --mantle, in both themes. New rules that use a raw Catppuccin
-// hue for text fail here.
+// colour: against its own background when it sets one it can resolve,
+// otherwise against every page background, in every style and theme.
 func TestThemeRuleTextContrast(t *testing.T) {
 	css := cssCommentRe.ReplaceAllString(loadThemeCSS(t), "")
 	tokens := loadThemeTokens(t)
 	checked := 0
 	for _, m := range cssRuleRe.FindAllStringSubmatch(css, -1) {
 		selector := strings.Join(strings.Fields(m[1]), " ")
-		if strings.HasPrefix(selector, ":root") || strings.HasPrefix(selector, "[data-theme=") {
+		if theme.IsTokenBlock(selector) {
 			continue
 		}
 		cm := cssColourRe.FindStringSubmatch(m[2])
@@ -144,24 +162,30 @@ func TestThemeRuleTextContrast(t *testing.T) {
 		if fgVar == nil {
 			continue // inherit, currentColor and the like
 		}
-		bgs := []string{"--base", "--mantle"}
+		var bgVar string
 		if bm := cssBgRe.FindStringSubmatch(m[2]); bm != nil {
-			if bgVar := cssVarRe.FindStringSubmatch(strings.TrimSpace(bm[1])); bgVar != nil {
-				bgs = []string{bgVar[1]}
+			if v := cssVarRe.FindStringSubmatch(strings.TrimSpace(bm[1])); v != nil {
+				bgVar = v[1]
 			}
 		}
-		for _, themeName := range []string{theme.Light, theme.Dark} {
-			fg := mustColour(t, tokens, themeName, fgVar[1])
+		for _, block := range theme.Blocks() {
+			fg := mustColour(t, tokens, block, fgVar[1])
+			bgs := textBackgrounds
+			if bgVar != "" {
+				if _, err := tokens.Colour(block, bgVar); err == nil {
+					bgs = []string{bgVar}
+				}
+			}
 			for _, bg := range bgs {
-				bgc := mustColour(t, tokens, themeName, bg)
+				bgc := mustColour(t, tokens, block, bg)
 				checked++
 				if r := theme.Contrast(fg, bgc); r < minTextContrast {
-					t.Errorf("%s: %s %s on %s: %.2f:1, want >= %.1f", selector, themeName, fgVar[1], bg, r, minTextContrast)
+					t.Errorf("%s: %s %s on %s: %.2f:1, want >= %.1f", selector, block, fgVar[1], bg, r, minTextContrast)
 				}
 			}
 		}
 	}
-	if checked < 100 {
+	if checked < 300 {
 		t.Fatalf("checked only %d colour pairs; is the CSS parser still matching rules?", checked)
 	}
 }
@@ -179,18 +203,18 @@ func TestThemeNoOpacityDimming(t *testing.T) {
 	for _, m := range cssRuleRe.FindAllStringSubmatch(css, -1) {
 		selector := strings.Join(strings.Fields(m[1]), " ")
 		if om := opacityRe.FindStringSubmatch(m[2]); om != nil && !allowed[selector] {
-			t.Errorf("%s: opacity %s dims text; use --fg-muted or --fg-dim instead", selector, om[1])
+			t.Errorf("%s: opacity %s dims text; use --text-muted instead", selector, om[1])
 		}
 	}
 }
 
 // TestThemeTextBackgroundsSetColour closes a gap in TestThemeRuleTextContrast:
 // a rule that sets a background but inherits its text colour cannot be
-// checked, and inherited --fg-muted or --fg-dim on --surface0 fails AA.
+// checked, and inherited --text-muted on a tinted fill can fail AA.
 // Backgrounds that never hold text (bars, fills, separators) are exempt.
 func TestThemeTextBackgroundsSetColour(t *testing.T) {
-	textless := regexp.MustCompile(`progress|digest-bar|filter-sep`)
-	pageBackgrounds := map[string]bool{"--base": true, "--bg": true, "--mantle": true, "--bg-card": true, "--row-hover": true}
+	textless := regexp.MustCompile(`progress|digest-bar|filter-sep|::before|::after|::backdrop|^[0-9]+%`)
+	pageBackgrounds := map[string]bool{"--bg": true, "--surface": true, "--surface-2": true, "--card-bg": true, "--nav-bg": true}
 	css := cssCommentRe.ReplaceAllString(loadThemeCSS(t), "")
 	for _, m := range cssRuleRe.FindAllStringSubmatch(css, -1) {
 		selector := strings.Join(strings.Fields(m[1]), " ")

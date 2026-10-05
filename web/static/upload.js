@@ -40,7 +40,7 @@
         fileInput.className = 'upload-file-input';
 
         var label = document.createElement('label');
-        label.className = 'upload-label action-btn';
+        label.className = 'upload-label btn btn-secondary btn-sm';
         label.textContent = 'attach image';
         label.appendChild(fileInput);
 

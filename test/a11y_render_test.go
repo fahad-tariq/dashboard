@@ -82,16 +82,16 @@ func renderPage(t *testing.T, h http.Handler, path string) string {
 	return string(body)
 }
 
-func TestLayoutInjectsContrastCheckedAccent(t *testing.T) {
+func TestLayoutInjectsContrastCheckedSeasonalColour(t *testing.T) {
 	h, cfg := renderRouter(t)
 	body := renderPage(t, h, "/")
-	acc, err := seasonal.AccentFor(time.Now().In(cfg.Location), loadThemeTokens(t))
+	c, err := seasonal.ColourFor(time.Now().In(cfg.Location), loadThemeTokens(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		`[data-theme="light"] { --accent: ` + acc.Light.Hex() + `; }`,
-		`[data-theme="dark"] { --accent: ` + acc.Dark.Hex() + `; }`,
+		`[data-theme="light"] { --seasonal: ` + c.Light.Hex() + `; }`,
+		`[data-theme="dark"] { --seasonal: ` + c.Dark.Hex() + `; }`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("layout missing %q", want)
@@ -193,7 +193,8 @@ func TestTrackerRowMarkup(t *testing.T) {
 		`id="item-plan-weekend-hike-substep-1-promote" aria-label="Promote step to task: Check the weather"`,
 		`id="item-plan-weekend-hike-substep-1-remove" aria-label="Remove step: Check the weather"`,
 		`aria-label="Complete Plan weekend hike"`,
-		`<button type="button" class="badge badge-tag badge-clickable"`,
+		`<span class="badge badge-tag">`,
+		`<button type="submit" class="tick item-complete-btn" aria-label="Complete Plan weekend hike"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("/todos missing %q", want)

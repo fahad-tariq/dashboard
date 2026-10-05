@@ -34,10 +34,10 @@
             <td class="house-cell-notes meta-dim">{{if .Notes}}{{truncateBody .Notes}}{{end}}</td>
             <td class="house-cell-actions" data-stop-click>
                 <span class="house-note-popover" data-keep-class="open">
-                    <button type="button" class="action-btn action-btn-sm" data-action="toggle-note-popover">done</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-action="toggle-note-popover">done</button>
                     <form method="POST" action="/house/maintenance/{{.Slug}}/log" class="house-note-dropdown" hx-boost="true">
                         <input type="text" name="note" placeholder="optional note" class="form-input form-input-sm" aria-label="Completion note">
-                        <button type="submit" class="form-btn">log</button>
+                        <button type="submit" class="btn btn-primary btn-sm">log</button>
                     </form>
                 </span>
             </td>
@@ -80,7 +80,7 @@
                     </details>
                     {{end}}
                     <details class="house-edit-section" data-stop-click data-keep-attr="open">
-                        <summary class="action-btn action-btn-sm">edit</summary>
+                        <summary class="btn btn-secondary btn-sm">edit</summary>
                         <form method="POST" action="/house/maintenance/{{.Slug}}/edit" class="house-edit-form" hx-boost="true">
                             <label class="house-edit-label" for="maint-edit-title-{{.Slug}}">Title</label>
                             <input type="text" name="title" id="maint-edit-title-{{.Slug}}" value="{{.Title}}" class="form-input">
@@ -88,11 +88,11 @@
                             <textarea name="notes" id="maint-edit-notes-{{.Slug}}" rows="2" class="form-textarea" placeholder="Notes, links, context...">{{.Notes}}</textarea>
                             <label class="house-edit-label" for="maint-edit-tags-{{.Slug}}">Tags</label>
                             <input type="text" name="tags" id="maint-edit-tags-{{.Slug}}" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
-                            <button type="submit" class="form-btn form-btn-sm">save</button>
+                            <button type="submit" class="btn btn-primary btn-sm">save</button>
                         </form>
                     </details>
                     <form method="POST" action="/house/maintenance/{{.Slug}}/delete" class="inline-form" data-stop-click hx-boost="true">
-                        <button type="submit" class="action-btn action-btn-sm action-drop">trash</button>
+                        <button type="submit" class="btn btn-danger btn-sm">trash</button>
                     </form>
                 </div>
             </td>
@@ -142,7 +142,7 @@
                     </div>
                     {{end}}
                     <details class="house-edit-section" data-stop-click data-keep-attr="open">
-                        <summary class="action-btn action-btn-sm">edit</summary>
+                        <summary class="btn btn-secondary btn-sm">edit</summary>
                         <form method="POST" action="/house/projects/{{.Slug}}/edit" class="house-edit-form" hx-boost="true">
                             <label class="house-edit-label" for="proj-edit-title-{{.Slug}}">Title</label>
                             <input type="text" name="title" id="proj-edit-title-{{.Slug}}" value="{{.Title}}" class="form-input">
@@ -150,11 +150,11 @@
                             <textarea name="body" id="proj-edit-body-{{.Slug}}" rows="3" class="form-textarea" placeholder="Notes, links, context...">{{.Body}}</textarea>
                             <label class="house-edit-label" for="proj-edit-tags-{{.Slug}}">Tags</label>
                             <input type="text" name="tags" id="proj-edit-tags-{{.Slug}}" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input">
-                            <button type="submit" class="form-btn form-btn-sm">save</button>
+                            <button type="submit" class="btn btn-primary btn-sm">save</button>
                         </form>
                     </details>
                     <form method="POST" action="/house/projects/{{.Slug}}/delete" class="inline-form" data-stop-click hx-boost="true">
-                        <button type="submit" class="action-btn action-btn-sm action-drop">trash</button>
+                        <button type="submit" class="btn btn-danger btn-sm">trash</button>
                     </form>
                 </div>
             </td>
@@ -213,7 +213,7 @@
                         </div>
                         {{end}}
                         <form method="POST" action="/house/projects/{{.Slug}}/delete" class="inline-form" data-stop-click hx-boost="true">
-                            <button type="submit" class="action-btn action-btn-sm action-drop">trash</button>
+                            <button type="submit" class="btn btn-danger btn-sm">trash</button>
                         </form>
                     </div>
                 </td>
@@ -233,10 +233,10 @@
         <span class="house-item-title">{{.Title}}</span>
         <span class="meta-dim">(maintenance)</span>
         <form method="POST" action="/house/maintenance/{{.Slug}}/restore" class="inline-form" hx-boost="true">
-            <button type="submit" class="action-btn action-btn-sm" data-row-focus>restore</button>
+            <button type="submit" class="btn btn-secondary btn-sm" data-row-focus>restore</button>
         </form>
         <form method="POST" action="/house/maintenance/{{.Slug}}/purge" class="inline-form" data-confirm="Permanently delete this item? This cannot be undone." hx-boost="true">
-            <button type="submit" class="action-btn action-btn-sm action-drop">purge</button>
+            <button type="submit" class="btn btn-danger btn-sm">purge</button>
         </form>
     </div>
     {{end}}
@@ -245,10 +245,10 @@
         <span class="house-item-title">{{.Title}}</span>
         <span class="meta-dim">(project)</span>
         <form method="POST" action="/house/projects/{{.Slug}}/restore" class="inline-form" hx-boost="true">
-            <button type="submit" class="action-btn action-btn-sm" data-row-focus>restore</button>
+            <button type="submit" class="btn btn-secondary btn-sm" data-row-focus>restore</button>
         </form>
         <form method="POST" action="/house/projects/{{.Slug}}/purge" class="inline-form" data-confirm="Permanently delete this item? This cannot be undone." hx-boost="true">
-            <button type="submit" class="action-btn action-btn-sm action-drop">purge</button>
+            <button type="submit" class="btn btn-danger btn-sm">purge</button>
         </form>
     </div>
     {{end}}
@@ -267,7 +267,7 @@
                 <label for="maint-tags" class="sr-only">Tags</label>
                 <input type="text" name="tags" id="maint-tags" placeholder="Tags (comma-separated)" class="form-input">
             </div>
-            <button type="submit" class="form-btn">add</button>
+            <button type="submit" class="btn btn-primary">add</button>
         </form>
     </details>
     <details class="quick-add tracker-add-form" data-keep-attr="open">
@@ -288,7 +288,7 @@
             </div>
             <label for="proj-body" class="sr-only">Notes</label>
             <textarea name="body" id="proj-body" placeholder="Notes, links, or context" rows="2" class="form-textarea"></textarea>
-            <button type="submit" class="form-btn">add</button>
+            <button type="submit" class="btn btn-primary">add</button>
         </form>
     </details>
 </div>

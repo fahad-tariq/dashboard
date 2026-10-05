@@ -67,3 +67,23 @@ test('mobile menu lists "more" links inline and closes on Escape', async ({ page
   await expect(hamburger).toHaveAttribute('aria-expanded', 'false');
   await expect(hamburger).toBeFocused();
 });
+
+test('the style selector restyles the page and is remembered', async ({ page }) => {
+  await page.goto('/todos');
+  const html = page.locator('html');
+  const select = page.getByLabel('Style', { exact: true });
+  await expect(html).toHaveAttribute('data-style', 'cards');
+  await expect(select).toHaveValue('cards');
+
+  await select.selectOption('paper');
+  await expect(html).toHaveAttribute('data-style', 'paper');
+  const paperBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+
+  await page.reload();
+  await expect(html).toHaveAttribute('data-style', 'paper');
+  await expect(page.getByLabel('Style', { exact: true })).toHaveValue('paper');
+
+  await page.getByLabel('Style', { exact: true }).selectOption('document');
+  await expect(html).toHaveAttribute('data-style', 'document');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(paperBg);
+});

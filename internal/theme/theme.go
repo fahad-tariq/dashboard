@@ -11,15 +11,66 @@ import (
 	"strings"
 )
 
-// Names of the two theme blocks in theme.css.
+// Names of the two themes. They are also the names of the default style's
+// token blocks.
 const (
 	Light = "light"
 	Dark  = "dark"
 )
 
-var themeSelectors = map[string]string{
-	`:root, [data-theme="light"]`: Light,
-	`[data-theme="dark"]`:         Dark,
+// Styles lists the selectable styles. The first is the default: its tokens
+// sit in the plain theme blocks and every other style overrides them in
+// [data-style="name"][data-theme="theme"] blocks.
+var Styles = []string{"cards", "paper", "document"}
+
+// Block names the token block for a style in a theme: "light" or "dark" for
+// the default style, "paper-light" and so on for the others.
+func Block(style, themeName string) string {
+	if style == Styles[0] {
+		return themeName
+	}
+	return style + "-" + themeName
+}
+
+// Blocks lists every style and theme block, default style first.
+func Blocks() []string {
+	var out []string
+	for _, style := range Styles {
+		for _, themeName := range []string{Light, Dark} {
+			out = append(out, Block(style, themeName))
+		}
+	}
+	return out
+}
+
+// ThemeOf returns the theme a block belongs to.
+func ThemeOf(block string) string {
+	if strings.HasSuffix(block, Dark) {
+		return Dark
+	}
+	return Light
+}
+
+// blockSelectors maps each token block's selector, whitespace-normalised, to
+// its block name.
+var blockSelectors = func() map[string]string {
+	m := map[string]string{
+		`:root, [data-theme="light"]`: Light,
+		`[data-theme="dark"]`:         Dark,
+	}
+	for _, style := range Styles[1:] {
+		for _, themeName := range []string{Light, Dark} {
+			m[fmt.Sprintf(`[data-style="%s"][data-theme="%s"]`, style, themeName)] = Block(style, themeName)
+		}
+	}
+	return m
+}()
+
+// IsTokenBlock reports whether a whitespace-normalised selector is one of the
+// token blocks ParseTokens reads.
+func IsTokenBlock(selector string) bool {
+	_, ok := blockSelectors[selector]
+	return ok
 }
 
 var (
@@ -29,16 +80,16 @@ var (
 	hexRe   = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 )
 
-// Tokens maps a theme name to its custom properties, as written in the CSS.
+// Tokens maps a block name to its custom properties, as written in the CSS.
 type Tokens map[string]map[string]string
 
-// ParseTokens extracts the custom properties declared in the light and dark
-// theme blocks. Other rules are ignored.
+// ParseTokens extracts the custom properties declared in the token blocks.
+// Other rules are ignored.
 func ParseTokens(css string) (Tokens, error) {
 	css = regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(css, "")
 	out := Tokens{}
 	for _, m := range blockRe.FindAllStringSubmatch(css, -1) {
-		name, ok := themeSelectors[strings.Join(strings.Fields(m[1]), " ")]
+		name, ok := blockSelectors[strings.Join(strings.Fields(m[1]), " ")]
 		if !ok {
 			continue
 		}
@@ -49,31 +100,40 @@ func ParseTokens(css string) (Tokens, error) {
 			out[name][t[1]] = strings.TrimSpace(t[2])
 		}
 	}
-	for _, name := range []string{Light, Dark} {
+	for _, name := range Blocks() {
 		if len(out[name]) == 0 {
-			return nil, fmt.Errorf("theme: no %s theme block found", name)
+			return nil, fmt.Errorf("theme: no %s token block found", name)
 		}
 	}
 	return out, nil
 }
 
-// Colour resolves a token in one theme to a colour, following var()
-// references within that theme.
-func (t Tokens) Colour(themeName, token string) (RGB, error) {
-	vals := t[themeName]
-	v, ok := vals[token]
+// lookup finds a token in a block, falling back to the default style's block
+// for the same theme, as the cascade does.
+func (t Tokens) lookup(block, token string) (string, bool) {
+	if v, ok := t[block][token]; ok {
+		return v, true
+	}
+	v, ok := t[ThemeOf(block)][token]
+	return v, ok
+}
+
+// Colour resolves a token in one block to a colour, following var()
+// references and falling back to the default style's tokens.
+func (t Tokens) Colour(block, token string) (RGB, error) {
+	v, ok := t.lookup(block, token)
 	for range 10 {
 		if !ok {
-			return RGB{}, fmt.Errorf("theme: %s token %s not defined", themeName, token)
+			return RGB{}, fmt.Errorf("theme: %s token %s not defined", block, token)
 		}
 		m := varRe.FindStringSubmatch(v)
 		if m == nil {
 			return ParseHex(v)
 		}
-		v, ok = vals[m[1]]
 		token = m[1]
+		v, ok = t.lookup(block, token)
 	}
-	return RGB{}, fmt.Errorf("theme: %s token %s: var() chain too deep", themeName, token)
+	return RGB{}, fmt.Errorf("theme: %s token %s: var() chain too deep", block, token)
 }
 
 // RGB is an sRGB colour with 8-bit channels.

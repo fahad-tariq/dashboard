@@ -23,8 +23,8 @@ import (
 	"github.com/fahad/dashboard/web"
 )
 
-// seasonalAccentCSS is the accent the layout injects for each theme.
-type seasonalAccentCSS struct{ Light, Dark string }
+// seasonalCSS is the seasonal colour the layout injects for each theme.
+type seasonalCSS struct{ Light, Dark string }
 
 func buildFuncMap(loc *time.Location, authEnabled bool, version string, static func(string) (string, error), tokens theme.Tokens, reg *module.Registry) template.FuncMap {
 	return template.FuncMap{
@@ -95,7 +95,7 @@ func buildFuncMap(loc *time.Location, authEnabled bool, version string, static f
 		"formatDateLabel": func() string {
 			return time.Now().In(loc).Format("Monday, 2 January")
 		},
-		"seasonalAccent": seasonalAccentFunc(loc, tokens),
+		"seasonalColour": seasonalColourFunc(loc, tokens),
 		"planDoneMessage": func() string {
 			return httputil.RotatingFlash("plan-done", []string{
 				"All done for the day.",
@@ -212,7 +212,7 @@ func loadTemplates(cfg *config.Config, version string, reg *module.Registry) (te
 	if err != nil {
 		return set, fmt.Errorf("parsing templates: %w", err)
 	}
-	set.login, err = template.New("login.html").Funcs(template.FuncMap{"static": set.assets.URL}).ParseFS(web.TemplateFS, "templates/login.html")
+	set.login, err = template.New("login.html").Funcs(template.FuncMap{"static": set.assets.URL}).ParseFS(web.TemplateFS, "templates/login.html", "templates/_components/appearance.html")
 	if err != nil {
 		return set, fmt.Errorf("parsing login template: %w", err)
 	}
@@ -291,20 +291,20 @@ func templateDict(kv ...any) (map[string]any, error) {
 	return m, nil
 }
 
-func seasonalAccentFunc(loc *time.Location, tokens theme.Tokens) func() seasonalAccentCSS {
-	return func() seasonalAccentCSS {
-		acc, err := seasonal.AccentFor(time.Now().In(loc), tokens)
+func seasonalColourFunc(loc *time.Location, tokens theme.Tokens) func() seasonalCSS {
+	return func() seasonalCSS {
+		c, err := seasonal.ColourFor(time.Now().In(loc), tokens)
 		if err != nil {
 			// Validated for a whole year at startup, so this is unreachable;
-			// the layout then keeps theme.css's fallback accent.
-			slog.Error("seasonal accent", "error", err)
-			return seasonalAccentCSS{}
+			// the layout then keeps theme.css's fallback colour.
+			slog.Error("seasonal colour", "error", err)
+			return seasonalCSS{}
 		}
-		return seasonalAccentCSS{Light: acc.Light.Hex(), Dark: acc.Dark.Hex()}
+		return seasonalCSS{Light: c.Light.Hex(), Dark: c.Dark.Hex()}
 	}
 }
 
-// loadThemeTokens parses theme.css and checks that a seasonal accent exists
+// loadThemeTokens parses theme.css and checks that a seasonal colour exists
 // for every day of a leap year, so a token edit that breaks contrast fails
 // at startup rather than on some later date.
 func loadThemeTokens(static fs.FS) (theme.Tokens, error) {
@@ -317,7 +317,7 @@ func loadThemeTokens(static fs.FS) (theme.Tokens, error) {
 		return nil, err
 	}
 	for day := time.Date(2028, 1, 1, 12, 0, 0, 0, time.UTC); day.Year() == 2028; day = day.AddDate(0, 0, 1) {
-		if _, err := seasonal.AccentFor(day, tokens); err != nil {
+		if _, err := seasonal.ColourFor(day, tokens); err != nil {
 			return nil, err
 		}
 	}

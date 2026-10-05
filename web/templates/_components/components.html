@@ -32,7 +32,7 @@ None of them use inline event handlers.
     <form method="POST" action="{{.Action}}" class="quick-add-form">
         <label for="quick-add-{{.Name}}" class="sr-only">{{.Label}}</label>
         <input type="text" name="{{.Name}}" id="quick-add-{{.Name}}" placeholder="{{.Placeholder}}" required class="form-input">
-        <button type="submit" class="action-btn">add</button>
+        <button type="submit" class="btn btn-primary">add</button>
     </form>
 </details>
 {{end}}
@@ -82,4 +82,4 @@ select, swap and push settings are inherited from the container. */}}
 {{define "live-refresh"}}<span class="live-refresh" id="live-refresh" hidden hx-get="{{.Path}}" hx-trigger="{{.Trigger}}" hx-target="closest [data-live]" hx-indicator="closest [data-live]"></span>{{end}}
 
 {{/* toast is the layout's single toast region; showToast fills it. */}}
-{{define "toast"}}<div id="toast" class="toast" hidden><span class="toast-text"></span><button type="button" class="action-btn toast-undo" hidden>undo</button><button type="button" class="toast-close" aria-label="Dismiss">&#x2715;</button></div>{{end}}
+{{define "toast"}}<div id="toast" class="toast" hidden><span class="toast-text"></span><button type="button" class="btn btn-secondary btn-sm toast-undo" hidden>undo</button><button type="button" class="toast-close" aria-label="Dismiss">&#x2715;</button></div>{{end}}

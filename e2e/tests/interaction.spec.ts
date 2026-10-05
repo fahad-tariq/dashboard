@@ -2,6 +2,7 @@ import type { Page, Request } from '@playwright/test';
 import {
   activeElementId,
   addTask,
+  expandPlanItem,
   expandTrackerItem,
   expect,
   expectNoReload,
@@ -100,6 +101,7 @@ test('plan actions update in place: set, complete and drop', async ({ page }) =>
   await planItem(page, doneTitle).getByRole('button', { name: `done ${doneTitle}` }).click();
   await expect(planItem(page, doneTitle)).toHaveClass(/plan-item-done/);
 
+  await expandPlanItem(planItem(page, dropTitle));
   await planItem(page, dropTitle).getByRole('button', { name: `drop ${dropTitle}` }).click();
   await expect(planItem(page, dropTitle)).toHaveCount(0);
   await expect(page.locator('.plan-pick-item', { hasText: dropTitle })).toHaveCount(1);

@@ -21,7 +21,10 @@ function openConfirm(message, proceed) {
     // Only permanent actions warn; trash can be undone.
     var permanent = /permanent|cannot be undone/i.test(message || '');
     if (warningEl) warningEl.hidden = !permanent;
-    if (confirmBtn) confirmBtn.classList.toggle('confirm-btn-danger', permanent);
+    if (confirmBtn) {
+        confirmBtn.classList.toggle('btn-solid-danger', permanent);
+        confirmBtn.classList.toggle('btn-primary', !permanent);
+    }
 
     if (window.liveRefresh) window.liveRefresh.hold('confirm');
     modal.showModal();

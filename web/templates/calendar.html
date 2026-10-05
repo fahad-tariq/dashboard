@@ -9,9 +9,9 @@
         <a href="/plan/calendar?view=month{{if ne .Today ""}}&date={{.Today}}{{end}}" class="filter-tag{{if eq .View "month"}} active{{end}}">Month</a>
     </div>
     <div class="calendar-nav">
-        <a href="/plan/calendar?view={{.View}}&date={{.PrevDate}}" class="action-btn action-btn-sm" aria-label="Previous {{.View}}">&lsaquo;</a>
-        <a href="/plan/calendar?view={{.View}}" class="action-btn action-btn-sm" aria-label="Jump to today">today</a>
-        <a href="/plan/calendar?view={{.View}}&date={{.NextDate}}" class="action-btn action-btn-sm" aria-label="Next {{.View}}">&rsaquo;</a>
+        <a href="/plan/calendar?view={{.View}}&date={{.PrevDate}}" class="btn btn-secondary btn-icon" aria-label="Previous {{.View}}">&lsaquo;</a>
+        <a href="/plan/calendar?view={{.View}}" class="btn btn-secondary" aria-label="Jump to today">today</a>
+        <a href="/plan/calendar?view={{.View}}&date={{.NextDate}}" class="btn btn-secondary btn-icon" aria-label="Next {{.View}}">&rsaquo;</a>
     </div>
 </div>
 

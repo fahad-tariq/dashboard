@@ -1,7 +1,17 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Page } from '@playwright/test';
-import { expandTrackerItem, expect, test, trackerItem, type Theme, useTheme, waitForSseSettle } from './helpers';
+import {
+  expandTrackerItem,
+  expect,
+  STYLES,
+  test,
+  trackerItem,
+  type Theme,
+  useStyle,
+  useTheme,
+  waitForSseSettle,
+} from './helpers';
 
 /**
  * Full-page screenshots of every main page and the key interactive states,
@@ -42,19 +52,21 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: join(OUT_DIR, `${name}.png`), fullPage: true });
 }
 
+// Screenshots only need the page at rest, not a full SSE round trip.
 async function open(page: Page, path: string): Promise<void> {
   await page.goto(path);
-  await waitForSseSettle(page);
+  await waitForSseSettle(page, 500);
 }
 
-for (const theme of THEMES) {
+for (const style of STYLES) for (const theme of THEMES) {
   for (const size of WIDTHS) {
-    test.describe(`screenshots, ${theme}, ${size.label}`, () => {
+    test.describe(`screenshots, ${style}, ${theme}, ${size.label}`, () => {
       test.use({ viewport: { width: size.width, height: size.height } });
       test.beforeEach(async ({ page }) => {
         await useTheme(page, theme);
+        await useStyle(page, style);
       });
-      const prefix = `${theme}-${size.label}`;
+      const prefix = `${style}-${theme}-${size.label}`;
 
       test('main pages', async ({ page }) => {
         test.setTimeout(120_000);

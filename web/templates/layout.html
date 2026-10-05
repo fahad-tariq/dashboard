@@ -7,19 +7,11 @@
     <meta name="color-scheme" content="light dark">
     <title>{{.Title}} - dash</title>
     <link rel="stylesheet" href="{{static "theme.css"}}">
-    {{with seasonalAccent}}{{if .Light}}<style>
-        :root, [data-theme="light"] { --accent: {{.Light}}; }
-        [data-theme="dark"] { --accent: {{.Dark}}; }
+    {{with seasonalColour}}{{if .Light}}<style>
+        :root, [data-theme="light"] { --seasonal: {{.Light}}; }
+        [data-theme="dark"] { --seasonal: {{.Dark}}; }
     </style>{{end}}{{end}}
-    <script>
-        (function() {
-            var t = localStorage.getItem('theme');
-            if (t !== 'light' && t !== 'dark') {
-                t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            }
-            document.documentElement.setAttribute('data-theme', t);
-        })();
-    </script>
+    {{template "appearance-script"}}
     <script defer src="{{static "htmx.min.js"}}"></script>
     <script defer src="{{static "idiomorph-ext.min.js"}}"></script>
     <script defer src="{{static "htmx-sse.js"}}"></script>
@@ -29,7 +21,7 @@
 <body hx-ext="sse,morph" sse-connect="/events">
     <a class="skip-link" href="#main">Skip to content</a>
     <nav class="nav" aria-label="Main navigation">
-        <a href="/" class="nav-brand">dash&gt;_</a>
+        <a href="/" class="nav-brand">dash&gt;<span class="nav-brand-caret">_</span></a>
         <div class="nav-links" id="nav-links">
             {{- $path := .CurrentPath}}
             {{- range navItems}}{{if eq .Group "primary"}}
@@ -45,6 +37,14 @@
                 </div>
             </div>
             {{- end}}
+            <div class="nav-style">
+                <label for="style-select" class="sr-only">Style</label>
+                <select id="style-select" class="form-select nav-style-select" onchange="setStyle(this.value)" title="Style">
+                    <option value="cards">Cards</option>
+                    <option value="paper">Paper</option>
+                    <option value="document">Document</option>
+                </select>
+            </div>
         </div>
         <div class="nav-right">
             <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme" aria-label="Toggle theme"></button>
@@ -76,6 +76,11 @@
             setLabel();
         }
         setLabel();
+        function setStyle(style) {
+            document.documentElement.setAttribute('data-style', style);
+            localStorage.setItem('style', style);
+        }
+        document.getElementById('style-select').value = document.documentElement.getAttribute('data-style');
         function toggleNav() {
             var links = document.getElementById('nav-links');
             var btn = document.getElementById('nav-hamburger');
@@ -111,8 +116,8 @@
             <h2 id="confirm-modal-title">Are you sure?</h2>
             <p class="confirm-warning" id="confirm-modal-warning">This cannot be undone.</p>
             <div class="confirm-actions">
-                <button type="button" class="action-btn" id="confirm-modal-cancel">Cancel</button>
-                <button type="button" class="action-btn" id="confirm-modal-ok">Confirm</button>
+                <button type="button" class="btn btn-secondary" id="confirm-modal-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-modal-ok">Confirm</button>
             </div>
         </div>
     </dialog>
@@ -141,10 +146,10 @@
                 <div class="shortcut-row"><span>Undo the last change offered</span> <kbd>u</kbd></div>
                 <div class="shortcut-row"><span>Exit select mode</span> <kbd>Esc</kbd></div>
             </div>
-            <div class="confirm-actions"><button type="button" class="action-btn" data-close-dialog>Close</button></div>
+            <div class="confirm-actions"><button type="button" class="btn btn-secondary" data-close-dialog>Close</button></div>
         </div>
     </dialog>
-    <footer class="build-info">build {{buildVersion}} <span class="mcp-status" id="mcp-status" title="MCP: checking">[mcp]<span class="sr-only" id="mcp-status-text">: checking</span></span></footer>
+    <footer class="build-info">build {{buildVersion}}</footer>
     <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
     {{template "toast"}}
     <script src="{{static "live.js"}}"></script>
@@ -168,36 +173,5 @@
         })();
     </script>
     <script src="{{static "shortcuts.js"}}"></script>
-    <script>
-        (function() {
-            var el = document.getElementById('mcp-status');
-            var text = document.getElementById('mcp-status-text');
-            if (!el || !text) return;
-            function show(cls, title, status) {
-                el.className = 'mcp-status ' + cls;
-                el.title = title;
-                text.textContent = ': ' + status;
-            }
-            var lastCheck = 0;
-            function check() {
-                var now = Date.now();
-                if (now - lastCheck < 10000) return;
-                lastCheck = now;
-                fetch('/mcp/health', { method: 'GET' })
-                    .then(function(r) {
-                        if (r.ok) {
-                            show('mcp-ok', 'MCP: healthy', 'healthy');
-                        } else {
-                            show('mcp-err', 'MCP: error (' + r.status + ')', 'error');
-                        }
-                    })
-                    .catch(function() {
-                        show('mcp-err', 'MCP: unreachable', 'unreachable');
-                    });
-            }
-            check();
-            setInterval(check, 30000);
-        })();
-    </script>
 </body>
 </html>

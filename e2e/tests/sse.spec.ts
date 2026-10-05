@@ -114,6 +114,7 @@ test('external edit while a plan item is expanded keeps it expanded on the homep
   const title = uniqueTitle('Stay expanded');
   const external = uniqueTitle('Picker gains me');
   const task = await addTask(page, title, { body: 'Detail that should stay visible' });
+  await expandTrackerItem(task);
   await task.getByTitle('Do today').click();
   await expect(trackerItem(page, title).getByTitle('Do today')).toHaveCount(0);
 

@@ -3,7 +3,7 @@
 <h1>Users</h1>
 
 <div class="admin-actions-row">
-    <a href="/admin/users/new" class="form-btn form-btn-link">+ New user</a>
+    <a href="/admin/users/new" class="btn btn-primary">+ New user</a>
 </div>
 
 {{range .Users}}
@@ -22,10 +22,10 @@
     </div>
     <div class="admin-user-actions">
         {{if eq .Role "admin"}}<span class="badge badge-admin">admin</span>{{else}}<span class="badge badge-user">user</span>{{end}}
-        <a href="/admin/users/{{.ID}}/edit" class="action-btn">edit</a>
-        <a href="/admin/users/{{.ID}}/password" class="action-btn">password</a>
+        <a href="/admin/users/{{.ID}}/edit" class="btn btn-secondary btn-sm">edit</a>
+        <a href="/admin/users/{{.ID}}/password" class="btn btn-secondary btn-sm">password</a>
         <form method="POST" action="/admin/users/{{.ID}}/delete" class="inline-form" onsubmit="return confirmAction(this, 'Delete user {{.Email}}?')">
-            <button type="submit" class="action-btn action-delete">delete</button>
+            <button type="submit" class="btn btn-danger btn-sm">delete</button>
         </form>
     </div>
 </div>

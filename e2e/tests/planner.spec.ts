@@ -1,6 +1,7 @@
 import {
   addTask,
   expandPlanItem,
+  expandTrackerItem,
   expect,
   planFromPicker,
   planItem,
@@ -35,7 +36,8 @@ test('expand and collapse a plan item planned from the todo list', async ({ page
   const title = uniqueTitle('Call the plumber');
   const task = await addTask(page, title, { body: 'Ask about the hot water system', tags: 'house' });
 
-  // The star button on /todos plans the task for today.
+  // "do today" in the expanded row on /todos plans the task for today.
+  await expandTrackerItem(task);
   await task.getByTitle('Do today').click();
   await expect(trackerItem(page, title).getByTitle('Do today')).toHaveCount(0);
 
@@ -76,9 +78,11 @@ test('reorder plan items with the arrow buttons', async ({ page }) => {
   const moveUp = () => planItem(page, second).getByRole('button', { name: `Move ${second} up` });
   const moveDown = () => planItem(page, second).getByRole('button', { name: `Move ${second} down` });
 
-  // The arrows are rendered on every pointer type, not only coarse ones.
+  // The arrows sit in the expanded row on every pointer type, not only
+  // coarse ones. A row keeps its expanded state through refreshes.
   await page.goto('/');
   await waitForSseSettle(page);
+  await expandPlanItem(planItem(page, second));
   await expect(moveUp()).toBeVisible();
 
   // Bubble `second` to the top of the personal list, one POST per click.
@@ -96,6 +100,7 @@ test('reorder plan items with the arrow buttons', async ({ page }) => {
   // Order is persisted via [plan-order: N], so it survives a reload.
   await page.reload();
   expect((await personalTitles())[0]).toBe(second);
+  await expandPlanItem(planItem(page, second));
 
   await Promise.all([
     page.waitForResponse((r) => new URL(r.url()).pathname === '/plan/reorder' && r.ok()),

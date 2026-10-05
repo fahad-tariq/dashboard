@@ -8,11 +8,14 @@ import {
   expect,
   planFromPicker,
   planItem,
+  STYLES,
+  type Style,
   tabTo,
   test,
   trackerItem,
   type Theme,
   uniqueTitle,
+  useStyle,
   useTheme,
   waitForSseSettle,
 } from './helpers';
@@ -33,9 +36,12 @@ const MAIN_PAGES = [
   '/account',
 ];
 
+let currentStyle: Style = 'cards';
+
 async function gotoInTheme(page: Page, path: string, theme: Theme): Promise<void> {
   await page.goto(path);
   await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+  await expect(page.locator('html')).toHaveAttribute('data-style', currentStyle);
   await waitForSseSettle(page);
 }
 
@@ -103,16 +109,18 @@ function longAnimations(page: Page): Promise<string[]> {
   );
 }
 
-for (const theme of THEMES) {
-  test.describe(`axe, ${theme} theme`, () => {
+for (const style of STYLES) for (const theme of THEMES) {
+  test.describe(`axe, ${style} style, ${theme} theme`, () => {
     test.beforeEach(async ({ page }) => {
+      currentStyle = style;
       await useTheme(page, theme);
+      await useStyle(page, style);
     });
 
     for (const path of MAIN_PAGES) {
       test(`page ${path}`, async ({ page }) => {
         await gotoInTheme(page, path, theme);
-        await expectNoSeriousViolations(page, `${path} (${theme})`);
+        await expectNoSeriousViolations(page, `${path} (${style}, ${theme})`);
       });
     }
 
@@ -126,7 +134,7 @@ for (const theme of THEMES) {
       });
       expect(href, 'an idea detail link on /ideas').not.toBeNull();
       await gotoInTheme(page, href as string, theme);
-      await expectNoSeriousViolations(page, `${href} (${theme})`);
+      await expectNoSeriousViolations(page, `${href} (${style}, ${theme})`);
     });
 
     test('tracker item expanded', async ({ page }) => {
@@ -135,16 +143,16 @@ for (const theme of THEMES) {
       await expandTrackerItem(item);
       const toggle = item.locator('.item-toggle');
       await expect(page.locator(`[id="${await toggle.getAttribute('aria-controls')}"]`)).toBeVisible();
-      await expectNoSeriousViolations(page, `/todos item expanded (${theme})`);
+      await expectNoSeriousViolations(page, `/todos item expanded (${style}, ${theme})`);
     });
 
     test('plan item expanded', async ({ page }) => {
-      const title = uniqueTitle(`Expanded plan ${theme}`);
+      const title = uniqueTitle(`Expanded plan ${style} ${theme}`);
       await addTask(page, title, { body: 'Detail for the scan', tags: 'a11y' });
       const item = await planFromPicker(page, title);
       await expandPlanItem(item);
       await expect(item.locator('.plan-item-detail')).toBeVisible();
-      await expectNoSeriousViolations(page, `/ plan item expanded (${theme})`);
+      await expectNoSeriousViolations(page, `/ plan item expanded (${style}, ${theme})`);
     });
 
     test('select mode with the bulk bar', async ({ page }) => {
@@ -152,7 +160,7 @@ for (const theme of THEMES) {
       await page.locator('#select-toggle').click();
       await page.getByRole('checkbox', { name: 'Select Plan weekend hike' }).check();
       await expect(page.locator('#bulk-bar')).toBeVisible();
-      await expectNoSeriousViolations(page, `/todos select mode (${theme})`);
+      await expectNoSeriousViolations(page, `/todos select mode (${style}, ${theme})`);
     });
 
     test('confirm dialog open', async ({ page }) => {
@@ -162,18 +170,18 @@ for (const theme of THEMES) {
       await item.getByRole('button', { name: 'move to family' }).click();
       const modal = page.locator('#confirm-modal');
       await expect(modal).toHaveAttribute('open');
-      await expectNoSeriousViolations(page, `/todos confirm dialog (${theme})`);
+      await expectNoSeriousViolations(page, `/todos confirm dialog (${style}, ${theme})`);
       await modal.getByRole('button', { name: 'Cancel' }).click();
       await expect(modal).not.toHaveAttribute('open');
     });
 
     test('undo toast after trash', async ({ page }) => {
-      const title = uniqueTitle(`Toast scan ${theme}`);
+      const title = uniqueTitle(`Toast scan ${style} ${theme}`);
       const item = await addTask(page, title);
       await expandTrackerItem(item);
       await item.getByRole('button', { name: 'trash' }).click();
       await expect(page.locator('#toast .toast-undo')).toBeVisible();
-      await expectNoSeriousViolations(page, `undo toast (${theme})`);
+      await expectNoSeriousViolations(page, `undo toast (${style}, ${theme})`);
     });
 
     test('search overlay with results', async ({ page }) => {
@@ -183,14 +191,14 @@ for (const theme of THEMES) {
       await expect(overlay).toHaveAttribute('open');
       await page.getByLabel('Search tasks, ideas, and house items').fill('passport');
       await expect(overlay.locator('.search-result').first()).toBeVisible();
-      await expectNoSeriousViolations(page, `search overlay (${theme})`);
+      await expectNoSeriousViolations(page, `search overlay (${style}, ${theme})`);
     });
 
     test('shortcut help', async ({ page }) => {
       await gotoInTheme(page, '/todos', theme);
       await page.keyboard.press('?');
       await expect(page.locator('#shortcut-help')).toHaveAttribute('open');
-      await expectNoSeriousViolations(page, `shortcut help (${theme})`);
+      await expectNoSeriousViolations(page, `shortcut help (${style}, ${theme})`);
     });
 
     test('mobile nav open', async ({ page }) => {
@@ -200,14 +208,14 @@ for (const theme of THEMES) {
       await hamburger.click();
       await expect(page.locator('#nav-links')).toHaveClass(/\bnav-links-open\b/);
       await expect(hamburger).toHaveAttribute('aria-expanded', 'true');
-      await expectNoSeriousViolations(page, `mobile nav (${theme})`);
+      await expectNoSeriousViolations(page, `mobile nav (${style}, ${theme})`);
     });
 
     test('nav "more" menu open', async ({ page }) => {
       await gotoInTheme(page, '/todos', theme);
       await page.getByRole('button', { name: 'more' }).click();
       await expect(page.locator('#nav-more-menu')).toBeVisible();
-      await expectNoSeriousViolations(page, `more menu (${theme})`);
+      await expectNoSeriousViolations(page, `more menu (${style}, ${theme})`);
     });
 
     test('toast visible', async ({ page }) => {
@@ -216,7 +224,7 @@ for (const theme of THEMES) {
       await expect(page.locator('#toast')).toBeVisible();
       await expect(page.locator('#toast .toast-text')).toHaveText('Saved');
       await expect(page.locator('#announcer')).toHaveText('Saved');
-      await expectNoSeriousViolations(page, `toast (${theme})`);
+      await expectNoSeriousViolations(page, `toast (${style}, ${theme})`);
     });
   });
 }
@@ -347,7 +355,8 @@ test('keyboard only: expand, reorder and complete a plan item', async ({ page })
   await expect(page.locator('#announcer')).toHaveText(/position 1 of \d+/);
   await expect(byId('-toggle')).toHaveAttribute('aria-expanded', 'true');
 
-  await tabTo(page, `${rowId}-done`, 10);
+  // The tick sits before the toggle, so it is reached going backwards.
+  await tabTo(page, `${rowId}-done`, 10, 'Shift+Tab');
   await expect(byId('-done')).toHaveAccessibleName(`done ${title}`);
   await page.keyboard.press('Enter');
   await expect(planItem(page, title)).toHaveClass(/plan-item-done/);
