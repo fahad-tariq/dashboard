@@ -78,6 +78,7 @@
     <details class="plan-picker" id="plan-picker" data-row-list data-row-heading="plan-picker-summary" data-keep-attr="open" {{if and (not .PersonalPlanned) (not .FamilyPlanned) (not .HousePlanned)}}open{{end}}>
         <summary class="plan-picker-toggle" id="plan-picker-summary">{{if or .PersonalPlanned .FamilyPlanned .HousePlanned}}Add more tasks{{else}}{{.PlanPrompt}}{{end}}</summary>
         <input type="text" class="plan-picker-filter form-input" placeholder="Filter tasks..." oninput="plannerFilter(this.value)" id="plan-filter" aria-label="Filter tasks">
+        <div class="plan-pick-list">
         {{if .UnplannedPersonal}}
         <span class="plan-list-label meta-dim">Personal</span>
         {{range .UnplannedPersonal}}
@@ -132,6 +133,7 @@
         </div>
         {{end}}
         {{end}}
+        </div>
     </details>
     {{end}}
 </section>

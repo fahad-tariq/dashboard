@@ -49,7 +49,7 @@
         --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
 
         --w-narrow: 680px;
-        --w-list: 760px;
+        --w-list: 880px;
         --w-wide: 1120px;
 
         /* Structure of the default style (cards). Paper and document flatten it. */
@@ -1597,6 +1597,9 @@
     .plan-picker > summary::before { content: "+"; font-size: var(--text-lg); line-height: 1; }
     .plan-picker[open] > summary::before { content: "\2212"; }
     .plan-picker-filter { margin: var(--sp-2) 0; }
+    /* The picker scrolls inside itself so a long backlog does not push the
+       rest of the homepage down. */
+    .plan-pick-list { max-height: 22rem; overflow-y: auto; overscroll-behavior: contain; }
     .plan-pick-item {
         display: flex;
         align-items: center;
@@ -1621,6 +1624,22 @@
     [data-style="document"] .homepage-widgets { gap: var(--sp-5); }
     [data-style="paper"] .homepage-card { padding-top: var(--sp-4); border-top: 1px solid var(--line); }
     .homepage-widgets > section { margin-bottom: 0; }
+
+    /* Wide screens: the plan on the left, the summary cards in a rail beside
+       it, so both are in view without scrolling. */
+    @media (min-width: 1100px) {
+        .container > .homepage-page {
+            max-width: var(--w-wide);
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 22rem;
+            grid-auto-flow: row dense;
+            column-gap: var(--sp-6);
+            align-items: start;
+        }
+        .homepage-page > * { grid-column: 1 / -1; }
+        .homepage-page > .plan-section { grid-column: 1; }
+        .homepage-page > .homepage-widgets { grid-column: 2; }
+    }
     .tag-summary-row { display: flex; align-items: center; gap: var(--sp-2); padding: 2px 0; font-size: var(--text-sm); }
     .tag-summary-counts { display: flex; gap: var(--sp-2); }
 
