@@ -130,16 +130,10 @@ func (b *Broker) Unsubscribe(ch chan string) {
 	slog.Debug("sse client disconnected", "total", len(b.clients))
 }
 
-// Debounced returns a publisher that sends one "file-changed" event per
-// category once delay has passed without another call for that category.
-// Services publish their own writes through it so the tab that made a change
-// finishes its own request before the refresh arrives.
-func (b *Broker) Debounced(delay time.Duration) func(category string) {
-	return b.debounced(delay, func(category string) { b.Send("file-changed", category) })
-}
-
-// DebouncedChanged is Debounced for modules: it sends "changed:<id>" with
-// the module ID as data.
+// DebouncedChanged returns a publisher that sends one "changed:<id>" event,
+// with the module ID as data, once delay has passed without another call for
+// that module. Services publish their own writes through it so the tab that
+// made a change finishes its own request before the refresh arrives.
 func (b *Broker) DebouncedChanged(delay time.Duration) func(moduleID string) {
 	return b.debounced(delay, func(id string) { b.Send("changed:"+id, id) })
 }

@@ -3,7 +3,7 @@
 <div class="tracker-page"
      hx-ext="sse" sse-connect="/events"
      hx-get="/goals" hx-select=".tracker-page" hx-target="this" hx-swap="outerHTML"
-     hx-trigger="sse:file-changed">
+     hx-trigger="sse:changed:todos">
 <span class="htmx-indicator" aria-hidden="true">updating&hellip;</span>
 
 <h1>Goals</h1>
@@ -14,7 +14,7 @@
 
 <details class="quick-add tracker-add-form">
     <summary>Add goal</summary>
-    <form method="POST" action="/todos/add-goal" class="tracker-goal-form" onsubmit="clearTrackerFilter()">
+    <form method="POST" action="/todos/add-goal" class="tracker-goal-form" data-submit="clear-filter">
         <label for="goal-title" class="sr-only">Goal title</label>
         <input type="text" name="title" id="goal-title" placeholder="Goal title" required class="form-input">
         <div class="goal-form-row">
@@ -50,31 +50,31 @@
 
 {{if or .Categories .Priorities}}
 <div class="tracker-filters">
-    <button class="filter-tag active" onclick="trackerFilter('','')">all</button>
+    <button class="filter-tag active" data-action="filter" data-filter-type="" data-filter-value="">all</button>
     {{range .Categories}}
-    <button class="filter-tag filter-cat" data-value="{{.}}" onclick="trackerFilter('category','{{.}}')">{{.}}</button>
+    <button class="filter-tag filter-cat" data-value="{{.}}" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>
     {{end}}
     {{if .Priorities}}<span class="filter-sep"></span>{{end}}
     {{range .Priorities}}
-    <button class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" onclick="trackerFilter('priority','{{.}}')">{{.}}</button>
+    <button class="filter-tag filter-pri filter-pri-{{.}}" data-value="{{.}}" data-action="filter" data-filter-type="priority" data-filter-value="{{.}}">{{.}}</button>
     {{end}}
     <span class="filter-sep"></span>
-    <button class="select-toggle-btn" id="select-toggle" onclick="toggleSelectMode()">select</button>
+    <button class="select-toggle-btn" id="select-toggle" data-action="toggle-select-mode">select</button>
 </div>
 {{else}}
 <div class="tracker-filters">
-    <button class="select-toggle-btn" id="select-toggle" onclick="toggleSelectMode()">select</button>
+    <button class="select-toggle-btn" id="select-toggle" data-action="toggle-select-mode">select</button>
 </div>
 {{end}}
 
 {{range .Goals}}
 <div class="tracker-item" id="item-{{.Slug}}" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
     <div class="tracker-item-header">
-        <input type="checkbox" class="bulk-checkbox" onclick="event.stopPropagation();bulkCheckboxChanged()" aria-label="Select {{.Title}}">
+        <input type="checkbox" class="bulk-checkbox" data-action="bulk-checkbox" aria-label="Select {{.Title}}">
         <span class="tracker-item-title">{{linkify .Title}}</span>
         <div class="tracker-item-meta">
-            {{range .Tags}}<button type="button" class="badge badge-tag badge-clickable" onclick="trackerFilter('category','{{.}}')">{{.}}</button>{{end}}
-            {{if .Priority}}<button type="button" class="badge badge-priority-{{.Priority}} badge-clickable" onclick="trackerFilter('priority','{{.Priority}}')">{{.Priority}}</button>{{end}}
+            {{range .Tags}}<button type="button" class="badge badge-tag badge-clickable" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>{{end}}
+            {{if .Priority}}<button type="button" class="badge badge-priority-{{.Priority}} badge-clickable" data-action="filter" data-filter-type="priority" data-filter-value="{{.Priority}}">{{.Priority}}</button>{{end}}
         </div>
     </div>
     {{if gt .Target 0.0}}
@@ -120,7 +120,7 @@
                     </select>
                     <button type="submit" class="action-btn">apply</button>
                 </form>
-                <form method="POST" action="/todos/{{.Slug}}/delete" class="inline-triage" onsubmit="return confirmAction(this, 'Move this goal to trash?')">
+                <form method="POST" action="/todos/{{.Slug}}/delete" class="inline-triage" data-confirm="Move this goal to trash?">
                     <button type="submit" class="action-btn action-drop">trash</button>
                 </form>
             </div>
@@ -149,15 +149,15 @@
     <summary class="tracker-done-summary">Recently Deleted ({{len .DeletedGoals}})</summary>
     {{range .DeletedGoals}}
     <div class="tracker-item tracker-item-done minimised" id="item-{{.Slug}}" data-slug="{{.Slug}}">
-        <div class="tracker-item-header" onclick="itemHeaderClick(event)">
+        <div class="tracker-item-header" data-action="item-header">
             <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand">&#x25B8;</button>
             <span class="tracker-item-title">{{linkify .Title}}</span>
             <div class="tracker-item-meta">
                 {{if .DeletedAt}}<span class="tracker-item-date">deleted {{.DeletedAt}}</span>{{end}}
-                <form method="POST" action="/todos/{{.Slug}}/restore" class="item-complete-form" onclick="event.stopPropagation()">
+                <form method="POST" action="/todos/{{.Slug}}/restore" class="item-complete-form" data-stop-click>
                     <button type="submit" class="item-undo-btn" title="Restore">&#x21A9;</button>
                 </form>
-                <form method="POST" action="/todos/{{.Slug}}/purge" class="item-complete-form" onclick="event.stopPropagation()" onsubmit="return confirmAction(this, 'Permanently delete this goal? This cannot be undone.')">
+                <form method="POST" action="/todos/{{.Slug}}/purge" class="item-complete-form" data-stop-click data-confirm="Permanently delete this goal? This cannot be undone.">
                     <button type="submit" class="item-undo-btn" title="Permanently delete">&#x2715;</button>
                 </form>
             </div>
@@ -181,9 +181,9 @@
 
 <div class="bulk-bar" id="bulk-bar" role="toolbar" aria-label="Bulk actions">
     <span class="bulk-bar-count" id="bulk-bar-count" aria-live="polite">0 selected</span>
-    <button type="button" class="action-btn" onclick="selectAllVisible()">select all</button>
-    <button type="button" class="action-btn" onclick="deselectAll()">deselect</button>
-    <form method="POST" action="/todos/bulk/delete" id="bulk-delete-form" style="display:inline" onsubmit="return confirmBulkDelete(this)">
+    <button type="button" class="action-btn" data-action="select-all">select all</button>
+    <button type="button" class="action-btn" data-action="deselect-all">deselect</button>
+    <form method="POST" action="/todos/bulk/delete" id="bulk-delete-form" style="display:inline" data-submit="bulk-delete">
         <input type="hidden" name="slugs" value="">
         <button type="submit" class="action-btn action-drop">trash</button>
     </form>
@@ -195,7 +195,7 @@
             <option value="medium">medium</option>
             <option value="low">low</option>
         </select>
-        <button type="submit" class="action-btn" onclick="return submitBulkAction('bulk-priority-form')">set priority</button>
+        <button type="submit" class="action-btn" data-action="bulk-submit" data-bulk-form="bulk-priority-form">set priority</button>
     </form>
 </div>
 

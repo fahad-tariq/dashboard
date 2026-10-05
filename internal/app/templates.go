@@ -31,6 +31,7 @@ func buildFuncMap(loc *time.Location, authEnabled bool, version string, static f
 		"navHasMore":     reg.HasMore,
 		"navCurrent":     navCurrent,
 		"navMoreCurrent": navMoreCurrent(reg),
+		"homeTrigger":    homeTrigger(reg),
 		"static":         static,
 		"authEnabled":    func() bool { return authEnabled },
 		"buildVersion":   func() string { return version },
@@ -166,8 +167,19 @@ func navMoreCurrent(reg *module.Registry) func(current any) bool {
 	}
 }
 
+// homeTrigger is the homepage's hx-trigger: a refresh on the event of every
+// module that contributes to it.
+func homeTrigger(reg *module.Registry) func() string {
+	events := reg.HomeEvents()
+	for i, e := range events {
+		events[i] = "sse:" + e
+	}
+	trigger := strings.Join(events, ", ")
+	return func() string { return trigger }
+}
+
 // templateSet is every parsed template: core pages by file name, module pages
-// by "<module-id>/<file>", and the standalone login page.
+// by "<template dir>/<file>", and the standalone login page.
 type templateSet struct {
 	assets  *staticAssets
 	core    map[string]*template.Template
@@ -201,36 +213,54 @@ func loadTemplates(cfg *config.Config, version string, reg *module.Registry) (te
 }
 
 // parseTemplates clones the layout plus shared components for every core
-// page and every file in each registered module's template directory.
+// page (a top-level template defining "content") and every file in each
+// registered module's template directory.
 func parseTemplates(fm template.FuncMap, reg *module.Registry) (core, modules map[string]*template.Template, err error) {
 	base, err := template.New("layout.html").Funcs(fm).ParseFS(web.TemplateFS, "templates/layout.html", "templates/_components/*.html")
 	if err != nil {
 		return nil, nil, fmt.Errorf("parsing layout: %w", err)
 	}
-
-	pages := []string{"tracker.html", "goals.html", "ideas.html", "idea.html", "homepage.html", "digest.html", "calendar.html", "admin-users.html", "admin-user-form.html", "admin-password.html", "account.html", "house.html"}
-	core = make(map[string]*template.Template, len(pages))
-	for _, page := range pages {
-		t, err := template.Must(base.Clone()).ParseFS(web.TemplateFS, "templates/"+page)
+	page := func(file string) (*template.Template, error) {
+		t, err := template.Must(base.Clone()).ParseFS(web.TemplateFS, file)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parsing %s: %w", page, err)
+			return nil, fmt.Errorf("parsing %s: %w", file, err)
 		}
-		core[page] = t
+		return t, nil
+	}
+
+	files, err := fs.Glob(web.TemplateFS, "templates/*.html")
+	if err != nil {
+		return nil, nil, err
+	}
+	core = map[string]*template.Template{}
+	for _, f := range files {
+		src, err := fs.ReadFile(web.TemplateFS, f)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !strings.Contains(string(src), `{{define "content"}}`) {
+			continue // the layout itself, or a standalone template
+		}
+		if core[path.Base(f)], err = page(f); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	modules = map[string]*template.Template{}
 	for _, m := range reg.Modules() {
-		id := m.Manifest().ID
-		files, err := fs.Glob(web.TemplateFS, "templates/"+id+"/*.html")
+		dir := module.TemplateDir(m.Manifest())
+		files, err := fs.Glob(web.TemplateFS, "templates/"+dir+"/*.html")
 		if err != nil {
 			return nil, nil, err
 		}
 		for _, f := range files {
-			t, err := template.Must(base.Clone()).ParseFS(web.TemplateFS, f)
-			if err != nil {
-				return nil, nil, fmt.Errorf("parsing %s: %w", f, err)
+			key := dir + "/" + path.Base(f)
+			if modules[key] != nil {
+				continue // a directory two modules share
 			}
-			modules[id+"/"+path.Base(f)] = t
+			if modules[key], err = page(f); err != nil {
+				return nil, nil, err
+			}
 		}
 	}
 	return core, modules, nil

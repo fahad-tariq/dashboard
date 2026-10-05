@@ -11,7 +11,7 @@
         <form method="POST" action="/ideas/{{.Idea.Slug}}/restore">
             <button type="submit" class="action-btn action-assign">restore</button>
         </form>
-        <form method="POST" action="/ideas/{{.Idea.Slug}}/purge" onsubmit="return confirmAction(this, 'Permanently delete this idea? This cannot be undone.')">
+        <form method="POST" action="/ideas/{{.Idea.Slug}}/purge" data-confirm="Permanently delete this idea? This cannot be undone.">
             <button type="submit" class="action-btn action-drop">permanently delete</button>
         </form>
     </div>
@@ -54,7 +54,7 @@
     </form>
 </details>
 
-<form method="POST" action="/ideas/{{.Idea.Slug}}/delete" style="margin-top: 1rem;" onsubmit="return confirmAction(this, 'Move this idea to trash?')">
+<form method="POST" action="/ideas/{{.Idea.Slug}}/delete" style="margin-top: 1rem;" data-confirm="Move this idea to trash?">
     <button type="submit" class="action-btn action-drop">move to trash</button>
 </form>
 {{end}}

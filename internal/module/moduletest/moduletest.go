@@ -60,7 +60,7 @@ func (m *Module) Routes(r chi.Router) {
 }
 
 func (m *Module) APIRoutes(r chi.Router) {
-	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
+	r.Get("/moduletest", func(w http.ResponseWriter, _ *http.Request) {
 		items, err := m.items()
 		if err != nil {
 			httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "unreadable"})
@@ -85,16 +85,16 @@ func (m *Module) Search(_ context.Context, _ int64, q string) []module.SearchRes
 	return out
 }
 
-func (m *Module) Widget(_ context.Context, _ int64, _ time.Time) (module.WidgetData, bool) {
+func (m *Module) Widgets(_ context.Context, _ int64, _ time.Time) []module.WidgetData {
 	items, err := m.items()
 	if err != nil {
-		return module.WidgetData{}, false
+		return nil
 	}
 	data := module.WidgetData{Title: "Fixture items", Count: len(items), Link: "/moduletest", EmptyText: "Nothing here."}
 	for _, it := range items {
 		data.Items = append(data.Items, module.WidgetItem{Label: it, URL: "/moduletest"})
 	}
-	return data, true
+	return []module.WidgetData{data}
 }
 
 func (m *Module) page(w http.ResponseWriter, r *http.Request) {

@@ -1464,31 +1464,6 @@ button.badge {
 
 }
 
-/* --- Homepage grid --- */
-.homepage-grid {
-    display: grid;
-    grid-template-columns: 3fr 2fr;
-    grid-auto-flow: dense;
-    gap: 0 1rem;
-    align-items: start;
-}
-.homepage-grid .homepage-card {
-    margin-bottom: 0.75rem;
-}
-.homepage-col-left {
-    grid-column: 1;
-}
-.homepage-col-right {
-    grid-column: 2;
-}
-/* Must follow the base rules above: an earlier max-width block with the
-   same selectors lost to them, so phones never got one column. */
-@media (max-width: 768px) {
-    .homepage-grid { grid-template-columns: minmax(0, 1fr); }
-    .homepage-col-left,
-    .homepage-col-right { grid-column: 1; }
-}
-
 /* --- Homepage cards --- */
 .homepage-card {
     background: var(--bg-card);
@@ -1540,15 +1515,12 @@ h2.homepage-card-title {
 .homepage-task[data-priority="high"] { border-left-color: var(--priority-high); }
 .homepage-task[data-priority="medium"] { border-left-color: var(--priority-medium); }
 .homepage-task[data-priority="low"] { border-left-color: var(--priority-low); }
-.homepage-task-overdue a { color: var(--danger-fg); }
-
-.homepage-goal {
-    padding: 0.25rem 0;
-    font-size: 0.85rem;
-}
-.homepage-goal-title {
-    font-weight: 600;
-    color: var(--fg);
+.homepage-task-danger a { color: var(--danger-fg); }
+.homepage-task-warning a { color: var(--warning-fg); }
+/* A row with a progress bar is not clamped, or the bar would be cut off. */
+.homepage-task-progress {
+    display: block;
+    overflow: visible;
 }
 .homepage-progress {
     display: flex;
@@ -1557,16 +1529,6 @@ h2.homepage-card-title {
     margin-top: 0.15rem;
 }
 .homepage-progress .progress-bar { height: 8px; }
-
-.homepage-idea {
-    padding: 0.2rem 0;
-    font-size: 0.85rem;
-    display: flex;
-    justify-content: space-between;
-    gap: 0.5rem;
-}
-.homepage-idea a { color: var(--fg); text-decoration: none; }
-.homepage-idea a:hover { color: var(--accent); }
 
 /* --- Homepage insights --- */
 .homepage-insights {

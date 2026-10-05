@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/auth"
-	"github.com/fahad/dashboard/internal/house"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/insights"
@@ -22,12 +21,14 @@ import (
 	"github.com/fahad/dashboard/internal/tracker"
 )
 
-// Lists are the services one request reads and writes.
+// Lists are the services the core reads for one request: the three tracker
+// lists the planner, calendar and plan API work on, plus ideas for the
+// digest and the tag summary. Everything else on the homepage comes from
+// module widgets.
 type Lists struct {
 	Personal      *tracker.Service
 	Family        *tracker.Service
 	HouseProjects *tracker.Service
-	Maintenance   *house.Service
 	Ideas         *ideas.Service
 }
 
@@ -153,14 +154,6 @@ func buildPlanSection(svc *tracker.Service, items []tracker.Item, today string) 
 	return planSection{planned: planned, carried: len(carried), unplanned: unplanned}
 }
 
-func slugSet(items []tracker.Item) map[string]bool {
-	set := make(map[string]bool, len(items))
-	for _, it := range items {
-		set[it.Slug] = true
-	}
-	return set
-}
-
 func countDone(items []tracker.Item) int {
 	n := 0
 	for _, it := range items {
@@ -211,12 +204,15 @@ func (h *Handler) renderHomePage(w http.ResponseWriter, r *http.Request, l Lists
 	personal := buildPlanSection(l.Personal, personalItems, today)
 	family := buildPlanSection(l.Family, familyItems, today)
 	houseSec := buildPlanSection(l.HouseProjects, houseItems, today)
-	overdueMaintenance := l.Maintenance.ListOverdue(now)
 
 	planTotal := len(personal.planned) + len(family.planned) + len(houseSec.planned)
 	planDone := countDone(personal.planned) + countDone(family.planned) + countDone(houseSec.planned)
 	planAllDone := planTotal > 0 && planDone == planTotal
-	untriaged, untriagedCount := filterAndCountUntriaged(allIdeas, 3)
+	unplanned := len(personal.unplanned) + len(family.unplanned) + len(houseSec.unplanned)
+	var widgets []module.WidgetData
+	if h.widgets != nil {
+		widgets = h.widgets(r.Context(), auth.UserID(r.Context()), now)
+	}
 
 	data := auth.TemplateData(r)
 	userName, _ := data["UserName"].(string)
@@ -234,29 +230,19 @@ func (h *Handler) renderHomePage(w http.ResponseWriter, r *http.Request, l Lists
 	data["UnplannedPersonal"] = personal.unplanned
 	data["UnplannedFamily"] = family.unplanned
 	data["UnplannedHouse"] = houseSec.unplanned
-	data["OverdueMaintenance"] = overdueMaintenance
-	data["OverdueMaintenanceCount"] = len(overdueMaintenance)
 	data["PlanDoneCount"] = planDone
 	data["PlanTotalCount"] = planTotal
 	data["PlanAllDone"] = planAllDone
 	data["PlanPrompt"] = PlanPrompt(now, countOpenTasks(personalItems)+countOpenTasks(familyItems), streakDays)
-	// Summary cards leave out tasks already in the plan section.
-	data["PersonalTasks"] = topTasksExcluding(personalItems, 5, slugSet(personal.planned))
-	data["PersonalTaskCount"] = countOpenTasks(personalItems)
-	data["FamilyTasks"] = topTasksExcluding(familyItems, 5, slugSet(family.planned))
-	data["FamilyTaskCount"] = countOpenTasks(familyItems)
-	data["Goals"] = activeGoals(personalItems)
-	data["UntriagedIdeas"] = untriaged
-	data["UntriagedCount"] = untriagedCount
-	data["TotalIdeaCount"] = len(allIdeas)
+	// With nothing to plan and no widget to show, the page shows a getting
+	// started message instead.
+	data["Empty"] = planTotal == 0 && unplanned == 0 && len(widgets) == 0
+	data["Widgets"] = widgets
 	data["InsightLine"] = insights.WeeklyVelocity(completedItems, now)
 	data["StreakDays"] = streakDays
 	data["TotalCompleted"] = totalCompleted
 	data["MilestoneBadge"] = insights.MilestoneBadge(totalCompleted)
 	data["TagSummaries"] = insights.TopN(insights.TagAggregation(tagInfos(personalItems, familyItems, allIdeas)), 5)
-	if h.widgets != nil {
-		data["Widgets"] = h.widgets(r.Context(), auth.UserID(r.Context()), now)
-	}
 
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
 		if flashMsg := resolvePlanFlash(msgKey, now); flashMsg != "" {
@@ -315,50 +301,6 @@ func countOpenTasks(items []tracker.Item) int {
 		}
 	}
 	return count
-}
-
-func topTasksExcluding(items []tracker.Item, n int, exclude map[string]bool) []tracker.Item {
-	var tasks []tracker.Item
-	for _, it := range items {
-		if it.Type == tracker.TaskType && !it.Done && !exclude[it.Slug] {
-			tasks = append(tasks, it)
-		}
-	}
-	slices.SortFunc(tasks, func(a, b tracker.Item) int {
-		pa, pb := tracker.PriorityWeight[a.Priority], tracker.PriorityWeight[b.Priority]
-		if pa != pb {
-			return pa - pb
-		}
-		return 0
-	})
-	if len(tasks) > n {
-		tasks = tasks[:n]
-	}
-	return tasks
-}
-
-func activeGoals(items []tracker.Item) []tracker.Item {
-	var goals []tracker.Item
-	for _, it := range items {
-		if it.Type == tracker.GoalType && !it.Done {
-			goals = append(goals, it)
-		}
-	}
-	return goals
-}
-
-func filterAndCountUntriaged(allIdeas []ideas.Idea, n int) ([]ideas.Idea, int) {
-	var preview []ideas.Idea
-	count := 0
-	for _, idea := range allIdeas {
-		if idea.Status == "untriaged" {
-			if count < n {
-				preview = append(preview, idea)
-			}
-			count++
-		}
-	}
-	return preview, count
 }
 
 var planFlashMessages = map[string]string{

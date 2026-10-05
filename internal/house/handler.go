@@ -2,7 +2,6 @@ package house
 
 import (
 	"fmt"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -54,17 +53,17 @@ type maintenanceView struct {
 type Handler struct {
 	maintenanceSvc *Service
 	projectsSvc    *tracker.Service
-	templates      map[string]*template.Template
+	pages          httputil.PageLookup
 	loc            *time.Location
 	commentarySt   *commentary.Store
 }
 
 // NewHandler creates a house page handler.
-func NewHandler(maintenanceSvc *Service, projectsSvc *tracker.Service, templates map[string]*template.Template, loc *time.Location) *Handler {
+func NewHandler(maintenanceSvc *Service, projectsSvc *tracker.Service, pages httputil.PageLookup, loc *time.Location) *Handler {
 	return &Handler{
 		maintenanceSvc: maintenanceSvc,
 		projectsSvc:    projectsSvc,
-		templates:      templates,
+		pages:          pages,
 		loc:            loc,
 	}
 }
@@ -130,7 +129,7 @@ func (h *Handler) HousePage(w http.ResponseWriter, r *http.Request) {
 		data["FlashError"] = flashErrorKeys[msg]
 	}
 
-	if err := h.templates["house.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
+	if err := httputil.ExecutePage(w, h.pages, "house.html", data); err != nil {
 		slog.Error("rendering house page", "error", err)
 	}
 }

@@ -97,7 +97,7 @@ type ServiceResolver func(r *http.Request) (svc *Service, otherSvc *Service)
 
 type Handler struct {
 	resolve      ServiceResolver
-	templates    map[string]*template.Template
+	pages        httputil.PageLookup
 	listName     string
 	loc          *time.Location
 	commentarySt *commentary.Store
@@ -113,19 +113,19 @@ func NewHandler(svc, otherSvc *Service, templates map[string]*template.Template,
 		resolve: func(r *http.Request) (*Service, *Service) {
 			return svc, otherSvc
 		},
-		templates: templates,
-		listName:  listName,
-		loc:       loc,
+		pages:    httputil.PageMap(templates),
+		listName: listName,
+		loc:      loc,
 	}
 }
 
 // NewHandlerWithResolver creates a handler that resolves services per-request.
-func NewHandlerWithResolver(resolver ServiceResolver, templates map[string]*template.Template, listName string, loc *time.Location) *Handler {
+func NewHandlerWithResolver(resolver ServiceResolver, pages httputil.PageLookup, listName string, loc *time.Location) *Handler {
 	return &Handler{
-		resolve:   resolver,
-		templates: templates,
-		listName:  listName,
-		loc:       loc,
+		resolve:  resolver,
+		pages:    pages,
+		listName: listName,
+		loc:      loc,
 	}
 }
 
@@ -246,7 +246,7 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 		data["Subtitle"] = userName + "'s list"
 	}
 
-	if err := h.templates["tracker.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
+	if err := httputil.ExecutePage(w, h.pages, "tracker.html", data); err != nil {
 		httputil.ServerError(w, "rendering tracker", err)
 	}
 }
@@ -293,7 +293,7 @@ func (h *Handler) GoalsPage(w http.ResponseWriter, r *http.Request) {
 		data["Subtitle"] = userName + "'s goals"
 	}
 
-	if err := h.templates["goals.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
+	if err := httputil.ExecutePage(w, h.pages, "goals.html", data); err != nil {
 		httputil.ServerError(w, "rendering goals", err)
 	}
 }
@@ -762,4 +762,31 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/"+h.listName+"?msg=item-moved", http.StatusSeeOther)
+}
+
+// Mount registers the list's item and bulk actions under prefix (e.g.
+// "/todos"). The list and goals pages are registered by the caller.
+func (h *Handler) Mount(r chi.Router, prefix string) {
+	r.Post(prefix+"/add", h.QuickAdd)
+	r.Post(prefix+"/{slug}/complete", h.Complete)
+	r.Post(prefix+"/{slug}/uncomplete", h.Uncomplete)
+	r.Post(prefix+"/{slug}/progress", h.UpdateProgress)
+	r.Post(prefix+"/{slug}/notes", h.UpdateNotes)
+	r.Post(prefix+"/{slug}/delete", h.Delete)
+	r.Post(prefix+"/{slug}/priority", h.UpdatePriority)
+	r.Post(prefix+"/{slug}/tags", h.UpdateTags)
+	r.Post(prefix+"/{slug}/edit", h.UpdateEdit)
+	r.Post(prefix+"/{slug}/move", h.MoveToList)
+	r.Post(prefix+"/{slug}/restore", h.Restore)
+	r.Post(prefix+"/{slug}/purge", h.Purge)
+	r.Post(prefix+"/bulk/complete", h.BulkComplete)
+	r.Post(prefix+"/bulk/delete", h.BulkDelete)
+	r.Post(prefix+"/bulk/priority", h.BulkPriority)
+	r.Post(prefix+"/bulk/tag", h.BulkAddTag)
+	r.Post(prefix+"/{slug}/plan", h.PlanForToday)
+	r.Post(prefix+"/{slug}/substep/add", h.AddSubStep)
+	r.Post(prefix+"/{slug}/substep/toggle", h.ToggleSubStep)
+	r.Post(prefix+"/{slug}/substep/remove", h.RemoveSubStep)
+	r.Post(prefix+"/{slug}/substep/promote", h.PromoteSubStep)
+	r.Post(prefix+"/bulk/plan", h.BulkPlanForToday)
 }

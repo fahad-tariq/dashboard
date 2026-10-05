@@ -23,13 +23,13 @@ import (
 	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/home"
-	"github.com/fahad/dashboard/internal/house"
-	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/module"
+	"github.com/fahad/dashboard/internal/modules/house"
+	"github.com/fahad/dashboard/internal/modules/ideas"
+	"github.com/fahad/dashboard/internal/modules/tasks"
 	"github.com/fahad/dashboard/internal/search"
 	"github.com/fahad/dashboard/internal/services"
 	"github.com/fahad/dashboard/internal/sse"
-	"github.com/fahad/dashboard/internal/tracker"
 	"github.com/fahad/dashboard/internal/upload"
 	"github.com/fahad/dashboard/internal/watcher"
 )
@@ -60,19 +60,19 @@ const (
 		"img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
 )
 
-// modules are the feature modules every build registers, in nav and widget
-// order. Phase 7 moves the existing features here.
-var modules []module.Factory
+// modules are the feature modules every build registers. Registration order
+// sets the order of home widgets and search results; nav follows each item's
+// Order.
+var modules = []module.Factory{
+	tasks.NewTodos,
+	tasks.NewFamily,
+	house.New,
+	ideas.New,
+}
 
-// coreNav is the core's nav: its own pages, plus the feature pages that are
-// not modules yet.
+// coreNav is the nav for the core's own pages.
 var coreNav = []module.NavItem{
 	{Label: "home", Path: "/", Order: 0, Group: module.Primary, Shortcut: "h"},
-	{Label: "todos", Path: "/todos", Order: 10, Group: module.Primary, Shortcut: "t"},
-	{Label: "goals", Path: "/goals", Order: 20, Group: module.Primary, Shortcut: "o"},
-	{Label: "ideas", Path: "/ideas", Order: 30, Group: module.Primary, Shortcut: "i"},
-	{Label: "house", Path: "/house", Order: 40, Group: module.Primary, Shortcut: "u"},
-	{Label: "family", Path: "/family", Order: 50, Group: module.Primary, Shortcut: "f"},
 	{Label: "digest", Path: "/digest", Order: 60, Group: module.More, Shortcut: "d"},
 	{Label: "calendar", Path: "/plan/calendar", Order: 70, Group: module.More, Shortcut: "c"},
 }
@@ -106,11 +106,15 @@ func NewRouterWith(shutdownCtx context.Context, cfg *config.Config, database *sq
 	// is not left waiting on them.
 	context.AfterFunc(shutdownCtx, broker.Close)
 
-	svcs, err := startServices(cfg, database, broker)
+	// One publisher for services and modules, so a write sends one event
+	// however it is reported.
+	publish := broker.DebouncedChanged(publishDebounce)
+	svcs, err := startServices(cfg, database, publish)
 	if err != nil {
 		return nil, err
 	}
-	reg, render, err := buildModules(cfg, svcs, broker, slices.Concat(modules, opts.Modules))
+	commentaryStore := commentary.NewStore(database)
+	reg, render, err := buildModules(cfg, svcs, commentaryStore, publish, slices.Concat(modules, opts.Modules))
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +127,7 @@ func NewRouterWith(shutdownCtx context.Context, cfg *config.Config, database *sq
 	go runHourly(shutdownCtx, func() { svcs.purgeExpired(database) })
 
 	sm := newSessionManager(shutdownCtx, cfg, database)
-	h := svcs.handlers(cfg, database, sm, broker, tmpls.core, tmpls.login, reg)
+	h := svcs.handlers(cfg, database, sm, broker, commentaryStore, tmpls.core, tmpls.login, reg)
 
 	root := chi.NewRouter()
 	root.Use(securityHeaders)
@@ -134,28 +138,33 @@ func NewRouterWith(shutdownCtx context.Context, cfg *config.Config, database *sq
 	// bearer-token API is registered on root, outside it.
 	r := root.With(http.NewCrossOriginProtection().Handler)
 	r.Handle("/static/*", tmpls.assets.Handler())
-	mountBrowserRoutes(r, cfg, database, sm, h, reg)
-	mountAPIRoutes(root, cfg, h, reg)
+	if err := mountBrowserRoutes(r, cfg, database, sm, h, reg); err != nil {
+		return nil, err
+	}
+	if err := mountAPIRoutes(root, cfg, h, reg); err != nil {
+		return nil, err
+	}
 	return root, nil
 }
 
 // buildModules constructs the modules and validates them against the core.
 // The renderer is filled once templates are parsed, which needs the nav.
-func buildModules(cfg *config.Config, svcs appServices, broker *sse.Broker, factories []module.Factory) (*module.Registry, *module.Renderer, error) {
+func buildModules(cfg *config.Config, svcs appServices, commentaryStore *commentary.Store, publish func(string), factories []module.Factory) (*module.Registry, *module.Renderer, error) {
 	render := &module.Renderer{}
 	deps := module.Deps{
-		Location: cfg.Location,
-		Config:   cfg,
-		Services: svcs.registry,
-		Render:   render,
-		DataDir:  filepath.Dir(cfg.FamilyPath),
-		Publish:  broker.DebouncedChanged(publishDebounce),
+		Location:   cfg.Location,
+		Config:     cfg,
+		Services:   svcs.registry,
+		Render:     render,
+		DataDir:    filepath.Dir(cfg.FamilyPath),
+		Commentary: commentaryStore,
+		Publish:    publish,
 	}
 	mods := make([]module.Module, 0, len(factories))
 	for _, f := range factories {
 		mods = append(mods, f(deps))
 	}
-	reg, err := module.NewRegistry(module.Core{Nav: coreNav, Prefixes: []string{"/personal", "/exploration"}}, mods...)
+	reg, err := module.NewRegistry(module.Core{Nav: coreNav}, mods...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("registering modules: %w", err)
 	}
@@ -192,19 +201,18 @@ func prepareUsers(cfg *config.Config, database *sql.DB) error {
 
 // appServices are the long-lived services behind every handler.
 type appServices struct {
-	registry    *services.Registry
-	maintenance *house.Service
+	registry *services.Registry
 }
 
 // startServices builds the services, loads every known user's lists and
-// starts the file watcher.
-func startServices(cfg *config.Config, database *sql.DB, broker *sse.Broker) (appServices, error) {
-	registry := services.NewRegistry(database, cfg.UserDataDir, cfg.FamilyPath, cfg.HouseProjectsPath, cfg.Location)
+// makes each service publish its module's event after its own writes.
+func startServices(cfg *config.Config, database *sql.DB, publish func(moduleID string)) (appServices, error) {
+	registry := services.NewRegistry(database, cfg.UserDataDir, cfg.FamilyPath, cfg.HouseProjectsPath, cfg.MaintenancePath, cfg.Location)
 	if cfg.AuthDisabled {
 		// Local development keeps PERSONAL_PATH and IDEAS_PATH.
 		registry.SetUserPaths(ownerID, cfg.PersonalPath, cfg.IdeasPath)
 	}
-	svcs := appServices{registry: registry, maintenance: house.NewService(cfg.MaintenancePath, cfg.Location)}
+	svcs := appServices{registry: registry}
 
 	users, err := auth.AllUsers(database)
 	if err != nil {
@@ -227,34 +235,13 @@ func startServices(cfg *config.Config, database *sql.DB, broker *sse.Broker) (ap
 		}
 	}
 
-	publish := broker.Debounced(publishDebounce)
 	registry.SetPublisher(publish)
-	svcs.maintenance.OnChange(func() { publish("maintenance") })
 	return svcs, nil
 }
 
-// watch starts the file watcher over the core's files, the owner's files
-// when they live outside USER_DATA_DIR, and every module's watched files.
-// Core lists still send "file-changed" with their category until Phase 7.
+// watch starts the file watcher over every module's watched files.
 func (s appServices) watch(cfg *config.Config, broker *sse.Broker, reg *module.Registry) {
-	shared := func(path, category string, svc resyncer) watcher.Spec {
-		return watcher.Spec{Path: path, Event: "file-changed", Data: category, Reload: func(int64) bool { return resync(category, svc) }}
-	}
-	specs := []watcher.Spec{
-		shared(cfg.FamilyPath, "family", s.registry.Family()),
-		shared(cfg.HouseProjectsPath, "house-projects", s.registry.HouseProjects()),
-		shared(cfg.MaintenancePath, "maintenance", s.maintenance),
-		{UserFile: "personal.md", Event: "file-changed", Data: "personal", Reload: func(uid int64) bool {
-			return resync("personal", s.registry.ForUser(uid).Personal)
-		}},
-		{UserFile: "ideas.md", Event: "file-changed", Data: "ideas", Reload: func(uid int64) bool {
-			return resync("ideas", s.registry.ForUser(uid).Ideas)
-		}},
-	}
-	if cfg.AuthDisabled {
-		owner := s.registry.ForUser(ownerID)
-		specs = append(specs, shared(cfg.PersonalPath, "personal", owner.Personal), shared(cfg.IdeasPath, "ideas", owner.Ideas))
-	}
+	var specs []watcher.Spec
 	for _, m := range reg.Modules() {
 		w, ok := m.(module.Watcher)
 		if !ok {
@@ -278,59 +265,21 @@ func (s appServices) watch(cfg *config.Config, broker *sse.Broker, reg *module.R
 	}
 }
 
-// lists resolves the request user's services.
+// lists resolves the lists the core's planner, digest and tag summary read.
 func (s appServices) lists(r *http.Request) home.Lists {
 	u := s.registry.ForUser(auth.UserID(r.Context()))
 	return home.Lists{
 		Personal:      u.Personal,
 		Family:        s.registry.Family(),
 		HouseProjects: s.registry.HouseProjects(),
-		Maintenance:   s.maintenance,
 		Ideas:         u.Ideas,
 	}
 }
 
-func (s appServices) personalAndFamily(r *http.Request) (*tracker.Service, *tracker.Service) {
-	return s.registry.ForUser(auth.UserID(r.Context())).Personal, s.registry.Family()
-}
-
-func (s appServices) familyAndPersonal(r *http.Request) (*tracker.Service, *tracker.Service) {
-	personal, family := s.personalAndFamily(r)
-	return family, personal
-}
-
-// toTask adds a task converted from an idea to the target list ("personal",
-// "family" or "house") and returns its slug.
-func (s appServices) toTask(ctx context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error) {
-	item := tracker.Item{
-		Title:    title,
-		Type:     tracker.TaskType,
-		Body:     body,
-		Tags:     tags,
-		FromIdea: fromIdeaSlug,
-	}
-	switch target {
-	case "family":
-		return s.registry.Family().AddItem(item)
-	case "house":
-		item.Status = "todo"
-		return s.registry.HouseProjects().AddItem(item)
-	default:
-		return s.registry.ForUser(auth.UserID(ctx)).Personal.AddItem(item)
-	}
-}
-
-func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.SessionManager, broker *sse.Broker, templates map[string]*template.Template, loginTmpl *template.Template, reg *module.Registry) *handlers {
-	commentaryStore := commentary.NewStore(database)
+func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.SessionManager, broker *sse.Broker, commentaryStore *commentary.Store, templates map[string]*template.Template, loginTmpl *template.Template, reg *module.Registry) *handlers {
 	h := &handlers{
-		home:     home.NewHandler(s.lists, templates, cfg.Location),
-		personal: tracker.NewHandlerWithResolver(s.personalAndFamily, templates, "todos", cfg.Location),
-		family:   tracker.NewHandlerWithResolver(s.familyAndPersonal, templates, "family", cfg.Location),
-		house:    house.NewHandler(s.maintenance, s.registry.HouseProjects(), templates, cfg.Location),
-		ideas: ideas.NewHandlerWithResolver(func(r *http.Request) *ideas.Service {
-			return s.registry.ForUser(auth.UserID(r.Context())).Ideas
-		}, s.toTask, templates, cfg.Location),
-		search:     search.NewHandler(slices.Concat(s.searchers(), reg.Searchers())),
+		home:       home.NewHandler(s.lists, templates, cfg.Location),
+		search:     search.NewHandler(reg.Searchers()),
 		upload:     upload.NewHandler(cfg.UploadsDir),
 		account:    account.NewHandler(database, sm, templates),
 		admin:      admin.NewHandler(database, s.registry, cfg.UserDataDir, templates),
@@ -338,28 +287,9 @@ func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.Sess
 		events:     broker,
 		commentary: commentaryStore,
 		uploadsDir: cfg.UploadsDir,
-		todosAPI:   s.personalAndFamily,
 	}
-	h.personal.SetCommentaryStore(commentaryStore)
-	h.family.SetCommentaryStore(commentaryStore)
-	h.ideas.SetCommentaryStore(commentaryStore)
-	h.house.SetCommentaryStore(commentaryStore)
 	h.home.SetWidgets(reg.Widgets)
 	return h
-}
-
-// searchers search the lists that are not modules yet, in the old order.
-func (s appServices) searchers() []module.Searcher {
-	personal := func(uid int64) *tracker.Service { return s.registry.ForUser(uid).Personal }
-	family := func(int64) *tracker.Service { return s.registry.Family() }
-	houseProjects := func(int64) *tracker.Service { return s.registry.HouseProjects() }
-	return []module.Searcher{
-		search.Tracker("todos", "/todos#", personal),
-		search.Tracker("family", "/family#", family),
-		search.Tracker("house", "/house#item-", houseProjects),
-		search.Maintenance(s.maintenance),
-		search.Ideas(func(uid int64) *ideas.Service { return s.registry.ForUser(uid).Ideas }),
-	}
 }
 
 // purgeExpired removes items trashed more than trashRetentionDays ago from
@@ -369,7 +299,7 @@ func (s appServices) purgeExpired(database *sql.DB) {
 	shared := map[string]purger{
 		"family":         s.registry.Family(),
 		"house projects": s.registry.HouseProjects(),
-		"maintenance":    s.maintenance,
+		"maintenance":    s.registry.Maintenance(),
 	}
 	for name, svc := range shared {
 		if err := svc.PurgeExpired(trashRetentionDays); err != nil {
@@ -424,17 +354,4 @@ func runHourly(ctx context.Context, fn func()) {
 			return
 		}
 	}
-}
-
-type resyncer interface{ ResyncIfChanged() (bool, error) }
-
-// resync re-reads a service's file only if it differs from the service's own
-// last write and reports whether it did.
-func resync(name string, svc resyncer) bool {
-	changed, err := svc.ResyncIfChanged()
-	if err != nil {
-		slog.Error("resync failed", "list", name, "error", err)
-		return false
-	}
-	return changed
 }

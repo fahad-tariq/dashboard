@@ -13,7 +13,6 @@ import (
 
 	"github.com/fahad/dashboard/internal/db"
 	"github.com/fahad/dashboard/internal/home"
-	"github.com/fahad/dashboard/internal/house"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/tracker"
 )
@@ -42,7 +41,6 @@ func setupHomeEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.Se
 	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
 	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
 	houseProjectsSvc := tracker.NewService(filepath.Join(dir, "house-projects.md"), "House", time.UTC)
-	maintenanceSvc := house.NewService(filepath.Join(dir, "maintenance.md"), time.UTC)
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
@@ -58,12 +56,12 @@ func setupHomeEnv(t *testing.T) (http.HandlerFunc, *tracker.Service, *tracker.Se
 	))
 	templates := make(map[string]*template.Template)
 	tmpl, _ := template.Must(layout.Clone()).Parse(
-		`{{define "content"}}homepage|Title={{.Title}}|PersonalTaskCount={{.PersonalTaskCount}}|FamilyTaskCount={{.FamilyTaskCount}}|TotalIdeaCount={{.TotalIdeaCount}}{{end}}`,
+		`{{define "content"}}homepage|Title={{.Title}}|Unplanned={{len .UnplannedPersonal}}/{{len .UnplannedFamily}}|Empty={{.Empty}}{{end}}`,
 	)
 	templates["homepage.html"] = tmpl
 
 	handler := http.HandlerFunc(home.NewHandler(func(*http.Request) home.Lists {
-		return home.Lists{Personal: personalSvc, Family: familySvc, HouseProjects: houseProjectsSvc, Maintenance: maintenanceSvc, Ideas: ideasSvc}
+		return home.Lists{Personal: personalSvc, Family: familySvc, HouseProjects: houseProjectsSvc, Ideas: ideasSvc}
 	}, templates, time.UTC).HomePage)
 	return handler, personalSvc, familySvc, ideasSvc
 }
@@ -84,7 +82,9 @@ func TestHomePageRenders(t *testing.T) {
 	}
 }
 
-func TestHomePageShowsTaskCounts(t *testing.T) {
+// The task picker lists open tasks from each list; the summary cards are
+// module widgets (see TestHomepageWidgetsComeFromModules).
+func TestHomePageListsOpenTasks(t *testing.T) {
 	handler, _, _, _ := setupHomeEnv(t)
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -95,71 +95,8 @@ func TestHomePageShowsTaskCounts(t *testing.T) {
 		t.Errorf("expected 200, got %d", rr.Code)
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "PersonalTaskCount=2") {
-		t.Errorf("expected PersonalTaskCount=2, got: %s", body)
-	}
-	if !strings.Contains(body, "FamilyTaskCount=1") {
-		t.Errorf("expected FamilyTaskCount=1, got: %s", body)
-	}
-}
-
-func TestHomePageShowsIdeaCounts(t *testing.T) {
-	dir := t.TempDir()
-	personalPath := filepath.Join(dir, "personal.md")
-	familyPath := filepath.Join(dir, "family.md")
-	ideasPath := filepath.Join(dir, "ideas.md")
-	if err := os.WriteFile(personalPath, []byte("# Personal\n\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(ideasPath, []byte("# Ideas\n\n- [ ] First idea\n- [ ] Second idea\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	database, err := db.Open(filepath.Join(dir, "test.db"))
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	t.Cleanup(func() { database.Close() })
-	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
-	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
-	houseProjectsSvc := tracker.NewService(filepath.Join(dir, "house-projects.md"), "House", time.UTC)
-	maintenanceSvc := house.NewService(filepath.Join(dir, "maintenance.md"), time.UTC)
-	ideasSvc := ideas.NewService(ideasPath, time.UTC)
-
-	funcMap := template.FuncMap{
-		"authEnabled":  func() bool { return false },
-		"buildVersion": func() string { return "test" },
-		"percentage":   func(c, t float64) int { return 0 },
-		"formatNum":    func(f float64) string { return fmt.Sprintf("%g", f) },
-		"subtract":     func(a, b int) int { return a - b },
-		"linkify":      func(text string) template.HTML { return template.HTML(text) },
-	}
-	layout := template.Must(template.New("layout.html").Funcs(funcMap).Parse(
-		`{{define "layout.html"}}{{template "content" .}}{{end}}`,
-	))
-	templates := make(map[string]*template.Template)
-	tmpl, _ := template.Must(layout.Clone()).Parse(
-		`{{define "content"}}homepage|Title={{.Title}}|PersonalTaskCount={{.PersonalTaskCount}}|FamilyTaskCount={{.FamilyTaskCount}}|TotalIdeaCount={{.TotalIdeaCount}}{{end}}`,
-	)
-	templates["homepage.html"] = tmpl
-
-	handler := http.HandlerFunc(home.NewHandler(func(*http.Request) home.Lists {
-		return home.Lists{Personal: personalSvc, Family: familySvc, HouseProjects: houseProjectsSvc, Maintenance: maintenanceSvc, Ideas: ideasSvc}
-	}, templates, time.UTC).HomePage)
-
-	req := httptest.NewRequest("GET", "/", nil)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
-	}
-	body := rr.Body.String()
-	if !strings.Contains(body, "TotalIdeaCount=2") {
-		t.Errorf("expected TotalIdeaCount=2, got: %s", body)
+	if !strings.Contains(body, "Unplanned=2/1|Empty=false") {
+		t.Errorf("expected two personal and one family task to pick, got: %s", body)
 	}
 }
 
@@ -186,7 +123,6 @@ func TestHomePageEmpty(t *testing.T) {
 	personalSvc := tracker.NewService(personalPath, "Personal", time.UTC)
 	familySvc := tracker.NewService(familyPath, "Family", time.UTC)
 	houseProjectsSvc := tracker.NewService(filepath.Join(dir, "house-projects.md"), "House", time.UTC)
-	maintenanceSvc := house.NewService(filepath.Join(dir, "maintenance.md"), time.UTC)
 	ideasSvc := ideas.NewService(ideasPath, time.UTC)
 
 	funcMap := template.FuncMap{
@@ -202,12 +138,12 @@ func TestHomePageEmpty(t *testing.T) {
 	))
 	templates := make(map[string]*template.Template)
 	tmpl, _ := template.Must(layout.Clone()).Parse(
-		`{{define "content"}}homepage|Title={{.Title}}|PersonalTaskCount={{.PersonalTaskCount}}|FamilyTaskCount={{.FamilyTaskCount}}|TotalIdeaCount={{.TotalIdeaCount}}{{end}}`,
+		`{{define "content"}}homepage|Title={{.Title}}|Unplanned={{len .UnplannedPersonal}}/{{len .UnplannedFamily}}|Empty={{.Empty}}{{end}}`,
 	)
 	templates["homepage.html"] = tmpl
 
 	handler := http.HandlerFunc(home.NewHandler(func(*http.Request) home.Lists {
-		return home.Lists{Personal: personalSvc, Family: familySvc, HouseProjects: houseProjectsSvc, Maintenance: maintenanceSvc, Ideas: ideasSvc}
+		return home.Lists{Personal: personalSvc, Family: familySvc, HouseProjects: houseProjectsSvc, Ideas: ideasSvc}
 	}, templates, time.UTC).HomePage)
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -218,14 +154,8 @@ func TestHomePageEmpty(t *testing.T) {
 		t.Errorf("expected 200, got %d", rr.Code)
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "PersonalTaskCount=0") {
-		t.Errorf("expected PersonalTaskCount=0, got: %s", body)
-	}
-	if !strings.Contains(body, "FamilyTaskCount=0") {
-		t.Errorf("expected FamilyTaskCount=0, got: %s", body)
-	}
-	if !strings.Contains(body, "TotalIdeaCount=0") {
-		t.Errorf("expected TotalIdeaCount=0, got: %s", body)
+	if !strings.Contains(body, "Unplanned=0/0|Empty=true") {
+		t.Errorf("expected an empty homepage, got: %s", body)
 	}
 }
 

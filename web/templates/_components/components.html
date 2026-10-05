@@ -37,25 +37,41 @@ None of them use inline event handlers.
 </details>
 {{end}}
 
-{{/* card: ID, Title, Link, Count, Severity, Items ([]{Label, URL}), EmptyText. */}}
+{{/* card: ID, Title, Link, Count, CountLabel, Note, Severity, Items, EmptyText.
+Items are module.WidgetItem values: Label, URL, Priority, Severity, Progress.
+A Count above the rows shown adds a "+N more" link. */}}
 {{define "card"}}
 <section class="homepage-card" aria-labelledby="{{.ID}}-title">
     <div class="homepage-card-header">
         <h2 class="homepage-card-title" id="{{.ID}}-title">{{if .Link}}<a href="{{.Link}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</h2>
-        {{if .Count}}<span><span class="stat-value{{with .Severity}} stat-{{.}}{{end}}">{{.Count}}</span></span>{{end}}
+        {{if or .Count .Note}}<span>
+            {{- if .Count}}<span class="stat-value{{with .Severity}} stat-{{.}}{{end}}">{{.Count}}</span>{{with .CountLabel}} <span class="meta-dim">{{.}}</span>{{end}}{{end -}}
+            {{with .Note}}{{if $.Count}} / {{end}}<span class="meta-dim">{{.}}</span>{{end -}}
+        </span>{{end}}
     </div>
     <div class="homepage-card-body">
         {{range .Items}}
-        <div class="homepage-task">{{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}</div>
+        <div class="homepage-task{{with .Severity}} homepage-task-{{.}}{{end}}{{if .Progress}} homepage-task-progress{{end}}"{{with .Priority}} data-priority="{{.}}"{{end}}>
+            {{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}
+            {{with .Progress}}
+            <div class="homepage-progress">
+                <div class="progress-bar"><div class="progress-fill {{.Class}}" style="width: {{.Percent}}%"></div></div>
+                <span class="progress-text">{{.Label}}</span>
+            </div>
+            {{end}}
+        </div>
         {{else}}
         {{with .EmptyText}}<p class="empty">{{.}}</p>{{end}}
+        {{end}}
+        {{if and .Link (gt .Count (len .Items))}}
+        <a href="{{.Link}}" class="homepage-card-link">+{{subtract .Count (len .Items)}} more</a>
         {{end}}
     </div>
 </section>
 {{end}}
 
 {{/* widget renders a module's module.WidgetData on the homepage. */}}
-{{define "widget"}}{{template "card" (dict "ID" (printf "widget-%s" .ID) "Title" .Title "Link" .Link "Count" .Count "Severity" .Severity "Items" .Items "EmptyText" .EmptyText)}}{{end}}
+{{define "widget"}}{{template "card" (dict "ID" (printf "widget-%s" .ID) "Title" .Title "Link" .Link "Count" .Count "CountLabel" .CountLabel "Note" .Note "Severity" .Severity "Items" .Items "EmptyText" .EmptyText)}}{{end}}
 
 {{/* toast is the layout's single toast region; showToast fills it. */}}
 {{define "toast"}}<div id="toast" class="toast" hidden><span class="toast-text"></span></div>{{end}}

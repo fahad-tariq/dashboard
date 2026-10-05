@@ -3,13 +3,13 @@ import { join } from 'node:path';
 import { test as base, expect, type Locator, type Page } from '@playwright/test';
 
 /**
- * Every page records the time of its last SSE message or htmx settle in
- * window.__e2eLastActivity, so waitForSseSettle can wait for quiet instead of
- * sleeping a fixed time.
+ * Every page, including extra ones a test opens in its context, records the
+ * time of its last SSE message or htmx settle in window.__e2eLastActivity, so
+ * waitForSseSettle can wait for quiet instead of sleeping a fixed time.
  */
 export const test = base.extend({
-  page: async ({ page }, use) => {
-    await page.addInitScript(() => {
+  context: async ({ context }, use) => {
+    await context.addInitScript(() => {
       const w = window as unknown as { __e2eLastActivity: number };
       const touch = (): void => {
         w.__e2eLastActivity = Date.now();
@@ -19,7 +19,7 @@ export const test = base.extend({
       document.addEventListener('htmx:beforeRequest', touch);
       document.addEventListener('htmx:afterSettle', touch);
     });
-    await use(page);
+    await use(context);
   },
 });
 
@@ -54,7 +54,7 @@ export function appendLine(path: string, line: string): void {
 
 /**
  * Every write to a watched markdown file (including the app's own) triggers an
- * SSE `file-changed` event after a 500ms debounce, which outerHTML-swaps the
+ * SSE `changed:<module>` event after a 500ms debounce, which outerHTML-swaps the
  * page container: open <details> close, rows collapse, and a form held by the
  * confirm modal is detached so submitting it does nothing. Wait until the page
  * has been quiet for longer than the debounce plus a round trip. Plan 1 Phase 3

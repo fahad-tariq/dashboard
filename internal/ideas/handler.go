@@ -60,7 +60,7 @@ var flashErrorKeys = map[string]bool{
 type Handler struct {
 	resolve      ServiceResolver
 	toTask       ToTaskFunc
-	templates    map[string]*template.Template
+	pages        httputil.PageLookup
 	loc          *time.Location
 	commentarySt *commentary.Store
 }
@@ -76,19 +76,19 @@ func NewHandler(svc *Service, toTask ToTaskFunc, templates map[string]*template.
 		resolve: func(r *http.Request) *Service {
 			return svc
 		},
-		toTask:    toTask,
-		templates: templates,
-		loc:       loc,
+		toTask: toTask,
+		pages:  httputil.PageMap(templates),
+		loc:    loc,
 	}
 }
 
 // NewHandlerWithResolver creates a handler that resolves the service per-request.
-func NewHandlerWithResolver(resolver ServiceResolver, toTask ToTaskFunc, templates map[string]*template.Template, loc *time.Location) *Handler {
+func NewHandlerWithResolver(resolver ServiceResolver, toTask ToTaskFunc, pages httputil.PageLookup, loc *time.Location) *Handler {
 	return &Handler{
-		resolve:   resolver,
-		toTask:    toTask,
-		templates: templates,
-		loc:       loc,
+		resolve: resolver,
+		toTask:  toTask,
+		pages:   pages,
+		loc:     loc,
 	}
 }
 
@@ -149,7 +149,7 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 		data["Subtitle"] = userName + "'s ideas"
 	}
 
-	if err := h.templates["ideas.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
+	if err := httputil.ExecutePage(w, h.pages, "ideas.html", data); err != nil {
 		httputil.ServerError(w, "rendering ideas", err)
 	}
 }
@@ -180,7 +180,7 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.templates["idea.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
+	if err := httputil.ExecutePage(w, h.pages, "idea.html", data); err != nil {
 		httputil.ServerError(w, "rendering idea detail", err)
 	}
 }

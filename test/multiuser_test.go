@@ -32,7 +32,7 @@ func setupRegistry(t *testing.T) (*services.Registry, string) {
 		t.Fatal(err)
 	}
 
-	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
+	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, filepath.Join(t.TempDir(), "maintenance.md"), time.UTC)
 	return reg, tmpDir
 }
 

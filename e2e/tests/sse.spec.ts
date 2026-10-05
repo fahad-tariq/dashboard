@@ -13,6 +13,7 @@ import {
   waitForSseConnection,
   waitForSseSettle,
 } from './helpers';
+import type { Page } from '@playwright/test';
 
 type MarkedWindow = Window & { __e2eNoReload?: boolean };
 
@@ -32,6 +33,39 @@ test('external edit to personal.md appears on /todos without a reload', async ({
   await expect(trackerItem(page, title)).toBeVisible({ timeout: 10_000 });
   await expect(trackerItem(page, title).locator('.badge-tag')).toHaveText('external');
   expect(await page.evaluate(() => (window as MarkedWindow).__e2eNoReload)).toBe(true);
+});
+
+test('external edit to ideas.md refreshes /ideas and the homepage but not /todos', async ({ context, page }) => {
+  const title = uniqueTitle('Idea from an editor');
+  const open = async (p: Page, path: string): Promise<void> => {
+    const connected = waitForSseConnection(p);
+    await p.goto(path);
+    await connected;
+    await waitForSseSettle(p);
+  };
+  const isRefresh = (url: string, headers: Record<string, string>, path: string): boolean =>
+    new URL(url).pathname === path && headers['hx-request'] === 'true';
+
+  const ideas = page;
+  const home = await context.newPage();
+  const todos = await context.newPage();
+  await open(ideas, '/ideas');
+  await open(home, '/');
+  await open(todos, '/todos');
+
+  let todosRefreshes = 0;
+  todos.on('request', (r) => {
+    if (isRefresh(r.url(), r.headers(), '/todos')) todosRefreshes++;
+  });
+  const homeRefresh = home.waitForResponse((r) => isRefresh(r.url(), r.request().headers(), '/'));
+
+  appendLine(userFile('ideas.md'), `- [ ] ${title} [status: untriaged] [added: 2026-10-01]`);
+
+  await expect(ideas.locator('.ideas-page .tracker-item', { hasText: title })).toBeVisible({ timeout: 10_000 });
+  await homeRefresh;
+  // Give /todos as long again to refresh, which it must not.
+  await todos.waitForTimeout(1500);
+  expect(todosRefreshes).toBe(0);
 });
 
 test('expanded tracker item suppresses the SSE refresh', async ({ page }) => {

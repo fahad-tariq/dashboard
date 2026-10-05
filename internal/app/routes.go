@@ -3,9 +3,11 @@ package app
 import (
 	"crypto/subtle"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strings"
 
 	"github.com/alexedwards/scs/v2"
@@ -17,23 +19,16 @@ import (
 	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/home"
-	"github.com/fahad/dashboard/internal/house"
 	"github.com/fahad/dashboard/internal/httputil"
-	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/module"
 	"github.com/fahad/dashboard/internal/search"
 	"github.com/fahad/dashboard/internal/sse"
-	"github.com/fahad/dashboard/internal/tracker"
 	"github.com/fahad/dashboard/internal/upload"
 )
 
-// handlers holds everything the routes call.
+// handlers holds everything the core routes call.
 type handlers struct {
 	home       *home.Handler
-	personal   *tracker.Handler
-	family     *tracker.Handler
-	house      *house.Handler
-	ideas      *ideas.Handler
 	search     *search.Handler
 	upload     *upload.Handler
 	account    *account.Handler
@@ -42,14 +37,12 @@ type handlers struct {
 	events     *sse.Broker
 	commentary *commentary.Store
 	uploadsDir string
-	// todosAPI resolves (personal, family) for the bearer-token API.
-	todosAPI tracker.ServiceResolver
 }
 
 // mountBrowserRoutes registers the session-authenticated routes. With auth
 // disabled, every request is served as the owner instead of being sent to
 // /login, and the routes are otherwise identical.
-func mountBrowserRoutes(r chi.Router, cfg *config.Config, database *sql.DB, sm *scs.SessionManager, h *handlers, reg *module.Registry) {
+func mountBrowserRoutes(r chi.Router, cfg *config.Config, database *sql.DB, sm *scs.SessionManager, h *handlers, reg *module.Registry) error {
 	requireUser, requireUserAPI := auth.RequireAuth(sm), auth.RequireAuthAPI(sm)
 	if cfg.AuthDisabled {
 		requireUser = auth.InjectUser(database, ownerID)
@@ -77,6 +70,7 @@ func mountBrowserRoutes(r chi.Router, cfg *config.Config, database *sql.DB, sm *
 		r.Post("/admin/users/{id}/delete", h.admin.DeleteUser)
 	})
 
+	var err error
 	r.Group(func(r chi.Router) {
 		r.Use(sm.LoadAndSave)
 		r.Use(requireUser)
@@ -90,8 +84,28 @@ func mountBrowserRoutes(r chi.Router, cfg *config.Config, database *sql.DB, sm *
 		mountAppRoutes(r, h)
 		r.Get("/commentary/{list}/{slug}", commentary.WebGetCommentary(h.commentary))
 		for _, m := range reg.Modules() {
-			r.Group(m.Routes)
+			man := m.Manifest()
+			if err = mountModule(r, man.ID, man.Prefixes, m.Routes); err != nil {
+				return
+			}
 		}
+	})
+	return err
+}
+
+// mountModule registers the routes register adds on r, after checking that
+// each sits under one of prefixes. chi cannot list a group's routes, and lets
+// a later route silently replace an earlier one, so the routes are collected
+// on a scratch router and copied across with their middleware.
+func mountModule(r chi.Router, id string, prefixes []string, register func(chi.Router)) error {
+	scratch := chi.NewRouter()
+	register(scratch)
+	return chi.Walk(scratch, func(method, route string, handler http.Handler, mws ...func(http.Handler) http.Handler) error {
+		if !slices.ContainsFunc(prefixes, func(p string) bool { return route == p || strings.HasPrefix(route, p+"/") }) {
+			return fmt.Errorf("module %s: route %s %s is not under %v", id, method, route, prefixes)
+		}
+		r.With(mws...).Method(method, route, handler)
+		return nil
 	})
 }
 
@@ -111,97 +125,23 @@ func mountAppRoutes(r chi.Router, h *handlers) {
 	r.Post("/plan/bulk/set", h.home.BulkSetPlanned)
 	r.Post("/plan/bulk/clear-carried", h.home.ClearCarriedOver)
 	r.Post("/plan/reorder", h.home.ReorderPlanned)
-	r.Get("/todos", h.personal.TrackerPage)
-	r.Get("/personal", http.RedirectHandler("/todos", http.StatusMovedPermanently).ServeHTTP)
-	r.Get("/family", h.family.TrackerPage)
-	r.Get("/goals", h.personal.GoalsPage)
-
-	mountTrackerRoutes(r, h.personal, h.family)
-
-	// House page (combined maintenance + projects).
-	r.Get("/house", h.house.HousePage)
-	r.Post("/house/maintenance/add", h.house.AddMaintenance)
-	r.Post("/house/maintenance/{slug}/log", h.house.LogDone)
-	r.Post("/house/maintenance/{slug}/edit", h.house.EditMaintenance)
-	r.Post("/house/maintenance/{slug}/delete", h.house.DeleteMaintenance)
-	r.Post("/house/maintenance/{slug}/restore", h.house.RestoreMaintenance)
-	r.Post("/house/maintenance/{slug}/purge", h.house.PurgeMaintenance)
-	r.Post("/house/projects/add", h.house.AddProject)
-	r.Post("/house/projects/{slug}/edit", h.house.EditProject)
-	r.Post("/house/projects/{slug}/complete", h.house.CompleteProject)
-	r.Post("/house/projects/{slug}/uncomplete", h.house.UncompleteProject)
-	r.Post("/house/projects/{slug}/status", h.house.UpdateStatus)
-	r.Post("/house/projects/{slug}/delete", h.house.DeleteProject)
-	r.Post("/house/projects/{slug}/restore", h.house.RestoreProject)
-	r.Post("/house/projects/{slug}/purge", h.house.PurgeProject)
-
-	r.Get("/ideas", h.ideas.IdeasPage)
-	r.Get("/ideas/{slug}", h.ideas.IdeaDetail)
-	r.Post("/ideas/add", h.ideas.QuickAdd)
-	r.Post("/ideas/{slug}/triage", h.ideas.TriageAction)
-	r.Post("/ideas/{slug}/to-task", h.ideas.ToTask)
-	r.Post("/ideas/{slug}/edit", h.ideas.Edit)
-	r.Post("/ideas/{slug}/delete", h.ideas.DeleteIdea)
-	r.Post("/ideas/{slug}/restore", h.ideas.RestoreIdea)
-	r.Post("/ideas/{slug}/purge", h.ideas.PermanentDeleteIdea)
-	r.Post("/ideas/bulk/delete", h.ideas.BulkDeleteIdeas)
-	r.Post("/ideas/bulk/triage", h.ideas.BulkTriageIdeas)
-
-	r.Get("/exploration", http.RedirectHandler("/ideas", http.StatusMovedPermanently).ServeHTTP)
-	r.Get("/exploration/{slug}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/ideas/"+chi.URLParam(r, "slug"), http.StatusMovedPermanently) //nolint:gosec // G710: chi params cannot contain "/", so the target stays under /ideas/
-	})
-}
-
-func mountTrackerRoutes(r chi.Router, personalHandler, familyHandler *tracker.Handler) {
-	for prefix, h := range map[string]*tracker.Handler{
-		"/todos":  personalHandler,
-		"/family": familyHandler,
-	} {
-		r.Post(prefix+"/add", h.QuickAdd)
-		r.Post(prefix+"/{slug}/complete", h.Complete)
-		r.Post(prefix+"/{slug}/uncomplete", h.Uncomplete)
-		r.Post(prefix+"/{slug}/progress", h.UpdateProgress)
-		r.Post(prefix+"/{slug}/notes", h.UpdateNotes)
-		r.Post(prefix+"/{slug}/delete", h.Delete)
-		r.Post(prefix+"/{slug}/priority", h.UpdatePriority)
-		r.Post(prefix+"/{slug}/tags", h.UpdateTags)
-		r.Post(prefix+"/{slug}/edit", h.UpdateEdit)
-		r.Post(prefix+"/{slug}/move", h.MoveToList)
-		r.Post(prefix+"/{slug}/restore", h.Restore)
-		r.Post(prefix+"/{slug}/purge", h.Purge)
-		r.Post(prefix+"/bulk/complete", h.BulkComplete)
-		r.Post(prefix+"/bulk/delete", h.BulkDelete)
-		r.Post(prefix+"/bulk/priority", h.BulkPriority)
-		r.Post(prefix+"/bulk/tag", h.BulkAddTag)
-		r.Post(prefix+"/{slug}/plan", h.PlanForToday)
-		r.Post(prefix+"/{slug}/substep/add", h.AddSubStep)
-		r.Post(prefix+"/{slug}/substep/toggle", h.ToggleSubStep)
-		r.Post(prefix+"/{slug}/substep/remove", h.RemoveSubStep)
-		r.Post(prefix+"/{slug}/substep/promote", h.PromoteSubStep)
-		r.Post(prefix+"/bulk/plan", h.BulkPlanForToday)
-	}
-	r.Post("/todos/add-goal", personalHandler.AddGoal)
 }
 
 // mountAPIRoutes registers the bearer-token API, which acts as the owner
 // through the same handlers and resolvers as the browser routes. Without a
 // long enough DASHBOARD_API_TOKEN it is not mounted at all.
-func mountAPIRoutes(root chi.Router, cfg *config.Config, h *handlers, reg *module.Registry) {
+func mountAPIRoutes(root chi.Router, cfg *config.Config, h *handlers, reg *module.Registry) error {
 	if len(cfg.APIToken) < minAPITokenLength {
 		slog.Error("API not mounted: DASHBOARD_API_TOKEN must be set and at least 32 characters")
-		return
+		return nil
 	}
+	var err error
 	apiRateLimiter := httputil.NewRateLimiter(60, 60)
 	failedBearer := auth.NewRateLimiterWithLimit(failedBearerLimit, 4096)
 	root.Route("/api/v1", func(r chi.Router) {
 		r.Use(bearerAuth(cfg.APIToken, failedBearer, cfg.TrustedProxies))
 		r.Use(httputil.RateLimitMiddleware(apiRateLimiter))
 
-		r.Get("/ideas", h.ideas.APIListIdeas)
-		r.Post("/ideas", h.ideas.APIAddIdea)
-		r.Put("/ideas/{slug}/triage", h.ideas.APITriageIdea)
-		r.Post("/ideas/{slug}/research", h.ideas.APIAddResearch)
 		r.Get("/plan", h.home.APIListPlan)
 		r.Put("/plan/{slug}", h.home.APISetPlan)
 		r.Delete("/plan/{slug}", h.home.APIClearPlan)
@@ -210,24 +150,20 @@ func mountAPIRoutes(root chi.Router, cfg *config.Config, h *handlers, reg *modul
 		r.Put("/commentary/{list}/{slug}", commentary.APISetCommentary(h.commentary))
 		r.Get("/commentary/{list}/{slug}", commentary.APIGetCommentary(h.commentary))
 		r.Delete("/commentary/{list}/{slug}", commentary.APIDeleteCommentary(h.commentary))
-		r.Get("/todos", tracker.APIListTodos(h.todosAPI))
-		r.Post("/todos", tracker.APIAddTodo(h.todosAPI))
-		r.Get("/todos/{slug}", tracker.APIGetTodo(h.todosAPI))
-		r.Put("/todos/{slug}", tracker.APIUpdateTodo(h.todosAPI))
-		r.Post("/todos/{slug}/complete", tracker.APICompleteTodo(h.todosAPI))
-		r.Post("/todos/{slug}/uncomplete", tracker.APIUncompleteTodo(h.todosAPI))
-		r.Delete("/todos/{slug}", tracker.APIDeleteTodo(h.todosAPI))
-		r.Put("/todos/{slug}/priority", tracker.APIUpdatePriority(h.todosAPI))
-		r.Put("/todos/{slug}/tags", tracker.APIUpdateTags(h.todosAPI))
-		r.Post("/todos/{slug}/substeps", tracker.APIAddSubStep(h.todosAPI))
-		r.Put("/todos/{slug}/substeps/{index}", tracker.APIToggleSubStep(h.todosAPI))
-		r.Delete("/todos/{slug}/substeps/{index}", tracker.APIRemoveSubStep(h.todosAPI))
+		// Module API routes sit under /api/v1/<module-id>, so none can
+		// shadow a core API route.
 		for _, m := range reg.Modules() {
-			if a, ok := m.(module.APIRouter); ok {
-				r.Route("/"+m.Manifest().ID, a.APIRoutes)
+			a, ok := m.(module.APIRouter)
+			if !ok {
+				continue
+			}
+			id := m.Manifest().ID
+			if err = mountModule(r, id, []string{"/" + id}, a.APIRoutes); err != nil {
+				return
 			}
 		}
 	})
+	return err
 }
 
 func noDirectoryListing(root http.FileSystem) http.Handler {

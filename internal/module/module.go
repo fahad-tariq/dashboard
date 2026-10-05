@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/services"
 )
@@ -33,13 +34,17 @@ type NavItem struct {
 
 // Manifest describes a module to the core.
 type Manifest struct {
-	// ID names the module: its template directory (web/templates/<ID>/),
-	// its SSE event (changed:<ID>) and its home widget.
+	// ID names the module: its SSE event (changed:<ID>), its home widgets and,
+	// unless Templates is set, its template directory.
 	ID    string
 	Title string
 	Nav   []NavItem
 	// Prefixes are the route prefixes the module's Routes register under.
+	// Routes outside them fail start-up.
 	Prefixes []string
+	// Templates is the directory under web/templates/ holding the module's
+	// pages; empty means ID. Modules built on the same library may share one.
+	Templates string
 	// Flash maps ?msg= keys to messages; keys in FlashErrors render as errors.
 	Flash       map[string]string
 	FlashErrors []string
@@ -53,8 +58,9 @@ type Module interface {
 	Routes(r chi.Router)
 }
 
-// APIRouter adds routes to the bearer-token API. They are mounted under
-// /api/v1/<module-id>, so they cannot shadow core API routes.
+// APIRouter adds routes to the bearer-token API, written relative to
+// /api/v1. Every route must sit under /<module-id>, so none can shadow a core
+// API route; anything else fails start-up.
 type APIRouter interface {
 	APIRoutes(r chi.Router)
 }
@@ -98,6 +104,19 @@ func (f SearchFunc) Search(ctx context.Context, userID int64, q string) []Search
 type WidgetItem struct {
 	Label string
 	URL   string
+	// Priority ("high", "medium" or "low") colours the row's edge.
+	Priority string
+	// Severity colours the row's link.
+	Severity Severity
+	// Progress, if set, draws a bar under the label.
+	Progress *WidgetProgress
+}
+
+// WidgetProgress is a progress bar in a widget row.
+type WidgetProgress struct {
+	Percent int    // 0 to 100
+	Label   string // e.g. "20/100 km"
+	Class   string // a progress-fill-* colour class
 }
 
 // Severity styles a home widget's count.
@@ -112,18 +131,25 @@ const (
 // WidgetData is what a module shows on the homepage. It is data, not HTML;
 // one core partial renders every widget.
 type WidgetData struct {
-	ID        string // set by the registry from the module ID
-	Title     string
-	Count     int
-	Items     []WidgetItem // at most 5 are shown
+	// ID tells a module's widgets apart. The registry prefixes it with the
+	// module ID, so a module's only widget can leave it empty.
+	ID         string
+	Title      string
+	Count      int
+	CountLabel string // follows the count, e.g. "open"
+	Note       string // follows the count, dimmed, e.g. "12 total"
+	// Items lists at most 5 rows; a Count above the rows shown adds a
+	// "+N more" link.
+	Items     []WidgetItem
 	Link      string
 	EmptyText string
 	Severity  Severity
 }
 
-// HomeWidget contributes a card below the plan section. ok=false hides it.
+// HomeWidget contributes cards below the plan section, in order. An empty
+// result shows nothing.
 type HomeWidget interface {
-	Widget(ctx context.Context, userID int64, now time.Time) (data WidgetData, ok bool)
+	Widgets(ctx context.Context, userID int64, now time.Time) []WidgetData
 }
 
 // Deps is everything the core hands a module. Modules keep no globals.
@@ -134,6 +160,8 @@ type Deps struct {
 	Render   *Renderer
 	// DataDir holds shared data files (the directory of FAMILY_PATH).
 	DataDir string
+	// Commentary holds AI commentary for list items.
+	Commentary *commentary.Store
 	// Publish tells open pages that the module's data changed. Call it after
 	// every write; it sends changed:<id> once the writes settle.
 	Publish func(moduleID string)

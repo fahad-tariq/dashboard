@@ -116,7 +116,7 @@ func TestHomepageWidgetsComeFromModules(t *testing.T) {
 	env := newAppEnv(t)
 	userDir := filepath.Join(env.cfg.UserDataDir, "1")
 	files := map[string]string{
-		filepath.Join(userDir, "personal.md"): "# Personal\n\n- [ ] Water plants [priority: high]\n- [ ] Run 100km [goal: 20/100 km]\n",
+		filepath.Join(userDir, "personal.md"): "# Personal\n\n- [ ] Water plants !high\n- [ ] Run 100km [goal: 20/100 km]\n",
 		filepath.Join(userDir, "ideas.md"):    "# Ideas\n\n- [ ] Solar oven [status: untriaged]\n",
 		env.cfg.FamilyPath:                    "# Family\n\n- [ ] Book holiday\n",
 		env.cfg.MaintenancePath:               "# Maintenance\n\n- [ ] Clean gutters [cadence: 3m]\n  - [x] 2020-01-01\n",

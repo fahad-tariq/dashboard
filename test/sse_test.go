@@ -95,18 +95,18 @@ func TestSSESlowClientDropsMessage(t *testing.T) {
 
 // Service writes publish through a debounce so the tab that made a change
 // finishes its own request before the refresh arrives, as the watcher's
-// debounce used to ensure; a burst of writes becomes one event per category.
+// debounce used to ensure; a burst of writes becomes one event per module.
 func TestSSEDebouncedPublisherCoalesces(t *testing.T) {
 	b := sse.NewBroker()
 	ch := make(chan string, 16)
 	b.Subscribe(ch)
 	defer b.Unsubscribe(ch)
 
-	publish := b.Debounced(80 * time.Millisecond)
-	publish("personal")
-	publish("personal")
+	publish := b.DebouncedChanged(80 * time.Millisecond)
+	publish("todos")
+	publish("todos")
 	publish("family")
-	publish("personal")
+	publish("todos")
 
 	select {
 	case msg := <-ch:
@@ -129,7 +129,7 @@ func TestSSEDebouncedPublisherCoalesces(t *testing.T) {
 		t.Fatalf("extra event %q", msg)
 	default:
 	}
-	if got["event: file-changed\ndata: personal\n\n"] != 1 || got["event: file-changed\ndata: family\n\n"] != 1 {
-		t.Errorf("events = %v, want one per category", got)
+	if got["event: changed:todos\ndata: todos\n\n"] != 1 || got["event: changed:family\ndata: family\n\n"] != 1 {
+		t.Errorf("events = %v, want one per module", got)
 	}
 }

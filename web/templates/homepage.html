@@ -2,15 +2,14 @@
 <div class="homepage-page"
      hx-ext="sse" sse-connect="/events"
      hx-get="/" hx-select=".homepage-page" hx-target="this" hx-swap="outerHTML"
-     hx-trigger="sse:file-changed">
+     hx-trigger="{{homeTrigger}}">
 <span class="htmx-indicator meta-dim" aria-hidden="true">updating&hellip;</span>
 
 <h1 class="homepage-greeting">{{or .Greeting "Today"}}</h1>
 {{if .DateLabel}}<p class="plan-date-label">{{.DateLabel}} &middot; <a href="/plan/calendar" class="meta-dim">calendar</a></p>{{end}}
 
-{{if and (eq .PersonalTaskCount 0) (eq .FamilyTaskCount 0) (not .Goals) (eq .TotalIdeaCount 0)}}
+{{if .Empty}}
 <p class="empty">Nothing here yet. Add a task or capture an idea to get started.</p>
-{{template "home-widgets" .}}
 {{else}}
 
 {{if or .InsightLine.ThisWeek .InsightLine.LastWeek .StreakDays .MilestoneBadge}}
@@ -133,108 +132,14 @@
     {{end}}
 </section>
 
-{{template "home-widgets" .}}
-
-<div class="homepage-grid">
-
-{{if or .PersonalTasks (gt .PersonalTaskCount 0)}}
-<section class="homepage-card homepage-col-left">
-    <div class="homepage-card-header">
-        <h2 class="homepage-card-title"><a href="/todos">Todos</a></h2>
-        <span><span class="stat-value">{{.PersonalTaskCount}}</span> <span class="meta-dim">open</span></span>
-    </div>
-    <div class="homepage-card-body">
-        {{range .PersonalTasks}}
-        <div class="homepage-task" data-priority="{{.Priority}}">
-            <a href="/todos#{{.Slug}}">{{.Title}}</a>
-        </div>
-        {{end}}
-        {{if gt .PersonalTaskCount (len .PersonalTasks)}}
-        <a href="/todos" class="homepage-card-link">+{{subtract .PersonalTaskCount (len .PersonalTasks)}} more</a>
-        {{end}}
-    </div>
-</section>
-{{end}}
-
-{{if or .FamilyTasks (gt .FamilyTaskCount 0)}}
-<section class="homepage-card homepage-col-left">
-    <div class="homepage-card-header">
-        <h2 class="homepage-card-title"><a href="/family">Family Tasks</a></h2>
-        <span><span class="stat-value">{{.FamilyTaskCount}}</span> <span class="meta-dim">open</span></span>
-    </div>
-    <div class="homepage-card-body">
-        {{range .FamilyTasks}}
-        <div class="homepage-task" data-priority="{{.Priority}}">
-            <a href="/family#{{.Slug}}">{{.Title}}</a>
-        </div>
-        {{end}}
-        {{if gt .FamilyTaskCount (len .FamilyTasks)}}
-        <a href="/family" class="homepage-card-link">+{{subtract .FamilyTaskCount (len .FamilyTasks)}} more</a>
-        {{end}}
-    </div>
-</section>
-{{end}}
-
-{{if .OverdueMaintenance}}
-<section class="homepage-card homepage-col-left">
-    <div class="homepage-card-header">
-        <h2 class="homepage-card-title"><a href="/house">House Maintenance</a></h2>
-        <span><span class="stat-value">{{.OverdueMaintenanceCount}}</span> <span class="meta-dim">overdue</span></span>
-    </div>
-    <div class="homepage-card-body">
-        {{range .OverdueMaintenance}}
-        <div class="homepage-task homepage-task-overdue">
-            <a href="/house#maint-{{.Slug}}">{{.Title}}</a>
-        </div>
-        {{end}}
-    </div>
-</section>
-{{end}}
-
-{{if .Goals}}
-<section class="homepage-card homepage-col-right">
-    <div class="homepage-card-header">
-        <h2 class="homepage-card-title"><a href="/goals">Goals</a></h2>
-        <span><span class="stat-value">{{len .Goals}}</span> <span class="meta-dim">active</span></span>
-    </div>
-    <div class="homepage-card-body">
-        {{range .Goals}}
-        <div class="homepage-goal">
-            <span class="homepage-goal-title">{{.Title}}</span>
-            {{if gt .Target 0.0}}
-            <div class="homepage-progress">
-                <div class="progress-bar">
-                    <div class="progress-fill {{progressColour .Current .Target .Added .Deadline}}" style="width: {{percentage .Current .Target}}%"></div>
-                </div>
-                <span class="progress-text">{{formatNum .Current}}/{{formatNum .Target}}{{if .Unit}} {{.Unit}}{{end}}</span>
-            </div>
-            {{end}}
-        </div>
-        {{end}}
-    </div>
-</section>
-{{end}}
-
-{{if gt .TotalIdeaCount 0}}
-<section class="homepage-card homepage-col-right">
-    <div class="homepage-card-header">
-        <h2 class="homepage-card-title"><a href="/ideas">Ideas</a></h2>
-        <span>{{if gt .UntriagedCount 0}}<span class="stat-value">{{.UntriagedCount}}</span> <span class="meta-dim">untriaged</span> / {{end}}<span class="stat-value">{{.TotalIdeaCount}}</span> <span class="meta-dim">total</span></span>
-    </div>
-    <div class="homepage-card-body">
-        {{range .UntriagedIdeas}}
-        <div class="homepage-idea">
-            <a href="/ideas/{{.Slug}}">{{.Title}}</a>
-        </div>
-        {{end}}
-    </div>
-</section>
-{{end}}
-
+{{/* Module widgets in registry order, then the core's tag summary. */}}
+{{if or .Widgets .TagSummaries}}
+<div class="homepage-widgets">
+{{range .Widgets}}{{template "widget" .}}{{end}}
 {{if .TagSummaries}}
-<section class="homepage-card homepage-col-left tag-summary-card">
+<section class="homepage-card tag-summary-card" aria-labelledby="tag-summary-title">
     <div class="homepage-card-header">
-        <h2 class="homepage-card-title">Tags</h2>
+        <h2 class="homepage-card-title" id="tag-summary-title">Tags</h2>
     </div>
     <div class="homepage-card-body">
         {{range .TagSummaries}}
@@ -250,8 +155,8 @@
     </div>
 </section>
 {{end}}
-
 </div>
+{{end}}
 {{end}}
 </div>
 <script src="{{static "planner.js"}}"></script>
@@ -289,10 +194,3 @@
     </div>
 </div>
 {{end}}
-
-{{/* Module widgets, in registry order. */}}
-{{define "home-widgets"}}{{if .Widgets}}
-<div class="homepage-widgets">
-{{range .Widgets}}{{template "widget" .}}{{end}}
-</div>
-{{end}}{{end}}

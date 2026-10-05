@@ -88,8 +88,8 @@ var trackerExpandedItems = {};
 // itemHeaderClick toggles a row when its header is clicked. The row's
 // .item-toggle button is the keyboard and screen reader control; clicks on
 // other controls in the header (badges, checkbox, forms, links) are theirs.
-function itemHeaderClick(e) {
-    var header = e.currentTarget;
+function itemHeaderClick(e, header) {
+    header = header || e.currentTarget;
     var toggle = header.querySelector('.item-toggle');
     if (!toggle) return;
     if (e.target.closest('.item-toggle') || !e.target.closest('a, button, input, select, textarea, label, form')) {
@@ -326,6 +326,81 @@ function confirmBulkDelete(form) {
     return confirmAction(form, 'Delete ' + slugs.length + ' items? This cannot be undone.');
 }
 
+// --- Delegated event dispatch ---
+// Templates carry no inline handlers (the CSP is meant to drop
+// 'unsafe-inline' for scripts). Listeners live on document so they survive
+// SSE outerHTML swaps.
+//
+//   data-action="name"   click handler from clickActions, called with
+//                        (element, event); page scripts may add to it.
+//   data-stop-click      clicks inside do not reach data-action ancestors
+//                        (stands in for the old inline stopPropagation, e.g.
+//                        controls inside a row that toggles on click).
+//   data-confirm="msg"   form submit asks via the confirm modal first.
+//   data-submit="name"   form submit handler from submitActions; returning
+//                        false cancels the native submit.
+//   data-autosubmit      a select that submits its form on change.
+// Page scripts inside the content (house.js) run before this file, so the
+// table may already hold their actions.
+var clickActions = window.clickActions || {};
+clickActions['item-header'] = function(el, evt) { itemHeaderClick(evt, el); };
+clickActions['filter'] = function(el) {
+    trackerFilter(el.getAttribute('data-filter-type') || '', el.getAttribute('data-filter-value') || '');
+};
+clickActions['toggle-all-items'] = function() { trackerToggleAll(); };
+clickActions['toggle-select-mode'] = function() { toggleSelectMode(); };
+clickActions['select-all'] = function() { selectAllVisible(); };
+clickActions['deselect-all'] = function() { deselectAll(); };
+clickActions['bulk-checkbox'] = function() { bulkCheckboxChanged(); };
+clickActions['bulk-submit'] = function(el) { return submitBulkAction(el.getAttribute('data-bulk-form')); };
+
+var submitActions = {
+    'celebrate': function(form) { return celebrateComplete(form); },
+    'triage': function(form) { return triageAnimate(form); },
+    'bulk-delete': function(form) { return confirmBulkDelete(form); },
+    'clear-filter': function() { clearTrackerFilter(); return true; }
+};
+
+// findClickAction returns the nearest data-action element at or above
+// target, or null when a data-stop-click element comes first.
+function findClickAction(target) {
+    var el = target;
+    while (el && el.nodeType === 1) {
+        if (el.hasAttribute('data-action')) return el;
+        if (el.hasAttribute('data-stop-click')) return null;
+        el = el.parentNode;
+    }
+    return null;
+}
+
+document.addEventListener('click', function(evt) {
+    var el = findClickAction(evt.target);
+    if (!el) return;
+    var handler = clickActions[el.getAttribute('data-action')];
+    if (handler && handler(el, evt) === false) evt.preventDefault();
+});
+
+// Form submissions from the confirm modal use form.submit(), which fires no
+// submit event, so a confirmed form is not intercepted a second time.
+document.addEventListener('submit', function(evt) {
+    var form = evt.target;
+    if (!form || !form.getAttribute) return;
+    var message = form.getAttribute('data-confirm');
+    if (message !== null && !confirmAction(form, message)) {
+        evt.preventDefault();
+        return;
+    }
+    var handler = submitActions[form.getAttribute('data-submit')];
+    if (handler && handler(form, evt) === false) evt.preventDefault();
+});
+
+document.addEventListener('change', function(evt) {
+    var el = evt.target;
+    if (el && el.hasAttribute && el.hasAttribute('data-autosubmit') && el.form) {
+        el.form.submit();
+    }
+});
+
 // Re-apply filter, badge, and select state after HTMX SSE swap.
 document.addEventListener('htmx:afterSwap', function() {
     if (activeFilterType) {
@@ -434,11 +509,14 @@ document.addEventListener('htmx:beforeSwap', function(evt) {
     };
     evt.detail.shouldSwap = false;
 
-    // After the animation delay, re-trigger the SSE refresh.
+    // After the animation delay, re-trigger the SSE refresh with the first
+    // event the element listens for (e.g. sse:changed:todos).
     setTimeout(function() {
         pendingSwap = null;
-        if (typeof htmx !== 'undefined' && elt) {
-            htmx.trigger(elt, 'sse:file-changed');
+        var trigger = elt && elt.getAttribute && elt.getAttribute('hx-trigger');
+        var match = trigger && trigger.match(/sse:[^\s,]+/);
+        if (typeof htmx !== 'undefined' && match) {
+            htmx.trigger(elt, match[0]);
         }
     }, 400);
 });

@@ -28,7 +28,7 @@ func TestEnsureUserDirsCreatesStructure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
+	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, filepath.Join(t.TempDir(), "maintenance.md"), time.UTC)
 
 	if err := reg.EnsureUserDirs(1); err != nil {
 		t.Fatalf("EnsureUserDirs: %v", err)
@@ -66,7 +66,7 @@ func TestEnsureUserDirsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
+	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, filepath.Join(t.TempDir(), "maintenance.md"), time.UTC)
 
 	// Write some content to personal.md.
 	if err := reg.EnsureUserDirs(1); err != nil {
@@ -105,7 +105,7 @@ func TestForUserReturnsCachedInstances(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
+	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, filepath.Join(t.TempDir(), "maintenance.md"), time.UTC)
 	if err := reg.EnsureUserDirs(1); err != nil {
 		t.Fatal(err)
 	}

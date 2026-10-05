@@ -369,7 +369,7 @@ func TestForUserCreatesDirectoriesLazily(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
+	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, filepath.Join(t.TempDir(), "maintenance.md"), time.UTC)
 
 	// ForUser should NOT panic -- it should lazily create directories.
 	svc := reg.ForUser(1)
@@ -407,7 +407,7 @@ func TestEvictUserRemovesFromCache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, time.UTC)
+	reg := services.NewRegistry(database, userDataDir, familyPath, houseProjectsPath, filepath.Join(t.TempDir(), "maintenance.md"), time.UTC)
 
 	svc1 := reg.ForUser(1)
 	reg.EvictUser(1)

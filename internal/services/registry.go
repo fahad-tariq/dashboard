@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fahad/dashboard/internal/atomicfile"
+	"github.com/fahad/dashboard/internal/house"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/tracker"
 )
@@ -20,7 +21,8 @@ type UserServices struct {
 	Ideas    *ideas.Service
 }
 
-// Registry manages per-user service instances and the shared family/house services.
+// Registry manages per-user service instances and the shared family and
+// house services.
 type Registry struct {
 	db               *sql.DB
 	userDataDir      string
@@ -28,15 +30,34 @@ type Registry struct {
 	loc              *time.Location
 	familySvc        *tracker.Service
 	houseProjectsSvc *tracker.Service
+	maintenanceSvc   *house.Service
 
 	mu        sync.RWMutex
 	cache     map[int64]*UserServices
-	publish   func(category string)
+	publish   func(moduleID string)
 	overrides map[int64]userPaths
 }
 
 // userPaths are the files behind one user's services.
 type userPaths struct{ personal, ideas string }
+
+// Override is a user whose files live outside USER_DATA_DIR.
+type Override struct {
+	UserID   int64
+	Personal string
+	Ideas    string
+}
+
+// Overrides lists the users set with SetUserPaths.
+func (r *Registry) Overrides() []Override {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]Override, 0, len(r.overrides))
+	for id, p := range r.overrides {
+		out = append(out, Override{UserID: id, Personal: p.personal, Ideas: p.ideas})
+	}
+	return out
+}
 
 // SetUserPaths makes userID's services use the given files instead of
 // USER_DATA_DIR/{id}/. No-auth mode uses it to keep PERSONAL_PATH and
@@ -60,13 +81,14 @@ func (r *Registry) pathsFor(userID int64) userPaths {
 }
 
 // SetPublisher makes every service, shared and per-user, call publish with
-// its watcher category after each of its own writes.
-func (r *Registry) SetPublisher(publish func(category string)) {
+// the ID of the module that shows it after each of its own writes.
+func (r *Registry) SetPublisher(publish func(moduleID string)) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.publish = publish
 	r.familySvc.OnChange(func() { publish("family") })
-	r.houseProjectsSvc.OnChange(func() { publish("house-projects") })
+	r.houseProjectsSvc.OnChange(func() { publish("house") })
+	r.maintenanceSvc.OnChange(func() { publish("house") })
 	for _, svc := range r.cache {
 		r.wireUser(svc)
 	}
@@ -78,22 +100,20 @@ func (r *Registry) wireUser(svc *UserServices) {
 		return
 	}
 	publish := r.publish
-	svc.Personal.OnChange(func() { publish("personal") })
+	svc.Personal.OnChange(func() { publish("todos") })
 	svc.Ideas.OnChange(func() { publish("ideas") })
 }
 
 // NewRegistry creates a new service registry.
-func NewRegistry(db *sql.DB, userDataDir, familyPath, houseProjectsPath string, loc *time.Location) *Registry {
-	familySvc := tracker.NewService(familyPath, "Family", loc)
-	houseProjectsSvc := tracker.NewService(houseProjectsPath, "House", loc)
-
+func NewRegistry(db *sql.DB, userDataDir, familyPath, houseProjectsPath, maintenancePath string, loc *time.Location) *Registry {
 	return &Registry{
 		db:               db,
 		userDataDir:      userDataDir,
 		familyPath:       familyPath,
 		loc:              loc,
-		familySvc:        familySvc,
-		houseProjectsSvc: houseProjectsSvc,
+		familySvc:        tracker.NewService(familyPath, "Family", loc),
+		houseProjectsSvc: tracker.NewService(houseProjectsPath, "House", loc),
+		maintenanceSvc:   house.NewService(maintenancePath, loc),
 		cache:            make(map[int64]*UserServices),
 	}
 }
@@ -106,6 +126,11 @@ func (r *Registry) Family() *tracker.Service {
 // HouseProjects returns the shared house projects service.
 func (r *Registry) HouseProjects() *tracker.Service {
 	return r.houseProjectsSvc
+}
+
+// Maintenance returns the shared house maintenance service.
+func (r *Registry) Maintenance() *house.Service {
+	return r.maintenanceSvc
 }
 
 // EnsureUserDirs creates per-user directories and skeleton files.

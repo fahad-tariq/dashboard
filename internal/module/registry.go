@@ -201,15 +201,36 @@ func (r *Registry) Widgets(ctx context.Context, userID int64, now time.Time) []W
 		if !ok {
 			continue
 		}
-		data, show := w.Widget(ctx, userID, now)
-		if !show {
-			continue
+		id := m.Manifest().ID
+		for _, data := range w.Widgets(ctx, userID, now) {
+			if data.ID == "" {
+				data.ID = id
+			} else {
+				data.ID = id + "-" + data.ID
+			}
+			if len(data.Items) > 5 {
+				data.Items = data.Items[:5]
+			}
+			out = append(out, data)
 		}
-		data.ID = m.Manifest().ID
-		if len(data.Items) > 5 {
-			data.Items = data.Items[:5]
-		}
-		out = append(out, data)
 	}
 	return out
+}
+
+// HomeEvents are the SSE events of the modules that contribute to the
+// homepage, which refreshes on any of them.
+func (r *Registry) HomeEvents() []string {
+	var out []string
+	for _, m := range r.modules {
+		if _, ok := m.(HomeWidget); ok {
+			out = append(out, "changed:"+m.Manifest().ID)
+		}
+	}
+	return out
+}
+
+// TemplateDir returns the directory under web/templates/ holding a module's
+// pages.
+func TemplateDir(man Manifest) string {
+	return cmp.Or(man.Templates, man.ID)
 }

@@ -14,7 +14,7 @@ import (
 // once templates are parsed, after the modules exist.
 type Renderer struct {
 	mu    sync.RWMutex
-	pages map[string]*template.Template // "<module-id>/<file>"
+	pages map[string]*template.Template // "<template dir>/<file>"
 }
 
 // SetPages installs the parsed module pages.
@@ -24,13 +24,23 @@ func (r *Renderer) SetPages(pages map[string]*template.Template) {
 	r.pages = pages
 }
 
-// Page renders web/templates/<man.ID>/<file> in the layout. It adds the
-// layout data (user, current path for the nav) and resolves ?msg= through
-// the manifest's flash messages. data may be nil.
+// Lookup returns a function finding the parsed page web/templates/<dir>/<file>,
+// for handlers that build their own page data; it returns nil for an unknown
+// page. Pages are installed after modules are built, so the lookup happens at
+// request time.
+func (r *Renderer) Lookup(dir string) func(file string) *template.Template {
+	return func(file string) *template.Template {
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+		return r.pages[dir+"/"+file]
+	}
+}
+
+// Page renders the module's page <file> in the layout. It adds the layout
+// data (user, current path for the nav) and resolves ?msg= through the
+// manifest's flash messages. data may be nil.
 func (r *Renderer) Page(w http.ResponseWriter, req *http.Request, man Manifest, file string, data map[string]any) {
-	r.mu.RLock()
-	t := r.pages[man.ID+"/"+file]
-	r.mu.RUnlock()
+	t := r.Lookup(TemplateDir(man))(file)
 	if t == nil {
 		slog.Error("module page not found", "module", man.ID, "file", file)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

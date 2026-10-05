@@ -1,7 +1,7 @@
 {{define "idea-card"}}
 <div class="tracker-item minimised" id="idea-{{.Slug}}" data-slug="{{.Slug}}" data-tags="{{range .Tags}}{{.}} {{end}}">
-    <div class="tracker-item-header" onclick="itemHeaderClick(event)">
-        <input type="checkbox" class="bulk-checkbox" onclick="event.stopPropagation();bulkCheckboxChanged()" aria-label="Select {{.Title}}">
+    <div class="tracker-item-header" data-action="item-header">
+        <input type="checkbox" class="bulk-checkbox" data-action="bulk-checkbox" aria-label="Select {{.Title}}">
         <button type="button" class="item-toggle" id="idea-{{.Slug}}-toggle" aria-expanded="false" aria-controls="idea-{{.Slug}}-detail" aria-label="{{.Title}}" title="Expand/collapse">&#x25B8;</button>
         <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
         <div class="tracker-item-meta">
@@ -17,19 +17,19 @@
             {{end}}
             <div class="tracker-item-actions">
                 {{if ne .Status "untriaged"}}
-                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage" onsubmit="return triageAnimate(this)">
+                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage" data-submit="triage">
                     <input type="hidden" name="action" value="untriage">
                     <button type="submit" class="action-btn">untriage</button>
                 </form>
                 {{end}}
                 {{if ne .Status "parked"}}
-                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage" onsubmit="return triageAnimate(this)">
+                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage" data-submit="triage">
                     <input type="hidden" name="action" value="park">
                     <button type="submit" class="action-btn">park</button>
                 </form>
                 {{end}}
                 {{if ne .Status "dropped"}}
-                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage" onsubmit="return triageAnimate(this)">
+                <form method="POST" action="/ideas/{{.Slug}}/triage" class="inline-triage" data-submit="triage">
                     <input type="hidden" name="action" value="drop">
                     <button type="submit" class="action-btn action-drop">drop</button>
                 </form>
@@ -42,7 +42,7 @@
                     </select>
                     <button type="submit" class="action-btn action-assign">convert</button>
                 </form>
-                <form method="POST" action="/ideas/{{.Slug}}/delete" class="inline-triage" onsubmit="return confirmAction(this, 'Move this idea to trash?')">
+                <form method="POST" action="/ideas/{{.Slug}}/delete" class="inline-triage" data-confirm="Move this idea to trash?">
                     <button type="submit" class="action-btn action-drop">trash</button>
                 </form>
             </div>
@@ -70,7 +70,7 @@
 <div class="ideas-page"
      hx-ext="sse" sse-connect="/events"
      hx-get="/ideas" hx-select=".ideas-page" hx-target="this" hx-swap="outerHTML"
-     hx-trigger="sse:file-changed">
+     hx-trigger="sse:changed:ideas">
 <span class="htmx-indicator" aria-hidden="true">updating&hellip;</span>
 
 <h1>Ideas</h1>
@@ -105,16 +105,16 @@
 
 {{if .Categories}}
 <div class="tracker-filters">
-    <button class="filter-tag active" onclick="trackerFilter('','')">all</button>
+    <button class="filter-tag active" data-action="filter" data-filter-type="" data-filter-value="">all</button>
     {{range .Categories}}
-    <button class="filter-tag filter-cat" data-value="{{.}}" onclick="trackerFilter('category','{{.}}')">{{.}}</button>
+    <button class="filter-tag filter-cat" data-value="{{.}}" data-action="filter" data-filter-type="category" data-filter-value="{{.}}">{{.}}</button>
     {{end}}
     <span class="filter-sep"></span>
-    <button class="select-toggle-btn" id="select-toggle" onclick="toggleSelectMode()">select</button>
+    <button class="select-toggle-btn" id="select-toggle" data-action="toggle-select-mode">select</button>
 </div>
 {{else}}
 <div class="tracker-filters">
-    <button class="select-toggle-btn" id="select-toggle" onclick="toggleSelectMode()">select</button>
+    <button class="select-toggle-btn" id="select-toggle" data-action="toggle-select-mode">select</button>
 </div>
 {{end}}
 
@@ -150,7 +150,7 @@
     <summary class="tracker-done-summary">Converted ({{len .Converted}})</summary>
     {{range .Converted}}
     <div class="tracker-item tracker-item-done minimised" id="idea-{{.Slug}}">
-        <div class="tracker-item-header" onclick="itemHeaderClick(event)">
+        <div class="tracker-item-header" data-action="item-header">
             <button type="button" class="item-toggle" id="idea-{{.Slug}}-toggle" aria-expanded="false" aria-controls="idea-{{.Slug}}-detail" aria-label="{{.Title}}" title="Expand/collapse">&#x25B8;</button>
             <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
             <div class="tracker-item-meta">
@@ -176,15 +176,15 @@
     <summary class="tracker-done-summary">Recently Deleted ({{len .DeletedIdeas}})</summary>
     {{range .DeletedIdeas}}
     <div class="tracker-item tracker-item-done minimised" id="idea-{{.Slug}}">
-        <div class="tracker-item-header" onclick="itemHeaderClick(event)">
+        <div class="tracker-item-header" data-action="item-header">
             <button type="button" class="item-toggle" id="idea-{{.Slug}}-toggle" aria-expanded="false" aria-controls="idea-{{.Slug}}-detail" aria-label="{{.Title}}" title="Expand/collapse">&#x25B8;</button>
             <span class="tracker-item-title"><a href="/ideas/{{.Slug}}">{{.Title}}</a></span>
             <div class="tracker-item-meta">
                 {{if .DeletedAt}}<span class="tracker-item-date">deleted {{.DeletedAt}}</span>{{end}}
-                <form method="POST" action="/ideas/{{.Slug}}/restore" class="item-complete-form" onclick="event.stopPropagation()">
+                <form method="POST" action="/ideas/{{.Slug}}/restore" class="item-complete-form" data-stop-click>
                     <button type="submit" class="item-undo-btn" title="Restore">&#x21A9;</button>
                 </form>
-                <form method="POST" action="/ideas/{{.Slug}}/purge" class="item-complete-form" onclick="event.stopPropagation()" onsubmit="return confirmAction(this, 'Permanently delete this idea? This cannot be undone.')">
+                <form method="POST" action="/ideas/{{.Slug}}/purge" class="item-complete-form" data-stop-click data-confirm="Permanently delete this idea? This cannot be undone.">
                     <button type="submit" class="item-undo-btn" title="Permanently delete">&#x2715;</button>
                 </form>
             </div>
@@ -208,9 +208,9 @@
 
 <div class="bulk-bar" id="bulk-bar" role="toolbar" aria-label="Bulk actions">
     <span class="bulk-bar-count" id="bulk-bar-count" aria-live="polite">0 selected</span>
-    <button type="button" class="action-btn" onclick="selectAllVisible()">select all</button>
-    <button type="button" class="action-btn" onclick="deselectAll()">deselect</button>
-    <form method="POST" action="/ideas/bulk/delete" id="bulk-delete-form" style="display:inline" onsubmit="return confirmBulkDelete(this)">
+    <button type="button" class="action-btn" data-action="select-all">select all</button>
+    <button type="button" class="action-btn" data-action="deselect-all">deselect</button>
+    <form method="POST" action="/ideas/bulk/delete" id="bulk-delete-form" style="display:inline" data-submit="bulk-delete">
         <input type="hidden" name="slugs" value="">
         <button type="submit" class="action-btn action-drop">trash</button>
     </form>
@@ -220,7 +220,7 @@
             <option value="park">park</option>
             <option value="drop">drop</option>
         </select>
-        <button type="submit" class="action-btn" onclick="return submitBulkAction('bulk-triage-form')">triage</button>
+        <button type="submit" class="action-btn" data-action="bulk-submit" data-bulk-form="bulk-triage-form">triage</button>
     </form>
 </div>
 
