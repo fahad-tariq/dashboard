@@ -3,3 +3,4 @@ test-results/
 playwright-report/
 .auth/
 ci-artifacts/
+screenshots/
