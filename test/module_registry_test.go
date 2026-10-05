@@ -52,6 +52,10 @@ func TestModuleRegistryRejects(t *testing.T) {
 		"duplicate module key":  {[]module.Module{fake("a", "/a", "x", module.More, 0), fake("b", "/b", "x", module.More, 0)}, "already used by module a"},
 		"multi-letter key":      {[]module.Module{fake("a", "/a", "xy", module.More, 0)}, "one lowercase letter"},
 		"unknown group":         {[]module.Module{fake("a", "/a", "", "side", 0)}, "want primary or more"},
+		"nav outside own prefix": {[]module.Module{fakeModule{module.Manifest{
+			ID: "a", Prefixes: []string{"/a"},
+			Nav: []module.NavItem{{Label: "a", Path: "/todos", Group: module.More}},
+		}}}, "not under the module's prefixes"},
 		"too many primary links": {[]module.Module{
 			fake("a", "/a", "", module.Primary, 0), fake("b", "/b", "", module.Primary, 0),
 			fake("c", "/c", "", module.Primary, 0), fake("e", "/e", "", module.Primary, 0),

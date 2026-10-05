@@ -221,3 +221,26 @@ func TestFormFieldsHaveLabels(t *testing.T) {
 		}
 	}
 }
+
+// A page whose nav link sits behind "more" marks the "more" button, so the
+// current section stays visible while the menu is closed.
+func TestMoreButtonMarksCurrentSection(t *testing.T) {
+	h, _ := renderRouter(t)
+	tests := map[string]struct {
+		path       string
+		wantMarked bool
+	}{
+		"digest is behind more":    {path: "/digest", wantMarked: true},
+		"calendar is behind more":  {path: "/plan/calendar", wantMarked: true},
+		"todos is in the main bar": {path: "/todos", wantMarked: false},
+	}
+	marked := `<button type="button" class="nav-more-btn nav-active" id="nav-more-btn"`
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			body := renderPage(t, h, tc.path)
+			if got := strings.Contains(body, marked); got != tc.wantMarked {
+				t.Errorf("more button marked = %v, want %v", got, tc.wantMarked)
+			}
+		})
+	}
+}

@@ -184,7 +184,7 @@ func TestModuleContract(t *testing.T) {
 		}
 	})
 
-	t.Run("API routes sit behind the bearer token", func(t *testing.T) {
+	t.Run("API routes sit behind the bearer token, under /api/v1/<id>", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/moduletest", nil)
 		rr := httptest.NewRecorder()
 		env.h.ServeHTTP(rr, req)
