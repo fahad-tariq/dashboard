@@ -111,7 +111,7 @@ func TestPagesRefreshOnTheirModulesEvents(t *testing.T) {
 }
 
 // The homepage summary cards are module widgets. Links to tracker items use
-// the row ids (item-{slug}); "#{slug}" never matched an element.
+// the row ids (#item-{slug}), like the planner's "open in list" links.
 func TestHomepageWidgetsComeFromModules(t *testing.T) {
 	env := newAppEnv(t)
 	userDir := filepath.Join(env.cfg.UserDataDir, "1")

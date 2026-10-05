@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -167,12 +168,18 @@ func navMoreCurrent(reg *module.Registry) func(current any) bool {
 	}
 }
 
+// coreHomeEvents are the modules whose services the homepage reads itself:
+// the planner's three tracker lists, and ideas for the tag summary.
+var coreHomeEvents = []string{"changed:todos", "changed:family", "changed:house", "changed:ideas"}
+
 // homeTrigger is the homepage's hx-trigger: a refresh on the event of every
-// module that contributes to it.
+// module that contributes to it, through a widget or the core's own lists.
 func homeTrigger(reg *module.Registry) func() string {
-	events := reg.HomeEvents()
-	for i, e := range events {
-		events[i] = "sse:" + e
+	var events []string
+	for _, e := range slices.Concat(coreHomeEvents, reg.HomeEvents()) {
+		if !slices.Contains(events, "sse:"+e) {
+			events = append(events, "sse:"+e)
+		}
 	}
 	trigger := strings.Join(events, ", ")
 	return func() string { return trigger }
@@ -234,15 +241,16 @@ func parseTemplates(fm template.FuncMap, reg *module.Registry) (core, modules ma
 	}
 	core = map[string]*template.Template{}
 	for _, f := range files {
-		src, err := fs.ReadFile(web.TemplateFS, f)
+		if path.Base(f) == "layout.html" {
+			continue
+		}
+		t, err := page(f)
 		if err != nil {
 			return nil, nil, err
 		}
-		if !strings.Contains(string(src), `{{define "content"}}`) {
-			continue // the layout itself, or a standalone template
-		}
-		if core[path.Base(f)], err = page(f); err != nil {
-			return nil, nil, err
+		// Standalone templates (login, search results) define no content.
+		if t.Lookup("content") != nil {
+			core[path.Base(f)] = t
 		}
 	}
 
