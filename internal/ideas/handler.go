@@ -6,6 +6,7 @@ import (
 	"errors"
 	"html/template"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -298,8 +299,11 @@ func (h *Handler) DeleteIdea(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httputil.OfferUndo(w, "/ideas/"+slug+"/restore")
-	http.Redirect(w, r, "/ideas?msg=idea-deleted", http.StatusSeeOther)
+	restore := "/ideas/" + slug + "/restore"
+	httputil.OfferUndo(w, restore)
+	// The undo parameter serves plain posts (the idea page); htmx requests get
+	// the toast instead.
+	http.Redirect(w, r, "/ideas?msg=idea-deleted&undo="+url.QueryEscape(restore), http.StatusSeeOther)
 }
 
 // RestoreIdea restores a soft-deleted idea.

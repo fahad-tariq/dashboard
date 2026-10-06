@@ -358,6 +358,16 @@ func TestAPIUpdateTodoKeepsOmittedFields(t *testing.T) {
 			wantTitle: "Existing task", wantBody: "New notes",
 			wantTags: []string{"backend"}, wantImages: []string{"a.png"},
 		},
+		"null keeps": {
+			body:      `{"body":null,"tags":null,"images":null,"list":"personal"}`,
+			wantTitle: "Existing task", wantBody: "Original notes",
+			wantTags: []string{"backend"}, wantImages: []string{"a.png"},
+		},
+		"body metadata is stripped": {
+			body:      `{"body":"Call them [status: done] back","list":"personal"}`,
+			wantTitle: "Existing task", wantBody: "Call them  back",
+			wantTags: []string{"backend"}, wantImages: []string{"a.png"},
+		},
 		"explicit empties clear": {
 			body:      `{"body":"","tags":[],"images":[],"list":"personal"}`,
 			wantTitle: "Existing task", wantBody: "",
@@ -386,5 +396,14 @@ func TestAPIUpdateTodoKeepsOmittedFields(t *testing.T) {
 				t.Errorf("tags, images = %v, %v; want %v, %v", item.Tags, item.Images, tc.wantTags, tc.wantImages)
 			}
 		})
+	}
+}
+
+func TestAPIUpdateTodoEnforcesLimits(t *testing.T) {
+	env := setupAPIEnv(t)
+	long := strings.Repeat("x", 100001)
+	w := apiRequest(t, env, "PUT", "/api/v1/todos/existing-task", `{"body":"`+long+`","list":"personal"}`)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("oversized body: status = %d, want 400", w.Code)
 	}
 }

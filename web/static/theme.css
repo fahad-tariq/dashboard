@@ -1052,6 +1052,8 @@
         font-weight: 500;
     }
     .flash-msg-error { background: var(--danger-soft); color: var(--danger); }
+    .flash-row { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+    .flash-row .flash-msg { flex: 1; margin-bottom: 0; }
     .toast {
         position: fixed;
         left: 50%;

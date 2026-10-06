@@ -867,5 +867,6 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - `migrate-data` refuses to run when `ideas.md` already holds ideas
   - done calendar tasks are not draggable
   - the bulk trash flash is a status, not an error
-  - trash on the idea page offers undo: the form is htmx-boosted into `<main>`, so the fragment middleware returns the ideas list with the undo toast (Playwright test in `ideas.spec.ts`)
-- Code changes in this phase: only the bug fixes above. Only docs, `.env.example` and `.gitignore` changed.
+  - trash on the idea page offers undo. A first version htmx-boosted the form into `<main>`; an independent review found that it showed the flash twice, pushed htmx history (so back re-ran the body scripts) and dropped focus. It is now a plain POST whose redirect carries `?undo=<restore path>`, which the layout renders as an undo button beside the flash (`httputil.UndoFromQuery` accepts only local `/restore` paths). Playwright test in `ideas.spec.ts`.
+  - the calendar drag handler also refuses tasks without `draggable`, so a text drag inside a done task cannot move it
+- Code changes in this phase: only the bug fixes above; the rest is docs, `.env.example` and `.gitignore`.

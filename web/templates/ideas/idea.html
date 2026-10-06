@@ -54,9 +54,7 @@
     </form>
 </details>
 
-{{/* Boosted so the fragment middleware returns the ideas list with an undo
-     toast; this page has no live container, so the list replaces <main>. */}}
-<form method="POST" action="/ideas/{{.Idea.Slug}}/delete" class="mt-sm" hx-boost="true" hx-target="#main" hx-select="#main" hx-swap="outerHTML" hx-push-url="/ideas">
+<form method="POST" action="/ideas/{{.Idea.Slug}}/delete" class="mt-sm">
     <button type="submit" class="btn btn-danger btn-sm">move to trash</button>
 </form>
 {{end}}

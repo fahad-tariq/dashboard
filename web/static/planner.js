@@ -106,8 +106,10 @@ document.addEventListener('dragstart', function(e) {
     }
 
     // Calendar week view day move.
+    // Done tasks render without draggable; a text drag inside one must not
+    // move it either.
     var task = e.target.closest('.calendar-grid-week .calendar-task');
-    if (task) {
+    if (task && task.getAttribute('draggable') === 'true') {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', task.getAttribute('data-slug'));
         e.dataTransfer.setData('application/x-list', task.getAttribute('data-list'));

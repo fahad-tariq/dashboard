@@ -53,13 +53,13 @@
         </div>
     </nav>
     <main id="main" class="container" tabindex="-1">
-        {{if .FlashMsg}}<div id="flash" class="flash-msg{{if .FlashError}} flash-msg-error{{end}}" data-error="{{if .FlashError}}true{{else}}false{{end}}" role="{{if .FlashError}}alert{{else}}status{{end}}">{{.FlashMsg}}</div>{{end}}
+        {{if .FlashMsg}}<div class="flash-row"><div id="flash" class="flash-msg{{if .FlashError}} flash-msg-error{{end}}" data-error="{{if .FlashError}}true{{else}}false{{end}}" role="{{if .FlashError}}alert{{else}}status{{end}}">{{.FlashMsg}}</div>{{if .Undo}}<form method="POST" action="{{.Undo}}" class="flash-undo"><button type="submit" class="btn btn-secondary btn-sm">undo</button></form>{{end}}</div>{{end}}
         {{template "content" .}}
     </main>
     <script>
         if (window.location.search.indexOf('msg=') !== -1) {
             var qs = window.location.search.substring(1).split('&').filter(function(p) {
-                return p.indexOf('msg=') !== 0;
+                return p.indexOf('msg=') !== 0 && p.indexOf('undo=') !== 0;
             }).join('&');
             window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : '') + window.location.hash);
         }

@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/alexedwards/scs/v2"
+
+	"github.com/fahad/dashboard/internal/httputil"
 )
 
 // TemplateData returns common template fields from the request context.
@@ -18,6 +20,7 @@ func TemplateData(r *http.Request) map[string]any {
 		"UserName":    UserName(r.Context()),
 		"IsAdmin":     IsAdmin(r.Context()),
 		"CurrentPath": r.URL.Path,
+		"Undo":        httputil.UndoFromQuery(r),
 	}
 }
 
