@@ -58,6 +58,7 @@ Adapters live in `internal/modules/`, not in the feature packages, because `modu
 - JS is ES5 (no `const`/`let`/arrow functions) and binds interactive listeners on `document`, never on elements inside a `[data-live]` container.
 - Dialogs are native `<dialog>` with `showModal()`. Confirms go through `confirmAction` (`dialog.js`): forms use `data-confirm`; bulk delete uses `data-submit="bulk-delete"` → `confirmBulkDelete`; admin user delete calls it inline.
 - Bulk actions use `mutateBatch` so one file write covers every selected item.
+- Edits: `tracker.Service.UpdateEdit` replaces body, tags and images, so only callers that hold every field (the web edit form) may use it. Callers that may not (the API, the house page, which has no image controls) use `ApplyEdit`, where nil fields keep their values.
 - Date cutoffs use `httputil.CutoffDate(days, loc)`; pass the injected location.
 </CONVENTIONS>
 

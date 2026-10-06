@@ -346,7 +346,7 @@ func (h *Handler) EditProject(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.projectsSvc.UpdateEdit(slug, title, body, tags, nil); err != nil {
+	if err := h.projectsSvc.ApplyEdit(slug, tracker.Edit{Title: title, Body: &body, Tags: &tags}); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}

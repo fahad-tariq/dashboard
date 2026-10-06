@@ -363,6 +363,36 @@ func (s *Service) UpdateEdit(slug, title, body string, tags, images []string) er
 	})
 }
 
+// Edit is a partial update for ApplyEdit. An empty Title and nil fields keep
+// the item's current values; a non-nil empty slice clears that field.
+type Edit struct {
+	Title  string
+	Body   *string
+	Tags   *[]string
+	Images *[]string
+}
+
+// ApplyEdit changes only the fields e sets, for callers that may not hold
+// every field (the API, and house projects, whose page has no images).
+func (s *Service) ApplyEdit(slug string, e Edit) error {
+	return s.mutate(slug, func(it *Item) error {
+		if e.Title != "" {
+			it.Title = e.Title
+			it.Slug = Slugify(e.Title)
+		}
+		if e.Body != nil {
+			it.Body = *e.Body
+		}
+		if e.Tags != nil {
+			it.Tags = *e.Tags
+		}
+		if e.Images != nil {
+			it.Images = *e.Images
+		}
+		return nil
+	})
+}
+
 func (s *Service) SetProgress(slug string, value float64) error {
 	return s.mutate(slug, func(it *Item) error {
 		if it.Type != GoalType {

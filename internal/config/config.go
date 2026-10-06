@@ -40,9 +40,14 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("parsing SESSION_LIFETIME: %w", err)
 	}
 
+	// A value that does not parse is refused rather than read as false, so a
+	// typo cannot drop the Secure flag.
 	secureCookies := true
-	if v, ok := os.LookupEnv("DASHBOARD_SECURE_COOKIES"); ok {
-		secureCookies, _ = strconv.ParseBool(v)
+	if v := os.Getenv("DASHBOARD_SECURE_COOKIES"); v != "" {
+		var err error
+		if secureCookies, err = strconv.ParseBool(v); err != nil {
+			return nil, fmt.Errorf("parsing DASHBOARD_SECURE_COOKIES %q: want true or false", v)
+		}
 	}
 
 	authDisabled := false

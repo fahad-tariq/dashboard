@@ -53,7 +53,6 @@ func resolveFlash(key string, now time.Time) string {
 var flashErrorKeys = map[string]bool{
 	"title-required": true,
 	"idea-purged":    true,
-	"bulk-deleted":   true,
 }
 
 // Handler handles HTTP requests for ideas.

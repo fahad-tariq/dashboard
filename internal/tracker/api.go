@@ -20,7 +20,18 @@ const (
 	maxTagCount   = 10
 )
 
-// resolveListService returns the service for the given list name.
+// isAPIList reports whether list names a list this API serves. It is
+// narrower than httputil.ValidateList, which also accepts "house".
+func isAPIList(list string) bool {
+	switch list {
+	case "personal", "todos", "family":
+		return true
+	}
+	return false
+}
+
+// resolveListService returns the service for the given list name, or nil for
+// a list isAPIList rejects.
 func resolveListService(list string, personal, family *Service) *Service {
 	switch list {
 	case "personal", "todos":
@@ -106,7 +117,7 @@ func APIGetTodo(resolve ServiceResolver) http.HandlerFunc {
 		personalSvc, familySvc := resolve(r)
 		slug := chi.URLParam(r, "slug")
 		list := r.URL.Query().Get("list")
-		if !httputil.ValidateList(list) {
+		if !isAPIList(list) {
 			jsonError(w, "list parameter required (personal or family)", http.StatusBadRequest)
 			return
 		}
@@ -147,7 +158,7 @@ func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 			jsonError(w, "title required", http.StatusBadRequest)
 			return
 		}
-		if !httputil.ValidateList(req.List) {
+		if !isAPIList(req.List) {
 			jsonError(w, "list required (personal or family)", http.StatusBadRequest)
 			return
 		}
@@ -186,31 +197,40 @@ func APIUpdateTodo(resolve ServiceResolver) http.HandlerFunc {
 		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		slug := chi.URLParam(r, "slug")
+		// Pointers tell an omitted field (kept) from an empty one (cleared).
 		var req struct {
-			Title  string   `json:"title"`
-			Body   string   `json:"body"`
-			Tags   []string `json:"tags"`
-			Images []string `json:"images"`
-			List   string   `json:"list"`
+			Title  string    `json:"title"`
+			Body   *string   `json:"body"`
+			Tags   *[]string `json:"tags"`
+			Images *[]string `json:"images"`
+			List   string    `json:"list"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			jsonError(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
-		if !httputil.ValidateList(req.List) {
+		if !isAPIList(req.List) {
 			jsonError(w, "list required (personal or family)", http.StatusBadRequest)
 			return
 		}
-		if err := validateInputLimits(req.Title, req.Body, req.Tags); err != "" {
+		edit := Edit{Title: httputil.StripInlineMetadata(req.Title), Tags: req.Tags, Images: req.Images}
+		var body string
+		var tags []string
+		if req.Body != nil {
+			body = *req.Body
+			stripped := httputil.StripInlineMetadata(body)
+			edit.Body = &stripped
+		}
+		if req.Tags != nil {
+			tags = *req.Tags
+		}
+		if err := validateInputLimits(req.Title, body, tags); err != "" {
 			jsonError(w, err, http.StatusBadRequest)
 			return
 		}
 
-		req.Title = httputil.StripInlineMetadata(req.Title)
-		req.Body = httputil.StripInlineMetadata(req.Body)
-
 		svc := resolveListService(req.List, personalSvc, familySvc)
-		if e := svc.UpdateEdit(slug, req.Title, req.Body, req.Tags, req.Images); e != nil {
+		if e := svc.ApplyEdit(slug, edit); e != nil {
 			if httputil.IsNotFound(e) {
 				jsonError(w, "item not found", http.StatusNotFound)
 				return
@@ -257,7 +277,7 @@ func APIUpdatePriority(resolve ServiceResolver) http.HandlerFunc {
 			jsonError(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
-		if !httputil.ValidateList(req.List) {
+		if !isAPIList(req.List) {
 			jsonError(w, "list required (personal or family)", http.StatusBadRequest)
 			return
 		}
@@ -290,7 +310,7 @@ func APIUpdateTags(resolve ServiceResolver) http.HandlerFunc {
 			jsonError(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
-		if !httputil.ValidateList(req.List) {
+		if !isAPIList(req.List) {
 			jsonError(w, "list required (personal or family)", http.StatusBadRequest)
 			return
 		}
@@ -326,7 +346,7 @@ func APIAddSubStep(resolve ServiceResolver) http.HandlerFunc {
 			jsonError(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
-		if !httputil.ValidateList(req.List) {
+		if !isAPIList(req.List) {
 			jsonError(w, "list required (personal or family)", http.StatusBadRequest)
 			return
 		}
@@ -381,7 +401,7 @@ func statusMutation(resolve ServiceResolver, fn func(svc *Service, slug string) 
 			jsonError(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
-		if !httputil.ValidateList(req.List) {
+		if !isAPIList(req.List) {
 			jsonError(w, "list required (personal or family)", http.StatusBadRequest)
 			return
 		}
@@ -419,7 +439,7 @@ func subStepIndexMutation(resolve ServiceResolver, fn func(svc *Service, slug st
 			jsonError(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
-		if !httputil.ValidateList(req.List) {
+		if !isAPIList(req.List) {
 			jsonError(w, "list required (personal or family)", http.StatusBadRequest)
 			return
 		}

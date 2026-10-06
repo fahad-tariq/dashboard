@@ -37,7 +37,7 @@ docker compose up -d dashboard
 
 ### Migrating legacy data
 
-Only for data from before the flat-file format (one file per idea in `untriaged/`, `parked/` and `dropped/` directories, plus an `explorations/` directory). **It overwrites `users/{id}/ideas.md` with whatever it finds**, so never run it against current data, and take a backup first.
+Only for data from before the flat-file format (one file per idea in `untriaged/`, `parked/` and `dropped/` directories, plus an `explorations/` directory). It writes a new `users/{id}/ideas.md`, so it refuses to run when that file already holds ideas. Take a backup first.
 
 ```bash
 ./bin/dashboard migrate-data --user-id 1 --ideas-dir /old/ideas --explorations-dir /old/explorations
@@ -67,7 +67,7 @@ These are the binary's defaults. Under Compose, the paths are set in `docker-com
 | `DASHBOARD_TRUSTED_PROXIES` | (empty) | CIDRs or IPs of proxies whose rightmost `X-Forwarded-For` entry is used as the client IP for login and bearer-token rate limiting |
 | `DASHBOARD_API_TOKEN` | (empty) | Bearer token for `/api/v1`; at least 32 characters, or the API is not mounted |
 | `SESSION_LIFETIME` | `720h` | Session lifetime |
-| `DASHBOARD_SECURE_COOKIES` | `true` | `false` for plain-HTTP development. Must be `true` or `false`; any other value currently turns secure cookies off |
+| `DASHBOARD_SECURE_COOKIES` | `true` | `false` for plain-HTTP development. Any value that is not a boolean stops the server at start-up |
 | `MCP_TOKEN` | (empty) | MCP sidecar: the token MCP clients send; 32+ characters, different from `DASHBOARD_API_TOKEN` |
 | `MCP_ALLOW_DESTRUCTIVE` | `false` | MCP sidecar: `true` registers the delete and clear tools |
 | `DASHBOARD_API_URL` | `http://dashboard:8080/api/v1` | MCP sidecar: where it reaches the dashboard API |
@@ -245,14 +245,14 @@ Browser routes need a session (or no-auth mode). Each list's mutations are POSTs
 
 Mounted under `/api/v1` only when `DASHBOARD_API_TOKEN` is set (32+ characters). Send `Authorization: Bearer <token>`; the token acts as user 1. Writes (anything but GET, HEAD and OPTIONS) share one limit of 60 per minute across all callers, and more than 10 bad tokens per minute from one IP get 429. Request bodies are JSON. Responses are JSON, except that plan set and clear return plain-text errors.
 
-Todo routes need a list: `personal` (or `todos`) or `family`; `house` passes validation but is not supported (see `docs/backlog.md`). `GET /todos/{slug}` takes it as `?list=`; every other todo route that names a slug takes `"list"` in the JSON body. `GET /todos` returns `{"personal": [...], "family": [...]}`, including goals (with a `type` field) and done items, and leaves out items tagged `private`.
+Todo routes need a list: `personal` (or `todos`) or `family`; anything else, including `house`, gets a 400. `GET /todos/{slug}` takes it as `?list=`; every other todo route that names a slug takes `"list"` in the JSON body. `GET /todos` returns `{"personal": [...], "family": [...]}`, including goals (with a `type` field) and done items, and leaves out items tagged `private`.
 
 | Method | Path | Body | Description |
 |---|---|---|---|
 | `GET` | `/api/v1/todos` | | List personal and family items |
 | `POST` | `/api/v1/todos` | `title, body, tags, priority, list` | Add a task |
 | `GET` | `/api/v1/todos/{slug}?list=` | | Get one item |
-| `PUT` | `/api/v1/todos/{slug}` | `title, body, tags, images, list` | Replace body, tags and images (omitted ones are cleared); an empty title keeps the current one. A changed title changes the slug, and the new slug is not returned |
+| `PUT` | `/api/v1/todos/{slug}` | `title, body, tags, images, list` | Change any of these; omitted fields and an empty title keep their current values, and an empty `tags` or `images` list clears it. A changed title changes the slug, and the new slug is not returned |
 | `DELETE` | `/api/v1/todos/{slug}` | `list` | Move to the trash |
 | `POST` | `/api/v1/todos/{slug}/complete` | `list` | Complete |
 | `POST` | `/api/v1/todos/{slug}/uncomplete` | `list` | Reopen |

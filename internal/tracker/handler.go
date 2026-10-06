@@ -55,7 +55,6 @@ func resolveFlash(key string, now time.Time) string {
 var flashErrorKeys = map[string]bool{
 	"title-required": true,
 	"item-purged":    true,
-	"bulk-deleted":   true,
 }
 
 func sanitisePriority(p string) string {

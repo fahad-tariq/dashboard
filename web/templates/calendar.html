@@ -31,19 +31,19 @@
             <div class="calendar-tasks">
                 {{$count := 0}}
                 {{range .Personal}}{{if lt $count 3}}
-                <div class="calendar-task" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="personal" draggable="true">
+                <div class="calendar-task" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="personal"{{if not .Done}} draggable="true"{{end}}>
                     <span class="calendar-task-list meta-dim">P</span>
                     <span class="calendar-task-title{{if .Done}} calendar-task-done{{end}}">{{.Title}}</span>
                 </div>
                 {{$count = (subtract $count -1)}}{{end}}{{end}}
                 {{range .Family}}{{if lt $count 3}}
-                <div class="calendar-task" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="family" draggable="true">
+                <div class="calendar-task" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="family"{{if not .Done}} draggable="true"{{end}}>
                     <span class="calendar-task-list meta-dim">F</span>
                     <span class="calendar-task-title{{if .Done}} calendar-task-done{{end}}">{{.Title}}</span>
                 </div>
                 {{$count = (subtract $count -1)}}{{end}}{{end}}
                 {{range .House}}{{if lt $count 3}}
-                <div class="calendar-task" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="house" draggable="true">
+                <div class="calendar-task" data-priority="{{.Priority}}" data-slug="{{.Slug}}" data-list="house"{{if not .Done}} draggable="true"{{end}}>
                     <span class="calendar-task-list meta-dim">H</span>
                     <span class="calendar-task-title{{if .Done}} calendar-task-done{{end}}">{{.Title}}</span>
                 </div>

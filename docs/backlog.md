@@ -2,36 +2,13 @@
 
 Plan 2 (exercise module, SQLite migration hook, a `Plannable` capability) and Plan 3 (stable item IDs, quick capture, recurring tasks, MCP tooling) hold the larger work; this file lists smaller follow-ups.
 
-## Bugs
-
-### Tracker API panics on `list=house`
-`httputil.ValidateList` accepts `house`, but `resolveListService` in `tracker/api.go` returns nil for it, and none of its callers check. Any `/api/v1/todos` slug route or add with `?list=house` or `"list":"house"` dereferences a nil `*Service` and returns a 500 via the recoverer. The API is not mounted in production. Either serve house projects through it (which would also expose Budget, Actual and Status) or reject `house` with a 400. Test first.
-
-### MCP `update_todo` wipes fields it says it keeps
-The tool documents body, tags and images as "empty/null to keep current" and leaves them out of the request, but `PUT /api/v1/todos/{slug}` (`Service.UpdateEdit`) clears omitted body, tags and images. A title-only update through MCP erases the body, tags and images. Fix the API to keep omitted fields (pointer fields), or have the tool fetch and resend them. Test first.
-
-### Invalid `DASHBOARD_SECURE_COOKIES` turns secure cookies off
-`config.Load` ignores the `strconv.ParseBool` error, so a value like `yes` sets `false`. Fail closed: refuse to start on an unparseable value.
-
-### `migrate-data` overwrites `ideas.md` unconditionally
-`cmd/dashboard/migrate.go` writes the collected ideas over `users/{id}/ideas.md` even when it found none, so running it against current data empties the ideas list. Refuse when `ideas.md` already has ideas, or merge.
-
-### Done calendar tasks can be dragged
-`calendar.html` renders week tasks `draggable="true"` even when done; `homepage.html`'s plan rows guard with `not .Done`.
-
-### Bulk trash flashes as an error
-`bulk-deleted` is in `flashErrorKeys` in both `tracker/handler.go` and `ideas/handler.go`, so a recoverable soft delete shows error styling.
-
-### Idea detail trash still confirms
-Every other trash action offers undo; `ideas/idea.html` still asks "Move this idea to trash?". The detail page has no live container, so undo needs a redirect target that exists after the restore.
-
 ## House
 
 ### Test house plan rows
 Reorder and calendar drag post `list=house`, and `home.listService` maps it to house projects, so it works end to end, but no test covers `list=house`. A Go handler test next to `test/fragment_test.go` is enough.
 
 ### itemToAPI Budget/Actual/Status
-`itemToAPI` in `tracker/api.go` does not expose Budget, Actual or Status, and no tracker API route reaches house items (see the `list=house` bug). No API exposes them; `planItemsToAPI` returns only slug, title, priority, done, planned, tags and list.
+`itemToAPI` in `tracker/api.go` does not expose Budget, Actual or Status, and the tracker API refuses `list=house`. No API exposes them; `planItemsToAPI` returns only slug, title, priority, done, planned, tags and list.
 
 ### MoveToList for house projects
 Moving items between personal/family and house is not wired. `tracker.Handler.MoveToList` is bound to a fixed pair of lists, so it needs a target parameter; moving in must set `Status = "todo"` (as `toTask` does); `house.html` needs move controls.

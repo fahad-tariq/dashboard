@@ -38,7 +38,20 @@ func runMigrateData() { //nolint:gocyclo // one-off migration command, linear st
 		os.Exit(1)
 	}
 
-	// Move personal.md.
+	// The output replaces ideas.md wholesale, so refuse to touch one that
+	// already holds ideas: run against current data, this would erase them.
+	ideasPath := fmt.Sprintf("%s/ideas.md", userDir)
+	existing, err := ideas.ParseIdeas(ideasPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "reading %s: %v\n", ideasPath, err)
+		os.Exit(1)
+	}
+	if len(existing) > 0 {
+		fmt.Fprintf(os.Stderr, "%s already holds %d ideas; migrate-data only converts legacy data into an empty ideas file\n", ideasPath, len(existing))
+		os.Exit(1)
+	}
+
+	// Copy personal.md.
 	migrateFile(cfg.PersonalPath, fmt.Sprintf("%s/personal.md", userDir))
 
 	// Collect ideas from old directory structure into flat-file format.
@@ -131,7 +144,6 @@ func runMigrateData() { //nolint:gocyclo // one-off migration command, linear st
 	}
 
 	// Write combined ideas.md.
-	ideasPath := fmt.Sprintf("%s/ideas.md", userDir)
 	if err := ideas.WriteIdeas(ideasPath, "Ideas", allIdeas); err != nil {
 		fmt.Fprintf(os.Stderr, "writing ideas.md: %v\n", err)
 		os.Exit(1)

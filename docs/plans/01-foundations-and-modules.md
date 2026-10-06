@@ -859,4 +859,13 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
 
     Also corrected the CSP, idea status, image filename and `MoveToList` items, and added the missing follow-ups and accepted limits from these notes. The ServiceMap removal stands: the resolvers are done, and the leftover `resolveListService` gap is the `list=house` bug.
 - Third pass (one clean-context agent over the revised files): fixed a wrong claim that the plan API exposes house budget fields, the API rate limit (writes only, one shared bucket), title handling on `PUT /todos/{slug}`, research append, CLI environment needs, `migrate-data` copying rather than moving, the MCP container restart loop, and the metadata order in the README examples. New backlog bug: the MCP `update_todo` tool wipes body, tags and images on a title-only update, because the API clears omitted fields.
-- Code changes in this phase: none. Only docs, `.env.example` and `.gitignore` changed.
+- Bug fixes (owner request, 2026-10-06), each test-first (`36d8d52` has the failing tests):
+  - the tracker API refuses `list=house` with a 400; it used to panic on a nil service
+  - `PUT /api/v1/todos/{slug}` keeps omitted body, tags and images (`tracker.Service.ApplyEdit` with pointer fields), so MCP `update_todo` no longer wipes them
+  - editing a house project keeps its images (found while fixing the API; the house page has no image controls)
+  - an unparseable `DASHBOARD_SECURE_COOKIES` stops start-up instead of turning secure cookies off; empty keeps the default
+  - `migrate-data` refuses to run when `ideas.md` already holds ideas
+  - done calendar tasks are not draggable
+  - the bulk trash flash is a status, not an error
+  - trash on the idea page offers undo: the form is htmx-boosted into `<main>`, so the fragment middleware returns the ideas list with the undo toast (Playwright test in `ideas.spec.ts`)
+- Code changes in this phase: only the bug fixes above. Only docs, `.env.example` and `.gitignore` changed.
