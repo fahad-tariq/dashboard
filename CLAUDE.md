@@ -13,7 +13,7 @@ Plan history, decisions and measurements live in the "Working notes" of `docs/pl
 
 Adapters live in `internal/modules/`, not in the feature packages, because `module` imports `services`, which imports `tracker`/`ideas`/`house`: a feature package importing `module` is an import cycle. The feature packages (`tracker`, `ideas`, `house`) keep their parsers, services and handlers.
 
-**Core pages are not modules:** home and planner, calendar, digest, search, auth, account, admin, uploads, commentary. Home reads tracker services directly through `home.Lists`; a `Plannable` capability is deferred to Plan 2.
+**Core pages are not modules:** home and planner, calendar, digest, search, auth, account, admin, uploads, commentary. Home reads tracker services directly through `home.Lists`; a `Plannable` capability waits for the first non-tracker module that needs planning (`docs/backlog.md`).
 
 **One wiring path:** `app.NewRouter` builds everything; tests use `app.NewRouterWith(..., app.Options{Modules, Broker})`. `internal/app` is split into `app.go` (users, services, watcher, sessions, purge loop), `routes.go` (mounting, middleware), `templates.go` (func map, parsing, start-up contrast check), `fragment.go` (htmx fragment middleware) and `static.go`. `cmd/dashboard` loads config, opens the DB, calls it and runs the `useradd` and `migrate-data` subcommands.
 

@@ -1,6 +1,10 @@
 # Backlog
 
-Plan 2 (exercise module, SQLite migration hook, a `Plannable` capability) and Plan 3 (stable item IDs, quick capture, recurring tasks, MCP tooling) hold the larger work; this file lists smaller follow-ups.
+Plan 3 (stable item IDs, quick capture, recurring tasks, MCP tooling) holds the larger work; this file lists smaller follow-ups.
+
+Plan 2 (exercise module) is parked: gym sessions are logged in Hevy. Its two framework pieces wait for a real consumer rather than being built speculatively:
+- **SQLite migration hook.** `internal/db/migrations.go` is one global list and `module.Deps` has no database handle. Build the per-module hook with the first module that stores data in SQLite.
+- **`Plannable` capability.** `home.Lists` hard-codes the three tracker services. Build it with the first non-tracker module whose items belong in the daily planner.
 
 ## House
 

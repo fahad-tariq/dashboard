@@ -9,7 +9,7 @@ This is the first of three plans:
 | Plan | Scope | Status |
 |---|---|---|
 | 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | Done: Phases 1-10 deployed and signed off (2026-10-06) |
-| 2 | Exercise module on the framework, plus the SQLite migration hook it needs. Exercise scope is not yet decided | Not written |
+| 2 | Exercise module on the framework, plus the SQLite migration hook it needs | Parked (2026-10-07): the owner logs gym sessions in Hevy (free tier) instead. Revisit only if Hevy's 3-month chart limit proves a real gap |
 | 3 | Product features: quick capture, stable item IDs (which also fix slug collisions), due dates, recurring tasks merged with maintenance cadence, agent-proposed daily plan, reminders, weekly review, MCP tooling and possibly a Go MCP server | Not written; write after Phase 7 lands |
 
 ## Context
