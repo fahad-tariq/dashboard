@@ -21,6 +21,13 @@ import (
 // sub-steps, and one goal.
 func renderRouter(t *testing.T) (http.Handler, *config.Config) {
 	t.Helper()
+	return renderRouterWith(t, nil)
+}
+
+// renderRouterWith is renderRouter with a hook that can change the seed files
+// (keyed by their path variable) before the router loads them.
+func renderRouterWith(t *testing.T, edit func(seeds map[string]string, today string)) (http.Handler, *config.Config) {
+	t.Helper()
 	paths := tempPaths(t)
 	paths["DASHBOARD_PASSWORD_HASH"] = ""
 	paths["DASHBOARD_AUTH"] = "disabled"
@@ -50,6 +57,9 @@ func renderRouter(t *testing.T) (http.Handler, *config.Config) {
 			"  - [x] 2026-03-01 - front and back\n",
 		"HOUSE_PROJECTS_PATH": "# House\n\n" +
 			"- [ ] Paint the back fence [added: 2026-09-01] [tags: exterior] [budget: 400] [status: todo]\n",
+	}
+	if edit != nil {
+		edit(seeds, today)
 	}
 	for key, content := range seeds {
 		if err := os.WriteFile(paths[key], []byte(content), 0o600); err != nil {

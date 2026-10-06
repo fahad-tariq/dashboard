@@ -150,3 +150,41 @@ func TestConfigValidateCreatesSkeletonFiles(t *testing.T) {
 		}
 	}
 }
+
+// A mistyped DASHBOARD_SECURE_COOKIES must not silently drop the Secure flag:
+// empty keeps the default, anything unparseable refuses to start.
+func TestConfigSecureCookiesFailsClosed(t *testing.T) {
+	tests := map[string]struct {
+		value      string
+		wantSecure bool
+		wantErr    bool
+	}{
+		"empty keeps default": {value: "", wantSecure: true},
+		"true":                {value: "true", wantSecure: true},
+		"false":               {value: "false", wantSecure: false},
+		"FALSE":               {value: "FALSE", wantSecure: false},
+		"yes is rejected":     {value: "yes", wantErr: true},
+		"typo is rejected":    {value: "flase", wantErr: true},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			paths := tempPaths(t)
+			paths["DASHBOARD_SECURE_COOKIES"] = tc.value
+			setEnvForConfig(t, paths)
+
+			cfg, err := config.Load()
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("Load accepted %q (SecureCookies=%v), want an error", tc.value, cfg.SecureCookies)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if cfg.SecureCookies != tc.wantSecure {
+				t.Errorf("SecureCookies = %v, want %v", cfg.SecureCookies, tc.wantSecure)
+			}
+		})
+	}
+}

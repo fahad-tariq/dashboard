@@ -2,15 +2,18 @@ package test
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/fahad/dashboard/internal/db"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -296,5 +299,92 @@ func TestAPIInvalidListReturns400(t *testing.T) {
 		`{"list":"invalid"}`)
 	if w.Code != 400 {
 		t.Errorf("POST with invalid list status = %d, want 400", w.Code)
+	}
+}
+
+// The tracker API serves personal and family only. "house" passes the shared
+// list validation, so it must still be refused with a 400, never reach a nil
+// service.
+func TestAPIRejectsHouseList(t *testing.T) {
+	env := setupAPIEnv(t)
+	handler := middleware.Recoverer(env.router)
+
+	tests := map[string]struct {
+		method, path, body string
+	}{
+		"get":         {"GET", "/api/v1/todos/existing-task?list=house", ""},
+		"add":         {"POST", "/api/v1/todos", `{"title":"x","list":"house"}`},
+		"update":      {"PUT", "/api/v1/todos/existing-task", `{"title":"x","list":"house"}`},
+		"complete":    {"POST", "/api/v1/todos/existing-task/complete", `{"list":"house"}`},
+		"uncomplete":  {"POST", "/api/v1/todos/existing-task/uncomplete", `{"list":"house"}`},
+		"delete":      {"DELETE", "/api/v1/todos/existing-task", `{"list":"house"}`},
+		"priority":    {"PUT", "/api/v1/todos/existing-task/priority", `{"priority":"high","list":"house"}`},
+		"tags":        {"PUT", "/api/v1/todos/existing-task/tags", `{"tags":["a"],"list":"house"}`},
+		"add substep": {"POST", "/api/v1/todos/existing-task/substeps", `{"text":"x","list":"house"}`},
+		"toggle step": {"PUT", "/api/v1/todos/existing-task/substeps/0", `{"list":"house"}`},
+		"remove step": {"DELETE", "/api/v1/todos/existing-task/substeps/0", `{"list":"house"}`},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			var body io.Reader
+			if tc.body != "" {
+				body = strings.NewReader(tc.body)
+			}
+			req := httptest.NewRequest(tc.method, tc.path, body)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400; body: %s", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+// PUT keeps whatever the request leaves out. The MCP update_todo tool sends
+// only the fields it was given, and documents the rest as kept.
+func TestAPIUpdateTodoKeepsOmittedFields(t *testing.T) {
+	tests := map[string]struct {
+		body                 string
+		wantTitle, wantBody  string
+		wantTags, wantImages []string
+	}{
+		"title only": {
+			body:      `{"title":"Renamed task","list":"personal"}`,
+			wantTitle: "Renamed task", wantBody: "Original notes",
+			wantTags: []string{"backend"}, wantImages: []string{"a.png"},
+		},
+		"body only": {
+			body:      `{"body":"New notes","list":"personal"}`,
+			wantTitle: "Existing task", wantBody: "New notes",
+			wantTags: []string{"backend"}, wantImages: []string{"a.png"},
+		},
+		"explicit empties clear": {
+			body:      `{"body":"","tags":[],"images":[],"list":"personal"}`,
+			wantTitle: "Existing task", wantBody: "",
+			wantTags: nil, wantImages: nil,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			env := setupAPIEnv(t)
+			if err := env.personalSvc.UpdateEdit("existing-task", "", "Original notes", []string{"backend"}, []string{"a.png"}); err != nil {
+				t.Fatal(err)
+			}
+			w := apiRequest(t, env, "PUT", "/api/v1/todos/existing-task", tc.body)
+			if w.Code != 200 {
+				t.Fatalf("PUT status = %d; body: %s", w.Code, w.Body.String())
+			}
+			slug := tracker.Slugify(tc.wantTitle)
+			item, err := env.personalSvc.Get(slug)
+			if err != nil {
+				t.Fatalf("get %s: %v", slug, err)
+			}
+			if item.Title != tc.wantTitle || item.Body != tc.wantBody {
+				t.Errorf("title, body = %q, %q; want %q, %q", item.Title, item.Body, tc.wantTitle, tc.wantBody)
+			}
+			if !slices.Equal(item.Tags, tc.wantTags) || !slices.Equal(item.Images, tc.wantImages) {
+				t.Errorf("tags, images = %v, %v; want %v, %v", item.Tags, item.Images, tc.wantTags, tc.wantImages)
+			}
+		})
 	}
 }
