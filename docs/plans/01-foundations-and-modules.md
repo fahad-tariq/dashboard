@@ -8,7 +8,7 @@ This is the first of three plans:
 
 | Plan | Scope | Status |
 |---|---|---|
-| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | In progress: Phases 1-9 deployed and signed off; Phase 10 (documentation) in review |
+| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | Done: Phases 1-10 deployed and signed off (2026-10-06) |
 | 2 | Exercise module on the framework, plus the SQLite migration hook it needs. Exercise scope is not yet decided | Not written |
 | 3 | Product features: quick capture, stable item IDs (which also fix slug collisions), due dates, recurring tasks merged with maintenance cadence, agent-proposed daily plan, reminders, weekly review, MCP tooling and possibly a Go MCP server | Not written; write after Phase 7 lands |
 
@@ -490,7 +490,7 @@ Modules receive one `module.Deps` struct: location, templates, change publisher,
 
 ## Phase 10: Documentation
 
-- [ ] Update `CLAUDE.md` using the `claude-md-authoring` skill. Cover:
+- [x] Update `CLAUDE.md` using the `claude-md-authoring` skill. Cover:
   - the module contract and how to add a module
   - auth modes
   - atomic writes and service-published events
@@ -498,14 +498,14 @@ Modules receive one `module.Deps` struct: location, templates, change publisher,
   - removal of the SQLite mirror ("DB-backed via Store for summary counts" is no longer true)
   - the single wiring path
   - the id scheme
-- [ ] Update `README.md`:
+- [x] Update `README.md`:
   - current features
   - the full API table
   - env vars: `DASHBOARD_AUTH`, `DASHBOARD_TRUSTED_PROXIES`, `MCP_TOKEN`, `MCP_ALLOW_DESTRUCTIVE`
   - the Caddy configuration
   - backup and restore
   - an "Adding a module" section
-- [ ] Update `docs/backlog.md`: remove completed items (CSRF, focus traps, ServiceMap refactor) and add the follow-ups from Working Notes.
+- [x] Update `docs/backlog.md`: remove completed items (CSRF, focus traps, ServiceMap refactor) and add the follow-ups from Working Notes.
 
 **Final self-review against the success criteria. STOP and wait for human review.**
 
@@ -871,3 +871,4 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
   - the calendar drag handler also refuses tasks without `draggable`, so a text drag inside a done task cannot move it
 - Code changes in this phase: only the bug fixes above; the rest is docs, `.env.example` and `.gitignore`.
 - Deployed `6467c62` (docs plus the eight bug fixes) to fliptronic 2026-10-06 04:06 UTC after CI passed in full. The deploy ran a script that does not take a backup; the last backup before it was the 03:25 UTC cron run (`dashboard-backup-20261006-032501.tar.gz`), and one was taken straight after (`dashboard-backup-20261006-040807.tar.gz`). The deploy only replaced the image. Production sets `DASHBOARD_SECURE_COOKIES=true`, so the stricter parsing started cleanly. Verified through Caddy: `/login` 200 with the new markup; `/`, `/todos` and `/ideas` 303 to login; `/events` 401; `/api/v1/todos` 404; cross-site login POST 403; CSP and HSTS present. `verify-stack.sh`: the dashboard check passes; an unrelated service (`cca`) failed.
+- **Phase 10 signed off** by the owner on 2026-10-06, after the docs were verified by independent agents and the bug fixes were deployed. Plan 1 is complete.
