@@ -1,6 +1,9 @@
 package test
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -47,9 +50,9 @@ func TestBulkTrashFlashIsNotAnError(t *testing.T) {
 	}
 }
 
-// Trash on the idea detail page offers undo like every other trash action:
-// no confirm, and an htmx request so the fragment middleware's toast carries
-// the undo. The response is the ideas list, so it replaces <main>.
+// Trash on the idea detail page offers undo like every other trash action,
+// without htmx: a plain POST with no confirm, whose redirect to the list
+// carries the restore path, which the layout offers as an undo button.
 func TestIdeaDetailTrashOffersUndo(t *testing.T) {
 	h, _ := renderRouter(t)
 	body := renderPage(t, h, "/ideas/home-weather-station")
@@ -58,12 +61,47 @@ func TestIdeaDetailTrashOffersUndo(t *testing.T) {
 	if form == "" {
 		t.Fatal("no trash form on the idea detail page")
 	}
-	if strings.Contains(form, "data-confirm") {
-		t.Errorf("trash form still asks for confirmation: %s", form)
+	if strings.Contains(form, "data-confirm") || strings.Contains(form, "hx-") {
+		t.Errorf("trash form should be a plain POST with no confirm: %s", form)
 	}
-	for _, want := range []string{`hx-boost="true"`, `hx-target="#main"`, `hx-select="#main"`, `hx-swap="outerHTML"`, `hx-push-url="/ideas"`} {
-		if !strings.Contains(form, want) {
-			t.Errorf("trash form lacks %s: %s", want, form)
-		}
+
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/ideas/home-weather-station/delete", nil))
+	loc := rr.Header().Get("Location")
+	if rr.Code != http.StatusSeeOther || !strings.Contains(loc, "undo=%2Fideas%2Fhome-weather-station%2Frestore") {
+		t.Fatalf("trash = %d to %q, want a 303 carrying the restore path", rr.Code, loc)
+	}
+	list := renderPage(t, h, loc)
+	undo := `<form method="POST" action="/ideas/home-weather-station/restore" class="flash-undo">`
+	if !strings.Contains(list, undo) {
+		t.Errorf("list page after trash has no undo form %q", undo)
+	}
+}
+
+// The undo button only ever posts to a local restore route, whatever the
+// query string says.
+func TestFlashUndoOnlyForLocalRestorePaths(t *testing.T) {
+	h, _ := renderRouter(t)
+	tests := map[string]struct {
+		undo string
+		want bool
+	}{
+		"restore route":     {undo: "/ideas/x/restore", want: true},
+		"purge route":       {undo: "/ideas/x/purge"},
+		"protocol relative": {undo: "//evil.example/restore"},
+		"absolute URL":      {undo: "https://evil.example/restore"},
+		"no flash message":  {undo: "/ideas/x/restore"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			path := "/ideas?msg=idea-deleted&undo=" + url.QueryEscape(tc.undo)
+			if name == "no flash message" {
+				path = "/ideas?undo=" + url.QueryEscape(tc.undo)
+			}
+			got := strings.Contains(renderPage(t, h, path), `class="flash-undo"`)
+			if got != tc.want {
+				t.Errorf("undo form shown = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

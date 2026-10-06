@@ -58,12 +58,13 @@ test('trash from the idea page goes to the list and offers undo', async ({ page 
   await card.getByRole('link', { name: title }).click();
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
 
-  // No confirm dialog: the toast offers undo instead.
+  // No confirm dialog: the list's flash offers undo instead.
   await page.getByRole('button', { name: 'move to trash' }).click();
   await expect(page).toHaveURL(/\/ideas$/);
   await expect(page.locator('dialog[open]')).toHaveCount(0);
   await expect(ideaSection(page, 'Untriaged').locator('.tracker-item', { hasText: title })).toHaveCount(0);
 
-  await page.locator('#toast').getByRole('button', { name: 'undo' }).click();
+  await page.locator('.flash-undo').getByRole('button', { name: 'undo' }).click();
   await expect(ideaSection(page, 'Untriaged').locator('.tracker-item', { hasText: title })).toBeVisible();
+  await expect(page.locator('.flash-undo')).toHaveCount(0);
 });
