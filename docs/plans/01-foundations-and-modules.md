@@ -8,7 +8,7 @@ This is the first of three plans:
 
 | Plan | Scope | Status |
 |---|---|---|
-| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | In progress: Phases 1-8 deployed; next is Phase 9 |
+| 1 (this) | Fixes from the design and software reviews, wiring simplification, module framework, existing features migrated to modules, interaction rework, visual design uplift | In progress: Phases 1-9 deployed and signed off; Phase 10 (documentation) in review |
 | 2 | Exercise module on the framework, plus the SQLite migration hook it needs. Exercise scope is not yet decided | Not written |
 | 3 | Product features: quick capture, stable item IDs (which also fix slug collisions), due dates, recurring tasks merged with maintenance cadence, agent-proposed daily plan, reminders, weekly review, MCP tooling and possibly a Go MCP server | Not written; write after Phase 7 lands |
 
@@ -458,26 +458,26 @@ Modules receive one `module.Deps` struct: location, templates, change publisher,
 
 **Purpose:** one coherent visual design, applied once to the Phase 6 shared components and the Phase 7 module templates, after Phase 8 has settled the interaction patterns (toasts, inline updates, native dialogs). Requested by the owner after Phase 4. Doing it earlier would mean restyling templates that Phases 6 and 7 rewrite.
 
-- [ ] **Review and direction.**
+- [x] **Review and direction.**
   - Capture a baseline screenshot set: every main page in both themes at 1280px and 375px, plus the key states (item expanded, select mode, dialog open, toast). Generate it with a Playwright job whose screenshots CI uploads as an artefact, because browsers cannot run in the local sandbox.
   - Run a design review (Design Reviewer agent) over the screenshots and templates covering hierarchy, density, typography, spacing rhythm, consistency between pages, the mobile layouts, and the homepage as a daily planning hub.
   - Write a short direction proposal for the owner: what changes and what stays, with mockups or a styled prototype page.
   - **Owner decision required:** keep and refine the monospace, terminal-style Catppuccin identity, or allow a broader visual change.
   - **STOP for the owner to approve the direction** before implementing.
-- [ ] **Design tokens.**
+- [x] **Design tokens.**
   - Spacing scale, type scale (sizes, weights, line heights), radii, borders, elevation, and motion durations.
   - A `.btn` base with variants (primary, secondary, quiet, danger, icon) that replaces the per-feature button classes.
   - Organise `theme.css` with `@layer` (reset, tokens, base, components, pages, utilities). Split it into files if that helps; the static asset hashing already handles several files.
   - Replace hard-coded sizes and colours with tokens.
   - Phase 4's colour tokens and contrast tests stay authoritative. New colours are added as tokens and pass `TestThemeRuleTextContrast`.
-- [ ] **Components.** Restyle the shared partials and core UI to the direction:
+- [x] **Components.** Restyle the shared partials and core UI to the direction:
   - page header, item row, card, quick-add, empty state, error banner, toast, dialogs, nav (including the "more" disclosure), filters, bulk bar, badges and forms
   - keep the Phase 4 id scheme and the Phase 8 morph behaviour intact
-- [ ] **Pages.**
+- [x] **Pages.**
   - Homepage hierarchy, with the plan as the primary section and the widgets below it.
   - List density on todos, family, goals and ideas, the house table, the calendar and the digest.
   - Mobile layouts, including tracker row height under the 44px touch targets (the owner flagged taller rows in Phase 4).
-- [ ] **Clean-up.** Remove CSS that no template uses, and record the size of `theme.css` before and after in Working Notes.
+- [x] **Clean-up.** Remove CSS that no template uses, and record the size of `theme.css` before and after in Working Notes.
 
 **Verification:**
 - axe, contrast, reflow, target-size, reduced-motion and keyboard tests all pass in both themes.
@@ -818,7 +818,7 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
     - the picker repeating tasks that also appear in the summary cards (a behaviour question, raised with the owner)
 - CI on `main` (`3e81500`) passed in full, including e2e and the separate screenshots job. Deployed to fliptronic 2026-10-05 14:25 UTC (backup `dashboard-backup-20261005-142445.tar.gz`, image revision `3e81500`). Verified through Caddy: `/login` 200 and serves the new markup (`data-style`, caret); `/` and `/todos` 303 to login; `/events` 401; `/api/v1/todos` 404; cross-site login POST 403; CSP and HSTS present; `verify-stack.sh` green.
 - Owner decision (2026-10-05): the homepage task picker may keep listing tasks that the summary cards below also show.
-- **Phase 9 STOP:** the owner uses the redesigned app (all three styles, both themes, phone and desktop) before Phase 10 starts. Still open in the Phase 9 checklist until then.
+- **Phase 9 STOP:** the owner uses the redesigned app (all three styles, both themes, phone and desktop) before Phase 10 starts.
 - **Owner review of the deploy (2026-10-06):** every style looked too narrow on a desktop, and the open task picker pushed the summary cards a full screen down. Changes:
   - from 1100px the homepage is two columns, with the plan on the left and the widgets in a 22rem rail (a deviation from the single-column brief, on the owner's feedback)
   - list pages are 880px, up from 760px
@@ -836,3 +836,27 @@ _For the executing agent. Record decisions, deviations, measurements and follow-
      - goals as a two-column card grid on wide screens
   - Filter buttons carry `aria-pressed`, and "all" is found by its empty filter type, because labels now include counts. Counts come from a `filterCount` template func (reflection over Tags, Priority and Added).
 - Deployed `5306a02` to fliptronic 2026-10-05 23:16 UTC (backup `dashboard-backup-20261005-231603.tar.gz`). CI green first time. Verified through Caddy as before; the served `theme.css` has the list rail rules.
+- **Phase 9 signed off** by the owner on 2026-10-06, after the list rail deploy (`5306a02`). All Phase 9 checklist items are ticked. Next is Phase 10 (documentation).
+
+### Phase 10 notes
+
+- `CLAUDE.md` rewritten with the `claude-md-authoring` skill (89 lines, about 2,300 words). Added: the module contract and how to add a module, auth modes, atomic writes and service-published events, live refresh with morph swaps and fragment responses, the id scheme, the three styles and six token blocks (`internal/theme`, `seasonal.ColourFor`, `data-style`), the list rail and `.tracker-list`, `TestE2ESelectorsExist`, the `screenshots` CI job and `e2e-grep.yml`. Deleted: the SSE suppression flags, `SingleUserPlanHandlers` and planner dual-mode handlers, the three `ToTaskFunc` closures, Catppuccin, the SQLite mirror for summary counts, the coarse-pointer-only reorder buttons and the `afterSwap` re-expansion. Details that live in these Working notes are linked rather than copied.
+- `README.md`: intro, features (planner, house, undo, styles, security), file formats for all five files, a route summary pointing to the route golden, the full 24-route API table, the MCP destructive-tool switch, storage (SQLite is users, sessions and commentary only), "Adding a module" and "Development" sections. Configuration gained `DASHBOARD_TIMEZONE`, `MAINTENANCE_PATH` and `HOUSE_PROJECTS_PATH`, which were missing. The Caddy, backup and restore sections were already current.
+- `docs/backlog.md`: removed CSRF (cross-origin protection, Phase 2), focus traps (native dialogs, Phase 8) and the ServiceMap refactor (resolvers, Phase 5). Still open after checking the code: idea status class injection, image filename validation, house `MoveToList`, `itemToAPI` house fields. The house plan-row drag item is reworded: it should work but has no test. Added the Working-notes follow-ups (CSP, capabilities, per-module static assets, test-only constructors, the `tracker_items` table) and known limitations.
+- Self-review: an independent agent fact-checked every concrete claim against the code. Fixed from its report: maintenance drops blank lines like the tracker (only ideas keep them); only `linkify` may return `template.HTML` from the func map; the start-up check covers only the seasonal colour, not all tokens; only `SetPlanned` and `ReorderPlanned` return 204 to planner XHR; the normalise fixtures are golden-compared, not byte-identical; the list of templates with inline handlers; CI triggers; CLI paths. It also found these dropped from the old `CLAUDE.md`, which are now restored: image captions, `toTask` targets, `mutateBatch` for bulk actions, `CutoffDate`, `admin@localhost` bootstrap, upload naming, and `auth.DeleteUser` still touching `tracker_items`.
+- Second review round (owner request, 2026-10-06): four clean-context agents checked `CLAUDE.md` accuracy, `README.md` accuracy and usability, the backlog against the code, and whether `CLAUDE.md` helps with six realistic tasks. Changes from their reports:
+  - `CLAUDE.md`: only the fixture module uses `Render.Page` and `Manifest.Flash` (the built-ins use their feature handlers' `resolveFlash`); out-of-prefix routes fail start-up rather than being dropped; parser indentation rules per parser; purge timing and scope; which pages are live; the three expand mechanisms; the undo payload limit; how confirms work. Added: a module checklist (storage outside `services.Registry`, the hard-coded purge list, select mode, `TestRouteGolden -update`), the new-inline-tag checklist including `inlineMetaRe`, and the token fallback and contrast-test lists for new colours. The list-page layout and CI details were trimmed.
+  - `README.md`: setup, running and migration rewritten. Compose fixes paths in `docker-compose.yml`; `.env` only substitutes some values. The data directories need chowning. The MCP container exits without tokens. The old `make run` and `go run` commands could not start (paths default to `/data`, and `./data` is the Compose bind mount). `migrate-data` overwrites `ideas.md`. The configuration table was corrected and completed (timezone default, trusted proxies also used for API rate limiting, compose-only variables). The API table now gives the body fields, and `list` is a body field on mutations, not a query parameter. The "Adding a module" steps were corrected (templates directory, no free primary nav slot, page contract, `TestModuleContract` covers only the fixture). Caddy uses `handle_path /mcp/*`.
+  - `.env.example`: the tokens are empty by default (`change-me` left the API unmounted and crash-looped the MCP container). The comments now say which values Compose uses.
+  - `.gitignore`: `.dev/` for the local-run scratch directory.
+  - Backlog: new bugs:
+    - the tracker API panics on `list=house` (nil service, 500)
+    - an invalid `DASHBOARD_SECURE_COOKIES` value fails open
+    - `migrate-data` overwrites `ideas.md`
+    - done calendar tasks can be dragged
+    - the bulk trash flash is styled as an error
+    - idea detail trash still confirms
+
+    Also corrected the CSP, idea status, image filename and `MoveToList` items, and added the missing follow-ups and accepted limits from these notes. The ServiceMap removal stands: the resolvers are done, and the leftover `resolveListService` gap is the `list=house` bug.
+- Third pass (one clean-context agent over the revised files): fixed a wrong claim that the plan API exposes house budget fields, the API rate limit (writes only, one shared bucket), title handling on `PUT /todos/{slug}`, research append, CLI environment needs, `migrate-data` copying rather than moving, the MCP container restart loop, and the metadata order in the README examples. New backlog bug: the MCP `update_todo` tool wipes body, tags and images on a title-only update, because the API clears omitted fields.
+- Code changes in this phase: none. Only docs, `.env.example` and `.gitignore` changed.

@@ -1,100 +1,112 @@
 # Dashboard
 
-A personal task, goal, and idea dashboard backed by markdown files. Tasks and goals are split into personal (`personal.md`) and family (`family.md`) lists. Ideas are stored in a single `ideas.md` flat file with inline metadata. Web UI with htmx for live updates. Supports image upload and clipboard paste across all content types.
+A personal dashboard for tasks, goals, ideas and house upkeep, backed by markdown files. The homepage is a daily planner over those tasks. Server-rendered Go with htmx; open tabs update live when a file changes, including edits made outside the app.
+
+Each feature area (todos, family, ideas, house) is a module: one package plus one registration line. See [Adding a module](#adding-a-module).
 
 ## Setup
 
-```bash
-cp .env.example .env
-# Edit .env as needed
-```
+Docker Compose is the supported deployment. Compose reads `.env` only for the values it substitutes (`DASHBOARD_PASSWORD_HASH`, `DASHBOARD_API_TOKEN`, `MCP_TOKEN`, `MCP_ALLOW_DESTRUCTIVE`, `SESSION_LIFETIME`, `DASHBOARD_SECURE_COOKIES`, `DASHBOARD_TIMEZONE`, `DASHBOARD_PORT`, `DASHBOARD_UID`/`DASHBOARD_GID`, `VERSION`). Paths, `ADDR` and `DASHBOARD_TRUSTED_PROXIES` are fixed in `docker-compose.yml`; edit them there.
 
 ### Fresh install
 
-1. Set `DASHBOARD_PASSWORD_HASH` in `.env` (generates the first admin user automatically):
+1. Copy `.env.example` to `.env`, then set `DASHBOARD_PASSWORD_HASH` (it creates the first admin):
    ```bash
-   # Generate a bcrypt hash
    htpasswd -nbBC 10 "" 'your-password' | cut -d: -f2
    ```
-2. Start the app: `docker compose up --build`
-3. Log in as `admin@localhost` with your password
-4. Go to `/admin/users` to create real users and update your email
+   Leave `DASHBOARD_API_TOKEN` empty unless you want the REST API.
+2. Create the data directories owned by the user the container runs as (`DASHBOARD_UID`/`DASHBOARD_GID`, default 10001), or Docker creates them owned by root and every write fails:
+   ```bash
+   mkdir -p data users && sudo chown 10001:10001 data users
+   ```
+3. Start the dashboard only: `docker compose up --build dashboard`. Without `MCP_TOKEN` and `DASHBOARD_API_TOKEN` (32+ characters, different), the `dashboard-mcp` service exits at start-up and `restart: unless-stopped` keeps restarting it.
+4. Open `http://127.0.0.1:8081` (`DASHBOARD_PORT`) and log in as `admin@localhost`. Behind HTTPS keep `DASHBOARD_SECURE_COOKIES=true`. For plain HTTP set it to `false`: browsers drop `Secure` cookies over HTTP, and only some treat `localhost` as an exception.
+5. Change your email and add users at `/admin/users`.
 
 ### Starting over
 
-If you want a clean slate (new database, no existing data):
+To reset accounts and sessions but keep your markdown data:
 
 ```bash
 docker compose down
-rm data/dashboard.db    # Remove the database
-docker compose up --build
+rm -f data/dashboard.db data/dashboard.db-wal data/dashboard.db-shm
+docker compose up -d dashboard
 ```
 
-The app auto-creates `admin@localhost` from `DASHBOARD_PASSWORD_HASH` on first start. All data entered after this point persists in Docker volumes across rebuilds.
+`admin@localhost` is recreated from `DASHBOARD_PASSWORD_HASH`. Tasks, ideas and house data live in `data/` and `users/` (bind mounts) and are untouched; delete those directories too for an empty install. Commentary is lost with the database.
 
 ### Migrating legacy data
 
-If you have data from before the flat-file migration (directory-based ideas at `/data/ideas/untriaged/` etc., or explorations at `/data/explorations/`), convert them to the new format:
+Only for data from before the flat-file format (one file per idea in `untriaged/`, `parked/` and `dropped/` directories, plus an `explorations/` directory). **It overwrites `users/{id}/ideas.md` with whatever it finds**, so never run it against current data, and take a backup first.
 
 ```bash
-docker exec <container> /usr/local/bin/dashboard migrate-data --user-id 1
+./bin/dashboard migrate-data --user-id 1 --ideas-dir /old/ideas --explorations-dir /old/explorations
 ```
 
-This reads old-format idea and exploration files, merges research notes into idea bodies, and writes a single `ideas.md` per user. Explorations are migrated as parked ideas. Slug collisions are handled by suffixing `-exp`.
+Without flags it reads `USER_DATA_DIR/{id}/ideas/` and `USER_DATA_DIR/{id}/explorations/`. It also copies `PERSONAL_PATH` to `USER_DATA_DIR/{id}/personal.md` (the source is left in place), but skips that if the target exists, and the server creates it at start-up, so run the migration before the first start. Research notes are merged into idea bodies, explorations become parked ideas, and colliding slugs get `-exp`.
 
 ## Configuration
 
+These are the binary's defaults. Under Compose, the paths are set in `docker-compose.yml` to `/data/db/...` (host `./data`) and `/data/users` (host `./users`).
+
 | Variable | Default | Description |
 |---|---|---|
-| `IDEAS_PATH` | `/data/ideas.md` | User 1's ideas file when `DASHBOARD_AUTH=disabled`; ignored with auth on |
-| `IDEAS_DIR` | (empty) | Legacy: if set, derives `IDEAS_PATH` from parent directory |
-| `UPLOADS_DIR` | `/data/uploads` | Directory for uploaded images (shared, auto-created) |
-| `PERSONAL_PATH` | `/data/personal.md` | User 1's personal tasks file when `DASHBOARD_AUTH=disabled`, and the source file for `migrate-data` |
-| `FAMILY_PATH` | `/data/family.md` | Shared family tasks file |
-| `USER_DATA_DIR` | `/data/users` | Per-user data directory (auto-created) |
-| `DB_PATH` | `/data/db/dashboard.db` | SQLite database path |
-| `DASHBOARD_PASSWORD_HASH` | (empty) | Bcrypt hash for auto-creating first admin user |
-| `DASHBOARD_AUTH` | `enabled` | `disabled` turns auth off for local development: every request is served as user 1 (created as `local@localhost` if missing); refused unless `ADDR` is loopback. With auth on and no users or hash, the server refuses to start |
-| `DASHBOARD_TRUSTED_PROXIES` | (empty) | CIDRs or IPs of reverse proxies whose `X-Forwarded-For` is used for login rate limiting |
+| `ADDR` | `:8080` | Listen address |
+| `DB_PATH` | `/data/db/dashboard.db` | SQLite database: users, sessions, commentary, schema version (and an unused `tracker_items` table) |
+| `USER_DATA_DIR` | `/data/users` | Per-user files: `{id}/personal.md`, `{id}/ideas.md` |
+| `FAMILY_PATH` | `/data/family.md` | Shared family tasks. Its directory is also where modules keep their own shared files |
+| `MAINTENANCE_PATH` | `/data/maintenance.md` | Shared house maintenance |
+| `HOUSE_PROJECTS_PATH` | `/data/house-projects.md` | Shared house projects |
+| `UPLOADS_DIR` | `/data/uploads` | Uploaded images (shared) |
+| `PERSONAL_PATH` | `/data/personal.md` | User 1's tasks in no-auth mode, and the source for `migrate-data`. With auth on it is unused, but a skeleton file is still created there |
+| `IDEAS_PATH` | `/data/ideas.md` | User 1's ideas in no-auth mode. Same caveat |
+| `IDEAS_DIR` | (empty) | Legacy: if set and `IDEAS_PATH` is not, `IDEAS_PATH` becomes `ideas.md` beside it |
+| `DASHBOARD_TIMEZONE` | the process's local zone (UTC in the container) | IANA zone for "today", planner dates, age badges and the digest. Compose defaults it to `Australia/Sydney` |
+| `DASHBOARD_PASSWORD_HASH` | (empty) | Bcrypt hash; creates `admin@localhost` when no user can log in |
+| `DASHBOARD_AUTH` | `enabled` | `disabled` serves every request as user 1 (created as `local@localhost`), for local development; refused unless `ADDR` is loopback. With auth on and no users or hash, the server refuses to start |
+| `DASHBOARD_TRUSTED_PROXIES` | (empty) | CIDRs or IPs of proxies whose rightmost `X-Forwarded-For` entry is used as the client IP for login and bearer-token rate limiting |
 | `DASHBOARD_API_TOKEN` | (empty) | Bearer token for `/api/v1`; at least 32 characters, or the API is not mounted |
-| `MCP_TOKEN` | (empty) | MCP sidecar only: token MCP clients send; at least 32 characters, different from `DASHBOARD_API_TOKEN` |
-| `MCP_ALLOW_DESTRUCTIVE` | `false` | MCP sidecar only: `true` exposes delete and clear tools |
-| `SESSION_LIFETIME` | `720h` | Session cookie lifetime (30 days) |
-| `DASHBOARD_SECURE_COOKIES` | `true` | Set `false` for local HTTP development |
-| `ADDR` | `:8080` | Server listen address |
+| `SESSION_LIFETIME` | `720h` | Session lifetime |
+| `DASHBOARD_SECURE_COOKIES` | `true` | `false` for plain-HTTP development. Must be `true` or `false`; any other value currently turns secure cookies off |
+| `MCP_TOKEN` | (empty) | MCP sidecar: the token MCP clients send; 32+ characters, different from `DASHBOARD_API_TOKEN` |
+| `MCP_ALLOW_DESTRUCTIVE` | `false` | MCP sidecar: `true` registers the delete and clear tools |
+| `DASHBOARD_API_URL` | `http://dashboard:8080/api/v1` | MCP sidecar: where it reaches the dashboard API |
+| `DASHBOARD_PORT` | `8081` | Compose only: loopback port published for the dashboard |
+| `DASHBOARD_UID`, `DASHBOARD_GID` | `10001` | Compose only: user the containers run as; must own `./data` and `./users` |
+| `VERSION` | `dev` | Build arg: the git SHA shown in the footer (`make build` sets it) |
 
-The build version (git SHA) is injected at compile time via `-ldflags` and displayed in the page footer. Set via `VERSION` build arg in Docker or `make build`.
+## Running locally
 
-## Running
+Requires Go 1.27 (see `go.mod`). The defaults point at `/data`, so set every path. This runs without auth against a scratch directory that git ignores:
 
 ```bash
-# Development
-make run
-
-# Or directly, without auth (loopback only)
+DEV=./.dev; mkdir -p "$DEV"
 DASHBOARD_AUTH=disabled ADDR=127.0.0.1:8080 DASHBOARD_SECURE_COOKIES=false \
-  IDEAS_PATH=./ideas.md PERSONAL_PATH=./data/personal.md FAMILY_PATH=./data/family.md go run ./cmd/dashboard
-
-# Build binary
-make build
-./bin/dashboard
+  DB_PATH="$DEV/dashboard.db" USER_DATA_DIR="$DEV/users" UPLOADS_DIR="$DEV/uploads" \
+  PERSONAL_PATH="$DEV/personal.md" IDEAS_PATH="$DEV/ideas.md" FAMILY_PATH="$DEV/family.md" \
+  MAINTENANCE_PATH="$DEV/maintenance.md" HOUSE_PROJECTS_PATH="$DEV/house-projects.md" \
+  go run ./cmd/dashboard
 ```
+
+Do not point it at `./data` or `./users`: those are the Compose bind mounts. `make run` is `go run` with the defaults, so it needs the same variables. `make build` writes `bin/dashboard`.
 
 ### CLI commands
 
-```bash
-# Create a user (bootstrap only -- use /admin/users in the browser)
-./dashboard useradd --email alice@example.com --password secret123
+`useradd` reads only `DB_PATH`. `migrate-data` loads the full server configuration, which creates skeleton files at every path, so outside Docker set all the path variables as in the command above.
 
-# Migrate legacy data to a user's directory
-./dashboard migrate-data --user-id 1 [--ideas-dir /old/ideas] [--explorations-dir /old/explorations]
+```bash
+# Create a user (afterwards use /admin/users)
+./bin/dashboard useradd --email alice@example.com --password secret123
+
+# Convert legacy data (see "Migrating legacy data")
+./bin/dashboard migrate-data --user-id 1 [--ideas-dir /old/ideas] [--explorations-dir /old/explorations]
 ```
 
 ## Docker
 
 ```bash
-# Pass the git SHA so the footer shows the build version
-VERSION=$(git rev-parse HEAD) docker compose up --build
+# Pass the git SHA so the footer shows the build version (same short form as make build)
+VERSION=$(git rev-parse --short HEAD) docker compose up --build dashboard
 ```
 
 The compose file mounts `./data` for the database, shared lists and uploads, and `./users` for per-user data (personal tasks, ideas). Nothing else is writable: both containers run read-only, unprivileged, with all capabilities dropped.
@@ -105,7 +117,7 @@ The reference `docker-compose.yml` assumes a proxy on the same host (here Caddy 
 
 ```caddyfile
 dash.example.net {
-    handle_path /mcp* {
+    handle_path /mcp/* {
         reverse_proxy localhost:9100
     }
     handle {
@@ -121,94 +133,68 @@ dash.example.net {
 
 ## Features
 
-### Tasks
-- Separate personal and family task lists
-- Quick add with optional tags and priority (high/medium/low)
-- Inline title, notes, tag, and priority editing
-- Filter by tag or priority
-- Expand/collapse all
-- Complete/uncomplete/delete
-- Move tasks between personal and family lists
-- Stored as checkbox items in `personal.md` and `family.md`
+### Tasks and goals
+- Personal (`/todos`) and family (`/family`) lists; goals (`/goals`) are personal only
+- Quick add with tags and priority (high, medium, low); inline edit of title, notes, tags and priority
+- Sub-steps as body checkboxes, with progress in the row; a sub-step can be promoted to its own task
+- Filter by tag, priority or "stale" (two weeks or older); on wide screens the filters sit in a left rail with counts
+- Select mode for bulk complete, plan, tag, priority and trash
+- Move tasks between personal and family
+- Goals track current/target with a unit, an optional deadline and a pace indicator
 
-### Goals
-- Progress tracking with current/target and unit (e.g. 12/40 books)
-- Progress bar visualisation with colour shift based on deadline proximity (green/yellow/orange/red)
-- Optional deadline with pace indicator ("On pace", "Behind pace", projected completion date)
-- Increment (+1/-1) or set absolute value
-- Inline title editing
-- Same priority and tag system as tasks
+### Daily planner
+- The homepage shows today's plan, with tasks from personal, family and house projects
+- Plan a task from its row ("today"), the homepage picker or in bulk; unfinished plans carry over, labelled with the day they came from
+- Reorder by drag-and-drop or the up/down buttons; `/plan/calendar` shows week and month views, and the week view reschedules by drag
+- Module widgets (open tasks oldest first, goals, overdue maintenance, untriaged ideas, tags) sit beside the plan on wide screens
+- `/digest` summarises activity for this week, last week or this month
 
 ### Ideas
-- Single flat file (`ideas.md`) with checkbox items and inline metadata
-- Triage workflow: untriaged -> parked / dropped / converted
-- Convert idea to personal task with bidirectional linkage (tags carry over, provenance preserved)
-- Status badges on list cards (untriaged/parked/dropped/converted)
-- Filter by tag
-- Inline title and body editing
-- Research notes stored inline in idea body
-- Quick add with `#tag` syntax
-- Optional project field for grouping
+- Triage: untriaged, parked, dropped or converted
+- Convert to a personal, family or house task; tags carry over and both sides link to each other
+- Research notes and rich markdown bodies (blank lines preserved)
 
-### Image upload
-- Attach images to any task, goal, or idea
-- Upload via file picker or clipboard paste (Ctrl+V in any textarea)
-- MIME-based validation (PNG, JPEG, GIF, WebP only)
-- Canonical extension mapping (ignores original filename extension)
-- 10 MB size limit per upload
+### House
+- Recurring maintenance with a cadence (`[cadence: 6m]`), a dated log and overdue status
+- Projects with status (todo, active, done, drop), budget and actual cost
 
-### Authentication and multi-user
-- Email + password login with bcrypt, server-side sessions (SQLite-backed)
-- Multi-user: each user gets isolated personal tasks, goals, and ideas
-- Shared family task list visible to all users
-- Two roles: `admin` (can manage users) and `user`
-- Admin UI at `/admin/users` for creating, editing, and deleting users
-- Self-service password change at `/account/password`
-- Session invalidation on role change, password reset, and user deletion
-- Rate limiting on login (5 attempts/minute per IP)
-- First user auto-created from `DASHBOARD_PASSWORD_HASH` env var
+### Everywhere
+- Trash with undo: deleting shows a toast with an undo button (or press `u`); trashed items are purged after 7 days
+- Images on any item via file picker or clipboard paste, with captions (PNG, JPEG, GIF, WebP; 10 MB)
+- Search across tasks, goals, ideas and house (`/`, `Ctrl+K` or `Cmd+K`)
+- Keyboard: `g` then `h` home, `t` todos, `o` goals, `i` ideas, `u` house, `f` family, `d` digest, `c` calendar; `j`/`k` move between rows; `?` lists them all
+- Three styles (Cards, Paper, Document), each in light and dark, chosen per device from the nav. All six meet WCAG 2.2 AA contrast, checked by tests
+- Changes appear in other open tabs without a reload, and without collapsing expanded rows
 
-### Homepage insights
-- Time-of-day greeting (Good morning/afternoon/evening)
-- Weekly velocity ("5 completed this week, up from 3 last week")
-- Completion streaks and milestone badges (10/50/100/500)
-- Tag aggregation across tasks, goals, and ideas (top 5 tags with cross-section counts)
-- Age badges on open tasks and untriaged ideas (fresh/ageing/stale/old)
+### Accounts and security
+- Email and password login (bcrypt), server-side sessions in SQLite
+- Login rate limit of 5 attempts per minute per IP, plus a growing per-account delay (never a lockout)
+- Cross-origin POSTs rejected; CSP and other security headers on every response
+- Per-user personal tasks, goals and ideas; family and house lists are shared. Admin UI at `/admin/users`, password change on `/account`
 
-### Search and keyboard shortcuts
-- `Ctrl+K` / `Cmd+K` / `/` opens search overlay
-- Full-text search across titles and body content (tasks, goals, ideas)
-- `?` shows keyboard shortcut help
-- `g h/t/o/i/f` for navigation (home, todos, goals, ideas, family)
-- Arrow keys + Enter for search result selection
+## File formats
 
-### General
-- Live reload via SSE on file changes
-- Catppuccin dark/light theme with WCAG AA contrast compliance
-- Themed confirmation modals (replacing browser confirm dialogs)
-- Task completion celebration animation
-- Idea triage transition animations
-- Success flash messages on all mutations
-- Contextual error messages with correlation IDs for 500 errors
-- Session expiry toast before login redirect
-- REST API with optional bearer token auth
+All lists are markdown checkbox items with inline metadata. Body lines are indented by 2 spaces; indented checkboxes are sub-steps (or log entries for maintenance), not new items.
 
-## Task file format
+The files are safe to edit by hand, but the app rewrites the whole file on its next change: section headings (`## ...`) outside item bodies are discarded, blank lines and extra indentation in task and maintenance bodies are dropped (ideas keep them), and inline metadata is put back in a fixed order.
 
-Tasks and goals are stored in `personal.md` and `family.md` as flat checkbox lists. Tags are inline via `[tags: ...]`. Section headers (`## ...`) are ignored by the parser. Goals are supported in `personal.md` only.
+### Tasks and goals (`personal.md`, `family.md`)
 
 ```markdown
 # Personal
 
-- [ ] Run 5km !high [added: 2026-03-10] [tags: fitness, health]
+- [ ] Run 5km !high [added: 2026-03-10] [planned: 2026-10-06] [tags: fitness, health]
+  - [x] Buy shoes
+  - [ ] Map a route
 - [ ] Reach 90kg [goal: 85.5/90 kg] [added: 2026-03-01] [deadline: 2026-06-30] [tags: health]
-- [ ] Document setup [tags: infra] [images: screenshot.png] [from-idea: document-setup-idea]
+- [ ] Document setup [from-idea: document-setup-idea] [tags: infra] [images: screenshot.png|Rack layout]
 - [x] Finish book club pick [completed: 2026-03-15] [tags: books]
+- [ ] Old errand [added: 2026-01-02] [deleted: 2026-10-01]
 ```
 
-## Idea file format
+Goals are supported in `personal.md` only. `[plan-order: N]` records manual plan order.
 
-Ideas are stored in a single `ideas.md` file with checkbox items and inline metadata:
+### Ideas (`ideas.md`)
 
 ```markdown
 # Ideas
@@ -217,60 +203,126 @@ Ideas are stored in a single `ideas.md` file with checkbox items and inline meta
   Replace nginx reverse proxy with Caddy for automatic HTTPS.
 
   ## Research
-  Caddy auto-provisions TLS certs via ACME. Simpler config than nginx.
-
-- [ ] Dashboard mobile PWA [status: untriaged] [tags: dashboard] [added: 2026-03-16] [images: pwa-sketch.png]
-  Add a manifest.json and service worker for offline support.
+  Caddy auto-provisions TLS certs via ACME.
 ```
 
-Status values: `untriaged` (default), `parked`, `dropped`, `converted`. The `[project: ...]` field is optional. Converted ideas include `[converted-to: task-slug]` linking to the resulting task. Body lines are indented with 2 spaces; blank lines within bodies are preserved.
+Status values: `untriaged` (default), `parked`, `dropped`, `converted`. Converted ideas carry `[converted-to: task-slug]`. Blank lines in bodies are preserved.
+
+### House (`maintenance.md`, `house-projects.md`)
+
+```markdown
+# Maintenance
+
+- [ ] Clean gutters [cadence: 6m] [tags: outdoor] [added: 2025-11-01]
+  Use the long ladder from the shed.
+  - [x] 2026-09-14 - Lots of leaves after the storm
+  - [x] 2026-03-10
+```
+
+Cadence is `Nd`, `Nw`, `Nm` or `Ny`. Log entries are newest first; the next due date counts from the first one, and an item with no log entries shows as overdue. Projects use the task format plus `[status: todo|active|done|drop]`, `[budget: N]` and `[actual: N]`.
 
 ## Routes
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/` | Homepage (summary of all sections) |
-| `GET` | `/todos` | Personal tasks page |
-| `GET` | `/family` | Family tasks page |
-| `GET` | `/goals` | Goals page (personal only) |
-| `GET` | `/ideas` | Ideas list (grouped by status) |
-| `GET` | `/ideas/{slug}` | Idea detail |
-| `GET` | `/exploration` | Redirects to `/ideas` (301) |
-| `POST` | `/upload` | Image upload (multipart, returns JSON) |
-| `GET` | `/uploads/{filename}` | Serve uploaded images |
-| `GET` | `/search` | Search across tasks, goals, ideas (HTML fragment) |
-| `GET` | `/events` | SSE endpoint for live reload |
-| `GET` | `/login` | Login page |
-| `POST` | `/login` | Login submission |
-| `POST` | `/logout` | Logout |
-| `GET` | `/account` | Self-service account settings |
-| `GET` | `/admin/users` | Admin: user list (admin only) |
-| `GET` | `/admin/users/new` | Admin: create user form |
-| `GET` | `/admin/users/{id}/edit` | Admin: edit user form |
-| `GET` | `/admin/users/{id}/password` | Admin: reset password form |
+Browser routes need a session (or no-auth mode). Each list's mutations are POSTs under its own path; `test/testdata/routes_auth.golden` is the full list.
+
+| Path | Page |
+|---|---|
+| `/` | Homepage and daily planner |
+| `/todos`, `/family`, `/goals` | Task and goal lists |
+| `/ideas`, `/ideas/{slug}` | Ideas list and detail |
+| `/house` | Maintenance and projects |
+| `/plan/calendar` | Planner week and month views |
+| `/digest` | Activity digest |
+| `/search?q=` | Search results (HTML fragment) |
+| `/events` | Server-sent events for live refresh |
+| `/login`, `/account`, `/admin/users` | Accounts (logout and password change are POSTs) |
+| `/upload`, `/uploads/*` | Image upload and serving |
+| `/commentary/{list}/{slug}` | Commentary fragment, loaded when a row expands |
+
+`/personal`, `/exploration` and `/exploration/{slug}` redirect to `/todos` and `/ideas`.
 
 ### API
 
-All API routes are under `/api/v1` and require a bearer token if `DASHBOARD_API_TOKEN` is set.
+Mounted under `/api/v1` only when `DASHBOARD_API_TOKEN` is set (32+ characters). Send `Authorization: Bearer <token>`; the token acts as user 1. Writes (anything but GET, HEAD and OPTIONS) share one limit of 60 per minute across all callers, and more than 10 bad tokens per minute from one IP get 429. Request bodies are JSON. Responses are JSON, except that plan set and clear return plain-text errors.
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/v1/ideas` | List all ideas |
-| `POST` | `/api/v1/ideas` | Create idea (JSON body) |
-| `PUT` | `/api/v1/ideas/{slug}/triage` | Triage idea (park/drop/untriage) |
-| `POST` | `/api/v1/ideas/{slug}/research` | Add research content to idea body |
+Todo routes need a list: `personal` (or `todos`) or `family`; `house` passes validation but is not supported (see `docs/backlog.md`). `GET /todos/{slug}` takes it as `?list=`; every other todo route that names a slug takes `"list"` in the JSON body. `GET /todos` returns `{"personal": [...], "family": [...]}`, including goals (with a `type` field) and done items, and leaves out items tagged `private`.
+
+| Method | Path | Body | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/todos` | | List personal and family items |
+| `POST` | `/api/v1/todos` | `title, body, tags, priority, list` | Add a task |
+| `GET` | `/api/v1/todos/{slug}?list=` | | Get one item |
+| `PUT` | `/api/v1/todos/{slug}` | `title, body, tags, images, list` | Replace body, tags and images (omitted ones are cleared); an empty title keeps the current one. A changed title changes the slug, and the new slug is not returned |
+| `DELETE` | `/api/v1/todos/{slug}` | `list` | Move to the trash |
+| `POST` | `/api/v1/todos/{slug}/complete` | `list` | Complete |
+| `POST` | `/api/v1/todos/{slug}/uncomplete` | `list` | Reopen |
+| `PUT` | `/api/v1/todos/{slug}/priority` | `priority, list` | Set priority |
+| `PUT` | `/api/v1/todos/{slug}/tags` | `tags, list` | Set tags |
+| `POST` | `/api/v1/todos/{slug}/substeps` | `text, list` | Add a sub-step |
+| `PUT` | `/api/v1/todos/{slug}/substeps/{index}` | `list` | Toggle a sub-step |
+| `DELETE` | `/api/v1/todos/{slug}/substeps/{index}` | `list` | Remove a sub-step |
+| `GET` | `/api/v1/ideas` | | List ideas |
+| `POST` | `/api/v1/ideas` | `title, body, tags` | Add an idea |
+| `PUT` | `/api/v1/ideas/{slug}/triage` | `action`: `park`, `drop` or `untriage` | Triage |
+| `POST` | `/api/v1/ideas/{slug}/research` | `content` | Append to the body, adding a `## Research` heading if there is none |
+| `GET` | `/api/v1/plan?date=` | | Plan for a date (default today) |
+| `PUT` | `/api/v1/plan/{slug}` | `date` (default today), `list` | Plan a task |
+| `DELETE` | `/api/v1/plan/{slug}` | `list` | Unplan a task |
+| `POST` | `/api/v1/plan/reorder` | `slugs, list` | Set plan order |
+| `POST` | `/api/v1/plan/clear-carried` | | Unplan every carried-over task |
+| `GET` | `/api/v1/commentary/{list}/{slug}` | | Get commentary |
+| `PUT` | `/api/v1/commentary/{list}/{slug}` | `content` (max 5,000 characters) | Set commentary |
+| `DELETE` | `/api/v1/commentary/{list}/{slug}` | | Delete commentary |
+
+Plan routes also accept `house` as the list. Commentary `{list}` is `personal`, `todos`, `family`, `house` or `ideas`.
+
+The MCP sidecar in `mcp/` exposes these as MCP tools over Streamable HTTP at `https://<host>/mcp/`. Clients send `Authorization: Bearer <MCP_TOKEN>` and `Accept: application/json, text/event-stream`. The four destructive tools (delete todo, remove sub-step, clear carried plan, delete commentary) are registered only with `MCP_ALLOW_DESTRUCTIVE=true`.
 
 ## Data storage
 
-With multi-user, personal data is stored per-user under `USER_DATA_DIR/{user_id}/`. Family data is shared.
-
 | Data | Location | Format |
 |---|---|---|
-| Personal tasks and goals | `USER_DATA_DIR/{id}/personal.md` | Markdown flat file |
-| Ideas | `USER_DATA_DIR/{id}/ideas.md` | Markdown flat file |
-| Family tasks | `FAMILY_PATH` | Shared markdown file |
-| Uploaded images | `UPLOADS_DIR` | Shared image files |
-| Database | `DB_PATH` | SQLite (users, sessions, tracker cache) |
+| Personal tasks and goals | `USER_DATA_DIR/{id}/personal.md` | Markdown |
+| Ideas | `USER_DATA_DIR/{id}/ideas.md` | Markdown |
+| Family tasks | `FAMILY_PATH` | Markdown, shared |
+| House maintenance and projects | `MAINTENANCE_PATH`, `HOUSE_PROJECTS_PATH` | Markdown, shared |
+| Uploaded images | `UPLOADS_DIR` | Image files, shared |
+| Users, sessions, commentary | `DB_PATH` | SQLite |
+
+Markdown is the source of truth and is safe to edit by hand while the app runs: writes are atomic (temp file, fsync, rename), and the file watcher picks up outside edits and refreshes open tabs. In no-auth mode, user 1's files are `PERSONAL_PATH` and `IDEAS_PATH` instead.
+
+## Adding a module
+
+A module is a package in `internal/modules/<name>/` plus templates in `web/templates/<Manifest.Templates, or the ID>/`, registered with one line in the `modules` list in `internal/app/app.go`. Copy `internal/module/moduletest` and `web/templates/moduletest/page.html`: together they are a complete working example (page, quick-add, nav item, shortcut, search, widget, API route and watched file). `TestModuleContract` tests only that fixture, so write equivalent tests for a new module.
+
+1. Implement `module.Module`. `Manifest()` returns the ID, the nav items (label, path, order, group, shortcut key), the route prefixes, and optionally `Flash`/`FlashErrors` messages and a `Templates` directory. `Routes(r)` registers browser routes on an authenticated, cross-origin-protected router.
+2. Add any optional capabilities:
+   - `APIRouter`: routes under `/api/v1/<module-id>`
+   - `Watcher`: `WatchSpec`s naming exact files; the reload function returns whether the file changed
+   - `Searcher`: results for the search overlay
+   - `HomeWidget`: data for homepage cards (title, count, up to 5 items, link)
+3. Build from the `module.Deps` the factory receives: renderer (`Render.Page`), location, config, `DataDir` for shared files, the commentary store, and `Publish(id)`, which tells open pages the module changed. Keep the module's storage in its own service and call `Publish` after each write; the core services registry only covers the built-in lists.
+4. Each page file defines `{{define "content"}}`. Its refreshing container carries `data-live hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false"` and includes `{{template "live-refresh" (dict "Path" "/<page>" "Trigger" "sse:changed:<module-id>")}}`. Use the shared partials in `web/templates/_components/`. Templates must not use inline `on*` handlers.
+5. Regenerate the route goldens (`go test ./test -run TestRouteGolden -update`) and check the diff.
+
+Constraints checked at start-up:
+- IDs, route prefixes and shortcut keys must be unique, and every route and nav path must sit under the module's own prefixes.
+- Core prefixes (`module.ReservedPrefixes`) and keys `h c d / ? n k` are reserved.
+- At most 6 primary nav links, and the built-ins already use all 6, so a new module's nav item must use `module.More`.
+
+Not automatic yet: the trash purge loop and select mode only know the built-in lists (see `docs/backlog.md`). A module with its own JavaScript adds a file to `web/static/` (assets are one flat directory).
+
+## Development
+
+| Command | What it does |
+|---|---|
+| `make lint` | golangci-lint |
+| `make test` | Go tests with the race detector (`INTEGRATION=1` adds the concurrent-reader test) |
+| `make vuln` | govulncheck |
+| `make e2e` | Builds and starts the server against seed data, then runs Playwright (accessibility scans in every style and theme) |
+| `make cover`, `make bench` | Coverage summary; `BenchmarkMutate200` with benchstat |
+
+CI runs lint, vuln, the race suite, the MCP smoke tests and Playwright on pushes to `main` and on pull requests. Images build after all of them pass, and are pushed only from `main`. Screenshots of every page in every style run as a separate job and upload as the `screenshots` artefact. To re-run part of the browser suite on a pushed branch: `gh workflow run e2e-grep.yml --ref <branch> -f grep="search"` (without `--ref` it runs on the default branch).
 
 ## Backup
 
@@ -283,7 +335,7 @@ make backup                                   # ./data, ./users -> ./backups
 DATA_DIR=/srv/dash/data USERS_DIR=/srv/dash/users BACKUP_DIR=/srv/dash/backups bash scripts/backup.sh
 ```
 
-Run it from cron for scheduled backups, and copy the archives off the host.
+Run it from the repo root (the defaults are relative) or set the directories, from cron for scheduled backups, and copy the archives off the host. It expects the database at `DATA_DIR/dashboard.db`. The restore below assumes the default directory names `data` and `users`, which become the archive's top-level folders.
 
 **Restore**
 
@@ -299,4 +351,4 @@ docker compose start dashboard
 
 ## Stack
 
-Go, chi, SQLite (modernc), goldmark, bluemonday, fsnotify, htmx.
+Go, chi, SQLite (modernc), goldmark, bluemonday, fsnotify, htmx with the SSE and idiomorph extensions. Playwright and axe-core for browser tests.
