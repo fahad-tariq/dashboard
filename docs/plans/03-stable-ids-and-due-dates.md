@@ -123,7 +123,7 @@ Do not reopen these while executing this plan.
   - A deadline survives `MoveToList` and is untouched by house page and API edits.
   - Widget contents, order, empty state and plan-today post.
   - Playwright: set a due date through the edit form, see the row badge and the widget, press "Plan today" and see the item in the plan with focus kept. Run `TestE2ESelectorsExist`.
-- [ ] **Verification.** `make lint test` green. Route goldens unchanged (or any diff explained here). CI green. Deploy and record it.
+- [x] **Verification.** `make lint test` green. Route goldens unchanged (or any diff explained here). CI green. Deploy and record it.
 - [x] Self-review with an independent agent; fix what holds up.
 - [ ] **STOP and wait for human review.** The owner judges the badge and widget in the live app. Also decide whether to hide the age badge on rows with a due date: `badge-age-old` already uses `--attention`.
 
@@ -254,4 +254,5 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
 - The e2e fixture gains an always-overdue task (`Lodge the tax return`, deadline 2026-01-01) so the axe passes see the danger badge, the Due soon card and the planner label in every style and theme.
 - Route goldens unchanged.
 - Tooling inside the sandbox: lint runs locally with `GOLANGCI_LINT_CACHE="$TMPDIR/gl-cache"`; e2e type-checks with `npm_config_cache="$TMPDIR/npm-cache" npx -y -p typescript@5 tsc --noEmit -p e2e`.
-- Self-review (independent agent): nothing serious. Fixed: the empty plan-row span and the move 500 for impossible stored dates, axe coverage via the fixture. Recorded: the severity reading and the accessible-name note above.
+- Self-review (independent agent): nothing serious. Fixed: the empty plan-row span and the move 500 for impossible stored dates, axe coverage via the fixture. Recorded: the severity reading and the accessible-name note above.- Deploy 2026-10-07: commit `bf5449e`, CI run 37609971283 green (lint, test, vuln, e2e, screenshots, build). Image revision label `bf5449eaef45a3fcf8b03aa776439a6e80d8c6ad`. Backup `dashboard-backup-20261007-122724.tar.gz` (exit 0). Caddy checks: `/login` 200, `/todos` 303, `/events` 401, `/api/v1/todos` 404, cross-site POST `/login` 403. `verify-stack.sh` all green.
+- Owner decisions at the STOP: keep the age badge on rows with a due date (both are worth seeing); the label wording stands.
