@@ -340,8 +340,8 @@ func TestAPIRejectsHouseList(t *testing.T) {
 	}
 }
 
-// PUT keeps whatever the request leaves out. The MCP update_todo tool sends
-// only the fields it was given, and documents the rest as kept.
+// PUT keeps whatever the request leaves out, so a client can send only the
+// fields it means to change.
 func TestAPIUpdateTodoKeepsOmittedFields(t *testing.T) {
 	tests := map[string]struct {
 		body                 string

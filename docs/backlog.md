@@ -1,10 +1,46 @@
 # Backlog
 
-Plan 3 (stable item IDs, quick capture, recurring tasks, MCP tooling) holds the larger work; this file lists smaller follow-ups.
+Plan 3 (`docs/plans/03-stable-ids-and-due-dates.md`) holds stable item IDs and due dates on tasks; this file lists smaller follow-ups and parked work.
+
+## Parked features
+
+Scoped out of Plan 3 on 2026-10-07 because the owner had not missed them. Revisit only when one of them actually bites.
+
+- **Recurring tasks.** Undecided: fixed schedule ("bins every Tuesday") or from completion ("two weeks after I last did it"). Working proposal: one item with `[repeat: 2w]` (reusing maintenance's `ParseCadence`) that, on completion, writes a done copy (so the digest counts it) and moves its `[planned:]` date forward; no deadline. Do not merge maintenance into it: maintenance has its own log, overdue logic and widget.
+- **Weekly review.** Proposal: a `/review` page replacing `/digest`, with last week's completions, carried-over plan items, deadlines in the next 7 days that are not planned, stale tasks and an untriaged-ideas count, plus a "last reviewed" nudge on the homepage. Never agreed.
+- **Quick capture.** `n` stays reserved in `module.ReservedKeys`. `tracker.ParseQuickAdd` (`title #tag !priority`) exists but has no production caller.
+- **Reminders.** There is no outbound channel (email, push, ntfy, webhooks); choose one first.
+- **Agent-proposed daily plan.** Nothing in the app calls an LLM, and there is no MCP server (see "MCP removed").
+- **Storage.** The owner never hand-edits the markdown files, which is the main reason they are the source of truth. IDs, deadlines, recurrence and review queries would each be simpler in SQLite. Not worth a rewrite now; revisit if storage starts to hurt.
 
 Plan 2 (exercise module) is parked: gym sessions are logged in Hevy. Its two framework pieces wait for a real consumer rather than being built speculatively:
 - **SQLite migration hook.** `internal/db/migrations.go` is one global list and `module.Deps` has no database handle. Build the per-module hook with the first module that stores data in SQLite.
 - **`Plannable` capability.** `home.Lists` hard-codes the three tracker services. Build it with the first non-tracker module whose items belong in the daily planner.
+
+## MCP removed
+
+**Decision (2026-10-07):** the Python MCP sidecar (`mcp/`, 24 tools, its CI jobs, image and compose service) was deleted. Rebuild it when the owner actually wants to edit the lists from an agent on the Mac or iPhone.
+
+Why:
+- It had been off in production since 2026-10-04, and the owner did not use it.
+- It cost 1,300 lines of Python, two CI jobs, a second image and Dependabot entries.
+- Its smoke tests mocked the dashboard API with respx, so an API change could break every tool while CI stayed green.
+- Plan 3's ID switch would have meant rewriting its 18 slug-based tools for nobody.
+
+The last version is in git history: the parent of the commit that removed `mcp/`.
+
+**Before rebuilding:**
+- **Turn the API on in production first.** That means a `DASHBOARD_API_TOKEN` of 32+ characters and a Caddy route. The API addresses items by ID once Plan 3 Phase 3 lands.
+- **Consider a Go MCP server inside the dashboard binary** instead of a Python sidecar. It would remove the second image, the second token, and the drift between tools and API. Plan 1 floated this; weigh it against the maturity of the Go MCP SDK at the time.
+- **Test the tools against the real API** (a test server from `app.NewRouterWith`), not mocks.
+- **Cover what the old tools lacked:** house, goals, move, full edit and search.
+
+**What the old sidecar taught us:**
+- **Network and tokens.** It sat behind Caddy as `handle_path /mcp/*` to `127.0.0.1:9100`, in a read-only, unprivileged container. It used two tokens: inbound `MCP_TOKEN` and outbound `DASHBOARD_API_TOKEN`, both at least 32 characters and different, so a leaked client token cannot call the API directly.
+- **Destructive tools were opt-in.** Delete todo, remove sub-step, clear carried plan and delete commentary were registered only with `MCP_ALLOW_DESTRUCTIVE=true`.
+- **FastMCP lifespan.** With `stateless_http=True`, the lifespan runs per request, so keep the HTTP client a module-level singleton. `StreamableHTTPSessionManager.run()` runs once per instance, so tests must share one module-scoped `TestClient`. Clients must send `Accept: application/json, text/event-stream`.
+- **Version pinning.** The `mcp` 2.x Python SDK renamed `FastMCP`. A grouped Dependabot update widened `<2` despite `update-types` (PR #9); only an ignore with `versions: [">=2"]` held.
+- **API input.** The API strips inline tags from LLM-written titles and bodies (`httputil.StripInlineMetadata`). `PUT /api/v1/todos/{slug}` keeps omitted fields, so a tool can send only what it means to change. Keep both properties.
 
 ## House
 

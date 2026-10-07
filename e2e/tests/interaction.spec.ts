@@ -16,12 +16,12 @@ import {
   waitForSseSettle,
 } from './helpers';
 
-/** Records the page's requests, except the SSE stream and the footer's MCP poll. */
+/** Records the page's requests, except the SSE stream. */
 function recordRequests(page: Page): Request[] {
   const seen: Request[] = [];
   page.on('request', (r) => {
     const path = new URL(r.url()).pathname;
-    if (path !== '/events' && !path.startsWith('/mcp/')) seen.push(r);
+    if (path !== '/events') seen.push(r);
   });
   return seen;
 }

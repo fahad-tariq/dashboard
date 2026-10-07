@@ -126,9 +126,6 @@ func TestLayoutLandmarksAndLiveRegions(t *testing.T) {
 			t.Errorf("layout missing %q", want)
 		}
 	}
-	if strings.Contains(body, `id="mcp-status" role="status" aria-live`) {
-		t.Error("MCP badge is still a live region")
-	}
 	if skip, nav := strings.Index(body, `class="skip-link"`), strings.Index(body, `<nav`); skip > nav {
 		t.Error("skip link must come before the nav")
 	}

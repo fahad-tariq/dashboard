@@ -16,19 +16,6 @@ updates:
       go:
         patterns: ["*"]
 
-  - package-ecosystem: pip
-    directory: /mcp
-    schedule:
-      interval: weekly
-    groups:
-      pip:
-        patterns: ["*"]
-    ignore:
-      # mcp 2.x renamed FastMCP; the migration belongs to Plan 3.
-      # update-types alone did not stop a grouped update widening "<2" (PR #9).
-      - dependency-name: mcp
-        versions: [">=2"]
-
   - package-ecosystem: npm
     directory: /e2e
     schedule:
@@ -43,10 +30,5 @@ updates:
 
   - package-ecosystem: docker
     directory: /
-    schedule:
-      interval: weekly
-
-  - package-ecosystem: docker
-    directory: /mcp
     schedule:
       interval: weekly

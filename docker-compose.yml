@@ -46,33 +46,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  dashboard-mcp:
-    build:
-      context: ./mcp
-    user: "${DASHBOARD_UID:-10001}:${DASHBOARD_GID:-10001}"
-    restart: unless-stopped
-    read_only: true
-    tmpfs:
-      - /tmp
-    cap_drop: [ALL]
-    security_opt:
-      - no-new-privileges:true
-    ports:
-      - "127.0.0.1:9100:9100"
-    networks: [dashboard]
-    environment:
-      - DASHBOARD_API_URL=http://dashboard:8080/api/v1
-      - DASHBOARD_API_TOKEN=${DASHBOARD_API_TOKEN}
-      - MCP_TOKEN=${MCP_TOKEN}
-      - MCP_ALLOW_DESTRUCTIVE=${MCP_ALLOW_DESTRUCTIVE:-false}
-    depends_on:
-      - dashboard
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
 networks:
   dashboard:
     # Fixed subnet so the gateway (the trusted proxy above) never changes.

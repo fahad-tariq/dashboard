@@ -6,7 +6,7 @@ Each feature area (todos, family, ideas, house) is a module: one package plus on
 
 ## Setup
 
-Docker Compose is the supported deployment. Compose reads `.env` only for the values it substitutes (`DASHBOARD_PASSWORD_HASH`, `DASHBOARD_API_TOKEN`, `MCP_TOKEN`, `MCP_ALLOW_DESTRUCTIVE`, `SESSION_LIFETIME`, `DASHBOARD_SECURE_COOKIES`, `DASHBOARD_TIMEZONE`, `DASHBOARD_PORT`, `DASHBOARD_UID`/`DASHBOARD_GID`, `VERSION`). Paths, `ADDR` and `DASHBOARD_TRUSTED_PROXIES` are fixed in `docker-compose.yml`; edit them there.
+Docker Compose is the supported deployment. Compose reads `.env` only for the values it substitutes (`DASHBOARD_PASSWORD_HASH`, `DASHBOARD_API_TOKEN`, `SESSION_LIFETIME`, `DASHBOARD_SECURE_COOKIES`, `DASHBOARD_TIMEZONE`, `DASHBOARD_PORT`, `DASHBOARD_UID`/`DASHBOARD_GID`, `VERSION`). Paths, `ADDR` and `DASHBOARD_TRUSTED_PROXIES` are fixed in `docker-compose.yml`; edit them there.
 
 ### Fresh install
 
@@ -19,7 +19,7 @@ Docker Compose is the supported deployment. Compose reads `.env` only for the va
    ```bash
    mkdir -p data users && sudo chown 10001:10001 data users
    ```
-3. Start the dashboard only: `docker compose up --build dashboard`. Without `MCP_TOKEN` and `DASHBOARD_API_TOKEN` (32+ characters, different), the `dashboard-mcp` service exits at start-up and `restart: unless-stopped` keeps restarting it.
+3. Start it: `docker compose up --build dashboard`.
 4. Open `http://127.0.0.1:8081` (`DASHBOARD_PORT`) and log in as `admin@localhost`. Behind HTTPS keep `DASHBOARD_SECURE_COOKIES=true`. For plain HTTP set it to `false`: browsers drop `Secure` cookies over HTTP, and only some treat `localhost` as an exception.
 5. Change your email and add users at `/admin/users`.
 
@@ -68,11 +68,8 @@ These are the binary's defaults. Under Compose, the paths are set in `docker-com
 | `DASHBOARD_API_TOKEN` | (empty) | Bearer token for `/api/v1`; at least 32 characters, or the API is not mounted |
 | `SESSION_LIFETIME` | `720h` | Session lifetime |
 | `DASHBOARD_SECURE_COOKIES` | `true` | `false` for plain-HTTP development. Any value that is not a boolean stops the server at start-up |
-| `MCP_TOKEN` | (empty) | MCP sidecar: the token MCP clients send; 32+ characters, different from `DASHBOARD_API_TOKEN` |
-| `MCP_ALLOW_DESTRUCTIVE` | `false` | MCP sidecar: `true` registers the delete and clear tools |
-| `DASHBOARD_API_URL` | `http://dashboard:8080/api/v1` | MCP sidecar: where it reaches the dashboard API |
 | `DASHBOARD_PORT` | `8081` | Compose only: loopback port published for the dashboard |
-| `DASHBOARD_UID`, `DASHBOARD_GID` | `10001` | Compose only: user the containers run as; must own `./data` and `./users` |
+| `DASHBOARD_UID`, `DASHBOARD_GID` | `10001` | Compose only: user the container runs as; must own `./data` and `./users` |
 | `VERSION` | `dev` | Build arg: the git SHA shown in the footer (`make build` sets it) |
 
 ## Running locally
@@ -109,7 +106,7 @@ Do not point it at `./data` or `./users`: those are the Compose bind mounts. `ma
 VERSION=$(git rev-parse --short HEAD) docker compose up --build dashboard
 ```
 
-The compose file mounts `./data` for the database, shared lists and uploads, and `./users` for per-user data (personal tasks, ideas). Nothing else is writable: both containers run read-only, unprivileged, with all capabilities dropped.
+The compose file mounts `./data` for the database, shared lists and uploads, and `./users` for per-user data (personal tasks, ideas). Nothing else is writable: the container runs read-only, unprivileged, with all capabilities dropped.
 
 ### Deploying behind a reverse proxy
 
@@ -117,12 +114,7 @@ The reference `docker-compose.yml` assumes a proxy on the same host (here Caddy 
 
 ```caddyfile
 dash.example.net {
-    handle_path /mcp/* {
-        reverse_proxy localhost:9100
-    }
-    handle {
-        reverse_proxy localhost:8081
-    }
+    reverse_proxy localhost:8081
 }
 ```
 
@@ -276,7 +268,6 @@ Todo routes need a list: `personal` (or `todos`) or `family`; anything else, inc
 
 Plan routes also accept `house` as the list. Commentary `{list}` is `personal`, `todos`, `family`, `house` or `ideas`.
 
-The MCP sidecar in `mcp/` exposes these as MCP tools over Streamable HTTP at `https://<host>/mcp/`. Clients send `Authorization: Bearer <MCP_TOKEN>` and `Accept: application/json, text/event-stream`. The four destructive tools (delete todo, remove sub-step, clear carried plan, delete commentary) are registered only with `MCP_ALLOW_DESTRUCTIVE=true`.
 
 ## Data storage
 
@@ -322,7 +313,7 @@ Not automatic yet: the trash purge loop and select mode only know the built-in l
 | `make e2e` | Builds and starts the server against seed data, then runs Playwright (accessibility scans in every style and theme) |
 | `make cover`, `make bench` | Coverage summary; `BenchmarkMutate200` with benchstat |
 
-CI runs lint, vuln, the race suite, the MCP smoke tests and Playwright on pushes to `main` and on pull requests. Images build after all of them pass, and are pushed only from `main`. Screenshots of every page in every style run as a separate job and upload as the `screenshots` artefact. To re-run part of the browser suite on a pushed branch: `gh workflow run e2e-grep.yml --ref <branch> -f grep="search"` (without `--ref` it runs on the default branch).
+CI runs lint, vuln, the race suite and Playwright on pushes to `main` and on pull requests. Images build after all of them pass, and are pushed only from `main`. Screenshots of every page in every style run as a separate job and upload as the `screenshots` artefact. To re-run part of the browser suite on a pushed branch: `gh workflow run e2e-grep.yml --ref <branch> -f grep="search"` (without `--ref` it runs on the default branch).
 
 ## Backup
 
