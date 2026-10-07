@@ -377,7 +377,7 @@ func TestAPIUpdateTodoKeepsOmittedFields(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			env := setupAPIEnv(t)
-			if err := env.personalSvc.UpdateEdit("existing-task", "", "Original notes", []string{"backend"}, []string{"a.png"}); err != nil {
+			if err := env.personalSvc.ApplyEdit("existing-task", tracker.Edit{Body: new("Original notes"), Images: &[]string{"a.png"}}); err != nil {
 				t.Fatal(err)
 			}
 			w := apiRequest(t, env, "PUT", "/api/v1/todos/existing-task", tc.body)

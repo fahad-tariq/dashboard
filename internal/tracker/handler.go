@@ -1,6 +1,7 @@
 package tracker
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -180,8 +181,14 @@ func collectFilters(items []Item) (allTags, priorities []string) {
 	return
 }
 
+// InvalidDateMessage is the 400 body for a date that is not YYYY-MM-DD.
+const InvalidDateMessage = "Invalid date: use YYYY-MM-DD"
+
 // classifyTrackerError returns an appropriate HTTP error message for a service error.
 func classifyTrackerError(err error) string {
+	if errors.Is(err, ErrInvalidDate) {
+		return InvalidDateMessage
+	}
 	if httputil.IsNotFound(err) {
 		return "Item not found"
 	}
@@ -357,6 +364,10 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 
 	svc, _ := h.resolve(r)
 	if _, err := svc.AddItem(item); err != nil {
+		if errors.Is(err, ErrInvalidDate) {
+			http.Error(w, InvalidDateMessage, http.StatusBadRequest)
+			return
+		}
 		httputil.ServerError(w, "adding goal", err)
 		return
 	}
@@ -518,13 +529,18 @@ func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := strings.TrimSpace(r.FormValue("title"))
 	body := strings.TrimSpace(r.FormValue("body"))
 	tags := httputil.ParseCSV(r.FormValue("tags"))
 	images := httputil.ReconstructImages(r)
+	edit := Edit{Title: strings.TrimSpace(r.FormValue("title")), Body: &body, Tags: &tags, Images: &images}
+	// A form without the field (house, older tabs) keeps the deadline.
+	if _, ok := r.PostForm["deadline"]; ok {
+		deadline := strings.TrimSpace(r.PostForm.Get("deadline"))
+		edit.Deadline = &deadline
+	}
 
 	svc, _ := h.resolve(r)
-	if err := svc.UpdateEdit(slug, title, body, tags, images); err != nil {
+	if err := svc.ApplyEdit(slug, edit); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}

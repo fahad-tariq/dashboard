@@ -16,6 +16,18 @@ import (
 	"github.com/fahad/dashboard/internal/httputil"
 )
 
+// ErrInvalidDate is returned for a date that is not a real YYYY-MM-DD day.
+var ErrInvalidDate = errors.New("invalid date")
+
+// validDate rejects anything but a real YYYY-MM-DD day. Dates are written
+// into the item line as given, so this also stops a date injecting a tag.
+func validDate(date string) error {
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		return ErrInvalidDate
+	}
+	return nil
+}
+
 type Service struct {
 	changes.Recorder
 
@@ -116,6 +128,14 @@ func (s *Service) AddItem(item Item) (string, error) {
 
 	if item.Title == "" {
 		return "", fmt.Errorf("empty title")
+	}
+	for _, date := range []string{item.Deadline, item.Planned} {
+		if date == "" {
+			continue
+		}
+		if err := validDate(date); err != nil {
+			return "", err
+		}
 	}
 	item.Slug = Slugify(item.Title)
 	if item.Added == "" {
@@ -350,32 +370,28 @@ func (s *Service) UpdateTags(slug string, tags []string) error {
 	})
 }
 
-func (s *Service) UpdateEdit(slug, title, body string, tags, images []string) error {
-	return s.mutate(slug, func(it *Item) error {
-		if title != "" {
-			it.Title = title
-			it.Slug = Slugify(title)
-		}
-		it.Body = body
-		it.Tags = tags
-		it.Images = images
-		return nil
-	})
-}
-
 // Edit is a partial update for ApplyEdit. An empty Title and nil fields keep
 // the item's current values; a non-nil empty slice clears that field.
 type Edit struct {
-	Title  string
-	Body   *string
-	Tags   *[]string
-	Images *[]string
+	Title    string
+	Body     *string
+	Tags     *[]string
+	Images   *[]string
+	Deadline *string // YYYY-MM-DD; empty clears it
 }
 
-// ApplyEdit changes only the fields e sets, for callers that may not hold
-// every field (the API, and house projects, whose page has no images).
+// ApplyEdit changes only the fields e sets. Every edit goes through it: the
+// web form sets every field it shows, the API and the house page only some.
 func (s *Service) ApplyEdit(slug string, e Edit) error {
+	if e.Deadline != nil && *e.Deadline != "" {
+		if err := validDate(*e.Deadline); err != nil {
+			return err
+		}
+	}
 	return s.mutate(slug, func(it *Item) error {
+		if e.Deadline != nil {
+			it.Deadline = *e.Deadline
+		}
 		if e.Title != "" {
 			it.Title = e.Title
 			it.Slug = Slugify(e.Title)
@@ -452,6 +468,9 @@ func (s *Service) Search(query string) []Item {
 // SetPlanned marks an item as planned for the given date (YYYY-MM-DD).
 // Resets PlanOrder since a new day has no established order yet.
 func (s *Service) SetPlanned(slug, date string) error {
+	if err := validDate(date); err != nil {
+		return err
+	}
 	return s.mutate(slug, func(it *Item) error {
 		it.Planned = date
 		it.PlanOrder = 0
@@ -471,6 +490,9 @@ func (s *Service) ClearPlanned(slug string) error {
 // BulkSetPlanned sets the planned date on multiple items in a single file write.
 // Resets PlanOrder since bulk-planning from /todos shouldn't carry stale order.
 func (s *Service) BulkSetPlanned(slugs []string, date string) error {
+	if err := validDate(date); err != nil {
+		return err
+	}
 	return s.mutateBatch(slugs, func(it *Item) error {
 		it.Planned = date
 		it.PlanOrder = 0

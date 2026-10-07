@@ -190,67 +190,63 @@ func TestTrackerServiceUpdateTags(t *testing.T) {
 	}
 }
 
-func TestTrackerServiceUpdateEdit(t *testing.T) {
-	svc := newTestService(t, "# Tracker\n\n- [ ] Old title\n  Old body\n")
-
-	err := svc.UpdateEdit("old-title", "", "New body content", []string{"updated"}, []string{"img1.png"})
-	if err != nil {
-		t.Fatalf("UpdateEdit: %v", err)
+// ApplyEdit changes only the fields an edit sets: an empty title and nil
+// fields keep their values, an empty deadline clears it, and a new title
+// re-slugs the item.
+func TestTrackerServiceApplyEdit(t *testing.T) {
+	const seed = "# Tracker\n\n- [ ] Old title [deadline: 2026-11-20] [tags: home]\n  Old body\n"
+	cases := map[string]struct {
+		edit         tracker.Edit
+		wantSlug     string
+		wantTitle    string
+		wantBody     string
+		wantTags     []string
+		wantImages   []string
+		wantDeadline string
+	}{
+		"every field the web form holds": {
+			edit:     tracker.Edit{Body: new("New body content"), Tags: &[]string{"updated"}, Images: &[]string{"img1.png"}},
+			wantSlug: "old-title", wantTitle: "Old title", wantBody: "New body content",
+			wantTags: []string{"updated"}, wantImages: []string{"img1.png"}, wantDeadline: "2026-11-20",
+		},
+		"a new title re-slugs the item": {
+			edit:     tracker.Edit{Title: "New title"},
+			wantSlug: "new-title", wantTitle: "New title", wantBody: "Old body",
+			wantTags: []string{"home"}, wantDeadline: "2026-11-20",
+		},
+		"an empty title keeps the original": {
+			edit:     tracker.Edit{Body: new("New body")},
+			wantSlug: "old-title", wantTitle: "Old title", wantBody: "New body",
+			wantTags: []string{"home"}, wantDeadline: "2026-11-20",
+		},
+		"a deadline is set": {
+			edit:     tracker.Edit{Deadline: new("2026-10-30")},
+			wantSlug: "old-title", wantTitle: "Old title", wantBody: "Old body",
+			wantTags: []string{"home"}, wantDeadline: "2026-10-30",
+		},
+		"an empty deadline clears it": {
+			edit:     tracker.Edit{Deadline: new("")},
+			wantSlug: "old-title", wantTitle: "Old title", wantBody: "Old body",
+			wantTags: []string{"home"},
+		},
 	}
-
-	item, _ := svc.Get("old-title")
-	if item.Body != "New body content" {
-		t.Errorf("body: got %q", item.Body)
-	}
-	if !slices.Equal(item.Tags, []string{"updated"}) {
-		t.Errorf("tags: got %v", item.Tags)
-	}
-	if !slices.Equal(item.Images, []string{"img1.png"}) {
-		t.Errorf("images: got %v", item.Images)
-	}
-}
-
-func TestTrackerServiceUpdateEditTitle(t *testing.T) {
-	svc := newTestService(t, "# Tracker\n\n- [ ] Old title\n  Some notes\n")
-
-	err := svc.UpdateEdit("old-title", "New title", "Some notes", nil, nil)
-	if err != nil {
-		t.Fatalf("UpdateEdit: %v", err)
-	}
-
-	// Old slug should be gone.
-	_, err = svc.Get("old-title")
-	if err == nil {
-		t.Error("old slug should no longer resolve")
-	}
-
-	// New slug should exist with updated title.
-	item, err := svc.Get("new-title")
-	if err != nil {
-		t.Fatalf("Get by new slug: %v", err)
-	}
-	if item.Title != "New title" {
-		t.Errorf("title: got %q, want %q", item.Title, "New title")
-	}
-	if item.Body != "Some notes" {
-		t.Errorf("body: got %q", item.Body)
-	}
-}
-
-func TestTrackerServiceUpdateEditEmptyTitleKeepsOriginal(t *testing.T) {
-	svc := newTestService(t, "# Tracker\n\n- [ ] Keep me\n")
-
-	err := svc.UpdateEdit("keep-me", "", "New body", nil, nil)
-	if err != nil {
-		t.Fatalf("UpdateEdit: %v", err)
-	}
-
-	item, err := svc.Get("keep-me")
-	if err != nil {
-		t.Fatalf("Get: %v", err)
-	}
-	if item.Title != "Keep me" {
-		t.Errorf("title should remain %q, got %q", "Keep me", item.Title)
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			svc := newTestService(t, seed)
+			if err := svc.ApplyEdit("old-title", tc.edit); err != nil {
+				t.Fatalf("ApplyEdit: %v", err)
+			}
+			item, err := svc.Get(tc.wantSlug)
+			if err != nil {
+				t.Fatalf("Get %s: %v", tc.wantSlug, err)
+			}
+			if item.Title != tc.wantTitle || item.Body != tc.wantBody || item.Deadline != tc.wantDeadline {
+				t.Errorf("title, body, deadline = %q, %q, %q; want %q, %q, %q", item.Title, item.Body, item.Deadline, tc.wantTitle, tc.wantBody, tc.wantDeadline)
+			}
+			if !slices.Equal(item.Tags, tc.wantTags) || !slices.Equal(item.Images, tc.wantImages) {
+				t.Errorf("tags, images = %v, %v; want %v, %v", item.Tags, item.Images, tc.wantTags, tc.wantImages)
+			}
+		})
 	}
 }
 

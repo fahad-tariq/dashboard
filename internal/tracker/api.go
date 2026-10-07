@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -53,6 +54,7 @@ func itemToAPI(it Item, list string) map[string]any {
 		"tags":            it.Tags,
 		"added":           it.Added,
 		"planned":         it.Planned,
+		"deadline":        it.Deadline,
 		"body":            it.Body,
 		"sub_steps_done":  it.SubStepsDone,
 		"sub_steps_total": it.SubStepsTotal,
@@ -62,7 +64,6 @@ func itemToAPI(it Item, list string) map[string]any {
 		m["current"] = it.Current
 		m["target"] = it.Target
 		m["unit"] = it.Unit
-		m["deadline"] = it.Deadline
 	}
 	if it.Completed != "" {
 		m["completed"] = it.Completed
@@ -191,7 +192,7 @@ func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 	}
 }
 
-// APIUpdateTodo updates a task's title, body, tags, and images.
+// APIUpdateTodo updates a task's title, body, tags, images and deadline.
 func APIUpdateTodo(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		personalSvc, familySvc := resolve(r)
@@ -199,11 +200,12 @@ func APIUpdateTodo(resolve ServiceResolver) http.HandlerFunc {
 		slug := chi.URLParam(r, "slug")
 		// Pointers tell an omitted field (kept) from an empty one (cleared).
 		var req struct {
-			Title  string    `json:"title"`
-			Body   *string   `json:"body"`
-			Tags   *[]string `json:"tags"`
-			Images *[]string `json:"images"`
-			List   string    `json:"list"`
+			Title    string    `json:"title"`
+			Body     *string   `json:"body"`
+			Tags     *[]string `json:"tags"`
+			Images   *[]string `json:"images"`
+			Deadline *string   `json:"deadline"`
+			List     string    `json:"list"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			jsonError(w, "invalid JSON", http.StatusBadRequest)
@@ -213,7 +215,7 @@ func APIUpdateTodo(resolve ServiceResolver) http.HandlerFunc {
 			jsonError(w, "list required (personal or family)", http.StatusBadRequest)
 			return
 		}
-		edit := Edit{Title: httputil.StripInlineMetadata(req.Title), Tags: req.Tags, Images: req.Images}
+		edit := Edit{Title: httputil.StripInlineMetadata(req.Title), Tags: req.Tags, Images: req.Images, Deadline: req.Deadline}
 		var body string
 		var tags []string
 		if req.Body != nil {
@@ -231,6 +233,10 @@ func APIUpdateTodo(resolve ServiceResolver) http.HandlerFunc {
 
 		svc := resolveListService(req.List, personalSvc, familySvc)
 		if e := svc.ApplyEdit(slug, edit); e != nil {
+			if errors.Is(e, ErrInvalidDate) {
+				jsonError(w, "invalid deadline: use YYYY-MM-DD", http.StatusBadRequest)
+				return
+			}
 			if httputil.IsNotFound(e) {
 				jsonError(w, "item not found", http.StatusNotFound)
 				return

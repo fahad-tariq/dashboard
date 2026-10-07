@@ -3,6 +3,7 @@ package home
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -347,7 +348,7 @@ func (h *Handler) SetPlanned(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := svc.SetPlanned(slug, date); err != nil {
-		http.Error(w, "Item not found", http.StatusBadRequest)
+		http.Error(w, planError(err, "Item not found"), http.StatusBadRequest)
 		return
 	}
 
@@ -439,7 +440,7 @@ func (h *Handler) BulkSetPlanned(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := svc.BulkSetPlanned(slugs, date); err != nil {
-		http.Error(w, "Failed to update items", http.StatusBadRequest)
+		http.Error(w, planError(err, "Failed to update items"), http.StatusBadRequest)
 		return
 	}
 
@@ -476,6 +477,15 @@ func (h *Handler) ReorderPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/?msg=plan-reordered", http.StatusSeeOther)
+}
+
+// planError is the 400 message for a failed plan write: the date's problem
+// when the date was invalid, otherwise fallback.
+func planError(err error, fallback string) string {
+	if errors.Is(err, tracker.ErrInvalidDate) {
+		return tracker.InvalidDateMessage
+	}
+	return fallback
 }
 
 // isPlannerXHR reports a request from planner.js's own fetches (calendar
@@ -556,6 +566,10 @@ func (h *Handler) APISetPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := svc.SetPlanned(slug, body.Date); err != nil {
+		if errors.Is(err, tracker.ErrInvalidDate) {
+			http.Error(w, tracker.InvalidDateMessage, http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
