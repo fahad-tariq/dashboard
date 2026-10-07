@@ -8,7 +8,7 @@ Give every list item a permanent ID, so renames, moves and duplicate titles stop
 |---|---|---|
 | 1 | Foundations and module framework | Done (2026-10-06) |
 | 2 | Exercise module | Parked (2026-10-07): the owner uses Hevy |
-| 3 (this) | Stable item IDs, due dates on tasks | Not started |
+| 3 (this) | Stable item IDs, due dates on tasks | In progress (Phase 1) |
 
 ## Context
 
@@ -81,33 +81,33 @@ Do not reopen these while executing this plan.
 
 **Purpose:** a task can carry a due date that shows where it matters, and dates are always valid.
 
-- [ ] **Validate dates (bug, test-first).** Each case below is one row in a table test.
+- [x] **Validate dates (bug, test-first).** Each case below is one row in a table test.
   - Reject anything that is not a real `YYYY-MM-DD` date (`time.Parse`) in the service methods `SetPlanned`, `BulkSetPlanned` and the deadline edit, and in the deadline handling behind `AddGoal`.
   - Handlers map the error to a 400 with a specific message.
   - Entry points: `tracker.Handler.AddGoal`; the `home/handler.go` set, bulk-set, reorder and JSON plan endpoints; the web edit form; `APIUpdateTodo`.
   - An empty value clears the date where clearing is allowed.
   - Include an injection row: `x] [tags: y` is rejected.
-- [ ] **One edit path.**
+- [x] **One edit path.**
   - Add `Deadline *string` to `tracker.Edit` (nil keeps the value, empty clears it).
   - Switch `tracker.Handler.UpdateEdit` (it serves todos, family and the goals edit form) to `Service.ApplyEdit` with every field it holds. Set `Deadline` only when `r.PostForm` contains `deadline`, so a form without the field never wipes it.
   - Delete `Service.UpdateEdit` once nothing calls it.
   - `APIUpdateTodo` accepts an optional `deadline`. `itemToAPI` returns `deadline` for tasks as well as goals.
-- [ ] **Forms.**
+- [x] **Forms.**
   - Add a date input with a visible "Due" label and an id unique per item to the task add and edit forms (`web/templates/tracker/tracker.html`) and the goals edit form (`goals.html`).
   - Give each one a "Clear" control, because Safari's desktop date input has none.
-- [ ] **Due label helper.** A func-map helper built in `buildFuncMap(loc)` returns plain strings, never `template.HTML`: a short label, a full label and a level.
+- [x] **Due label helper.** A func-map helper built in `buildFuncMap(loc)` returns plain strings, never `template.HTML`: a short label, a full label and a level.
   - Short label: "due today", "due Fri" within 6 days, "due 14 Nov" further out, "overdue 2d".
   - Full label: "Due Friday 9 October", "Overdue by 2 days".
   - Level: muted when more than 2 days away, attention within 2 days, danger once overdue.
   - Compute days in `loc`.
   - Table-test the boundaries: today, tomorrow, 2, 3, 6 and 7 days, yesterday, a year boundary, and a DST change in `Australia/Sydney`.
-- [ ] **Row badge and planner label.**
+- [x] **Row badge and planner label.**
   - In the `tracker-meta` define, after priority and before the planned badge, render `<time datetime="YYYY-MM-DD">` with the short label visible and the full label as screen-reader text.
   - Colours: `--text-muted`, `--attention`, `--danger`, with no opacity. The word "overdue" carries the meaning.
   - In the homepage `plan-row`, show due only when it is today or past, merged with the carry-forward label into one span ("from 3 days ago · due today").
   - Goals use the same helper instead of printing the raw ISO date.
   - Add any new colour pairing to the contrast tests as `CLAUDE.md` describes.
-- [ ] **"Due soon" home widget** from the `todos` module.
+- [x] **"Due soon" home widget** from the `todos` module.
   - **Contents.**
     - Open, non-deleted tasks (not goals) from the personal and family lists that are overdue or due within 3 days.
     - Overdue first, then by date. Family rows are labelled "Family".
@@ -118,13 +118,13 @@ Do not reopen these while executing this plan.
   - **Morph and focus.** Card rows get unique ids. The widget body carries `data-row-list`/`data-row-heading` and rows carry `data-row`, so `live.js` focus restore works after the morph.
   - **Contract.** The registry checks any action path with `httputil.IsLocalPath`. Give the fixture module one action under its own prefix, and extend `TestModuleContract`.
   - **Refresh.** The homepage already refreshes on `changed:todos` and `changed:family`.
-- [ ] **Tests.**
+- [x] **Tests.**
   - Edit semantics: an absent field keeps the date, an empty one clears it, API nil keeps it.
   - A deadline survives `MoveToList` and is untouched by house page and API edits.
   - Widget contents, order, empty state and plan-today post.
   - Playwright: set a due date through the edit form, see the row badge and the widget, press "Plan today" and see the item in the plan with focus kept. Run `TestE2ESelectorsExist`.
 - [ ] **Verification.** `make lint test` green. Route goldens unchanged (or any diff explained here). CI green. Deploy and record it.
-- [ ] Self-review with an independent agent; fix what holds up.
+- [x] Self-review with an independent agent; fix what holds up.
 - [ ] **STOP and wait for human review.** The owner judges the badge and widget in the live app. Also decide whether to hide the age badge on rows with a due date: `badge-age-old` already uses `--attention`.
 
 ---
@@ -241,3 +241,17 @@ Do not reopen these while executing this plan.
 ## Working notes
 
 One `### Phase N notes` section per phase: decisions, measurements, deploys (as defined under Requirements), route golden diffs, and follow-ups.
+
+### Phase 1 notes
+
+- Commits: `05198ad` (failing test), `bbc6346` (validation, one edit path), `8d67313` (due dates UI and widget), then the self-review fixes.
+- Plan vs code: the reorder endpoints (`/plan/reorder`, API reorder) take no date, so there is nothing to validate there. `AddItem` validates both `Deadline` and `Planned`, which also covers the task quick-add form (it now takes a due date too) and `MoveToList`. A calendar-impossible date the parser regex accepts (`2026-02-30`, hand edits only) makes a move answer 400 rather than 500, and renders no label.
+- `ErrInvalidDate` carries no user text, because `httputil.IsNotFound` matches on the error string; a date reading "not found" would otherwise be reported as a missing item. Handlers answer `tracker.InvalidDateMessage` (`Invalid date: use YYYY-MM-DD`).
+- Severity: the widget sets the card's count colour (`danger` if anything is overdue, else `warning` if anything is due within 2 days), not `WidgetItem.Severity`. Item severity colours the row's link, and the plan also says the title link keeps its normal colour; the card count was the reading that satisfies both. Do not "fix" this.
+- Label details decided here: one day out reads "due tomorrow" (not the weekday); the year shows only beyond 300 days. Goals hide the due badge once done or once the target is reached. Days are counted from civil dates in UTC after taking today's date in `loc`, so DST days are not 23 or 25 hours.
+- Widget contract: `WidgetItem` gained `ID` (row id `<card id>-<ID>`, `data-row`, the link gets `data-row-focus`), `Context` (the "Family" word), `Meta` (`Text`, screen-reader `Label`, `Level`) and `Action` (`Path`, `Fields`, `Text`, `Label`, `Done`). `Registry.Widgets` drops an action whose path fails `httputil.IsLocalPath` and clears an unknown meta level (`TestModuleRegistryChecksWidgetItems`). Card headings now carry `tabindex="-1"` as the focus fallback. "Planned" covers carried-over tasks (`Planned <= today`).
+- The "plan today" button's visible text is not part of its accessible name ("Plan {title} for today", as the plan specified); WCAG 2.5.3 best practice would include it. Left as specified.
+- The e2e fixture gains an always-overdue task (`Lodge the tax return`, deadline 2026-01-01) so the axe passes see the danger badge, the Due soon card and the planner label in every style and theme.
+- Route goldens unchanged.
+- Tooling inside the sandbox: lint runs locally with `GOLANGCI_LINT_CACHE="$TMPDIR/gl-cache"`; e2e type-checks with `npm_config_cache="$TMPDIR/npm-cache" npx -y -p typescript@5 tsc --noEmit -p e2e`.
+- Self-review (independent agent): nothing serious. Fixed: the empty plan-row span and the move 500 for impossible stored dates, axe coverage via the fixture. Recorded: the severity reading and the accessible-name note above.

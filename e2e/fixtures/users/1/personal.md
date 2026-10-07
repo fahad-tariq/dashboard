@@ -6,5 +6,6 @@
   Somewhere within two hours of Sydney.
   - [x] Pick a trail
   - [ ] Check the weather
+- [ ] Lodge the tax return [added: 2025-12-01] [deadline: 2026-01-01] [tags: admin]
 - [ ] Read 12 books [goal: 3/12 books] [added: 2026-01-01] [deadline: 2026-12-31]
 - [x] Book dentist [added: 2026-08-01] [completed: 2026-08-10]

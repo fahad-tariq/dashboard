@@ -226,3 +226,16 @@ func TestDeadlineSurvivesMoveAndPartialEdits(t *testing.T) {
 		})
 	}
 }
+
+// A deadline the parser accepts but the calendar does not (only a hand edit
+// can write one) shows no label and leaves no empty span in the plan row.
+func TestImpossibleDeadlineRendersNothing(t *testing.T) {
+	h, _ := dueRouter(t,
+		func(day func(int) string) string {
+			return "- [ ] Book dentist [deadline: 2026-02-30] [planned: " + day(0) + "]\n"
+		},
+		func(func(int) string) string { return "" })
+	if home := render(t, h, "/"); strings.Contains(home, `<span class="plan-item-date"></span>`) || strings.Contains(home, "badge-due") {
+		t.Error("impossible deadline rendered a label or an empty span")
+	}
+}

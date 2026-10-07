@@ -774,6 +774,11 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 	// Add before deleting: a failed add leaves the item where it was, and a
 	// failed delete leaves a recoverable duplicate rather than losing it.
 	if _, err := otherSvc.AddItem(movedItem); err != nil {
+		if errors.Is(err, ErrInvalidDate) {
+			// Only a hand-edited file can hold an impossible date.
+			http.Error(w, InvalidDateMessage, http.StatusBadRequest)
+			return
+		}
 		httputil.ServerError(w, "adding item to target list", err, "slug", slug)
 		return
 	}
