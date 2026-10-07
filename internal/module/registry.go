@@ -4,10 +4,13 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/fahad/dashboard/internal/httputil"
 )
 
 // MaxPrimaryNav is the most links the main bar shows; the rest go behind
@@ -211,6 +214,9 @@ func (r *Registry) Widgets(ctx context.Context, userID int64, now time.Time) []W
 			if len(data.Items) > 5 {
 				data.Items = data.Items[:5]
 			}
+			for i := range data.Items {
+				checkWidgetItem(id, &data.Items[i])
+			}
 			out = append(out, data)
 		}
 	}
@@ -233,4 +239,19 @@ func (r *Registry) HomeEvents() []string {
 // pages.
 func TemplateDir(man Manifest) string {
 	return cmp.Or(man.Templates, man.ID)
+}
+
+// metaLevels are the colours a WidgetMeta may ask for.
+var metaLevels = map[string]bool{"": true, "muted": true, "attention": true, "danger": true}
+
+// checkWidgetItem drops an action that would post off the site and a meta
+// level the stylesheet does not define.
+func checkWidgetItem(moduleID string, it *WidgetItem) {
+	if it.Action != nil && !httputil.IsLocalPath(it.Action.Path) {
+		slog.Warn("widget action dropped: path is not local", "module", moduleID)
+		it.Action = nil
+	}
+	if it.Meta != nil && !metaLevels[it.Meta.Level] {
+		it.Meta.Level = ""
+	}
 }

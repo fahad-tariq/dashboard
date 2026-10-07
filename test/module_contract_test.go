@@ -222,8 +222,28 @@ func TestModuleContract(t *testing.T) {
 		if plan < 0 || widget < plan {
 			t.Errorf("widget at %d, plan section at %d: want the widget below the plan", widget, plan)
 		}
-		if !strings.Contains(body, `<h2 class="homepage-card-title" id="widget-moduletest-title"><a href="/moduletest">Fixture items</a></h2>`) {
+		if !strings.Contains(body, `<h2 class="homepage-card-title" id="widget-moduletest-title" tabindex="-1"><a href="/moduletest">Fixture items</a></h2>`) {
 			t.Error("widget heading missing or not linked")
+		}
+		// Rows with an ID restore focus, and their meta and action render.
+		for _, want := range []string{
+			`<div class="homepage-card-body" id="widget-moduletest-body" data-row-list data-row-heading="widget-moduletest-title">`,
+			`<div class="homepage-task" id="widget-moduletest-0" data-row>`,
+			`<a href="/moduletest" data-row-focus>Polish the brass</a>`,
+			`<span class="widget-meta widget-meta-attention">fixture</span>`,
+			`<form method="POST" action="/moduletest/add" class="inline-form" hx-boost="true"><input type="hidden" name="title" value="Polish the brass again">`,
+			`<button type="submit" class="btn btn-secondary btn-sm" id="widget-moduletest-0-action" aria-label="Add Polish the brass again">again</button>`,
+		} {
+			if !strings.Contains(body, want) {
+				t.Errorf("widget lacks %s", want)
+			}
+		}
+		rr := env.post(t, "/moduletest/add", url.Values{"title": {"Polish the brass again"}})
+		if rr.Code != http.StatusSeeOther {
+			t.Errorf("widget action: status %d", rr.Code)
+		}
+		if body := env.get(t, "/"); !strings.Contains(body, `id="widget-moduletest-1" data-row`) {
+			t.Error("the action's item is not in the widget")
 		}
 	})
 
@@ -237,7 +257,7 @@ func TestModuleContract(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+env.token)
 		rr = httptest.NewRecorder()
 		env.h.ServeHTTP(rr, req)
-		if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), `"count":1`) {
+		if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), `"count":2`) {
 			t.Errorf("with token: %d %s", rr.Code, rr.Body.String())
 		}
 	})

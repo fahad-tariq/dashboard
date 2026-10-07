@@ -92,10 +92,14 @@ func (m *Todos) Search(ctx context.Context, userID int64, q string) []module.Sea
 	return search.Tracker(TodosID, "/todos#item-", m.personal).Search(ctx, userID, q)
 }
 
-// Widgets shows open tasks and active goals.
+// Widgets shows tasks due soon from the user's list and family, then open
+// tasks and active goals.
 func (m *Todos) Widgets(_ context.Context, userID int64, now time.Time) []module.WidgetData {
 	svc := m.personal(userID)
 	var out []module.WidgetData
+	if w, ok := dueWidget([]dueList{{list: TodosID, svc: svc}, {list: FamilyID, context: "Family", svc: m.deps.Services.Family()}}, now); ok {
+		out = append(out, w)
+	}
 	if w, ok := taskWidget("", "Todos", "/todos", svc, now.Format("2006-01-02")); ok {
 		out = append(out, w)
 	}

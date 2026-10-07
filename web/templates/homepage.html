@@ -184,7 +184,11 @@
     </button>
     <div class="plan-item-meta">
         {{- if eq $i.Priority "high"}}<span class="badge badge-priority-high">high</span>{{else if $i.Priority}}<span class="sr-only">{{$i.Priority}} priority</span>{{end -}}
-        {{- if ne $i.Planned .Today}}<span class="plan-item-date">from {{relativeDate $i.Planned}}</span>{{end -}}
+        {{- /* Carried-over rows say where they came from; a due date shows only once it is today or past. */ -}}
+        {{- $carried := ne $i.Planned .Today}}{{$due := and $i.Deadline (not $i.Done) (le (dueLabel $i.Deadline).Days 0)}}
+        {{- if or $carried $due}}<span class="plan-item-date">
+            {{- if $carried}}from {{relativeDate $i.Planned}}{{end}}{{if and $carried $due}} &middot; {{end}}{{if $due}}{{template "due-badge" $i.Deadline}}{{end -}}
+        </span>{{end -}}
     </div>
     <div class="plan-item-detail" id="{{$id}}-detail">
         <div>

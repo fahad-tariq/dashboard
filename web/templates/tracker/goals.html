@@ -40,10 +40,7 @@
                 <option value="low">low</option>
             </select>
         </div>
-        <div class="goal-form-row">
-            <label for="goal-deadline" class="sr-only">Deadline</label>
-            <input type="date" name="deadline" id="goal-deadline" class="form-input form-input-sm" placeholder="Deadline (optional)">
-        </div>
+        {{template "date-field" (dict "ID" "goal-deadline" "Value" "")}}
         <label for="goal-body" class="sr-only">Notes</label>
         <textarea name="body" id="goal-body" placeholder="Notes, links, or context (optional)" rows="2" class="form-textarea"></textarea>
         <button type="submit" class="btn btn-primary">add goal</button>
@@ -61,7 +58,7 @@
             <span class="tracker-item-title" data-row-focus tabindex="-1">{{linkify .Title}}</span>
             <div class="tracker-item-meta">
                 {{- if eq .Priority "high"}}<span class="badge badge-priority-high">high</span>{{else if .Priority}}<span class="badge badge-priority-{{.Priority}} sr-only">{{.Priority}} priority</span>{{end -}}
-                {{- if .Deadline}}<span class="tracker-item-date">due {{.Deadline}}</span>{{end -}}
+                {{- if and .Deadline (not .Done) (not (and (gt .Target 0.0) (ge .Current .Target)))}}{{template "due-badge" .Deadline}}{{end -}}
                 {{- range $i, $t := .Tags}}{{if lt $i 2}}<span class="badge badge-tag">{{$t}}</span>{{end}}{{end -}}
                 {{- if gt (len .Tags) 2}}<span class="meta-more">+{{subtract (len .Tags) 2}}</span>{{end -}}
             </div>
@@ -126,6 +123,7 @@
             <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input" aria-label="Title">
             <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context..." aria-label="Notes">{{.Body}}</textarea>
             <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input" aria-label="Tags">
+            {{template "date-field" (dict "ID" (printf "item-%s-deadline" .Slug) "Value" .Deadline)}}
             <input type="hidden" name="images" value="{{range $i, $img := .Images}}{{if $i}},{{end}}{{$img}}{{end}}">
             <button type="submit" class="btn btn-primary btn-sm">save</button>
         </form>

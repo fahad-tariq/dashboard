@@ -455,3 +455,58 @@ func Digest(items []DigestItem, period DigestPeriod, now time.Time) DigestResult
 
 	return result
 }
+
+// Due describes a task's due date as seen from today.
+type Due struct {
+	Short string // shown in the row: "due today", "due Fri", "overdue 2d"
+	Full  string // read by screen readers: "Due Friday 9 October"
+	// Level is "muted" more than two days out, "attention" within two days
+	// and "danger" once overdue.
+	Level string
+	Days  int // calendar days from today; negative once overdue
+}
+
+// DueLabel describes deadline (YYYY-MM-DD) relative to now's calendar day in
+// now's location. An empty or malformed deadline gives the zero Due.
+func DueLabel(deadline string, now time.Time) Due {
+	d, err := time.Parse("2006-01-02", deadline)
+	if err != nil {
+		return Due{}
+	}
+	// Count whole calendar days in UTC, where no day is 23 or 25 hours long.
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	days := int(d.Sub(today).Hours() / 24)
+
+	due := Due{Days: days, Level: "muted"}
+	switch {
+	case days < 0:
+		due.Level = "danger"
+	case days <= 2:
+		due.Level = "attention"
+	}
+
+	switch {
+	case days < -1:
+		due.Short = fmt.Sprintf("overdue %dd", -days)
+		due.Full = fmt.Sprintf("Overdue by %d days", -days)
+	case days == -1:
+		due.Short, due.Full = "overdue 1d", "Overdue by 1 day"
+	case days == 0:
+		due.Short, due.Full = "due today", "Due today"
+	case days == 1:
+		due.Short, due.Full = "due tomorrow", "Due tomorrow"
+	case days <= 6:
+		due.Short = "due " + d.Format("Mon")
+		due.Full = "Due " + d.Format("Monday 2 January")
+	default:
+		// The year shows only when the date could be mistaken for one
+		// within the coming months.
+		short, full := "2 Jan", "Monday 2 January"
+		if days > 300 {
+			short, full = "2 Jan 2006", "Monday 2 January 2006"
+		}
+		due.Short = "due " + d.Format(short)
+		due.Full = "Due " + d.Format(full)
+	}
+	return due
+}

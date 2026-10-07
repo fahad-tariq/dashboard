@@ -422,6 +422,17 @@
     /* Age stays quiet until an item is stale. */
     .badge-age-stale { color: var(--warning); }
     .badge-age-old { color: var(--attention); }
+    /* A due date reads as words ("overdue 2d"); the colour only repeats it. */
+    .badge-due {
+        background: none;
+        padding: 0;
+        font-family: var(--font-mono);
+        font-weight: 400;
+        font-variant-numeric: tabular-nums;
+    }
+    .badge-due-muted { color: var(--text-muted); }
+    .badge-due-attention { color: var(--attention); font-weight: 500; }
+    .badge-due-danger { color: var(--danger); font-weight: 600; }
     .badge-priority-high {
         background: none;
         padding: 0;
@@ -526,6 +537,7 @@
     .goal-form-row > .form-input,
     .goal-form-row > .form-select { flex: 1 1 10rem; width: auto; }
     .goal-form-slash { color: var(--text-muted); }
+    .date-field-label { font-size: var(--text-sm); color: var(--text-muted); }
     .tracker-goal-form,
     .tracker-notes-form,
     .quick-add-form {
@@ -621,6 +633,18 @@
     .homepage-task a:hover { color: var(--accent); }
     .homepage-task-danger a { color: var(--danger); }
     .homepage-task-warning a { color: var(--warning); }
+    .homepage-task-line {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--sp-1) var(--sp-2);
+    }
+    .homepage-task-label { flex: 1 1 12rem; }
+    .widget-meta { font-family: var(--font-mono); font-size: var(--text-xs); white-space: nowrap; }
+    .widget-meta-muted { color: var(--text-muted); }
+    .widget-meta-attention { color: var(--attention); font-weight: 500; }
+    .widget-meta-danger { color: var(--danger); font-weight: 600; }
     .homepage-progress { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-1); }
 
     /* --- Progress (one style everywhere) ------------------------------- */

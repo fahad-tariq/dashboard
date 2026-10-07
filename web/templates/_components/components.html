@@ -25,6 +25,18 @@ None of them use inline event handlers.
 </div>
 {{end}}
 
+{{/* date-field is a form's "Due" date input with a clear button, which
+Safari's desktop date input lacks: ID, Value. */}}
+{{define "date-field"}}<div class="goal-form-row date-field">
+    <label for="{{.ID}}" class="date-field-label">Due</label>
+    <input type="date" name="deadline" id="{{.ID}}" value="{{.Value}}" class="form-input form-input-sm">
+    <button type="button" class="btn btn-quiet btn-sm" data-action="clear-date" data-clear="{{.ID}}" aria-label="Clear due date">clear</button>
+</div>{{end}}
+
+{{/* due-badge takes a YYYY-MM-DD deadline. The short label is shown and the
+full one read out; the words carry the meaning, the colour only repeats it. */}}
+{{define "due-badge"}}{{$due := dueLabel .}}{{if $due.Short}}<time class="badge badge-due badge-due-{{$due.Level}}" datetime="{{.}}"><span aria-hidden="true">{{$due.Short}}</span><span class="sr-only">{{$due.Full}}</span></time>{{end}}{{end}}
+
 {{/* quick-add: Summary, Action, Name (field name), Label, Placeholder. */}}
 {{define "quick-add"}}
 <details class="quick-add">
@@ -38,21 +50,38 @@ None of them use inline event handlers.
 {{end}}
 
 {{/* card: ID, Title, Link, Count, CountLabel, Note, Severity, Items, EmptyText.
-Items are module.WidgetItem values: Label, URL, Priority, Severity, Progress.
-A Count above the rows shown adds a "+N more" link. */}}
-{{define "card"}}
+Items are module.WidgetItem values: ID, Label, URL, Priority, Severity,
+Context, Meta, Action, Progress. Rows with an ID are focus-restoring rows: a
+row whose action button disappears hands focus to its link. A Count above the
+rows shown adds a "+N more" link when the card has a Link. */}}
+{{define "card"}}{{$card := .ID}}
 <section class="homepage-card" aria-labelledby="{{.ID}}-title">
     <div class="homepage-card-header">
-        <h2 class="homepage-card-title" id="{{.ID}}-title">{{if .Link}}<a href="{{.Link}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</h2>
+        <h2 class="homepage-card-title" id="{{.ID}}-title" tabindex="-1">{{if .Link}}<a href="{{.Link}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</h2>
         {{if or .Count .Note}}<span>
             {{- if .Count}}<span class="stat-value{{with .Severity}} stat-{{.}}{{end}}">{{.Count}}</span>{{with .CountLabel}} <span class="meta-dim">{{.}}</span>{{end}}{{end -}}
             {{with .Note}}{{if $.Count}} / {{end}}<span class="meta-dim">{{.}}</span>{{end -}}
         </span>{{end}}
     </div>
-    <div class="homepage-card-body">
-        {{range .Items}}
-        <div class="homepage-task{{with .Severity}} homepage-task-{{.}}{{end}}{{if .Progress}} homepage-task-progress{{end}}"{{with .Priority}} data-priority="{{.}}"{{end}}>
-            {{if .URL}}<a href="{{.URL}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}
+    <div class="homepage-card-body" id="{{.ID}}-body" data-row-list data-row-heading="{{.ID}}-title">
+        {{range .Items}}{{$row := ""}}{{with .ID}}{{$row = printf "%s-%s" $card .}}{{end}}
+        <div class="homepage-task{{with .Severity}} homepage-task-{{.}}{{end}}{{if .Progress}} homepage-task-progress{{end}}"{{with $row}} id="{{.}}" data-row{{end}}{{with .Priority}} data-priority="{{.}}"{{end}}>
+            {{- if or .Context .Meta .Action}}
+            <div class="homepage-task-line">
+                <span class="homepage-task-label">{{if .URL}}<a href="{{.URL}}" data-row-focus>{{.Label}}</a>{{else}}{{.Label}}{{end}}
+                {{- with .Context}} <span class="meta-dim">{{.}}</span>{{end}}
+                {{- with .Meta}} <span class="widget-meta widget-meta-{{or .Level "muted"}}">{{if .Label}}<span aria-hidden="true">{{.Text}}</span><span class="sr-only">{{.Label}}</span>{{else}}{{.Text}}{{end}}</span>{{end}}</span>
+                {{- with .Action}}
+                {{if .Done}}<span class="badge badge-planned">{{.Done}}</span>
+                {{- else}}<form method="POST" action="{{.Path}}" class="inline-form" hx-boost="true">
+                    {{- range $k, $v := .Fields}}<input type="hidden" name="{{$k}}" value="{{$v}}">{{end -}}
+                    <button type="submit" class="btn btn-secondary btn-sm"{{with $row}} id="{{.}}-action"{{end}}{{with .Label}} aria-label="{{.}}"{{end}}>{{.Text}}</button>
+                </form>{{end}}
+                {{- end}}
+            </div>
+            {{- else}}
+            {{if .URL}}<a href="{{.URL}}"{{if $row}} data-row-focus{{end}}>{{.Label}}</a>{{else}}{{.Label}}{{end}}
+            {{- end}}
             {{with .Progress}}
             <div class="homepage-progress">
                 <div class="progress-bar"><div class="progress-fill {{.Class}}" style="width: {{.Percent}}%"></div></div>

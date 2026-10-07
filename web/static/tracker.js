@@ -310,6 +310,14 @@ clickActions['select-all'] = function() { selectAllVisible(); };
 clickActions['deselect-all'] = function() { deselectAll(); };
 clickActions['bulk-checkbox'] = function() { bulkCheckboxChanged(); };
 clickActions['bulk-submit'] = function(el) { return submitBulkAction(el.getAttribute('data-bulk-form')); };
+// A date input's own clear control: Safari's desktop date input has none.
+clickActions['clear-date'] = function(el) {
+    var input = document.getElementById(el.getAttribute('data-clear'));
+    if (!input) return;
+    input.value = '';
+    if (window.liveRefresh) window.liveRefresh.keepValue(input);
+    input.focus();
+};
 
 var submitActions = {
     'celebrate': function(form) { return celebrateComplete(form); },

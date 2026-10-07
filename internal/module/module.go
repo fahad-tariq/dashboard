@@ -102,14 +102,44 @@ func (f SearchFunc) Search(ctx context.Context, userID int64, q string) []Search
 
 // WidgetItem is one row of a home widget.
 type WidgetItem struct {
+	// ID, if set, makes the row a focus-restoring row ([data-row]) whose
+	// element id the morph pairs across refreshes. Unique within the widget.
+	ID    string
 	Label string
 	URL   string
 	// Priority ("high", "medium" or "low") colours the row's edge.
 	Priority string
 	// Severity colours the row's link.
 	Severity Severity
+	// Context is a quiet word after the label, such as the list it is from.
+	Context string
+	// Meta, if set, follows the label in its own colour.
+	Meta *WidgetMeta
+	// Action, if set, is a one-click button at the end of the row.
+	Action *WidgetAction
 	// Progress, if set, draws a bar under the label.
 	Progress *WidgetProgress
+}
+
+// WidgetMeta is a short status after a row's label, such as "due Fri".
+type WidgetMeta struct {
+	Text  string // shown
+	Label string // read by screen readers instead of Text; empty means Text
+	// Level colours the text: "muted" (the default), "attention" or
+	// "danger". The text must carry the meaning on its own.
+	Level string
+}
+
+// WidgetAction is a button posting Fields to Path, a local path. The
+// registry drops an action whose path is not local.
+type WidgetAction struct {
+	Path   string
+	Fields map[string]string
+	Text   string // the button's text
+	Label  string // its accessible name; empty means Text
+	// Done, when set, replaces the button with a badge holding this text,
+	// so the row and focus stay put once the action has been taken.
+	Done string
 }
 
 // WidgetProgress is a progress bar in a widget row.

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -91,8 +92,12 @@ func (m *Module) Widgets(_ context.Context, _ int64, _ time.Time) []module.Widge
 		return nil
 	}
 	data := module.WidgetData{Title: "Fixture items", Count: len(items), Link: "/moduletest", EmptyText: "Nothing here."}
-	for _, it := range items {
-		data.Items = append(data.Items, module.WidgetItem{Label: it, URL: "/moduletest"})
+	for i, it := range items {
+		data.Items = append(data.Items, module.WidgetItem{
+			ID: strconv.Itoa(i), Label: it, URL: "/moduletest",
+			Meta:   &module.WidgetMeta{Text: "fixture", Level: "attention"},
+			Action: &module.WidgetAction{Path: "/moduletest/add", Fields: map[string]string{"title": it + " again"}, Text: "again", Label: "Add " + it + " again"},
+		})
 	}
 	return []module.WidgetData{data}
 }

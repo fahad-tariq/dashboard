@@ -32,6 +32,7 @@
                 <option value="low">low</option>
             </select>
         </div>
+        {{template "date-field" (dict "ID" "task-deadline" "Value" "")}}
         <label for="task-body" class="sr-only">Notes</label>
         <textarea name="body" id="task-body" placeholder="Notes, links, or context (optional)" rows="2" class="form-textarea"></textarea>
         <button type="submit" class="btn btn-primary">add task</button>
@@ -121,6 +122,7 @@
                     <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input" aria-label="Title">
                     <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context..." aria-label="Notes">{{.Body}}</textarea>
                     <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input" aria-label="Tags">
+                    {{template "date-field" (dict "ID" (printf "item-%s-deadline" .Slug) "Value" .Deadline)}}
                     <input type="hidden" name="images" value="{{range $i, $img := .Images}}{{if $i}},{{end}}{{$img}}{{end}}">
                     <button type="submit" class="btn btn-primary btn-sm">save</button>
                 </form>
@@ -240,10 +242,11 @@
 
 {{/* tracker-meta is an open row's quiet second line: high priority as a word
 (medium and low as text for screen readers only; the row edge shows them),
-age, sub-steps, then at most two tags. Trimmed so an empty line matches
+the due date, planned, age, sub-steps, then at most two tags. Trimmed so an empty line matches
 :empty. */}}
 {{define "tracker-meta"}}<div class="tracker-item-meta">
     {{- if eq .Priority "high"}}<span class="badge badge-priority-high">high</span>{{else if .Priority}}<span class="badge badge-priority-{{.Priority}} sr-only">{{.Priority}} priority</span>{{end -}}
+    {{- if .Deadline}}{{template "due-badge" .Deadline}}{{end -}}
     {{- if .Planned}}<span class="badge badge-planned">planned</span>{{end -}}
     {{- if .Added}}{{$age := ageBadge .Added}}{{if index $age 0}}<span class="badge badge-age badge-age-{{index $age 1}}" title="Added {{.Added}}">{{index $age 0}}</span>{{end}}{{end -}}
     {{- if .SubStepsTotal}}<span class="badge badge-substeps">{{.SubStepsDone}}/{{.SubStepsTotal}}</span>{{end -}}

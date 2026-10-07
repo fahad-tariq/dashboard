@@ -1,8 +1,10 @@
 package test
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -95,5 +97,47 @@ func TestModuleRegistryNavOrder(t *testing.T) {
 	}
 	if !reg.HasMore() {
 		t.Error("HasMore = false with more-group items")
+	}
+}
+
+type widgetModule struct {
+	fakeModule
+	items []module.WidgetItem
+}
+
+func (w widgetModule) Widgets(context.Context, int64, time.Time) []module.WidgetData {
+	return []module.WidgetData{{Title: "W", Count: len(w.items), Items: w.items}}
+}
+
+// The registry keeps a widget action only when it posts to a local path, and
+// a meta level only when the stylesheet defines it.
+func TestModuleRegistryChecksWidgetItems(t *testing.T) {
+	tests := map[string]struct {
+		item       module.WidgetItem
+		wantAction bool
+		wantLevel  string
+	}{
+		"local action kept":          {module.WidgetItem{Action: &module.WidgetAction{Path: "/w/do"}}, true, ""},
+		"absolute URL dropped":       {module.WidgetItem{Action: &module.WidgetAction{Path: "https://evil.example/x"}}, false, ""},
+		"protocol-relative dropped":  {module.WidgetItem{Action: &module.WidgetAction{Path: "//evil.example/x"}}, false, ""},
+		"relative path dropped":      {module.WidgetItem{Action: &module.WidgetAction{Path: "do"}}, false, ""},
+		"known meta level kept":      {module.WidgetItem{Meta: &module.WidgetMeta{Text: "x", Level: "danger"}}, false, "danger"},
+		"unknown meta level cleared": {module.WidgetItem{Meta: &module.WidgetMeta{Text: "x", Level: "x\" onclick=\"y"}}, false, ""},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			m := widgetModule{fakeModule{module.Manifest{ID: "w", Prefixes: []string{"/w"}}}, []module.WidgetItem{tc.item}}
+			reg, err := module.NewRegistry(testCore, m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := reg.Widgets(t.Context(), 1, time.Now())[0].Items[0]
+			if (got.Action != nil) != tc.wantAction {
+				t.Errorf("action kept = %v, want %v", got.Action != nil, tc.wantAction)
+			}
+			if got.Meta != nil && got.Meta.Level != tc.wantLevel {
+				t.Errorf("meta level = %q, want %q", got.Meta.Level, tc.wantLevel)
+			}
+		})
 	}
 }

@@ -304,3 +304,58 @@ func TestTopN(t *testing.T) {
 		t.Fatalf("expected 3, got %d", len(topAll))
 	}
 }
+
+// Due labels count calendar days in the configured location, so a late
+// evening, a DST change or a year boundary never shifts them by one.
+func TestDueLabel(t *testing.T) {
+	sydney, err := time.LoadLocation("Australia/Sydney")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Wednesday 7 October 2026, mid-morning.
+	wed := time.Date(2026, 10, 7, 10, 0, 0, 0, sydney)
+	cases := map[string]struct {
+		now      time.Time
+		deadline string
+		want     insights.Due
+	}{
+		"today":       {wed, "2026-10-07", insights.Due{Short: "due today", Full: "Due today", Level: "attention", Days: 0}},
+		"tomorrow":    {wed, "2026-10-08", insights.Due{Short: "due tomorrow", Full: "Due tomorrow", Level: "attention", Days: 1}},
+		"2 days":      {wed, "2026-10-09", insights.Due{Short: "due Fri", Full: "Due Friday 9 October", Level: "attention", Days: 2}},
+		"3 days":      {wed, "2026-10-10", insights.Due{Short: "due Sat", Full: "Due Saturday 10 October", Level: "muted", Days: 3}},
+		"6 days":      {wed, "2026-10-13", insights.Due{Short: "due Tue", Full: "Due Tuesday 13 October", Level: "muted", Days: 6}},
+		"7 days":      {wed, "2026-10-14", insights.Due{Short: "due 14 Oct", Full: "Due Wednesday 14 October", Level: "muted", Days: 7}},
+		"yesterday":   {wed, "2026-10-06", insights.Due{Short: "overdue 1d", Full: "Overdue by 1 day", Level: "danger", Days: -1}},
+		"2 days late": {wed, "2026-10-05", insights.Due{Short: "overdue 2d", Full: "Overdue by 2 days", Level: "danger", Days: -2}},
+		"just after midnight, still today in Sydney": {
+			time.Date(2026, 10, 7, 0, 30, 0, 0, sydney), "2026-10-07",
+			insights.Due{Short: "due today", Full: "Due today", Level: "attention", Days: 0},
+		},
+		"across the start of daylight saving (4 October)": {
+			time.Date(2026, 10, 3, 23, 30, 0, 0, sydney), "2026-10-05",
+			insights.Due{Short: "due Mon", Full: "Due Monday 5 October", Level: "attention", Days: 2},
+		},
+		"across the end of daylight saving (5 April)": {
+			time.Date(2026, 4, 4, 23, 30, 0, 0, sydney), "2026-04-06",
+			insights.Due{Short: "due Mon", Full: "Due Monday 6 April", Level: "attention", Days: 2},
+		},
+		"over the new year": {
+			time.Date(2026, 12, 30, 9, 0, 0, 0, sydney), "2027-01-02",
+			insights.Due{Short: "due Sat", Full: "Due Saturday 2 January", Level: "muted", Days: 3},
+		},
+		"next year, more than a week out": {
+			time.Date(2026, 12, 30, 9, 0, 0, 0, sydney), "2027-01-08",
+			insights.Due{Short: "due 8 Jan", Full: "Due Friday 8 January", Level: "muted", Days: 9},
+		},
+		"far enough out to show the year": {wed, "2027-10-01", insights.Due{Short: "due 1 Oct 2027", Full: "Due Friday 1 October 2027", Level: "muted", Days: 359}},
+		"empty":                           {wed, "", insights.Due{}},
+		"malformed":                       {wed, "2026-02-30", insights.Due{}},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := insights.DueLabel(tc.deadline, tc.now); got != tc.want {
+				t.Errorf("got %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}

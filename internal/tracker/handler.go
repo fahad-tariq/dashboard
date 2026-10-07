@@ -323,10 +323,15 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		Body:     strings.TrimSpace(r.FormValue("body")),
 		Tags:     httputil.ParseCSV(r.FormValue("tags")),
 		Images:   httputil.ReconstructImages(r),
+		Deadline: strings.TrimSpace(r.FormValue("deadline")),
 	}
 
 	svc, _ := h.resolve(r)
 	if _, err := svc.AddItem(item); err != nil {
+		if errors.Is(err, ErrInvalidDate) {
+			http.Error(w, InvalidDateMessage, http.StatusBadRequest)
+			return
+		}
 		httputil.ServerError(w, "adding task", err)
 		return
 	}

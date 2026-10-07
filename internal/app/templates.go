@@ -60,6 +60,9 @@ func buildFuncMap(loc *time.Location, authEnabled bool, version string, static f
 			label, level := insights.AgeBadge(added, time.Now().In(loc))
 			return []string{label, level}
 		},
+		"dueLabel": func(deadline string) insights.Due {
+			return insights.DueLabel(deadline, time.Now().In(loc))
+		},
 		"progressColour": func(current, target float64, added, deadline string) string {
 			return insights.ProgressColour(current, target, added, deadline, time.Now().In(loc))
 		},
