@@ -157,7 +157,7 @@ Do not reopen these while executing this plan.
   - An external ID-less edit gets IDs on resync, then a mutation on another item, then `Get` by the new ID works with no restart.
   - An app write still gives exactly one change event and zero re-parses, using the existing event tests.
   - Lazy per-user loads assign IDs.
-- [ ] **Verification.** `make lint test` green and route goldens unchanged. CI green. Deploy and record it, including a count of items and IDs per production file, taken from the backup and the live files after start-up. A file with items and no IDs fails the phase.
+- [x] **Verification.** `make lint test` green and route goldens unchanged. CI green. Deploy and record it, including a count of items and IDs per production file, taken from the backup and the live files after start-up. A file with items and no IDs fails the phase.
 - [x] Self-review with an independent agent; fix what holds up.
 - [ ] **STOP and wait for human review.** This is the first deploy that rewrites every production file. The owner confirms the pages look right before addressing changes.
 
@@ -275,3 +275,15 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
   - Correctness and operations: no lost write, lost or duplicated ID, or cache/file mismatch; `go test -race -count=3` on the ID, event, resync, lazy-load and move tests passes. Reference linking runs only on the load that assigns IDs and is never retried, so a crash between assignment and linking, or a failed relink write, leaves slugs for good (Phase 3's `{id}` routes would then not resolve them). Accepted with a deploy check: after start-up, count `[from-idea:]`/`[converted-to:]` values that are not IDs; expect 0. Also noted: the assign/save helpers are repeated in the three services, like the services themselves (accepted).
   - Carried into Phase 3: `MoveToList` must use the ID `AddItem` returns (a collision gives the moved item a new one); items left without an ID by a failed load-time save cannot be addressed until the next write assigns one; delete the idea page's ID fallback with the `{id}` routes.
 - First CI run of Phase 2 (`9f35e26`): vuln failed on advisories published after the last run: Go 1.27.2 (net/http, net/textproto, html/template, os) and `golang.org/x/net` 0.60.0. Bumped `go.mod` to 1.27.2, x/net to 0.60.0 and the Dockerfile builder to `golang:1.27.2-alpine` (digest pinned). The sandbox could not download the 1.27.2 toolchain, so the race suite ran on 1.27.1 with a copy of `go.mod` set to 1.27.1 and the new x/net; CI runs it on 1.27.2. The non-gating screenshots job also failed; see the next run.
+- Deploy 2026-10-09: commit `d7c190e`, CI run 37951569425 green (lint, vuln, test, e2e, screenshots, build; the screenshots failure on `9f35e26` did not recur). Image revision label `d7c190ee54503464ea9dba7f58f5339f691e26b0`. Backup `dashboard-backup-20261009-153755.tar.gz` (exit 0). Start-up log: `from-idea references now hold IDs count=4`, `converted-to references now hold IDs count=4`, no unresolved or malformed-ID warnings. Caddy checks: `/login` 200, `/todos` 303, `/events` 401, `/api/v1/todos` 404, cross-site POST `/login` 403. `verify-stack.sh`: one check failed on the first run and all passed on an immediate re-run.
+- Items and IDs per production file (unindented item lines; IDs counted as a final valid `[id:]`; references counted as `[from-idea:]`/`[converted-to:]` values that are not IDs):
+
+  | File | Before (backup): items / IDs / slug refs | After start-up: items / IDs / slug refs |
+  |---|---|---|
+  | `users/1/personal.md` | 35 / 0 / 4 | 35 / 35 / 0 |
+  | `users/1/ideas.md` | 15 / 0 / 4 | 15 / 15 / 0 |
+  | `data/family.md` | 8 / 0 / 0 | 8 / 8 / 0 |
+  | `data/maintenance.md` | 0 / 0 / 0 | 0 / 0 / 0 |
+  | `data/house-projects.md` | 0 / 0 / 0 | 0 / 0 / 0 |
+
+  No ID repeats across the files. No file has items without IDs, so the phase passes.
