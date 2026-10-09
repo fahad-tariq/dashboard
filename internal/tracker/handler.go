@@ -738,7 +738,7 @@ func (h *Handler) PromoteSubStep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	steps := ParseSubSteps(item.Body)
-	if index >= len(steps) {
+	if index < 0 || index >= len(steps) {
 		http.Error(w, "Sub-step not found", http.StatusBadRequest)
 		return
 	}
