@@ -8,7 +8,7 @@ Give every list item a permanent ID, so renames, moves and duplicate titles stop
 |---|---|---|
 | 1 | Foundations and module framework | Done (2026-10-06) |
 | 2 | Exercise module | Parked (2026-10-07): the owner uses Hevy |
-| 3 (this) | Stable item IDs, due dates on tasks | In progress (Phase 2) |
+| 3 (this) | Stable item IDs, due dates on tasks | Phases 1 and 2 done; Phase 3 next |
 
 ## Context
 
@@ -125,7 +125,7 @@ Do not reopen these while executing this plan.
   - Playwright: set a due date through the edit form, see the row badge and the widget, press "Plan today" and see the item in the plan with focus kept. Run `TestE2ESelectorsExist`.
 - [x] **Verification.** `make lint test` green. Route goldens unchanged (or any diff explained here). CI green. Deploy and record it.
 - [x] Self-review with an independent agent; fix what holds up.
-- [ ] **STOP and wait for human review.** The owner judges the badge and widget in the live app. Also decide whether to hide the age badge on rows with a due date: `badge-age-old` already uses `--attention`.
+- [x] **STOP and wait for human review.** The owner judges the badge and widget in the live app. Also decide whether to hide the age badge on rows with a due date: `badge-age-old` already uses `--attention`.
 
 ---
 
@@ -159,7 +159,7 @@ Do not reopen these while executing this plan.
   - Lazy per-user loads assign IDs.
 - [x] **Verification.** `make lint test` green and route goldens unchanged. CI green. Deploy and record it, including a count of items and IDs per production file, taken from the backup and the live files after start-up. A file with items and no IDs fails the phase.
 - [x] Self-review with an independent agent; fix what holds up.
-- [ ] **STOP and wait for human review.** This is the first deploy that rewrites every production file. The owner confirms the pages look right before addressing changes.
+- [x] **STOP and wait for human review.** This is the first deploy that rewrites every production file. The owner confirms the pages look right before addressing changes.
 
 ---
 
@@ -287,3 +287,4 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
   | `data/house-projects.md` | 0 / 0 / 0 | 0 / 0 / 0 |
 
   No ID repeats across the files. No file has items without IDs, so the phase passes.
+- Owner sign-off 2026-10-09: pages look right after the rewrite. Phase 3 starts in a fresh session; its inputs are the "Carried into Phase 3" bullet above, the rollback hazard in Risks, and the reference-count check (`[from-idea:]`/`[converted-to:]` values that are not IDs, now 0 in production).
