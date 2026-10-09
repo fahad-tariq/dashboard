@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/fahad/dashboard/internal/atomicfile"
+	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/slug"
 )
 
@@ -23,6 +24,9 @@ type Idea struct {
 	Body        string   `json:"body"`
 	DeletedAt   string   `json:"deleted_at,omitempty"` // soft-delete date, YYYY-MM-DD
 }
+
+// validStatuses are the statuses an idea can have.
+var validStatuses = map[string]bool{"untriaged": true, "parked": true, "dropped": true, "converted": true}
 
 var (
 	statusRe      = regexp.MustCompile(`\[status:\s*(.*?)\]`)
@@ -164,7 +168,9 @@ func parseIdeaLine(raw string) *Idea {
 	idea.Title = strings.TrimSpace(raw)
 	idea.Slug = slug.Slugify(idea.Title)
 
-	if idea.Status == "" {
+	// Only the four statuses exist; anything else (a typo, or text meant
+	// for the badge's CSS class) reads as untriaged.
+	if !validStatuses[idea.Status] {
 		idea.Status = "untriaged"
 	}
 
@@ -189,11 +195,11 @@ func RenderIdeas(heading string, ideas []Idea) []byte {
 		if idea.Status != "" {
 			fmt.Fprintf(&b, " [status: %s]", idea.Status)
 		}
-		if len(idea.Tags) > 0 {
-			fmt.Fprintf(&b, " [tags: %s]", strings.Join(idea.Tags, ", "))
+		if tags := httputil.CleanMetaList(idea.Tags); len(tags) > 0 {
+			fmt.Fprintf(&b, " [tags: %s]", strings.Join(tags, ", "))
 		}
-		if idea.Project != "" {
-			fmt.Fprintf(&b, " [project: %s]", idea.Project)
+		if project := httputil.CleanMetaValue(idea.Project); project != "" {
+			fmt.Fprintf(&b, " [project: %s]", project)
 		}
 		if idea.Added != "" {
 			fmt.Fprintf(&b, " [added: %s]", idea.Added)
@@ -201,8 +207,8 @@ func RenderIdeas(heading string, ideas []Idea) []byte {
 		if idea.ConvertedTo != "" {
 			fmt.Fprintf(&b, " [converted-to: %s]", idea.ConvertedTo)
 		}
-		if len(idea.Images) > 0 {
-			fmt.Fprintf(&b, " [images: %s]", strings.Join(idea.Images, ", "))
+		if images := httputil.CleanMetaList(idea.Images); len(images) > 0 {
+			fmt.Fprintf(&b, " [images: %s]", strings.Join(images, ", "))
 		}
 		if idea.DeletedAt != "" {
 			fmt.Fprintf(&b, " [deleted: %s]", idea.DeletedAt)

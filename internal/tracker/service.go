@@ -126,6 +126,7 @@ func (s *Service) AddItem(item Item) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	item.Title = httputil.CleanTitle(item.Title)
 	if item.Title == "" {
 		return "", fmt.Errorf("empty title")
 	}
@@ -392,9 +393,9 @@ func (s *Service) ApplyEdit(slug string, e Edit) error {
 		if e.Deadline != nil {
 			it.Deadline = *e.Deadline
 		}
-		if e.Title != "" {
-			it.Title = e.Title
-			it.Slug = Slugify(e.Title)
+		if title := httputil.CleanTitle(e.Title); title != "" {
+			it.Title = title
+			it.Slug = Slugify(title)
 		}
 		if e.Body != nil {
 			it.Body = *e.Body

@@ -98,6 +98,10 @@ func (s *Service) Add(item *MaintenanceItem) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	item.Title = httputil.CleanTitle(item.Title)
+	if item.Title == "" {
+		return fmt.Errorf("empty title")
+	}
 	if item.Added == "" {
 		item.Added = time.Now().In(s.loc).Format("2006-01-02")
 	}
@@ -161,7 +165,7 @@ func (s *Service) LogCompletion(slug, note string) error {
 // UpdateEdit updates the title and tags of a maintenance item.
 func (s *Service) UpdateEdit(slug, title, notes string, tags []string) error {
 	return s.mutate(slug, func(item *MaintenanceItem) error {
-		if title != "" {
+		if title := httputil.CleanTitle(title); title != "" {
 			item.Title = title
 			item.Slug = Slugify(title)
 		}

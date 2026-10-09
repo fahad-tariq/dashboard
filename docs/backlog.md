@@ -58,9 +58,6 @@ Moving items between personal/family and house is not wired. `tracker.Handler.Mo
 ### Tighten CSP `script-src`
 `script-src` still allows `'unsafe-inline'`. Module templates use delegated `data-action` handlers, but inline `on*` handlers remain in `layout.html`, `homepage.html`, `login.html` and `admin-users.html`, and inline `<script>` blocks in `layout.html`, `login.html`, `account.html`, `admin-password.html` and the `appearance-script` partial. The appearance script must run before first paint, so give it a CSP hash or load it as a blocking script in `<head>`. `style-src 'unsafe-inline'` has to stay: templates use `style=""` and the seasonal colour is an injected `<style>` block.
 
-### Ideas status CSS class injection
-`ideas.Status` is parsed without an allowlist, and `idea.html` renders it into `class="badge-{{.Idea.Status}}"`. It is reachable from input, not just hand edits: a title typed as `Foo [status: x badge-tag]` (web form or `APIAddIdea`) is written as-is and the parser's `statusRe` matches it on re-parse. An unknown status also hides the idea, because `/ideas` renders only the four known groups. Low severity (`html/template` prevents XSS). Fix: allowlist at parse time with a fallback to `untriaged`, and strip inline metadata from idea titles.
-
 ### Image filename validation in templates
 Image filenames are stored unchecked (`httputil.ReconstructImages` from forms, `images` in `APIUpdateTodo`) and rendered into `img src`. `http.Dir` prevents file-serving traversal, but the `src` could point at any same-origin GET. Validate against the shape `upload/handler.go` produces (32 hex characters plus `.png`, `.jpg`, `.gif` or `.webp`) on write and in `splitImageCaption`.
 

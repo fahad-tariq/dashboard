@@ -86,6 +86,11 @@ func (s *Service) Add(idea *Idea) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	idea.Title = httputil.CleanTitle(idea.Title)
+	if idea.Title == "" {
+		return fmt.Errorf("empty title")
+	}
+	idea.Slug = Slugify(idea.Title)
 	if idea.Added == "" {
 		idea.Added = time.Now().In(s.loc).Format("2006-01-02")
 	}
@@ -147,6 +152,7 @@ func (s *Service) Triage(slug, action string) error {
 }
 
 func (s *Service) Edit(slug, title, body string, tags, images []string) error {
+	title = httputil.CleanTitle(title)
 	return s.mutate(slug, func(idea *Idea) error {
 		if title != "" {
 			idea.Title = title
@@ -159,8 +165,10 @@ func (s *Service) Edit(slug, title, body string, tags, images []string) error {
 		if title == "" {
 			for line := range strings.SplitSeq(body, "\n") {
 				if t, ok := strings.CutPrefix(strings.TrimSpace(line), "# "); ok {
-					idea.Title = t
-					idea.Slug = Slugify(t)
+					if t = httputil.CleanTitle(t); t != "" {
+						idea.Title = t
+						idea.Slug = Slugify(t)
+					}
 					break
 				}
 			}

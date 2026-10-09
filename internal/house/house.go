@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fahad/dashboard/internal/atomicfile"
+	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/slug"
 )
 
@@ -203,14 +204,14 @@ func RenderMaintenance(heading string, items []MaintenanceItem) []byte {
 		if it.Cadence != "" {
 			fmt.Fprintf(&b, " [cadence: %s]", it.Cadence)
 		}
-		if len(it.Tags) > 0 {
-			fmt.Fprintf(&b, " [tags: %s]", strings.Join(it.Tags, ", "))
+		if tags := httputil.CleanMetaList(it.Tags); len(tags) > 0 {
+			fmt.Fprintf(&b, " [tags: %s]", strings.Join(tags, ", "))
 		}
 		if it.Added != "" {
 			fmt.Fprintf(&b, " [added: %s]", it.Added)
 		}
-		if len(it.Images) > 0 {
-			fmt.Fprintf(&b, " [images: %s]", strings.Join(it.Images, ", "))
+		if images := httputil.CleanMetaList(it.Images); len(images) > 0 {
+			fmt.Fprintf(&b, " [images: %s]", strings.Join(images, ", "))
 		}
 		if it.DeletedAt != "" {
 			fmt.Fprintf(&b, " [deleted: %s]", it.DeletedAt)

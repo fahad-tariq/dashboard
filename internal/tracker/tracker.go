@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/fahad/dashboard/internal/atomicfile"
+	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/slug"
 )
 
@@ -359,8 +360,8 @@ func writeItem(sb *strings.Builder, it Item) { //nolint:gocyclo // one branch pe
 	}
 	if it.Type == GoalType {
 		fmt.Fprintf(sb, " [goal: %s/%s", formatNum(it.Current), formatNum(it.Target))
-		if it.Unit != "" {
-			sb.WriteString(" " + it.Unit)
+		if unit := httputil.CleanMetaValue(it.Unit); unit != "" {
+			sb.WriteString(" " + unit)
 		}
 		sb.WriteString("]")
 	}
@@ -382,11 +383,11 @@ func writeItem(sb *strings.Builder, it Item) { //nolint:gocyclo // one branch pe
 	if it.FromIdea != "" {
 		sb.WriteString(" [from-idea: " + it.FromIdea + "]")
 	}
-	if len(it.Tags) > 0 {
-		sb.WriteString(" [tags: " + strings.Join(it.Tags, ", ") + "]")
+	if tags := httputil.CleanMetaList(it.Tags); len(tags) > 0 {
+		sb.WriteString(" [tags: " + strings.Join(tags, ", ") + "]")
 	}
-	if len(it.Images) > 0 {
-		sb.WriteString(" [images: " + strings.Join(it.Images, ", ") + "]")
+	if images := httputil.CleanMetaList(it.Images); len(images) > 0 {
+		sb.WriteString(" [images: " + strings.Join(images, ", ") + "]")
 	}
 	if it.Budget > 0 {
 		sb.WriteString(" [budget: " + formatNum(it.Budget) + "]")
