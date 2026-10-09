@@ -24,7 +24,7 @@ type Service struct {
 	maintPath string
 	loc       *time.Location
 	mu        sync.RWMutex
-	// assignedOnLoad is set once by the constructor\'s load.
+	// assignedOnLoad is set once by the constructor's load.
 	assignedOnLoad bool
 	cache          []MaintenanceItem
 }

@@ -45,8 +45,16 @@ var metaValueCleaner = strings.NewReplacer("[", "", "]", "", "\r", " ", "\n", " 
 // anywhere in a line. A parsed value holds none of these except "[", which
 // only a hand edit or an old caption could have put there.
 func CleanMetaValue(s string) string {
-	s = priorityRe.ReplaceAllString(metaValueCleaner.Replace(s), "")
-	return strings.TrimSpace(s)
+	s = metaValueCleaner.Replace(s)
+	// Repeat until stable: removing one marker can join its neighbours into
+	// another ("!hi!highgh").
+	for {
+		next := priorityRe.ReplaceAllString(s, "")
+		if next == s {
+			return strings.TrimSpace(s)
+		}
+		s = next
+	}
 }
 
 // CleanMetaList cleans each value of a comma-separated tag (tags, images)
