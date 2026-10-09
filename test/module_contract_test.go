@@ -40,6 +40,14 @@ func newContractEnv(t *testing.T) *contractEnv {
 // (user 1), with extra modules registered and a broker the test listens to.
 func newAppEnv(t *testing.T, extra ...module.Factory) *contractEnv {
 	t.Helper()
+	return newSeededAppEnv(t, nil, extra...)
+}
+
+// newSeededAppEnv is newAppEnv with files written before the router loads
+// them: seed gets the config and writes what it needs (the owner's files
+// are under cfg.UserDataDir/1/).
+func newSeededAppEnv(t *testing.T, seed func(*config.Config), extra ...module.Factory) *contractEnv {
+	t.Helper()
 	paths := tempPaths(t)
 	paths["DASHBOARD_PASSWORD_HASH"] = ""
 	paths["DASHBOARD_SECURE_COOKIES"] = "false"
@@ -57,6 +65,9 @@ func newAppEnv(t *testing.T, extra ...module.Factory) *contractEnv {
 	t.Cleanup(func() { closeDB(t, database) })
 	if _, err := auth.CreateUser(database, "owner@test.com", "", "owner-password"); err != nil {
 		t.Fatal(err)
+	}
+	if seed != nil {
+		seed(cfg)
 	}
 	broker := sse.NewBroker()
 	h, err := app.NewRouterWith(t.Context(), cfg, database, "test", app.Options{
