@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/httputil"
+	"github.com/fahad/dashboard/internal/itemid"
 	"github.com/fahad/dashboard/internal/slug"
 )
 
@@ -22,6 +24,7 @@ const (
 
 // Item represents a single tracker entry -- either a task or a goal.
 type Item struct {
+	ID        string // permanent, [id:]; empty until the service assigns one
 	Slug      string
 	Title     string
 	Type      ItemType
@@ -145,7 +148,9 @@ func ParseTracker(path string) ([]Item, error) {
 	var items []Item
 	var current *Item
 
+	lineNo := 0
 	for line := range strings.SplitSeq(string(data), "\n") {
+		lineNo++
 		trimmed := strings.TrimSpace(line)
 
 		// Skip headings (section headers and top-level heading). Only
@@ -169,7 +174,12 @@ func ParseTracker(path string) ([]Item, error) {
 					current.SubStepsDone, current.SubStepsTotal = countSubSteps(current.Body)
 					items = append(items, *current)
 				}
+				title, id, malformed := itemid.Cut(title)
+				if malformed {
+					slog.Warn("malformed item id left in the title", "file", path, "line", lineNo)
+				}
 				current = parseItemLine(title, done)
+				current.ID = id
 				continue
 			}
 		}
@@ -400,6 +410,9 @@ func writeItem(sb *strings.Builder, it Item) { //nolint:gocyclo // one branch pe
 	}
 	if it.DeletedAt != "" {
 		sb.WriteString(" [deleted: " + it.DeletedAt + "]")
+	}
+	if itemid.Valid(it.ID) {
+		sb.WriteString(" [id: " + it.ID + "]")
 	}
 	sb.WriteString("\n")
 

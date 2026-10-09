@@ -2,17 +2,20 @@ package ideas
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
 
 	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/httputil"
+	"github.com/fahad/dashboard/internal/itemid"
 	"github.com/fahad/dashboard/internal/slug"
 )
 
 // Idea represents a single idea in the flat-file ideas.md format.
 type Idea struct {
+	ID          string   `json:"id,omitempty"` // permanent, [id:]; empty until the service assigns one
 	Slug        string   `json:"slug"`
 	Title       string   `json:"title"`
 	Status      string   `json:"status"` // untriaged, parked, dropped, converted
@@ -53,7 +56,9 @@ func ParseIdeas(path string) ([]Idea, error) {
 	var ideas []Idea
 	var current *Idea
 
+	lineNo := 0
 	for line := range strings.SplitSeq(string(data), "\n") {
+		lineNo++
 		trimmed := strings.TrimSpace(line)
 
 		// Headings end the current idea and are skipped.
@@ -76,7 +81,12 @@ func ParseIdeas(path string) ([]Idea, error) {
 				current.Body = strings.TrimSpace(current.Body)
 				ideas = append(ideas, *current)
 			}
+			title, id, malformed := itemid.Cut(title)
+			if malformed {
+				slog.Warn("malformed item id left in the title", "file", path, "line", lineNo)
+			}
 			current = parseIdeaLine(title)
+			current.ID = id
 			continue
 		}
 
@@ -212,6 +222,9 @@ func RenderIdeas(heading string, ideas []Idea) []byte {
 		}
 		if idea.DeletedAt != "" {
 			fmt.Fprintf(&b, " [deleted: %s]", idea.DeletedAt)
+		}
+		if itemid.Valid(idea.ID) {
+			fmt.Fprintf(&b, " [id: %s]", idea.ID)
 		}
 		b.WriteString("\n")
 

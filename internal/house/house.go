@@ -2,6 +2,7 @@ package house
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strconv"
@@ -10,12 +11,14 @@ import (
 
 	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/httputil"
+	"github.com/fahad/dashboard/internal/itemid"
 	"github.com/fahad/dashboard/internal/slug"
 )
 
 // MaintenanceItem represents a recurring maintenance task.
 // Maintenance items are never "done" -- completing them adds a log entry.
 type MaintenanceItem struct {
+	ID        string // permanent, [id:]; empty until the service assigns one
 	Slug      string
 	Title     string
 	Cadence   string // raw cadence string: "3m", "2w", "90d", "1y"
@@ -58,7 +61,9 @@ func ParseMaintenance(path string) ([]MaintenanceItem, error) { //nolint:gocyclo
 	var items []MaintenanceItem
 	var current *MaintenanceItem
 
+	lineNo := 0
 	for line := range strings.SplitSeq(string(data), "\n") {
+		lineNo++
 		trimmed := strings.TrimSpace(line)
 
 		// Non-indented headings end the current item and are skipped.
@@ -77,7 +82,12 @@ func ParseMaintenance(path string) ([]MaintenanceItem, error) { //nolint:gocyclo
 				if current != nil {
 					items = append(items, *current)
 				}
+				title, id, malformed := itemid.Cut(title)
+				if malformed {
+					slog.Warn("malformed item id left in the title", "file", path, "line", lineNo)
+				}
 				current = parseMaintLine(title)
+				current.ID = id
 				continue
 			}
 		}
@@ -215,6 +225,9 @@ func RenderMaintenance(heading string, items []MaintenanceItem) []byte {
 		}
 		if it.DeletedAt != "" {
 			fmt.Fprintf(&b, " [deleted: %s]", it.DeletedAt)
+		}
+		if itemid.Valid(it.ID) {
+			fmt.Fprintf(&b, " [id: %s]", it.ID)
 		}
 		b.WriteString("\n")
 

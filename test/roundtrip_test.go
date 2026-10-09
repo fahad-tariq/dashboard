@@ -3,6 +3,7 @@ package test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/fahad/dashboard/internal/house"
@@ -86,6 +87,16 @@ func TestRoundtripByteIdentical(t *testing.T) {
 		},
 		"maintenance: every cadence unit, newest-first logs with notes, indented notes, captions, soft-deleted": {
 			fixture: "maintenance.md", rewrite: rewriteMaintenance, wantItems: 5,
+		},
+
+		"tracker with IDs: on items only, not sub-steps; from-idea holds an ID": {
+			fixture: "tracker_ids.md", rewrite: rewriteTracker("Personal"), wantItems: 4,
+		},
+		"ideas with IDs: blank lines and a checklist in the body; converted-to holds an ID": {
+			fixture: "ideas_ids.md", rewrite: rewriteIdeas, wantItems: 2,
+		},
+		"maintenance with IDs: not on log entries": {
+			fixture: "maintenance_ids.md", rewrite: rewriteMaintenance, wantItems: 2,
 		},
 
 		// Known bug: the tracker parser treats any line whose trimmed form starts
@@ -175,6 +186,84 @@ func TestRoundtripNormalised(t *testing.T) {
 			again, _ := roundtrip(t, tc.rewrite, filepath.Join("testdata", golden))
 			if string(again) != string(got) {
 				t.Errorf("golden %s is not a fixed point\n--- second pass ---\n%s\n--- first pass ---\n%s", golden, again, got)
+			}
+		})
+	}
+}
+
+// Each parser reads a final [id:] into ID and out of the title, leaves a
+// malformed one in the title, and gives indented lines no ID.
+func TestParseItemIDs(t *testing.T) {
+	write := func(t *testing.T, content string) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "list.md")
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	type got struct{ id, title string }
+	tracker1 := func(t *testing.T, content string) []got {
+		items, err := tracker.ParseTracker(write(t, content))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []got
+		for _, it := range items {
+			out = append(out, got{it.ID, it.Title})
+		}
+		return out
+	}
+	ideas1 := func(t *testing.T, content string) []got {
+		items, err := ideas.ParseIdeas(write(t, content))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []got
+		for _, it := range items {
+			out = append(out, got{it.ID, it.Title})
+		}
+		return out
+	}
+	maint1 := func(t *testing.T, content string) []got {
+		items, err := house.ParseMaintenance(write(t, content))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []got
+		for _, it := range items {
+			out = append(out, got{it.ID, it.Title})
+		}
+		return out
+	}
+	cases := map[string]struct {
+		parse   func(*testing.T, string) []got
+		content string
+		want    []got
+	}{
+		"tracker: final ID": {tracker1, "# P\n\n- [ ] Pay rego [tags: car] [id: b7k2m9xq]\n", []got{{"b7k2m9xq", "Pay rego"}}},
+		"tracker: no ID":    {tracker1, "# P\n\n- [ ] Pay rego\n", []got{{"", "Pay rego"}}},
+		"tracker: malformed ID stays in the title": {
+			tracker1, "# P\n\n- [ ] Pay rego [id: abc]\n", []got{{"", "Pay rego [id: abc]"}},
+		},
+		"tracker: a vowel is not an ID": {
+			tracker1, "# P\n\n- [ ] Pay rego [id: aaaaaaaa]\n", []got{{"", "Pay rego [id: aaaaaaaa]"}},
+		},
+		"tracker: indented sub-step with an ID tag stays body": {
+			tracker1, "# P\n\n- [ ] Pay rego [id: b7k2m9xq]\n  - [ ] Step [id: c7k2m9xq]\n", []got{{"b7k2m9xq", "Pay rego"}},
+		},
+		"ideas: final ID": {ideas1, "# I\n\n- [ ] Kayak [status: parked] [id: w3th3rs7]\n", []got{{"w3th3rs7", "Kayak"}}},
+		"ideas: indented checkbox before any idea starts one": {
+			ideas1, "# I\n\n  - [ ] Kayak [id: w3th3rs7]\n", []got{{"w3th3rs7", "Kayak"}},
+		},
+		"maintenance: final ID, log entries get none": {
+			maint1, "# M\n\n- [ ] Clean gutters [cadence: 6m] [id: g7tt3rs2]\n  - [x] 2026-09-01 - done\n", []got{{"g7tt3rs2", "Clean gutters"}},
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if g := tc.parse(t, tc.content); !slices.Equal(g, tc.want) {
+				t.Errorf("got %+v, want %+v", g, tc.want)
 			}
 		})
 	}
