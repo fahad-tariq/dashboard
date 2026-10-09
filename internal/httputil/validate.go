@@ -36,15 +36,17 @@ func CleanTitle(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// metaValueCleaner removes what could end a tag's brackets early or start
-// a new line.
+// metaValueCleaner removes what could end a tag's brackets early, open a
+// new tag or start a new line.
 var metaValueCleaner = strings.NewReplacer("[", "", "]", "", "\r", " ", "\n", " ")
 
 // CleanMetaValue makes a value safe inside an inline tag, such as a goal's
-// unit. A value read from a file never holds these characters, so writing a
-// parsed value back leaves it unchanged.
+// unit. It also removes priority markers, which the tracker parser finds
+// anywhere in a line. A parsed value holds none of these except "[", which
+// only a hand edit or an old caption could have put there.
 func CleanMetaValue(s string) string {
-	return strings.TrimSpace(metaValueCleaner.Replace(s))
+	s = priorityRe.ReplaceAllString(metaValueCleaner.Replace(s), "")
+	return strings.TrimSpace(s)
 }
 
 // CleanMetaList cleans each value of a comma-separated tag (tags, images)

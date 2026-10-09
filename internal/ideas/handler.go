@@ -200,7 +200,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := strings.TrimSpace(r.FormValue("title"))
+	title := httputil.CleanTitle(r.FormValue("title"))
 	if title == "" {
 		http.Redirect(w, r, "/ideas?msg=title-required", http.StatusSeeOther)
 		return
@@ -401,7 +401,7 @@ func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Title == "" {
+	if httputil.CleanTitle(req.Title) == "" {
 		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "title required"})
 		return
 	}

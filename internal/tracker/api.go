@@ -156,7 +156,7 @@ func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 			return
 		}
 
-		if req.Title == "" {
+		if httputil.CleanTitle(req.Title) == "" {
 			jsonError(w, "title required", http.StatusBadRequest)
 			return
 		}

@@ -3,6 +3,8 @@ package services
 import (
 	"log/slog"
 
+	"github.com/fahad/dashboard/internal/itemid"
+
 	"github.com/fahad/dashboard/internal/tracker"
 )
 
@@ -20,6 +22,9 @@ func newRefIndex() *refIndex {
 }
 
 func (x *refIndex) add(id, slug string) {
+	if !itemid.Valid(id) {
+		return // an ID the file does not hold must never be linked to
+	}
 	x.ids[id] = true
 	if _, ok := x.bySlug[slug]; ok {
 		x.shared[slug] = true

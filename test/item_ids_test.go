@@ -410,3 +410,23 @@ func TestReferencesLinkOnlyOnTheAssigningLoad(t *testing.T) {
 		t.Errorf("got %+v (%v), want from-idea left as kayak", items, err)
 	}
 }
+
+// When the load cannot save the IDs it assigned, the cache keeps the file's
+// (missing) IDs instead of ones the file never held, and nothing is linked.
+func TestLoadWithUnwritableFileKeepsCacheInStepWithFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "list.md")
+	seedFile(t, path, "# Personal\n\n- [ ] Pay rego\n")
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	svc := tracker.NewService(path, "Personal", time.UTC)
+	if svc.AssignedOnLoad() {
+		t.Error("AssignedOnLoad true although the save failed")
+	}
+	if items := svc.All(); len(items) != 1 || items[0].ID != "" {
+		t.Errorf("cache %+v, want the item without an ID, as on disk", items)
+	}
+}

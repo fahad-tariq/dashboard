@@ -143,7 +143,7 @@ func (h *Handler) AddMaintenance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := strings.TrimSpace(r.FormValue("title"))
+	title := httputil.CleanTitle(r.FormValue("title"))
 	if title == "" {
 		http.Redirect(w, r, "/house?msg=title-required", http.StatusSeeOther)
 		return
@@ -264,7 +264,7 @@ func (h *Handler) AddProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := strings.TrimSpace(r.FormValue("title"))
+	title := httputil.CleanTitle(r.FormValue("title"))
 	if title == "" {
 		http.Redirect(w, r, "/house?msg=title-required", http.StatusSeeOther)
 		return

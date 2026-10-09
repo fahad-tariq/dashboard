@@ -8,7 +8,7 @@ Give every list item a permanent ID, so renames, moves and duplicate titles stop
 |---|---|---|
 | 1 | Foundations and module framework | Done (2026-10-06) |
 | 2 | Exercise module | Parked (2026-10-07): the owner uses Hevy |
-| 3 (this) | Stable item IDs, due dates on tasks | In progress (Phase 1) |
+| 3 (this) | Stable item IDs, due dates on tasks | In progress (Phase 2) |
 
 ## Context
 
@@ -133,24 +133,24 @@ Do not reopen these while executing this plan.
 
 **Purpose:** every item in every file gets an ID, and every write keeps it. Addressing still uses slugs, so nothing visible changes.
 
-- [ ] **Strip tags from titles (bug, test-first).**
+- [x] **Strip tags from titles (bug, test-first).**
   - Every service method that sets a title strips inline tags: `AddItem`, the edit paths, house project add and edit, idea add and edit, `PromoteSubStep`, `toTask`.
   - Add `id` to `inlineMetaRe`.
   - Allowlist the ideas `[status:]` at parse time, falling back to `untriaged` (backlog "Ideas status CSS class injection"), and remove that backlog entry.
   - Table-test one injection row per input path.
-- [ ] **Parse and render IDs.**
+- [x] **Parse and render IDs.**
   - The tracker, maintenance and ideas parsers read a final `[id:]` in the agreed format into an `ID` field and strip it from the title. A malformed one stays in the title and is logged with file and line, not the title text.
   - Renderers emit `[id:]` last when the item has one.
   - New `*_ids.md` round-trip fixtures per parser family cover: IDs on items, sub-steps under an item with an ID, maintenance log entries, ideas with blank lines, an ideas-file indented checkbox before any idea, and `[from-idea:]`/`[converted-to:]` holding IDs. They must be byte-identical.
-- [ ] **Generate and assign.**
+- [x] **Generate and assign.**
   - Add one generator using `crypto/rand` over the agreed alphabet.
   - Each service's `loadCache`, `ResyncIfChanged` and `write` assign missing IDs **in place** on the slice the cache keeps, and repair duplicates (first occurrence wins). Write only when something was assigned.
   - `AddItem` and ideas `Add` assign on the caller's item and return the ID, which `toTask` and `MarkConverted` need. `MoveToList` keeps the ID, unless the target already has it.
   - Delete the dead `-<unix>` suffix.
   - `toTask` writes `[from-idea:]`/`[converted-to:]` as IDs.
   - `cmd/dashboard/migrate.go` writes through `ideas.WriteIdeas`, outside the service, so assign IDs there too.
-- [ ] **Old references.** On the load that assigns IDs, existing `[from-idea:]`/`[converted-to:]` slugs that resolve to exactly one item become that item's ID. Ambiguous or missing targets stay as they are and are logged. Dangling references are already accepted. Do this in each service's assignment step, never holding two service locks at once (see `CLAUDE.md`).
-- [ ] **Tests.**
+- [x] **Old references.** On the load that assigns IDs, existing `[from-idea:]`/`[converted-to:]` slugs that resolve to exactly one item become that item's ID. Ambiguous or missing targets stay as they are and are logged. Dangling references are already accepted. Do this in each service's assignment step, never holding two service locks at once (see `CLAUDE.md`).
+- [x] **Tests.**
   - Every load and write path leaves every item with an ID.
   - No mutation changes an existing ID: rename, move, bulk actions, trash, restore, purge.
   - Duplicates are repaired, and the first keeps its ID.
@@ -158,7 +158,7 @@ Do not reopen these while executing this plan.
   - An app write still gives exactly one change event and zero re-parses, using the existing event tests.
   - Lazy per-user loads assign IDs.
 - [ ] **Verification.** `make lint test` green and route goldens unchanged. CI green. Deploy and record it, including a count of items and IDs per production file, taken from the backup and the live files after start-up. A file with items and no IDs fails the phase.
-- [ ] Self-review with an independent agent; fix what holds up.
+- [x] Self-review with an independent agent; fix what holds up.
 - [ ] **STOP and wait for human review.** This is the first deploy that rewrites every production file. The owner confirms the pages look right before addressing changes.
 
 ---
@@ -256,3 +256,16 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
 - Tooling inside the sandbox: lint runs locally with `GOLANGCI_LINT_CACHE="$TMPDIR/gl-cache"`; e2e type-checks with `npm_config_cache="$TMPDIR/npm-cache" npx -y -p typescript@5 tsc --noEmit -p e2e`.
 - Self-review (independent agent): nothing serious. Fixed: the empty plan-row span and the move 500 for impossible stored dates, axe coverage via the fixture. Recorded: the severity reading and the accessible-name note above.- Deploy 2026-10-07: commit `bf5449e`, CI run 37609971283 green (lint, test, vuln, e2e, screenshots, build). Image revision label `bf5449eaef45a3fcf8b03aa776439a6e80d8c6ad`. Backup `dashboard-backup-20261007-122724.tar.gz` (exit 0). Caddy checks: `/login` 200, `/todos` 303, `/events` 401, `/api/v1/todos` 404, cross-site POST `/login` 403. `verify-stack.sh` all green.
 - Owner decisions at the STOP: keep the age badge on rows with a due date (both are worth seeing); the label wording stands.
+
+### Phase 2 notes
+
+- Commits: `2bdf66d` (failing injection tests), `55dcee8` (stripping), `05e3df2` (itemid, parsers, renderers, fixtures), `6c0ec9d` (assignment, moves, references), `53f7a6a` (failing tests from the review), then the review fixes.
+- Injection, beyond titles: tags, image entries, goal units and idea projects are cleaned at render time (`httputil.CleanMetaValue`/`CleanMetaList`: brackets, line breaks, commas in list values, priority markers). Without that a tag `ok] [planned: 2026-01-01` or `!high` set metadata. A parsed value cannot hold these (except `[`, which no production value holds; checked before deploy), so writing parsed items back is unchanged and the round-trip fixtures stay byte-identical. Captions now also drop `[`. Titles are cleaned at the service layer (`httputil.CleanTitle`: tags, unclosed tags, priority markers, line breaks); a title left empty answers the form's title-required message, not a 500.
+- `inlineMetaRe` gains `id` and `project`.
+- The plan's "an ideas-file indented checkbox before any idea" cannot be in a byte-identical fixture (the writer unindents it), so it is a parse row in `TestParseItemIDs` instead.
+- Load-time assignment saves without publishing (`changes.Recorder.Record`): the load, or the watcher event that caused the resync, already tells open pages, and publishing gave an external edit two events. If that save fails, the cache keeps the file's (missing) IDs.
+- References: `[from-idea:]`/`[converted-to:]` slugs become IDs in `services.linkReferences`, run by `Registry.ForUser` only when one of the user's or shared services assigned IDs on its load, so a slug left unresolved at deploy never adopts a later item with the same title. Family and house resolve against the first user loaded (the owner); another user's reference stays as it was.
+- Plan vs code: Phase 2 was meant to change nothing visible, but references now hold IDs while routes still take slugs. A task's "From idea" link pointed at `/ideas/<slug>`, so the idea page now also opens by ID (temporary, until Phase 3's `{id}` routes) and the link reads "the original idea" (Phase 3's wording, brought forward). The idea page's "Converted to a task" anchor (`/todos#item-<id>`) does not scroll to the row until Phase 3. API JSON gains `id` (todos, plan, ideas) next to `slug`.
+- Route goldens unchanged.
+- Self-review (independent agent): no data-loss or ID-loss path. Fixed test-first: priority markers through tags, title-of-only-tags 500s, relinking on every load. Also fixed: cache/file mismatch after a failed load-time save, `refIndex` ignoring invalid IDs, `[` in captions.
+- Production baseline before deploy (2026-10-09): `users/1/personal.md` 35 items, `users/1/ideas.md` 15 (4 converted), `data/family.md` 8, `data/maintenance.md` 0, `data/house-projects.md` 0; no `[id:]` anywhere. All idea statuses valid; no tag, image, project or unit value holds `[`. `users/legacy/` and the root-owned `data/personal.md` are not loaded by the app and stay ID-less.

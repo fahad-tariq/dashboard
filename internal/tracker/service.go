@@ -36,7 +36,9 @@ type Service struct {
 	heading     string
 	loc         *time.Location
 	mu          sync.RWMutex
-	cache       []Item
+	// assignedOnLoad is set once by the constructor\'s load.
+	assignedOnLoad bool
+	cache          []Item
 }
 
 func NewService(trackerPath, heading string, loc *time.Location) *Service {
@@ -51,7 +53,7 @@ func (s *Service) loadCache() {
 		items = nil
 	}
 	s.cache = items
-	s.recordOrAssign(items)
+	s.assignedOnLoad = s.recordOrAssign(items)
 }
 
 // assignIDs gives items without an ID (or repeating one) a new ID in place.
@@ -61,11 +63,20 @@ func assignIDs(items []Item) bool {
 
 // recordOrAssign records freshly parsed items as the file's content, or
 // assigns their missing IDs and saves them, so the cache and the file hold
-// the same IDs. Callers hold s.mu or own s.
-func (s *Service) recordOrAssign(items []Item) {
-	if !s.assignAndSave(items) {
-		s.recordOnDisk()
+// the same IDs, and reports whether it assigned any. Callers hold s.mu or
+// own s.
+func (s *Service) recordOrAssign(items []Item) bool {
+	if s.assignAndSave(items) {
+		return true
 	}
+	s.recordOnDisk()
+	return false
+}
+
+// AssignedOnLoad reports whether the service gave items IDs, and saved
+// them, when it was created.
+func (s *Service) AssignedOnLoad() bool {
+	return s.assignedOnLoad
 }
 
 func (s *Service) mutate(slug string, fn func(*Item) error) error {
@@ -714,11 +725,19 @@ func (s *Service) save(items []Item) ([]byte, error) {
 // event that parsed them already tells open pages. Callers hold s.mu or own
 // s.
 func (s *Service) assignAndSave(items []Item) bool {
+	before := make([]string, len(items))
+	for i := range items {
+		before[i] = items[i].ID
+	}
 	if !assignIDs(items) {
 		return false
 	}
 	data, err := s.save(items)
 	if err != nil {
+		// The file keeps its old IDs, so the cache must too.
+		for i := range items {
+			items[i].ID = before[i]
+		}
 		slog.Error("writing assigned item ids", "file", s.trackerPath, "error", err)
 		return false
 	}

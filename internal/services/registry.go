@@ -185,8 +185,13 @@ func (r *Registry) ForUser(userID int64) *UserServices {
 	r.cache[userID] = svc
 	r.mu.Unlock()
 
-	// Outside r.mu: linking reads and writes services, never the registry.
-	r.linkReferences(userID, svc)
+	// Older slug references become IDs on the load that assigned the IDs,
+	// and never later: a slug left unresolved then must not adopt a new
+	// item that happens to share it. Outside r.mu: linking reads and writes
+	// services, never the registry.
+	if svc.Personal.AssignedOnLoad() || svc.Ideas.AssignedOnLoad() || r.familySvc.AssignedOnLoad() || r.houseProjectsSvc.AssignedOnLoad() {
+		r.linkReferences(userID, svc)
+	}
 	return svc
 }
 

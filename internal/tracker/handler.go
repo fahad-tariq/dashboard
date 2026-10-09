@@ -309,7 +309,7 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := strings.TrimSpace(r.FormValue("title"))
+	title := httputil.CleanTitle(r.FormValue("title"))
 	if title == "" {
 		http.Redirect(w, r, "/"+h.listName+"?msg=title-required", http.StatusSeeOther)
 		return
@@ -344,7 +344,7 @@ func (h *Handler) AddGoal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := strings.TrimSpace(r.FormValue("title"))
+	title := httputil.CleanTitle(r.FormValue("title"))
 	if title == "" {
 		http.Redirect(w, r, "/goals?msg=title-required", http.StatusSeeOther)
 		return

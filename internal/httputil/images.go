@@ -39,7 +39,7 @@ func JoinImageCaption(filename, caption string) string {
 func SanitiseCaption(caption string) string {
 	caption = strings.Map(func(r rune) rune {
 		switch r {
-		case '|', ',', ']', '<', '>', '"':
+		case '|', ',', '[', ']', '<', '>', '"':
 			return -1
 		default:
 			return r

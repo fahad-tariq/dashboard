@@ -25,7 +25,9 @@ type Service struct {
 	ideasPath string
 	loc       *time.Location
 	mu        sync.RWMutex
-	cache     []Idea
+	// assignedOnLoad is set once by the constructor\'s load.
+	assignedOnLoad bool
+	cache          []Idea
 }
 
 // NewService creates a new ideas service operating on the given ideas.md file path.
@@ -41,7 +43,7 @@ func (s *Service) loadCache() {
 		ideas = nil
 	}
 	s.cache = ideas
-	s.recordOrAssign(ideas)
+	s.assignedOnLoad = s.recordOrAssign(ideas)
 }
 
 // assignIDs gives ideas without an ID (or repeating one) a new ID in place.
@@ -51,11 +53,20 @@ func assignIDs(ideas []Idea) bool {
 
 // recordOrAssign records freshly parsed items as the file's content, or
 // assigns their missing IDs and saves them, so the cache and the file hold
-// the same IDs. Callers hold s.mu or own s.
-func (s *Service) recordOrAssign(items []Idea) {
-	if !s.assignAndSave(items) {
-		s.recordOnDisk()
+// the same IDs, and reports whether it assigned any. Callers hold s.mu or
+// own s.
+func (s *Service) recordOrAssign(items []Idea) bool {
+	if s.assignAndSave(items) {
+		return true
 	}
+	s.recordOnDisk()
+	return false
+}
+
+// AssignedOnLoad reports whether the service gave items IDs, and saved
+// them, when it was created.
+func (s *Service) AssignedOnLoad() bool {
+	return s.assignedOnLoad
 }
 
 // List returns all non-deleted ideas from the in-memory cache.
@@ -480,11 +491,19 @@ func (s *Service) save(items []Idea) ([]byte, error) {
 // event that parsed them already tells open pages. Callers hold s.mu or own
 // s.
 func (s *Service) assignAndSave(items []Idea) bool {
+	before := make([]string, len(items))
+	for i := range items {
+		before[i] = items[i].ID
+	}
 	if !assignIDs(items) {
 		return false
 	}
 	data, err := s.save(items)
 	if err != nil {
+		// The file keeps its old IDs, so the cache must too.
+		for i := range items {
+			items[i].ID = before[i]
+		}
 		slog.Error("writing assigned item ids", "file", s.ideasPath, "error", err)
 		return false
 	}
