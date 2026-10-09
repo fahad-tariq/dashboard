@@ -35,24 +35,26 @@ func TestTitlesCannotInjectTags(t *testing.T) {
 		json string // an API request when set
 		file file
 	}{
-		"todos add":                   {path: "/todos/add", form: url.Values{"title": {"Buy milk" + injected}}, file: personal},
-		"todos add, newline in title": {path: "/todos/add", form: url.Values{"title": {"Buy milk\n- [ ] Evil [tags: injected]"}}, file: personal},
-		"todos add, tag closes early": {path: "/todos/add", form: url.Values{"title": {"Buy milk"}, "tags": {"ok] [planned: 2026-01-01"}}, file: personal},
-		"todos edit":                  {path: "/todos/seed-task/edit", form: url.Values{"title": {"Seed task" + injected}}, file: personal},
-		"todos bulk tag":              {path: "/todos/bulk/tag", form: url.Values{"slugs": {"seed-task"}, "tag": {"ok] [planned: 2026-01-01"}}, file: personal},
-		"goal unit":                   {path: "/todos/add-goal", form: url.Values{"title": {"Run"}, "target": {"10"}, "unit": {"km] [planned: 2026-01-01"}}, file: personal},
-		"sub-step promotion":          {path: "/todos/seed-task/substep/promote", form: url.Values{"index": {"0"}}, file: personal},
-		"idea to task":                {path: "/ideas/plan-trip-planned-2026-01-01/to-task", form: url.Values{"target": {"personal"}}, file: personal},
-		"API todo add":                {path: "/api/v1/todos", json: `{"title":"Buy milk` + injected + `","list":"personal"}`, file: personal},
-		"API todo edit":               {path: "/api/v1/todos/seed-task", json: `{"title":"Seed task` + injected + `","list":"personal"}`, file: personal},
-		"house project add":           {path: "/house/projects/add", form: url.Values{"title": {"Paint" + injected}, "status": {"todo"}}, file: houseProjects},
-		"house project edit":          {path: "/house/projects/fix-gate/edit", form: url.Values{"title": {"Fix gate" + injected}}, file: houseProjects},
-		"maintenance add":             {path: "/house/maintenance/add", form: url.Values{"title": {"Service aircon [cadence: 1d] [tags: injected] [id: bcdfghjk]"}, "cadence": {"6m"}}, file: maintenance},
-		"maintenance edit":            {path: "/house/maintenance/clean-gutters/edit", form: url.Values{"title": {"Clean gutters [cadence: 1d] [tags: injected] [id: bcdfghjk]"}}, file: maintenance},
-		"idea add":                    {path: "/ideas/add", form: url.Values{"title": {"Kayak [status: parked] [tags: injected] [id: bcdfghjk]"}}, file: ideaFile},
-		"idea edit":                   {path: "/ideas/plan-trip-planned-2026-01-01/edit", form: url.Values{"title": {"Kayak [status: parked] [tags: injected] [id: bcdfghjk]"}}, file: ideaFile},
-		"idea edit, title from body":  {path: "/ideas/plan-trip-planned-2026-01-01/edit", form: url.Values{"title": {""}, "body": {"# Kayak [status: parked] [tags: injected] [id: bcdfghjk]"}}, file: ideaFile},
-		"API idea add":                {path: "/api/v1/ideas", json: `{"title":"Kayak [status: parked] [tags: injected] [id: bcdfghjk]"}`, file: ideaFile},
+		"todos add":                    {path: "/todos/add", form: url.Values{"title": {"Buy milk" + injected}}, file: personal},
+		"todos add, newline in title":  {path: "/todos/add", form: url.Values{"title": {"Buy milk\n- [ ] Evil [tags: injected]"}}, file: personal},
+		"todos add, tag closes early":  {path: "/todos/add", form: url.Values{"title": {"Buy milk"}, "tags": {"ok] [planned: 2026-01-01"}}, file: personal},
+		"todos edit":                   {path: "/todos/seed-task/edit", form: url.Values{"title": {"Seed task" + injected}}, file: personal},
+		"todos bulk tag":               {path: "/todos/bulk/tag", form: url.Values{"slugs": {"seed-task"}, "tag": {"ok] [planned: 2026-01-01"}}, file: personal},
+		"todos add, priority in a tag": {path: "/todos/add", form: url.Values{"title": {"Buy milk"}, "tags": {"!high"}}, file: personal},
+		"todos bulk tag, priority":     {path: "/todos/bulk/tag", form: url.Values{"slugs": {"seed-task"}, "tag": {"!high"}}, file: personal},
+		"goal unit":                    {path: "/todos/add-goal", form: url.Values{"title": {"Run"}, "target": {"10"}, "unit": {"km] [planned: 2026-01-01"}}, file: personal},
+		"sub-step promotion":           {path: "/todos/seed-task/substep/promote", form: url.Values{"index": {"0"}}, file: personal},
+		"idea to task":                 {path: "/ideas/plan-trip-planned-2026-01-01/to-task", form: url.Values{"target": {"personal"}}, file: personal},
+		"API todo add":                 {path: "/api/v1/todos", json: `{"title":"Buy milk` + injected + `","list":"personal"}`, file: personal},
+		"API todo edit":                {path: "/api/v1/todos/seed-task", json: `{"title":"Seed task` + injected + `","list":"personal"}`, file: personal},
+		"house project add":            {path: "/house/projects/add", form: url.Values{"title": {"Paint" + injected}, "status": {"todo"}}, file: houseProjects},
+		"house project edit":           {path: "/house/projects/fix-gate/edit", form: url.Values{"title": {"Fix gate" + injected}}, file: houseProjects},
+		"maintenance add":              {path: "/house/maintenance/add", form: url.Values{"title": {"Service aircon [cadence: 1d] [tags: injected] [id: bcdfghjk]"}, "cadence": {"6m"}}, file: maintenance},
+		"maintenance edit":             {path: "/house/maintenance/clean-gutters/edit", form: url.Values{"title": {"Clean gutters [cadence: 1d] [tags: injected] [id: bcdfghjk]"}}, file: maintenance},
+		"idea add":                     {path: "/ideas/add", form: url.Values{"title": {"Kayak [status: parked] [tags: injected] [id: bcdfghjk]"}}, file: ideaFile},
+		"idea edit":                    {path: "/ideas/plan-trip-planned-2026-01-01/edit", form: url.Values{"title": {"Kayak [status: parked] [tags: injected] [id: bcdfghjk]"}}, file: ideaFile},
+		"idea edit, title from body":   {path: "/ideas/plan-trip-planned-2026-01-01/edit", form: url.Values{"title": {""}, "body": {"# Kayak [status: parked] [tags: injected] [id: bcdfghjk]"}}, file: ideaFile},
+		"API idea add":                 {path: "/api/v1/ideas", json: `{"title":"Kayak [status: parked] [tags: injected] [id: bcdfghjk]"}`, file: ideaFile},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -107,7 +109,7 @@ func TestTitlesCannotInjectTags(t *testing.T) {
 					t.Fatal(err)
 				}
 				for _, it := range items {
-					if it.Planned != "" || it.HasTag("injected") || strings.Contains(it.Title, "[id:") || it.Title == "Evil" {
+					if it.Planned != "" || it.Priority != "" || it.HasTag("injected") || strings.Contains(it.Title, "[id:") || it.Title == "Evil" {
 						t.Errorf("injected metadata on %+v", it)
 					}
 				}
@@ -160,6 +162,31 @@ func TestIdeaStatusAllowlist(t *testing.T) {
 			}
 			if len(all) != 1 || all[0].Status != want {
 				t.Fatalf("got %+v, want status %q", all, want)
+			}
+		})
+	}
+}
+
+// A title made only of tags is empty once cleaned: every add form answers
+// with its "title required" message, not a server error.
+func TestTitleOfOnlyTagsIsRequired(t *testing.T) {
+	cases := map[string]struct {
+		path string
+		form url.Values
+		want string
+	}{
+		"todos":       {"/todos/add", url.Values{"title": {"[status: parked]"}}, "/todos?msg=title-required"},
+		"goals":       {"/todos/add-goal", url.Values{"title": {"[tags: x] !high"}}, "/goals?msg=title-required"},
+		"ideas":       {"/ideas/add", url.Values{"title": {"[status: parked]"}}, "/ideas?msg=title-required"},
+		"house":       {"/house/projects/add", url.Values{"title": {"[tags: x]"}, "status": {"todo"}}, "/house?msg=title-required"},
+		"maintenance": {"/house/maintenance/add", url.Values{"title": {"[tags: x]"}, "cadence": {"6m"}}, "/house?msg=title-required"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			env := newAppEnv(t)
+			rr := env.post(t, tc.path, tc.form)
+			if rr.Code != 303 || rr.Header().Get("Location") != tc.want {
+				t.Errorf("got %d to %q, want 303 to %q", rr.Code, rr.Header().Get("Location"), tc.want)
 			}
 		})
 	}

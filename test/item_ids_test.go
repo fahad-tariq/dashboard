@@ -384,3 +384,29 @@ func TestMoveAndConvertUseIDs(t *testing.T) {
 		t.Error("the idea page does not open by ID")
 	}
 }
+
+// References are linked only on the load that assigns IDs: one left as a
+// slug at that point (its idea was gone) is not later attached to a new,
+// unrelated idea with the same title.
+func TestReferencesLinkOnlyOnTheAssigningLoad(t *testing.T) {
+	dir := t.TempDir()
+	family, house, maint := filepath.Join(dir, "family.md"), filepath.Join(dir, "house.md"), filepath.Join(dir, "maint.md")
+	users := filepath.Join(dir, "users")
+	seedFile(t, family, "# Family\n\n")
+	seedFile(t, house, "# House\n\n")
+	seedFile(t, maint, "# Maintenance\n\n")
+	personal := filepath.Join(users, "1", "personal.md")
+	ideasPath := filepath.Join(users, "1", "ideas.md")
+	seedFile(t, personal, "# Personal\n\n- [ ] Paddle [from-idea: kayak]\n")
+	seedFile(t, ideasPath, "# Ideas\n\n")
+	services.NewRegistry(nil, users, family, house, maint, time.UTC).ForUser(1)
+
+	// Later the owner captures a new idea with the old title, and restarts.
+	seedFile(t, ideasPath, "# Ideas\n\n- [ ] Kayak [status: untriaged] [id: w3th3rs7]\n")
+	services.NewRegistry(nil, users, family, house, maint, time.UTC).ForUser(1)
+
+	items, err := tracker.ParseTracker(personal)
+	if err != nil || len(items) != 1 || items[0].FromIdea != "kayak" {
+		t.Errorf("got %+v (%v), want from-idea left as kayak", items, err)
+	}
+}
