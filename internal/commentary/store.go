@@ -2,20 +2,13 @@ package commentary
 
 import (
 	"database/sql"
+	"log/slog"
 	"strings"
 	"time"
 )
 
-// Entry represents a single commentary record for an item.
-type Entry struct {
-	ItemSlug  string
-	ItemList  string
-	UserID    int
-	Content   string
-	UpdatedAt string
-}
-
-// Store manages commentary records in SQLite.
+// Store manages commentary records in SQLite, keyed by item ID and user.
+// The ID is not scoped to a list, so a moved item keeps its commentary.
 type Store struct {
 	db *sql.DB
 }
@@ -26,11 +19,11 @@ func NewStore(db *sql.DB) *Store {
 }
 
 // Get retrieves commentary for a single item. Returns empty string if none exists.
-func (s *Store) Get(slug, list string, userID int) (string, error) {
+func (s *Store) Get(itemID string, userID int) (string, error) {
 	var content string
 	err := s.db.QueryRow(
-		"SELECT content FROM commentary WHERE item_slug = ? AND item_list = ? AND user_id = ?",
-		slug, list, userID,
+		"SELECT content FROM item_commentary WHERE item_id = ? AND user_id = ?",
+		itemID, userID,
 	).Scan(&content)
 	if err == sql.ErrNoRows {
 		return "", nil
@@ -42,92 +35,60 @@ func (s *Store) Get(slug, list string, userID int) (string, error) {
 }
 
 // Set creates or replaces commentary for an item.
-func (s *Store) Set(slug, list string, userID int, content string) error {
+func (s *Store) Set(itemID string, userID int, content string) error {
 	_, err := s.db.Exec(
-		`INSERT INTO commentary (item_slug, item_list, user_id, content, updated_at)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT (item_slug, item_list, user_id)
+		`INSERT INTO item_commentary (item_id, user_id, content, updated_at)
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT (item_id, user_id)
 		 DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at`,
-		slug, list, userID, content, time.Now().UTC().Format(time.RFC3339),
+		itemID, userID, content, time.Now().UTC().Format(time.RFC3339),
 	)
 	return err
 }
 
-// Delete removes commentary for an item.
-func (s *Store) Delete(slug, list string, userID int) error {
+// Delete removes one user's commentary for an item.
+func (s *Store) Delete(itemID string, userID int) error {
 	_, err := s.db.Exec(
-		"DELETE FROM commentary WHERE item_slug = ? AND item_list = ? AND user_id = ?",
-		slug, list, userID,
+		"DELETE FROM item_commentary WHERE item_id = ? AND user_id = ?",
+		itemID, userID,
 	)
 	return err
 }
 
-// ListForSlugs retrieves commentary for multiple items in a single list.
-// Returns a map of slug -> content. Slugs without commentary are omitted.
-func (s *Store) ListForSlugs(slugs []string, list string, userID int) (map[string]string, error) {
-	if len(slugs) == 0 {
-		return nil, nil
+// DeleteItems removes every user's commentary for the given items, once
+// they are permanently deleted.
+func (s *Store) DeleteItems(itemIDs ...string) error {
+	if len(itemIDs) == 0 {
+		return nil
 	}
-
-	query, args := inClause(
-		"SELECT item_slug, content FROM commentary WHERE item_list = ? AND user_id = ? AND item_slug IN (",
-		list, userID, slugs,
-	)
-
-	rows, err := s.db.Query(query, args...)
-	if err != nil {
-		return nil, err
+	args := make([]any, len(itemIDs))
+	for i, id := range itemIDs {
+		args[i] = id
 	}
-	defer rows.Close()
-
-	result := make(map[string]string)
-	for rows.Next() {
-		var slug, content string
-		if err := rows.Scan(&slug, &content); err != nil {
-			return nil, err
-		}
-		result[slug] = content
-	}
-	return result, rows.Err()
+	placeholders := strings.Repeat(",?", len(itemIDs))[1:]
+	_, err := s.db.Exec("DELETE FROM item_commentary WHERE item_id IN ("+placeholders+")", args...) //nolint:gosec // G202: only placeholders are concatenated
+	return err
 }
 
-// HasCommentary returns a set of slugs (from the provided list) that have
-// commentary. Useful for showing indicators without fetching full content.
-func (s *Store) HasCommentary(slugs []string, list string, userID int) (map[string]bool, error) {
-	if len(slugs) == 0 {
-		return nil, nil
-	}
-
-	query, args := inClause(
-		"SELECT item_slug FROM commentary WHERE item_list = ? AND user_id = ? AND item_slug IN (",
-		list, userID, slugs,
+// Copy duplicates every user's commentary on item from onto item to, for a
+// moved item that had to take a new ID.
+func (s *Store) Copy(from, to string) error {
+	_, err := s.db.Exec(
+		`INSERT OR IGNORE INTO item_commentary (item_id, user_id, content, updated_at)
+		 SELECT ?, user_id, content, updated_at FROM item_commentary WHERE item_id = ?`,
+		to, from,
 	)
-
-	rows, err := s.db.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	result := make(map[string]bool)
-	for rows.Next() {
-		var slug string
-		if err := rows.Scan(&slug); err != nil {
-			return nil, err
-		}
-		result[slug] = true
-	}
-	return result, rows.Err()
+	return err
 }
 
-// inClause builds a parameterised IN query with the given prefix, list/userID
-// fixed args, and slug values.
-func inClause(prefix, list string, userID int, slugs []string) (string, []any) {
-	args := make([]any, 0, 2+len(slugs))
-	args = append(args, list, userID)
-	placeholders := strings.Repeat(",?", len(slugs))[1:] // "?,?,?"
-	for _, slug := range slugs {
-		args = append(args, slug)
+// ForgetItems deletes the commentary of permanently deleted items. A failure
+// is logged, not returned: the items are already gone, so the request that
+// removed them has succeeded. A nil store does nothing.
+func (s *Store) ForgetItems(itemIDs ...string) {
+	if s == nil {
+		return
 	}
-	return prefix + placeholders + ")", args
+	if err := s.DeleteItems(itemIDs...); err != nil {
+		slog.Error("deleting commentary of removed items", "count", len(itemIDs), "error", err)
+	}
 }

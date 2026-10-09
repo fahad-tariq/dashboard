@@ -4,6 +4,9 @@ import {
   expandPlanItem,
   expandTrackerItem,
   expect,
+  expectNoReload,
+  itemIdPattern,
+  markNoReload,
   planItem,
   sharedFile,
   test,
@@ -158,4 +161,46 @@ test('select mode, ticked rows and the bulk bar survive an external edit', async
   await expect(first.locator('.bulk-checkbox')).toBeChecked();
   await expect(bar).toHaveClass(/\bvisible\b/);
   await expect(page.locator('#bulk-bar-count')).toHaveText('1 selected');
+});
+
+test('renaming an expanded item keeps its id and expanded state, here and in another tab', async ({ context, page }) => {
+  const title = uniqueTitle('Before rename');
+  const renamed = uniqueTitle('After rename');
+  const item = await addTask(page, title, { body: 'Body survives the rename' });
+  const rowId = await item.getAttribute('id');
+  expect(rowId).toMatch(new RegExp(`^item-${itemIdPattern}$`));
+  const editPath = `/todos/${(rowId as string).slice('item-'.length)}/edit`;
+  // Located by id, not title, so the locators still match after the rename.
+  const row = (p: Page) => p.locator(`[id="${rowId}"]`);
+
+  // A second tab has the row open too and gets the rename through SSE.
+  const other = await context.newPage();
+  const connected = waitForSseConnection(other);
+  await other.goto('/todos');
+  await connected;
+  await waitForSseSettle(other);
+  await expandTrackerItem(row(other));
+  const otherRefresh = refreshed(other, '/todos');
+
+  await expandTrackerItem(row(page));
+  await markNoReload(page);
+  await row(page).locator('details.tracker-notes-edit > summary').click();
+  const form = row(page).locator('.tracker-notes-form');
+  await expect(form).toHaveAttribute('action', editPath);
+  await form.getByLabel('Title', { exact: true }).fill(renamed);
+  await form.getByRole('button', { name: 'save' }).click();
+
+  await expect(row(page).locator('.tracker-item-title')).toHaveText(renamed);
+  await expect(row(page)).not.toHaveClass(/\bminimised\b/);
+  await expect(row(page).locator('.item-toggle')).toHaveAttribute('aria-expanded', 'true');
+  await expect(row(page).locator('.tracker-item-body')).toHaveText('Body survives the rename');
+  await expect(row(page).locator('.tracker-notes-form')).toHaveAttribute('action', editPath);
+  await expect(trackerItem(page, title)).toHaveCount(0);
+  await expectNoReload(page);
+
+  await otherRefresh;
+  await expect(row(other).locator('.tracker-item-title')).toHaveText(renamed);
+  await expect(row(other)).not.toHaveClass(/\bminimised\b/);
+  await expect(row(other).locator('.item-toggle')).toHaveAttribute('aria-expanded', 'true');
+  await expect(row(other).locator('.tracker-item-body')).toBeVisible();
 });

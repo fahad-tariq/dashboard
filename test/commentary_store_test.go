@@ -19,167 +19,111 @@ func setupCommentaryStore(t *testing.T) *commentary.Store {
 	return commentary.NewStore(database)
 }
 
-func TestCommentaryStore_SetAndGet(t *testing.T) {
-	store := setupCommentaryStore(t)
-
-	content := "This task has been open for a week."
-	if err := store.Set("fix-bug", "personal", 1, content); err != nil {
-		t.Fatalf("Set: %v", err)
-	}
-
-	got, err := store.Get("fix-bug", "personal", 1)
-	if err != nil {
-		t.Fatalf("Get: %v", err)
-	}
-	if got != content {
-		t.Errorf("Get = %q, want %q", got, content)
-	}
+// commentaryEntry is one Set call in a store test's seed.
+type commentaryEntry struct {
+	id      string
+	user    int
+	content string
 }
 
-func TestCommentaryStore_GetEmpty(t *testing.T) {
-	store := setupCommentaryStore(t)
-
-	got, err := store.Get("nonexistent", "personal", 1)
-	if err != nil {
-		t.Fatalf("Get: %v", err)
-	}
-	if got != "" {
-		t.Errorf("Get = %q, want empty", got)
-	}
+// commentaryWant is one Get the test expects after its operation.
+type commentaryWant struct {
+	id   string
+	user int
+	want string
 }
 
-func TestCommentaryStore_SetOverwrites(t *testing.T) {
-	store := setupCommentaryStore(t)
-
-	if err := store.Set("task-1", "personal", 1, "first version"); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Set("task-1", "personal", 1, "updated version"); err != nil {
-		t.Fatal(err)
-	}
-
-	got, _ := store.Get("task-1", "personal", 1)
-	if got != "updated version" {
-		t.Errorf("Get after overwrite = %q, want %q", got, "updated version")
-	}
-}
-
-func TestCommentaryStore_Delete(t *testing.T) {
-	store := setupCommentaryStore(t)
-
-	if err := store.Set("task-1", "personal", 1, "some content"); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Delete("task-1", "personal", 1); err != nil {
-		t.Fatalf("Delete: %v", err)
-	}
-
-	got, _ := store.Get("task-1", "personal", 1)
-	if got != "" {
-		t.Errorf("Get after delete = %q, want empty", got)
-	}
-}
-
-func TestCommentaryStore_DeleteNonexistent(t *testing.T) {
-	store := setupCommentaryStore(t)
-
-	if err := store.Delete("nonexistent", "personal", 1); err != nil {
-		t.Fatalf("Delete nonexistent: %v", err)
-	}
-}
-
-func TestCommentaryStore_ScopedByListAndUser(t *testing.T) {
-	store := setupCommentaryStore(t)
-
-	if err := store.Set("task-1", "personal", 1, "personal user 1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Set("task-1", "family", 1, "family user 1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Set("task-1", "personal", 2, "personal user 2"); err != nil {
-		t.Fatal(err)
-	}
-
-	tests := []struct {
-		list   string
-		userID int
-		want   string
+func TestCommentaryStore(t *testing.T) {
+	const first, second, third = "b7k2m9xq", "t9d3fgh2", "w3th3rs7"
+	cases := map[string]struct {
+		seed  []commentaryEntry
+		op    func(s *commentary.Store) error
+		wants []commentaryWant
 	}{
-		{"personal", 1, "personal user 1"},
-		{"family", 1, "family user 1"},
-		{"personal", 2, "personal user 2"},
-		{"family", 2, ""},
+		"set and get": {
+			seed:  []commentaryEntry{{first, 1, "Open for a week."}},
+			wants: []commentaryWant{{first, 1, "Open for a week."}},
+		},
+		"missing item is empty": {
+			wants: []commentaryWant{{first, 1, ""}},
+		},
+		"set overwrites": {
+			seed:  []commentaryEntry{{first, 1, "first version"}, {first, 1, "updated version"}},
+			wants: []commentaryWant{{first, 1, "updated version"}},
+		},
+		"scoped by user": {
+			seed:  []commentaryEntry{{first, 1, "user one"}, {first, 2, "user two"}},
+			wants: []commentaryWant{{first, 1, "user one"}, {first, 2, "user two"}, {second, 1, ""}},
+		},
+		"delete removes one user's note": {
+			seed:  []commentaryEntry{{first, 1, "user one"}, {first, 2, "user two"}},
+			op:    func(s *commentary.Store) error { return s.Delete(first, 1) },
+			wants: []commentaryWant{{first, 1, ""}, {first, 2, "user two"}},
+		},
+		"delete of a missing item is fine": {
+			op: func(s *commentary.Store) error { return s.Delete(first, 1) },
+		},
+		"delete items removes every user's notes": {
+			seed: []commentaryEntry{{first, 1, "a"}, {first, 2, "b"}, {second, 1, "c"}, {third, 1, "d"}},
+			op:   func(s *commentary.Store) error { return s.DeleteItems(first, second) },
+			wants: []commentaryWant{
+				{first, 1, ""}, {first, 2, ""}, {second, 1, ""}, {third, 1, "d"},
+			},
+		},
+		"delete items with none is fine": {
+			seed:  []commentaryEntry{{first, 1, "a"}},
+			op:    func(s *commentary.Store) error { return s.DeleteItems() },
+			wants: []commentaryWant{{first, 1, "a"}},
+		},
+		"forget items deletes": {
+			seed: []commentaryEntry{{first, 1, "a"}, {second, 1, "b"}},
+			op: func(s *commentary.Store) error {
+				s.ForgetItems(first)
+				return nil
+			},
+			wants: []commentaryWant{{first, 1, ""}, {second, 1, "b"}},
+		},
+		"copy keeps the source and every user": {
+			seed: []commentaryEntry{{first, 1, "user one"}, {first, 2, "user two"}},
+			op:   func(s *commentary.Store) error { return s.Copy(first, second) },
+			wants: []commentaryWant{
+				{first, 1, "user one"}, {second, 1, "user one"}, {second, 2, "user two"},
+			},
+		},
+		"copy does not overwrite the target": {
+			seed:  []commentaryEntry{{first, 1, "old"}, {second, 1, "kept"}},
+			op:    func(s *commentary.Store) error { return s.Copy(first, second) },
+			wants: []commentaryWant{{second, 1, "kept"}},
+		},
 	}
-	for _, tt := range tests {
-		got, _ := store.Get("task-1", tt.list, tt.userID)
-		if got != tt.want {
-			t.Errorf("Get(%q, %q, %d) = %q, want %q", "task-1", tt.list, tt.userID, got, tt.want)
-		}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			store := setupCommentaryStore(t)
+			for _, e := range tc.seed {
+				if err := store.Set(e.id, e.user, e.content); err != nil {
+					t.Fatalf("Set: %v", err)
+				}
+			}
+			if tc.op != nil {
+				if err := tc.op(store); err != nil {
+					t.Fatalf("op: %v", err)
+				}
+			}
+			for _, w := range tc.wants {
+				got, err := store.Get(w.id, w.user)
+				if err != nil {
+					t.Fatalf("Get: %v", err)
+				}
+				if got != w.want {
+					t.Errorf("Get(%s, %d) = %q, want %q", w.id, w.user, got, w.want)
+				}
+			}
+		})
 	}
 }
 
-func TestCommentaryStore_ListForSlugs(t *testing.T) {
-	store := setupCommentaryStore(t)
-
-	if err := store.Set("task-1", "personal", 1, "comment 1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Set("task-2", "personal", 1, "comment 2"); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Set("task-3", "family", 1, "family comment"); err != nil {
-		t.Fatal(err)
-	}
-
-	got, err := store.ListForSlugs([]string{"task-1", "task-2", "task-3"}, "personal", 1)
-	if err != nil {
-		t.Fatalf("ListForSlugs: %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("ListForSlugs returned %d items, want 2", len(got))
-	}
-	if got["task-1"] != "comment 1" {
-		t.Errorf("task-1 = %q, want %q", got["task-1"], "comment 1")
-	}
-	if got["task-2"] != "comment 2" {
-		t.Errorf("task-2 = %q, want %q", got["task-2"], "comment 2")
-	}
-}
-
-func TestCommentaryStore_ListForSlugsEmpty(t *testing.T) {
-	store := setupCommentaryStore(t)
-
-	got, err := store.ListForSlugs(nil, "personal", 1)
-	if err != nil {
-		t.Fatalf("ListForSlugs: %v", err)
-	}
-	if got != nil {
-		t.Errorf("ListForSlugs(nil) = %v, want nil", got)
-	}
-}
-
-func TestCommentaryStore_HasCommentary(t *testing.T) {
-	store := setupCommentaryStore(t)
-
-	if err := store.Set("task-1", "personal", 1, "has commentary"); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Set("task-3", "personal", 1, "also has"); err != nil {
-		t.Fatal(err)
-	}
-
-	got, err := store.HasCommentary([]string{"task-1", "task-2", "task-3"}, "personal", 1)
-	if err != nil {
-		t.Fatalf("HasCommentary: %v", err)
-	}
-	if !got["task-1"] {
-		t.Error("task-1 should have commentary")
-	}
-	if got["task-2"] {
-		t.Error("task-2 should not have commentary")
-	}
-	if !got["task-3"] {
-		t.Error("task-3 should have commentary")
-	}
+// A nil store (no commentary configured) ignores ForgetItems.
+func TestCommentaryStoreForgetItemsNil(t *testing.T) {
+	var store *commentary.Store
+	store.ForgetItems("b7k2m9xq")
 }

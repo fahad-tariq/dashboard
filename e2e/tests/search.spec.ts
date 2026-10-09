@@ -1,4 +1,4 @@
-import { expect, test } from './helpers';
+import { expect, fixtureIds, test } from './helpers';
 
 test('search dialog opens with "/", finds a task and navigates to it', async ({ page }) => {
   await page.goto('/ideas');
@@ -12,14 +12,14 @@ test('search dialog opens with "/", finds a task and navigates to it', async ({ 
   await input.fill('passport');
   const result = overlay.locator('.search-result', { hasText: 'Renew passport' });
   await expect(result).toBeVisible();
-  await expect(result).toHaveAttribute('href', '/todos#item-renew-passport');
+  await expect(result).toHaveAttribute('href', `/todos#item-${fixtureIds.renewPassport}`);
 
   await input.press('ArrowDown');
   await expect(result).toHaveClass(/search-result-active/);
   await input.press('Enter');
 
-  await expect(page).toHaveURL(/\/todos#item-renew-passport$/);
-  await expect(page.locator('#item-renew-passport')).not.toHaveClass(/\bminimised\b/);
+  await expect(page).toHaveURL(new RegExp(`/todos#item-${fixtureIds.renewPassport}$`));
+  await expect(page.locator(`#item-${fixtureIds.renewPassport}`)).not.toHaveClass(/\bminimised\b/);
 });
 
 test('search shows an empty state, and Escape and Ctrl+K toggle the dialog', async ({ page }) => {
@@ -38,13 +38,27 @@ test('search shows an empty state, and Escape and Ctrl+K toggle the dialog', asy
   // swallowed by the typing guard.
   await expect(input).not.toBeFocused();
 
-  // Results span lists: the seeded idea and family task are searchable too.
+  // Results span lists and link by item ID: the seeded idea, family task and
+  // house items are searchable too.
   await page.keyboard.press('/');
   await input.fill('weather');
   await expect(overlay.locator('.search-result', { hasText: 'Home weather station' })).toHaveAttribute(
     'href',
-    '/ideas/home-weather-station',
+    `/ideas/${fixtureIds.homeWeatherStation}`,
   );
   await input.fill('roster');
-  await expect(overlay.locator('.search-result', { hasText: 'Organise school pickup roster' })).toBeVisible();
+  await expect(overlay.locator('.search-result', { hasText: 'Organise school pickup roster' })).toHaveAttribute(
+    'href',
+    `/family#item-${fixtureIds.schoolPickupRoster}`,
+  );
+  await input.fill('gutters');
+  await expect(overlay.locator('.search-result', { hasText: 'Clean gutters' })).toHaveAttribute(
+    'href',
+    `/house#maint-${fixtureIds.cleanGutters}`,
+  );
+  await input.fill('fence');
+  await expect(overlay.locator('.search-result', { hasText: 'Paint the back fence' })).toHaveAttribute(
+    'href',
+    `/house#item-${fixtureIds.paintBackFence}`,
+  );
 });

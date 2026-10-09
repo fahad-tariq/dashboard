@@ -169,12 +169,10 @@ function triageAnimate(form) {
         applyFilter();
     }
 
-    // Expand and scroll to the row named by the hash: /todos#item-slug,
-    // or the older /todos#slug.
+    // Expand and scroll to the row named by the hash: /todos#item-<id>.
     var hash = window.location.hash.slice(1);
     if (!hash) return;
     var el = document.getElementById(hash);
-    if (!el || !el.classList.contains('tracker-item')) el = document.getElementById('item-' + hash);
     if (!el || !el.classList.contains('tracker-item')) return;
     setExpanded(el, true);
     el.scrollIntoView({ block: 'center' });
@@ -210,14 +208,14 @@ function bulkCheckboxChanged() {
     updateBulkBar();
 }
 
-function getSelectedSlugs() {
-    var slugs = [];
+function getSelectedIDs() {
+    var ids = [];
     var checkboxes = document.querySelectorAll('.bulk-checkbox:checked');
     checkboxes.forEach(function(cb) {
         var item = cb.closest('.tracker-item');
         if (item) {
-            var slug = item.getAttribute('data-slug');
-            if (slug) slugs.push(slug);
+            var id = item.getAttribute('data-id');
+            if (id) ids.push(id);
             item.classList.add('bulk-selected');
         }
     });
@@ -226,17 +224,17 @@ function getSelectedSlugs() {
         var item = cb.closest('.tracker-item');
         if (item) item.classList.remove('bulk-selected');
     });
-    return slugs;
+    return ids;
 }
 
 function updateBulkBar() {
-    var slugs = getSelectedSlugs();
+    var ids = getSelectedIDs();
     var bar = document.getElementById('bulk-bar');
     var countEl = document.getElementById('bulk-bar-count');
     if (!bar) return;
-    if (slugs.length > 0) {
+    if (ids.length > 0) {
         bar.classList.add('visible');
-        if (countEl) countEl.textContent = slugs.length + ' selected';
+        if (countEl) countEl.textContent = ids.length + ' selected';
     } else {
         bar.classList.remove('visible');
         if (countEl) countEl.textContent = '0 selected';
@@ -247,7 +245,7 @@ function selectAllVisible() {
     var items = document.querySelectorAll('.tracker-item:not(.tracker-item-done)');
     items.forEach(function(el) {
         if (el.style.display === 'none') return;
-        if (!el.getAttribute('data-slug')) return;
+        if (!el.getAttribute('data-id')) return;
         var cb = el.querySelector('.bulk-checkbox');
         if (cb) cb.checked = true;
     });
@@ -267,19 +265,19 @@ function deselectAll() {
 function submitBulkAction(formId) {
     var form = document.getElementById(formId);
     if (!form) return false;
-    var slugs = getSelectedSlugs();
-    if (slugs.length === 0) return false;
-    var input = form.querySelector('input[name="slugs"]');
-    if (input) input.value = slugs.join(', ');
+    var ids = getSelectedIDs();
+    if (ids.length === 0) return false;
+    var input = form.querySelector('input[name="ids"]');
+    if (input) input.value = ids.join(', ');
     return true;
 }
 
 function confirmBulkDelete(form) {
-    var slugs = getSelectedSlugs();
-    if (slugs.length === 0) return false;
-    var input = form.querySelector('input[name="slugs"]');
-    if (input) input.value = slugs.join(', ');
-    return confirmAction(form, 'Move ' + slugs.length + ' items to trash?');
+    var ids = getSelectedIDs();
+    if (ids.length === 0) return false;
+    var input = form.querySelector('input[name="ids"]');
+    if (input) input.value = ids.join(', ');
+    return confirmAction(form, 'Move ' + ids.length + ' items to trash?');
 }
 
 // --- Delegated event dispatch ---

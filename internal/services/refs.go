@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/fahad/dashboard/internal/itemid"
+	"github.com/fahad/dashboard/internal/slug"
 
 	"github.com/fahad/dashboard/internal/tracker"
 )
@@ -21,15 +22,15 @@ func newRefIndex() *refIndex {
 	return &refIndex{ids: map[string]bool{}, bySlug: map[string]string{}, shared: map[string]bool{}}
 }
 
-func (x *refIndex) add(id, slug string) {
+func (x *refIndex) add(id, key string) {
 	if !itemid.Valid(id) {
 		return // an ID the file does not hold must never be linked to
 	}
 	x.ids[id] = true
-	if _, ok := x.bySlug[slug]; ok {
-		x.shared[slug] = true
+	if _, ok := x.bySlug[key]; ok {
+		x.shared[key] = true
 	}
-	x.bySlug[slug] = id
+	x.bySlug[key] = id
 }
 
 // resolver returns the resolve function the services' Relink methods take,
@@ -57,7 +58,7 @@ func (r *Registry) linkReferences(userID int64, u *UserServices) {
 
 	ideaIdx := newRefIndex()
 	for _, idea := range u.Ideas.All() {
-		ideaIdx.add(idea.ID, idea.Slug)
+		ideaIdx.add(idea.ID, slug.Slugify(idea.Title))
 	}
 	unresolvedIdeas := 0
 	resolveIdea := ideaIdx.resolver(&unresolvedIdeas)
@@ -72,7 +73,7 @@ func (r *Registry) linkReferences(userID int64, u *UserServices) {
 	taskIdx := newRefIndex()
 	for _, l := range lists {
 		for _, it := range l.All() {
-			taskIdx.add(it.ID, it.Slug)
+			taskIdx.add(it.ID, slug.Slugify(it.Title))
 		}
 	}
 	unresolvedTasks := 0

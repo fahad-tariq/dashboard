@@ -1,5 +1,14 @@
 import type { Page } from '@playwright/test';
-import { expandTrackerItem, expect, expectNoReload, markNoReload, test, uniqueTitle, waitForSseSettle } from './helpers';
+import {
+  expandTrackerItem,
+  expect,
+  expectNoReload,
+  fixtureIds,
+  markNoReload,
+  test,
+  uniqueTitle,
+  waitForSseSettle,
+} from './helpers';
 
 function ideaSection(page: Page, heading: string) {
   return page.locator('.ideas-page section').filter({
@@ -38,6 +47,7 @@ test('add an idea and triage it', async ({ page }) => {
 test('seeded idea keeps blank lines in its body', async ({ page }) => {
   await page.goto('/ideas');
   const card = ideaSection(page, 'Untriaged').locator('.tracker-item', { hasText: 'Home weather station' });
+  await expect(card).toHaveAttribute('id', `idea-${fixtureIds.homeWeatherStation}`);
   await expandTrackerItem(card);
   await expect(card.locator('.tracker-item-body')).toContainText('Log readings to SQLite');
 });

@@ -1,6 +1,6 @@
 {{define "content"}}
 <nav class="breadcrumb" aria-label="Breadcrumb">
-    <a href="/ideas">ideas</a> / {{.Idea.Slug}}
+    <a href="/ideas">ideas</a> / {{.Idea.Title}}
 </nav>
 <h1>{{.Idea.Title}}</h1>
 
@@ -8,10 +8,10 @@
 <div class="trash-banner">
     <p>This idea was deleted on {{.Idea.DeletedAt}}. It will be automatically purged after 7 days.</p>
     <div class="trash-banner-actions">
-        <form method="POST" action="/ideas/{{.Idea.Slug}}/restore">
+        <form method="POST" action="/ideas/{{.Idea.ID}}/restore">
             <button type="submit" class="btn btn-secondary btn-sm">restore</button>
         </form>
-        <form method="POST" action="/ideas/{{.Idea.Slug}}/purge" data-confirm="Permanently delete this idea? This cannot be undone.">
+        <form method="POST" action="/ideas/{{.Idea.ID}}/purge" data-confirm="Permanently delete this idea? This cannot be undone.">
             <button type="submit" class="btn btn-solid-danger btn-sm">permanently delete</button>
         </form>
     </div>
@@ -45,7 +45,7 @@
 {{if not .IsDeleted}}
 <details class="tracker-notes-edit">
     <summary>edit</summary>
-    <form method="POST" action="/ideas/{{.Idea.Slug}}/edit" class="tracker-notes-form">
+    <form method="POST" action="/ideas/{{.Idea.ID}}/edit" class="tracker-notes-form">
         <input type="text" name="title" value="{{.Idea.Title}}" placeholder="Title" class="form-input" aria-label="Title">
         <textarea name="body" rows="12" class="form-textarea" aria-label="Notes">{{.Idea.Body}}</textarea>
         <input type="text" name="tags" value="{{range $i, $t := .Idea.Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input" aria-label="Tags">
@@ -54,7 +54,7 @@
     </form>
 </details>
 
-<form method="POST" action="/ideas/{{.Idea.Slug}}/delete" class="mt-sm">
+<form method="POST" action="/ideas/{{.Idea.ID}}/delete" class="mt-sm">
     <button type="submit" class="btn btn-danger btn-sm">move to trash</button>
 </form>
 {{end}}

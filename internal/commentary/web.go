@@ -12,20 +12,18 @@ import (
 	"github.com/fahad/dashboard/internal/markdown"
 )
 
-// WebGetCommentary handles GET /commentary/{list}/{slug} and returns an HTML
+// WebGetCommentary handles GET /commentary/{list}/{id} and returns an HTML
 // fragment for htmx lazy-loading. Returns empty body if no commentary exists.
 func WebGetCommentary(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list := chi.URLParam(r, "list")
-		slug := chi.URLParam(r, "slug")
+		id := chi.URLParam(r, "id")
 
 		if !httputil.ValidateListWithIdeas(list) {
 			http.Error(w, "invalid list", http.StatusBadRequest)
 			return
 		}
-		list = httputil.NormaliseList(list)
-
-		content, err := store.Get(slug, list, int(auth.UserID(r.Context())))
+		content, err := store.Get(id, int(auth.UserID(r.Context())))
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return

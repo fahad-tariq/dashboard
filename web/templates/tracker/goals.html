@@ -51,7 +51,7 @@
 
 <div class="tracker-list goals-list" id="open-list" data-row-list data-row-heading="page-heading">
 {{range .Goals}}
-<div class="tracker-item" id="item-{{.Slug}}" data-row data-keep-attr="style" data-slug="{{.Slug}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+<div class="tracker-item" id="item-{{.ID}}" data-row data-keep-attr="style" data-id="{{.ID}}" data-priority="{{.Priority}}" data-tags="{{range .Tags}}{{.}} {{end}}">
     <div class="tracker-item-header">
         <input type="checkbox" class="bulk-checkbox" data-action="bulk-checkbox" aria-label="Select {{.Title}}">
         <div class="tracker-item-main">
@@ -81,15 +81,15 @@
     {{if .Added}}<div class="tracker-item-date mt-xs">added {{.Added}}</div>{{end}}
     <div class="tracker-item-actions">
         {{if gt .Target 0.0}}
-        <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage" hx-boost="true">
+        <form method="POST" action="/todos/{{.ID}}/progress" class="inline-triage" hx-boost="true">
             <input type="hidden" name="delta" value="-1">
             <button type="submit" class="btn btn-secondary btn-sm" aria-label="Decrease {{.Title}} by 1">&minus;1</button>
         </form>
-        <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage" hx-boost="true">
+        <form method="POST" action="/todos/{{.ID}}/progress" class="inline-triage" hx-boost="true">
             <input type="hidden" name="delta" value="1">
             <button type="submit" class="btn btn-secondary btn-sm" aria-label="Increase {{.Title}} by 1">+1</button>
         </form>
-        <form method="POST" action="/todos/{{.Slug}}/progress" class="inline-triage goal-set-form" hx-boost="true">
+        <form method="POST" action="/todos/{{.ID}}/progress" class="inline-triage goal-set-form" hx-boost="true">
             <input type="number" name="delta" step="any" placeholder="set" class="form-input goal-set-input" required aria-label="Set progress for {{.Title}}">
             <input type="hidden" name="set" value="1">
             <button type="submit" class="btn btn-secondary btn-sm">set</button>
@@ -98,7 +98,7 @@
         <details class="item-actions-menu" open data-keep-attr="open">
             <summary class="btn btn-secondary btn-sm item-actions-toggle">more</summary>
             <div class="item-actions-panel">
-                <form method="POST" action="/todos/{{.Slug}}/priority" class="inline-triage" hx-boost="true">
+                <form method="POST" action="/todos/{{.ID}}/priority" class="inline-triage" hx-boost="true">
                     <select name="priority" class="form-select-sm" aria-label="Priority" data-autosubmit>
                         <option value="" {{if eq .Priority ""}}selected{{end}}>no priority</option>
                         <option value="high" {{if eq .Priority "high"}}selected{{end}}>high</option>
@@ -106,7 +106,7 @@
                         <option value="low" {{if eq .Priority "low"}}selected{{end}}>low</option>
                     </select>
                 </form>
-                <form method="POST" action="/todos/{{.Slug}}/delete" class="inline-triage" hx-boost="true">
+                <form method="POST" action="/todos/{{.ID}}/delete" class="inline-triage" hx-boost="true">
                     <button type="submit" class="btn btn-danger btn-sm">trash</button>
                 </form>
             </div>
@@ -119,11 +119,11 @@
     {{end}}
     <details class="tracker-notes-edit" data-keep-attr="open">
         <summary>edit</summary>
-        <form method="POST" action="/todos/{{.Slug}}/edit" class="tracker-notes-form" hx-boost="true">
+        <form method="POST" action="/todos/{{.ID}}/edit" class="tracker-notes-form" hx-boost="true">
             <input type="text" name="title" value="{{.Title}}" placeholder="Title" class="form-input" aria-label="Title">
             <textarea name="body" rows="3" class="form-textarea" placeholder="Notes, links, context..." aria-label="Notes">{{.Body}}</textarea>
             <input type="text" name="tags" value="{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}" placeholder="Tags (comma-separated)" class="form-input" aria-label="Tags">
-            {{template "date-field" (dict "ID" (printf "item-%s-deadline" .Slug) "Value" .Deadline)}}
+            {{template "date-field" (dict "ID" (printf "item-%s-deadline" .ID) "Value" .Deadline)}}
             <input type="hidden" name="images" value="{{range $i, $img := .Images}}{{if $i}},{{end}}{{$img}}{{end}}">
             <button type="submit" class="btn btn-primary btn-sm">save</button>
         </form>
@@ -136,21 +136,21 @@
 <details class="tracker-done-section" id="deleted-items" data-row-list data-row-heading="deleted-summary" data-keep-attr="open">
     <summary class="tracker-done-summary" id="deleted-summary">Recently Deleted ({{len .DeletedGoals}})</summary>
     {{range .DeletedGoals}}
-    <div class="tracker-item tracker-item-done minimised" id="item-{{.Slug}}" data-row data-keep-class="minimised" data-slug="{{.Slug}}">
+    <div class="tracker-item tracker-item-done minimised" id="item-{{.ID}}" data-row data-keep-class="minimised" data-id="{{.ID}}">
         <div class="tracker-item-header" data-action="item-header">
             <div class="tracker-item-main">
                 <span class="tracker-item-title">{{linkify .Title}}</span>
                 <div class="tracker-item-meta">{{if .DeletedAt}}<span class="tracker-item-date">deleted {{.DeletedAt}}</span>{{end}}</div>
             </div>
-            <form method="POST" action="/todos/{{.Slug}}/restore" class="item-complete-form" data-stop-click hx-boost="true">
+            <form method="POST" action="/todos/{{.ID}}/restore" class="item-complete-form" data-stop-click hx-boost="true">
                 <button type="submit" class="item-undo-btn" title="Restore" aria-label="Restore {{.Title}}">&#x21A9;</button>
             </form>
-            <form method="POST" action="/todos/{{.Slug}}/purge" class="item-complete-form" data-stop-click data-confirm="Permanently delete this goal? This cannot be undone." hx-boost="true">
+            <form method="POST" action="/todos/{{.ID}}/purge" class="item-complete-form" data-stop-click data-confirm="Permanently delete this goal? This cannot be undone." hx-boost="true">
                 <button type="submit" class="item-undo-btn" title="Permanently delete" aria-label="Permanently delete {{.Title}}">&#x2715;</button>
             </form>
-            <button type="button" class="item-toggle" id="item-{{.Slug}}-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="item-{{.Slug}}-detail" aria-label="{{.Title}}" title="Minimise/expand"></button>
+            <button type="button" class="item-toggle" id="item-{{.ID}}-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="item-{{.ID}}-detail" aria-label="{{.Title}}" title="Minimise/expand"></button>
         </div>
-        <div class="tracker-item-detail" id="item-{{.Slug}}-detail">
+        <div class="tracker-item-detail" id="item-{{.ID}}-detail">
             <div>
                 {{if .Body}}
                 <div class="tracker-item-body">{{linkify .Body}}</div>
@@ -173,11 +173,11 @@
     <button type="button" class="btn btn-quiet btn-sm" data-action="select-all">select all</button>
     <button type="button" class="btn btn-quiet btn-sm" data-action="deselect-all">deselect</button>
     <form method="POST" action="/todos/bulk/delete" id="bulk-delete-form" data-submit="bulk-delete">
-        <input type="hidden" name="slugs" value="">
+        <input type="hidden" name="ids" value="">
         <button type="submit" class="btn btn-danger btn-sm">trash</button>
     </form>
     <form method="POST" action="/todos/bulk/priority" id="bulk-priority-form">
-        <input type="hidden" name="slugs" value="">
+        <input type="hidden" name="ids" value="">
         <select name="priority" class="form-select-sm" aria-label="Bulk priority">
             <option value="">no priority</option>
             <option value="high">high</option>

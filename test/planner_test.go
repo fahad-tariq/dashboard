@@ -53,6 +53,9 @@ func TestPlannedMetadataRoundTrip(t *testing.T) {
 	}
 }
 
+// IDs of the seeded Task A, B and C.
+const taskA, taskB, taskC = "tskbbbb1", "tskbbbb2", "tskbbbb3"
+
 func newPlannerService(t *testing.T, content string) *tracker.Service {
 	t.Helper()
 	dir := t.TempDir()
@@ -69,13 +72,13 @@ func newPlannerService(t *testing.T, content string) *tracker.Service {
 }
 
 func TestSetPlannedAndClear(t *testing.T) {
-	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01]\n- [ ] Task B [added: 2026-03-02]\n")
+	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [id: tskbbbb1]\n- [ ] Task B [added: 2026-03-02] [id: tskbbbb2]\n")
 
-	if err := svc.SetPlanned("task-a", "2026-03-19"); err != nil {
+	if err := svc.SetPlanned(taskA, "2026-03-19"); err != nil {
 		t.Fatalf("SetPlanned: %v", err)
 	}
 
-	item, err := svc.Get("task-a")
+	item, err := svc.Get(taskA)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -83,10 +86,10 @@ func TestSetPlannedAndClear(t *testing.T) {
 		t.Errorf("Planned: got %q, want %q", item.Planned, "2026-03-19")
 	}
 
-	if err := svc.ClearPlanned("task-a"); err != nil {
+	if err := svc.ClearPlanned(taskA); err != nil {
 		t.Fatalf("ClearPlanned: %v", err)
 	}
-	item, err = svc.Get("task-a")
+	item, err = svc.Get(taskA)
 	if err != nil {
 		t.Fatalf("Get after clear: %v", err)
 	}
@@ -96,14 +99,14 @@ func TestSetPlannedAndClear(t *testing.T) {
 }
 
 func TestListPlanned(t *testing.T) {
-	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19]\n- [ ] Task B [added: 2026-03-02] [planned: 2026-03-20]\n- [ ] Task C [added: 2026-03-03]\n")
+	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [id: tskbbbb1]\n- [ ] Task B [added: 2026-03-02] [planned: 2026-03-20] [id: tskbbbb2]\n- [ ] Task C [added: 2026-03-03] [id: tskbbbb3]\n")
 
 	planned := svc.ListPlanned("2026-03-19")
 	if len(planned) != 1 {
 		t.Fatalf("ListPlanned: expected 1, got %d", len(planned))
 	}
-	if planned[0].Slug != "task-a" {
-		t.Errorf("ListPlanned[0].Slug: got %q, want %q", planned[0].Slug, "task-a")
+	if planned[0].Title != "Task A" {
+		t.Errorf("ListPlanned[0].Title: got %q, want %q", planned[0].Title, "Task A")
 	}
 }
 
@@ -114,8 +117,8 @@ func TestListOverdue(t *testing.T) {
 	if len(overdue) != 1 {
 		t.Fatalf("ListOverdue: expected 1, got %d", len(overdue))
 	}
-	if overdue[0].Slug != "overdue-task" {
-		t.Errorf("ListOverdue[0].Slug: got %q, want %q", overdue[0].Slug, "overdue-task")
+	if overdue[0].Title != "Overdue task" {
+		t.Errorf("ListOverdue[0].Title: got %q, want %q", overdue[0].Title, "Overdue task")
 	}
 }
 
@@ -129,9 +132,9 @@ func TestListPlannedRange(t *testing.T) {
 }
 
 func TestBulkSetPlanned(t *testing.T) {
-	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01]\n- [ ] Task B [added: 2026-03-02]\n- [ ] Task C [added: 2026-03-03]\n")
+	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [id: tskbbbb1]\n- [ ] Task B [added: 2026-03-02] [id: tskbbbb2]\n- [ ] Task C [added: 2026-03-03] [id: tskbbbb3]\n")
 
-	if err := svc.BulkSetPlanned([]string{"task-a", "task-c"}, "2026-03-19"); err != nil {
+	if err := svc.BulkSetPlanned([]string{taskA, taskC}, "2026-03-19"); err != nil {
 		t.Fatalf("BulkSetPlanned: %v", err)
 	}
 
@@ -141,7 +144,7 @@ func TestBulkSetPlanned(t *testing.T) {
 	}
 
 	// Task B should remain unplanned.
-	b, err := svc.Get("task-b")
+	b, err := svc.Get(taskB)
 	if err != nil {
 		t.Fatalf("Get task-b: %v", err)
 	}
@@ -151,13 +154,13 @@ func TestBulkSetPlanned(t *testing.T) {
 }
 
 func TestPlanAndCompleteRetainsPlannedDate(t *testing.T) {
-	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19]\n")
+	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [id: tskbbbb1]\n")
 
-	if err := svc.Complete("task-a"); err != nil {
+	if err := svc.Complete(taskA); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 
-	item, err := svc.Get("task-a")
+	item, err := svc.Get(taskA)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -176,15 +179,15 @@ func TestDeletedItemsExcludedFromListPlanned(t *testing.T) {
 	if len(planned) != 1 {
 		t.Fatalf("expected 1 (deleted excluded), got %d", len(planned))
 	}
-	if planned[0].Slug != "active" {
-		t.Errorf("expected 'active', got %q", planned[0].Slug)
+	if planned[0].Title != "Active" {
+		t.Errorf("expected 'Active', got %q", planned[0].Title)
 	}
 }
 
 func TestPlanOrderMetadataRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "tracker.md")
-	content := "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [plan-order: 2]\n- [ ] Task B [added: 2026-03-02] [planned: 2026-03-19] [plan-order: 1]\n"
+	content := "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [plan-order: 2] [id: tskbbbb1]\n- [ ] Task B [added: 2026-03-02] [planned: 2026-03-19] [plan-order: 1] [id: tskbbbb2]\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -224,16 +227,16 @@ func TestPlanOrderMetadataRoundTrip(t *testing.T) {
 }
 
 func TestReorderPlanned(t *testing.T) {
-	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19]\n- [ ] Task B [added: 2026-03-02] [planned: 2026-03-19]\n- [ ] Task C [added: 2026-03-03] [planned: 2026-03-19]\n")
+	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [id: tskbbbb1]\n- [ ] Task B [added: 2026-03-02] [planned: 2026-03-19] [id: tskbbbb2]\n- [ ] Task C [added: 2026-03-03] [planned: 2026-03-19] [id: tskbbbb3]\n")
 
 	// Reorder: C, A, B
-	if err := svc.ReorderPlanned([]string{"task-c", "task-a", "task-b"}); err != nil {
+	if err := svc.ReorderPlanned([]string{taskC, taskA, taskB}); err != nil {
 		t.Fatalf("ReorderPlanned: %v", err)
 	}
 
-	a, _ := svc.Get("task-a")
-	b, _ := svc.Get("task-b")
-	c, _ := svc.Get("task-c")
+	a, _ := svc.Get(taskA)
+	b, _ := svc.Get(taskB)
+	c, _ := svc.Get(taskC)
 
 	if c.PlanOrder != 1 {
 		t.Errorf("task-c PlanOrder: got %d, want 1", c.PlanOrder)
@@ -248,11 +251,11 @@ func TestReorderPlanned(t *testing.T) {
 
 func TestSortPlanItems(t *testing.T) {
 	items := []tracker.Item{
-		{Slug: "unordered-high", Priority: "high", PlanOrder: 0},
-		{Slug: "ordered-3", PlanOrder: 3},
-		{Slug: "ordered-1", PlanOrder: 1},
-		{Slug: "unordered-low", Priority: "low", PlanOrder: 0},
-		{Slug: "ordered-2", PlanOrder: 2},
+		{Title: "unordered-high", Priority: "high", PlanOrder: 0},
+		{Title: "ordered-3", PlanOrder: 3},
+		{Title: "ordered-1", PlanOrder: 1},
+		{Title: "unordered-low", Priority: "low", PlanOrder: 0},
+		{Title: "ordered-2", PlanOrder: 2},
 	}
 
 	// Use the same sort logic as sortPlanItems.
@@ -272,20 +275,20 @@ func TestSortPlanItems(t *testing.T) {
 	})
 
 	want := []string{"ordered-1", "ordered-2", "ordered-3", "unordered-high", "unordered-low"}
-	for i, slug := range want {
-		if items[i].Slug != slug {
-			t.Errorf("position %d: got %q, want %q", i, items[i].Slug, slug)
+	for i, title := range want {
+		if items[i].Title != title {
+			t.Errorf("position %d: got %q, want %q", i, items[i].Title, title)
 		}
 	}
 }
 
 func TestClearPlannedResetsPlanOrder(t *testing.T) {
-	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [plan-order: 2]\n")
+	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [plan-order: 2] [id: tskbbbb1]\n")
 
-	if err := svc.ClearPlanned("task-a"); err != nil {
+	if err := svc.ClearPlanned(taskA); err != nil {
 		t.Fatalf("ClearPlanned: %v", err)
 	}
-	item, err := svc.Get("task-a")
+	item, err := svc.Get(taskA)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -298,13 +301,13 @@ func TestClearPlannedResetsPlanOrder(t *testing.T) {
 }
 
 func TestSetPlannedResetsPlanOrder(t *testing.T) {
-	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [plan-order: 3]\n")
+	svc := newPlannerService(t, "# Test\n\n- [ ] Task A [added: 2026-03-01] [planned: 2026-03-19] [plan-order: 3] [id: tskbbbb1]\n")
 
 	// Re-plan to a different date -- order should reset.
-	if err := svc.SetPlanned("task-a", "2026-03-20"); err != nil {
+	if err := svc.SetPlanned(taskA, "2026-03-20"); err != nil {
 		t.Fatalf("SetPlanned: %v", err)
 	}
-	item, err := svc.Get("task-a")
+	item, err := svc.Get(taskA)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}

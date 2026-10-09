@@ -53,16 +53,17 @@ func TestMaintenanceServiceAddAndList(t *testing.T) {
 func TestMaintenanceServiceLogCompletion(t *testing.T) {
 	svc, _ := setupMaintenanceSvc(t)
 
-	if err := svc.Add(&house.MaintenanceItem{Title: "Mow lawn", Cadence: "2w"}); err != nil {
+	mow := &house.MaintenanceItem{Title: "Mow lawn", Cadence: "2w"}
+	if err := svc.Add(mow); err != nil {
 		t.Fatal(err)
 	}
 
-	err := svc.LogCompletion("mow-lawn", "used new mower")
+	err := svc.LogCompletion(mow.ID, "used new mower")
 	if err != nil {
 		t.Fatalf("log: %v", err)
 	}
 
-	item, err := svc.Get("mow-lawn")
+	item, err := svc.Get(mow.ID)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -74,11 +75,11 @@ func TestMaintenanceServiceLogCompletion(t *testing.T) {
 	}
 
 	// Log again -- should prepend.
-	err = svc.LogCompletion("mow-lawn", "")
+	err = svc.LogCompletion(mow.ID, "")
 	if err != nil {
 		t.Fatalf("log2: %v", err)
 	}
-	item, _ = svc.Get("mow-lawn")
+	item, _ = svc.Get(mow.ID)
 	if len(item.Log) != 2 {
 		t.Fatalf("expected 2 log entries, got %d", len(item.Log))
 	}
@@ -90,20 +91,21 @@ func TestMaintenanceServiceLogCompletion(t *testing.T) {
 
 func TestMaintenanceServiceLogCompletionStripsNewlines(t *testing.T) {
 	svc, _ := setupMaintenanceSvc(t)
-	if err := svc.Add(&house.MaintenanceItem{Title: "Test item", Cadence: "1m"}); err != nil {
+	item := &house.MaintenanceItem{Title: "Test item", Cadence: "1m"}
+	if err := svc.Add(item); err != nil {
 		t.Fatal(err)
 	}
 
-	err := svc.LogCompletion("test-item", "line1\n- [ ] injected\r\nline2")
+	err := svc.LogCompletion(item.ID, "line1\n- [ ] injected\r\nline2")
 	if err != nil {
 		t.Fatalf("log: %v", err)
 	}
 
-	item, _ := svc.Get("test-item")
-	if len(item.Log) != 1 {
-		t.Fatalf("expected 1 log entry, got %d", len(item.Log))
+	got, _ := svc.Get(item.ID)
+	if len(got.Log) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(got.Log))
 	}
-	note := item.Log[0].Note
+	note := got.Log[0].Note
 	if note != "line1 - [ ] injected  line2" {
 		t.Errorf("note should have newlines stripped: got %q", note)
 	}
@@ -140,23 +142,24 @@ func TestMaintenanceServiceListOverdue(t *testing.T) {
 		t.Fatalf("expected 2 overdue, got %d", len(overdue))
 	}
 
-	slugs := map[string]bool{}
+	titles := map[string]bool{}
 	for _, it := range overdue {
-		slugs[it.Slug] = true
+		titles[it.Title] = true
 	}
-	if !slugs["clean-gutters"] || !slugs["check-smoke-alarms"] {
-		t.Errorf("unexpected overdue items: %v", slugs)
+	if !titles["Clean gutters"] || !titles["Check smoke alarms"] {
+		t.Errorf("unexpected overdue items: %v", titles)
 	}
 }
 
 func TestMaintenanceServiceDeleteRestore(t *testing.T) {
 	svc, _ := setupMaintenanceSvc(t)
-	if err := svc.Add(&house.MaintenanceItem{Title: "Test item", Cadence: "1m"}); err != nil {
+	item := &house.MaintenanceItem{Title: "Test item", Cadence: "1m"}
+	if err := svc.Add(item); err != nil {
 		t.Fatal(err)
 	}
 
 	// Delete.
-	if err := svc.Delete("test-item"); err != nil {
+	if err := svc.Delete(item.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	items, _ := svc.List()
@@ -165,7 +168,7 @@ func TestMaintenanceServiceDeleteRestore(t *testing.T) {
 	}
 
 	// Restore.
-	if err := svc.Restore("test-item"); err != nil {
+	if err := svc.Restore(item.ID); err != nil {
 		t.Fatalf("restore: %v", err)
 	}
 	items, _ = svc.List()

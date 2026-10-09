@@ -3,6 +3,7 @@ import {
   expandPlanItem,
   expandTrackerItem,
   expect,
+  itemIdPattern,
   planFromPicker,
   planItem,
   test,
@@ -35,6 +36,8 @@ test('plan a task from the picker and complete it on the homepage', async ({ pag
 test('expand and collapse a plan item planned from the todo list', async ({ page }) => {
   const title = uniqueTitle('Call the plumber');
   const task = await addTask(page, title, { body: 'Ask about the hot water system', tags: 'house' });
+  const rowId = await task.getAttribute('id');
+  expect(rowId).toMatch(new RegExp(`^item-${itemIdPattern}$`));
 
   // "do today" in the expanded row on /todos plans the task for today.
   await expandTrackerItem(task);
@@ -57,7 +60,7 @@ test('expand and collapse a plan item planned from the todo list', async ({ page
   await expect(item.locator('.plan-item-tags .badge-tag')).toHaveText('house');
   const link = item.getByRole('link', { name: 'open in list' });
   await expect(link).toBeVisible();
-  await expect(link).toHaveAttribute('href', /^\/todos#item-call-the-plumber-/);
+  await expect(link).toHaveAttribute('href', `/todos#${rowId}`);
 
   await toggle.click();
   await expect(item).toHaveClass(/\bminimised\b/);

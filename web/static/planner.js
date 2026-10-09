@@ -67,23 +67,23 @@ function clearDropIndicators() {
     }
 }
 
-function collectSlugs(list) {
+function collectIDs(list) {
     var container = document.querySelector('.plan-today-tasks');
     if (!container) return [];
     var items = container.querySelectorAll('.plan-item[data-list="' + list + '"]');
-    var slugs = [];
+    var ids = [];
     for (var i = 0; i < items.length; i++) {
-        var slug = items[i].getAttribute('data-slug');
-        if (slug) slugs.push(slug);
+        var id = items[i].getAttribute('data-id');
+        if (id) ids.push(id);
     }
-    return slugs;
+    return ids;
 }
 
 // postReorder saves list's order and returns the request's promise.
 function postReorder(list) {
-    var slugs = collectSlugs(list);
-    if (slugs.length === 0) return null;
-    var body = 'slugs=' + encodeURIComponent(slugs.join(', ')) + '&list=' + encodeURIComponent(list);
+    var ids = collectIDs(list);
+    if (ids.length === 0) return null;
+    var body = 'ids=' + encodeURIComponent(ids.join(', ')) + '&list=' + encodeURIComponent(list);
     return fetch('/plan/reorder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
@@ -101,7 +101,7 @@ document.addEventListener('dragstart', function(e) {
         item.classList.add('plan-item-dragging');
         holdRefresh();
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', item.getAttribute('data-slug'));
+        e.dataTransfer.setData('text/plain', item.getAttribute('data-id'));
         return;
     }
 
@@ -111,7 +111,7 @@ document.addEventListener('dragstart', function(e) {
     var task = e.target.closest('.calendar-grid-week .calendar-task');
     if (task && task.getAttribute('draggable') === 'true') {
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', task.getAttribute('data-slug'));
+        e.dataTransfer.setData('text/plain', task.getAttribute('data-id'));
         e.dataTransfer.setData('application/x-list', task.getAttribute('data-list'));
         task.classList.add('plan-item-dragging');
         holdRefresh();
@@ -186,13 +186,13 @@ document.addEventListener('drop', function(e) {
     if (!date) return;
     e.preventDefault();
 
-    var slug = e.dataTransfer.getData('text/plain');
+    var id = e.dataTransfer.getData('text/plain');
     var list = e.dataTransfer.getData('application/x-list');
-    if (!slug || !list) return;
+    if (!id || !list) return;
 
     if (list === 'personal') list = 'todos';
 
-    var body = 'slug=' + encodeURIComponent(slug) + '&list=' + encodeURIComponent(list) + '&date=' + encodeURIComponent(date);
+    var body = 'id=' + encodeURIComponent(id) + '&list=' + encodeURIComponent(list) + '&date=' + encodeURIComponent(date);
     fetch('/plan/set', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },

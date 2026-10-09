@@ -83,7 +83,7 @@ func dueItem(r dueRow, today string) module.WidgetItem {
 		// No date: the server plans for its own today, so a tab left open
 		// past midnight still plans the right day.
 		Path:   "/plan/set",
-		Fields: map[string]string{"slug": it.Slug, "list": r.list.list},
+		Fields: map[string]string{"id": it.ID, "list": r.list.list},
 		Text:   "plan today",
 		Label:  "Plan " + it.Title + " for today",
 	}
@@ -91,9 +91,9 @@ func dueItem(r dueRow, today string) module.WidgetItem {
 		action.Done = "planned"
 	}
 	return module.WidgetItem{
-		ID:       r.list.list + "-" + it.Slug,
+		ID:       r.list.list + "-" + it.ID,
 		Label:    it.Title,
-		URL:      "/" + r.list.list + "#item-" + it.Slug,
+		URL:      "/" + r.list.list + "#item-" + it.ID,
 		Priority: it.Priority,
 		Context:  r.list.context,
 		Meta:     &module.WidgetMeta{Text: r.due.Short, Label: r.due.Full, Level: r.due.Level},

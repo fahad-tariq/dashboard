@@ -12,14 +12,12 @@ import (
 	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/itemid"
-	"github.com/fahad/dashboard/internal/slug"
 )
 
 // MaintenanceItem represents a recurring maintenance task.
 // Maintenance items are never "done" -- completing them adds a log entry.
 type MaintenanceItem struct {
 	ID        string // permanent, [id:]; empty until the service assigns one
-	Slug      string
 	Title     string
 	Cadence   string // raw cadence string: "3m", "2w", "90d", "1y"
 	Tags      []string
@@ -168,7 +166,6 @@ func parseMaintLine(raw string) *MaintenanceItem {
 	}
 
 	item.Title = strings.TrimSpace(raw)
-	item.Slug = Slugify(item.Title)
 
 	return item
 }
@@ -255,11 +252,6 @@ func RenderMaintenance(heading string, items []MaintenanceItem) []byte {
 	}
 
 	return []byte(b.String())
-}
-
-// Slugify exposes the shared slug generation.
-func Slugify(title string) string {
-	return slug.Slugify(title)
 }
 
 // ParseCadence parses a cadence string like "3m", "2w", "90d", "1y".

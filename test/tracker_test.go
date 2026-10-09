@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/fahad/dashboard/internal/slug"
 	"github.com/fahad/dashboard/internal/tracker"
 )
 
@@ -183,9 +184,9 @@ func TestParseTrackerItemWithBody(t *testing.T) {
 
 func TestWriteTrackerRoundTrip(t *testing.T) {
 	input := []tracker.Item{
-		{Slug: "run-5km", Title: "Run 5km", Type: tracker.TaskType, Tags: []string{"Health"}, Priority: "high"},
-		{Slug: "read-40-books", Title: "Read 40 books", Type: tracker.GoalType, Tags: []string{"Reading"}, Current: 12, Target: 40, Unit: "books"},
-		{Slug: "set-up-standing-desk", Title: "Set up standing desk", Type: tracker.TaskType, Tags: []string{"Health"}, Done: true},
+		{Title: "Run 5km", Type: tracker.TaskType, Tags: []string{"Health"}, Priority: "high"},
+		{Title: "Read 40 books", Type: tracker.GoalType, Tags: []string{"Reading"}, Current: 12, Target: 40, Unit: "books"},
+		{Title: "Set up standing desk", Type: tracker.TaskType, Tags: []string{"Health"}, Done: true},
 	}
 
 	dir := t.TempDir()
@@ -204,22 +205,22 @@ func TestWriteTrackerRoundTrip(t *testing.T) {
 		t.Fatalf("expected 3 items, got %d", len(output))
 	}
 
-	bySlug := map[string]tracker.Item{}
+	byTitle := map[string]tracker.Item{}
 	for _, it := range output {
-		bySlug[it.Slug] = it
+		byTitle[it.Title] = it
 	}
 
-	run := bySlug["run-5km"]
+	run := byTitle["Run 5km"]
 	if run.Title != "Run 5km" || run.Priority != "high" || !run.HasTag("Health") {
 		t.Errorf("run-5km mismatch: %+v", run)
 	}
 
-	read := bySlug["read-40-books"]
+	read := byTitle["Read 40 books"]
 	if read.Current != 12 || read.Target != 40 || read.Unit != "books" || read.Type != tracker.GoalType {
 		t.Errorf("read-40-books mismatch: %+v", read)
 	}
 
-	desk := bySlug["set-up-standing-desk"]
+	desk := byTitle["Set up standing desk"]
 	if !desk.Done {
 		t.Error("set-up-desk should be done")
 	}
@@ -227,7 +228,7 @@ func TestWriteTrackerRoundTrip(t *testing.T) {
 
 func TestWriteTrackerPreservesBody(t *testing.T) {
 	input := []tracker.Item{
-		{Slug: "report", Title: "Finish report", Type: tracker.TaskType, Tags: []string{"Work"}, Body: "Draft in Google Docs\nDue Friday"},
+		{Title: "Finish report", Type: tracker.TaskType, Tags: []string{"Work"}, Body: "Draft in Google Docs\nDue Friday"},
 	}
 
 	path := filepath.Join(t.TempDir(), "tracker.md")
@@ -250,7 +251,6 @@ func TestWriteTrackerPreservesBody(t *testing.T) {
 func TestWriteTrackerBudgetStatusRoundTrip(t *testing.T) {
 	input := []tracker.Item{
 		{
-			Slug:   "solar-upgrade",
 			Title:  "Solar upgrade",
 			Type:   tracker.TaskType,
 			Tags:   []string{"energy"},
@@ -259,7 +259,6 @@ func TestWriteTrackerBudgetStatusRoundTrip(t *testing.T) {
 			Status: "active",
 		},
 		{
-			Slug:   "paint-fence",
 			Title:  "Paint fence",
 			Type:   tracker.TaskType,
 			Budget: 0,
@@ -283,12 +282,12 @@ func TestWriteTrackerBudgetStatusRoundTrip(t *testing.T) {
 		t.Fatalf("expected 2 items, got %d", len(output))
 	}
 
-	bySlug := map[string]tracker.Item{}
+	byTitle := map[string]tracker.Item{}
 	for _, it := range output {
-		bySlug[it.Slug] = it
+		byTitle[it.Title] = it
 	}
 
-	solar := bySlug["solar-upgrade"]
+	solar := byTitle["Solar upgrade"]
 	if solar.Budget != 15000 {
 		t.Errorf("budget: got %f, want 15000", solar.Budget)
 	}
@@ -302,7 +301,7 @@ func TestWriteTrackerBudgetStatusRoundTrip(t *testing.T) {
 		t.Error("solar should have energy tag")
 	}
 
-	fence := bySlug["paint-fence"]
+	fence := byTitle["Paint fence"]
 	if fence.Budget != 0 || fence.Actual != 0 || fence.Status != "" {
 		t.Errorf("paint-fence should have zero budget/actual/status: %+v", fence)
 	}
@@ -384,7 +383,7 @@ func TestSlugify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := tracker.Slugify(tt.input)
+			got := slug.Slugify(tt.input)
 			if got != tt.want {
 				t.Errorf("Slugify(%q) = %q, want %q", tt.input, got, tt.want)
 			}
@@ -446,8 +445,8 @@ func TestParseTrackerGoalAtZero(t *testing.T) {
 
 func TestTrackerImagesRoundTrip(t *testing.T) {
 	input := []tracker.Item{
-		{Slug: "with-images", Title: "Item with images", Type: tracker.TaskType, Tags: []string{"Work"}, Images: []string{"abc123.png", "def456.jpg"}},
-		{Slug: "no-images", Title: "Item without images", Type: tracker.TaskType, Tags: []string{"Work"}},
+		{Title: "Item with images", Type: tracker.TaskType, Tags: []string{"Work"}, Images: []string{"abc123.png", "def456.jpg"}},
+		{Title: "Item without images", Type: tracker.TaskType, Tags: []string{"Work"}},
 	}
 
 	path := filepath.Join(t.TempDir(), "tracker.md")
@@ -464,17 +463,17 @@ func TestTrackerImagesRoundTrip(t *testing.T) {
 		t.Fatalf("expected 2 items, got %d", len(output))
 	}
 
-	bySlug := map[string]tracker.Item{}
+	byTitle := map[string]tracker.Item{}
 	for _, it := range output {
-		bySlug[it.Slug] = it
+		byTitle[it.Title] = it
 	}
 
-	withImg := bySlug["item-with-images"]
+	withImg := byTitle["Item with images"]
 	if !slices.Equal(withImg.Images, []string{"abc123.png", "def456.jpg"}) {
 		t.Errorf("images: got %v, want [abc123.png def456.jpg]", withImg.Images)
 	}
 
-	noImg := bySlug["item-without-images"]
+	noImg := byTitle["Item without images"]
 	if len(noImg.Images) != 0 {
 		t.Errorf("expected no images, got %v", noImg.Images)
 	}
@@ -482,8 +481,8 @@ func TestTrackerImagesRoundTrip(t *testing.T) {
 
 func TestTrackerCaptionedImagesRoundTrip(t *testing.T) {
 	input := []tracker.Item{
-		{Slug: "captioned", Title: "Captioned item", Type: tracker.TaskType, Images: []string{"abc.png|My caption", "def.jpg"}},
-		{Slug: "no-images", Title: "No images", Type: tracker.TaskType},
+		{Title: "Captioned item", Type: tracker.TaskType, Images: []string{"abc.png|My caption", "def.jpg"}},
+		{Title: "No images", Type: tracker.TaskType},
 	}
 
 	path := filepath.Join(t.TempDir(), "tracker.md")
@@ -499,17 +498,17 @@ func TestTrackerCaptionedImagesRoundTrip(t *testing.T) {
 		t.Fatalf("expected 2 items, got %d", len(output))
 	}
 
-	bySlug := map[string]tracker.Item{}
+	byTitle := map[string]tracker.Item{}
 	for _, it := range output {
-		bySlug[it.Slug] = it
+		byTitle[it.Title] = it
 	}
 
-	captioned := bySlug["captioned-item"]
+	captioned := byTitle["Captioned item"]
 	if !slices.Equal(captioned.Images, []string{"abc.png|My caption", "def.jpg"}) {
 		t.Errorf("images: got %v, want [abc.png|My caption def.jpg]", captioned.Images)
 	}
 
-	noImg := bySlug["no-images"]
+	noImg := byTitle["No images"]
 	if len(noImg.Images) != 0 {
 		t.Errorf("expected no images, got %v", noImg.Images)
 	}
@@ -549,8 +548,8 @@ func TestParseTrackerGoalOver100Percent(t *testing.T) {
 
 func TestDeadlineRoundTrip(t *testing.T) {
 	input := []tracker.Item{
-		{Slug: "run-marathon", Title: "Run marathon", Type: tracker.GoalType, Current: 10, Target: 42, Unit: "km", Deadline: "2026-06-01", Added: "2026-03-01"},
-		{Slug: "no-deadline", Title: "No deadline", Type: tracker.TaskType, Added: "2026-03-01"},
+		{Title: "Run marathon", Type: tracker.GoalType, Current: 10, Target: 42, Unit: "km", Deadline: "2026-06-01", Added: "2026-03-01"},
+		{Title: "No deadline", Type: tracker.TaskType, Added: "2026-03-01"},
 	}
 
 	path := filepath.Join(t.TempDir(), "tracker.md")
@@ -566,12 +565,12 @@ func TestDeadlineRoundTrip(t *testing.T) {
 		t.Fatalf("expected 2 items, got %d", len(output))
 	}
 
-	bySlug := map[string]tracker.Item{}
+	byTitle := map[string]tracker.Item{}
 	for _, it := range output {
-		bySlug[it.Slug] = it
+		byTitle[it.Title] = it
 	}
 
-	marathon := bySlug["run-marathon"]
+	marathon := byTitle["Run marathon"]
 	if marathon.Deadline != "2026-06-01" {
 		t.Errorf("deadline: got %q, want %q", marathon.Deadline, "2026-06-01")
 	}
@@ -579,7 +578,7 @@ func TestDeadlineRoundTrip(t *testing.T) {
 		t.Errorf("added: got %q, want %q", marathon.Added, "2026-03-01")
 	}
 
-	noDeadline := bySlug["no-deadline"]
+	noDeadline := byTitle["No deadline"]
 	if noDeadline.Deadline != "" {
 		t.Errorf("expected empty deadline, got %q", noDeadline.Deadline)
 	}
@@ -587,8 +586,8 @@ func TestDeadlineRoundTrip(t *testing.T) {
 
 func TestDeletedAtRoundTrip(t *testing.T) {
 	input := []tracker.Item{
-		{Slug: "deleted-task", Title: "Deleted task", Type: tracker.TaskType, Added: "2026-03-01", DeletedAt: "2026-03-10"},
-		{Slug: "active-task", Title: "Active task", Type: tracker.TaskType, Added: "2026-03-01"},
+		{Title: "Deleted task", Type: tracker.TaskType, Added: "2026-03-01", DeletedAt: "2026-03-10"},
+		{Title: "Active task", Type: tracker.TaskType, Added: "2026-03-01"},
 	}
 
 	path := filepath.Join(t.TempDir(), "tracker.md")
@@ -604,17 +603,17 @@ func TestDeletedAtRoundTrip(t *testing.T) {
 		t.Fatalf("expected 2 items, got %d", len(output))
 	}
 
-	bySlug := map[string]tracker.Item{}
+	byTitle := map[string]tracker.Item{}
 	for _, it := range output {
-		bySlug[it.Slug] = it
+		byTitle[it.Title] = it
 	}
 
-	deleted := bySlug["deleted-task"]
+	deleted := byTitle["Deleted task"]
 	if deleted.DeletedAt != "2026-03-10" {
 		t.Errorf("deleted-at: got %q, want %q", deleted.DeletedAt, "2026-03-10")
 	}
 
-	active := bySlug["active-task"]
+	active := byTitle["Active task"]
 	if active.DeletedAt != "" {
 		t.Errorf("expected empty deleted-at, got %q", active.DeletedAt)
 	}
@@ -739,8 +738,8 @@ func TestBodyWithoutSubSteps(t *testing.T) {
 
 func TestFromIdeaRoundTrip(t *testing.T) {
 	input := []tracker.Item{
-		{Slug: "converted-task", Title: "Converted task", Type: tracker.TaskType, FromIdea: "original-idea", Added: "2026-03-01"},
-		{Slug: "normal-task", Title: "Normal task", Type: tracker.TaskType, Added: "2026-03-01"},
+		{Title: "Converted task", Type: tracker.TaskType, FromIdea: "original-idea", Added: "2026-03-01"},
+		{Title: "Normal task", Type: tracker.TaskType, Added: "2026-03-01"},
 	}
 
 	path := filepath.Join(t.TempDir(), "tracker.md")
@@ -756,17 +755,17 @@ func TestFromIdeaRoundTrip(t *testing.T) {
 		t.Fatalf("expected 2 items, got %d", len(output))
 	}
 
-	bySlug := map[string]tracker.Item{}
+	byTitle := map[string]tracker.Item{}
 	for _, it := range output {
-		bySlug[it.Slug] = it
+		byTitle[it.Title] = it
 	}
 
-	converted := bySlug["converted-task"]
+	converted := byTitle["Converted task"]
 	if converted.FromIdea != "original-idea" {
 		t.Errorf("from-idea: got %q, want %q", converted.FromIdea, "original-idea")
 	}
 
-	normal := bySlug["normal-task"]
+	normal := byTitle["Normal task"]
 	if normal.FromIdea != "" {
 		t.Errorf("expected empty from-idea, got %q", normal.FromIdea)
 	}

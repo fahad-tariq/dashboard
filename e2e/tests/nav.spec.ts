@@ -1,4 +1,4 @@
-import { expect, test } from './helpers';
+import { expect, itemIdPattern, test } from './helpers';
 
 test('"g" shortcuts come from the nav, including links behind "more"', async ({ page }) => {
   await page.goto('/');
@@ -18,12 +18,12 @@ test('nav marks the current section by path prefix', async ({ page }) => {
   await expect(ideas).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('#nav-links a[href="/"]')).not.toHaveAttribute('aria-current', 'page');
 
-  const href = await page.evaluate(() => {
+  const href = await page.evaluate((idPattern) => {
     const link = Array.from(document.querySelectorAll<HTMLAnchorElement>('main a[href^="/ideas/"]')).find((a) =>
-      /^\/ideas\/[a-z0-9][a-z0-9-]*$/.test(a.getAttribute('href') ?? ''),
+      new RegExp(`^/ideas/${idPattern}$`).test(a.getAttribute('href') ?? ''),
     );
     return link?.getAttribute('href') ?? null;
-  });
+  }, itemIdPattern);
   expect(href).not.toBeNull();
   await page.goto(href as string);
   await expect(ideas).toHaveAttribute('aria-current', 'page');

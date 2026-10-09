@@ -11,6 +11,7 @@ import (
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/itemid"
+	"github.com/fahad/dashboard/internal/slug"
 )
 
 // runMigrateData handles the "migrate-data" CLI subcommand.
@@ -77,7 +78,7 @@ func runMigrateData() { //nolint:gocyclo // one-off migration command, linear st
 			}
 			idea := migrateOldIdea(dir+"/"+e.Name(), status)
 			if idea != nil {
-				slugSet[idea.Slug] = true
+				slugSet[slug.Slugify(idea.Title)] = true
 				allIdeas = append(allIdeas, *idea)
 			}
 		}
@@ -90,7 +91,7 @@ func runMigrateData() { //nolint:gocyclo // one-off migration command, linear st
 			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 				continue
 			}
-			slug := strings.TrimSuffix(e.Name(), ".md")
+			name := strings.TrimSuffix(e.Name(), ".md")
 			data, err := os.ReadFile(researchDir + "/" + e.Name())
 			if err != nil {
 				continue
@@ -102,7 +103,7 @@ func runMigrateData() { //nolint:gocyclo // one-off migration command, linear st
 
 			found := false
 			for i := range allIdeas {
-				if allIdeas[i].Slug == slug {
+				if slug.Slugify(allIdeas[i].Title) == name {
 					allIdeas[i].Body += "\n\n## Research\n\n" + content
 					found = true
 					break
@@ -111,12 +112,11 @@ func runMigrateData() { //nolint:gocyclo // one-off migration command, linear st
 			if !found {
 				fmt.Printf("  orphaned research file %s -- creating standalone idea\n", e.Name())
 				allIdeas = append(allIdeas, ideas.Idea{
-					Slug:   slug,
-					Title:  slug,
+					Title:  name,
 					Status: "untriaged",
 					Body:   "## Research\n\n" + content,
 				})
-				slugSet[slug] = true
+				slugSet[slug.Slugify(name)] = true
 			}
 		}
 	}
@@ -133,12 +133,11 @@ func runMigrateData() { //nolint:gocyclo // one-off migration command, linear st
 			}
 			idea := migrateOldIdea(expBase+"/"+e.Name(), "parked")
 			if idea != nil {
-				if slugSet[idea.Slug] {
-					idea.Slug += "-exp"
+				if slugSet[slug.Slugify(idea.Title)] {
 					idea.Title += " (exp)"
-					fmt.Printf("  slug collision: renamed to %s\n", idea.Slug)
+					fmt.Printf("  title collision: renamed to %s\n", idea.Title)
 				}
-				slugSet[idea.Slug] = true
+				slugSet[slug.Slugify(idea.Title)] = true
 				allIdeas = append(allIdeas, *idea)
 			}
 		}
@@ -216,7 +215,6 @@ func migrateOldIdea(path, status string) *ideas.Idea {
 		idea.Title = base
 	}
 
-	idea.Slug = ideas.Slugify(idea.Title)
 	idea.Body = body
 
 	return idea

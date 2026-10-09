@@ -13,6 +13,7 @@ import (
 
 	"github.com/fahad/dashboard/internal/auth"
 	idealib "github.com/fahad/dashboard/internal/ideas"
+	"github.com/fahad/dashboard/internal/itemid"
 	"github.com/fahad/dashboard/internal/module"
 	"github.com/fahad/dashboard/internal/search"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -77,28 +78,27 @@ func (m *Module) Manifest() module.Manifest {
 func (m *Module) Routes(r chi.Router) {
 	h := m.handler
 	r.Get("/ideas", h.IdeasPage)
-	r.Get("/ideas/{slug}", h.IdeaDetail)
+	r.Get("/ideas/"+itemid.Route, h.IdeaDetail)
 	r.Post("/ideas/add", h.QuickAdd)
-	r.Post("/ideas/{slug}/triage", h.TriageAction)
-	r.Post("/ideas/{slug}/to-task", h.ToTask)
-	r.Post("/ideas/{slug}/edit", h.Edit)
-	r.Post("/ideas/{slug}/delete", h.DeleteIdea)
-	r.Post("/ideas/{slug}/restore", h.RestoreIdea)
-	r.Post("/ideas/{slug}/purge", h.PermanentDeleteIdea)
+	r.Post("/ideas/"+itemid.Route+"/triage", h.TriageAction)
+	r.Post("/ideas/"+itemid.Route+"/to-task", h.ToTask)
+	r.Post("/ideas/"+itemid.Route+"/edit", h.Edit)
+	r.Post("/ideas/"+itemid.Route+"/delete", h.DeleteIdea)
+	r.Post("/ideas/"+itemid.Route+"/restore", h.RestoreIdea)
+	r.Post("/ideas/"+itemid.Route+"/purge", h.PermanentDeleteIdea)
 	r.Post("/ideas/bulk/delete", h.BulkDeleteIdeas)
 	r.Post("/ideas/bulk/triage", h.BulkTriageIdeas)
 
 	r.Get("/exploration", http.RedirectHandler("/ideas", http.StatusMovedPermanently).ServeHTTP)
-	r.Get("/exploration/{slug}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/ideas/"+chi.URLParam(r, "slug"), http.StatusMovedPermanently) //nolint:gosec // G710: chi params cannot contain "/", so the target stays under /ideas/
-	})
+	// Old idea pages were addressed by slug, which no longer resolves.
+	r.Get("/exploration/*", http.RedirectHandler("/ideas", http.StatusMovedPermanently).ServeHTTP)
 }
 
 func (m *Module) APIRoutes(r chi.Router) {
 	r.Get("/ideas", m.handler.APIListIdeas)
 	r.Post("/ideas", m.handler.APIAddIdea)
-	r.Put("/ideas/{slug}/triage", m.handler.APITriageIdea)
-	r.Post("/ideas/{slug}/research", m.handler.APIAddResearch)
+	r.Put("/ideas/"+itemid.Route+"/triage", m.handler.APITriageIdea)
+	r.Post("/ideas/"+itemid.Route+"/research", m.handler.APIAddResearch)
 }
 
 // Watches covers every user's ideas.md, plus the owner's file when no-auth
@@ -135,7 +135,7 @@ func (m *Module) Widgets(_ context.Context, userID int64, _ time.Time) []module.
 		}
 		data.Count++
 		if len(data.Items) < untriagedShown {
-			data.Items = append(data.Items, module.WidgetItem{Label: idea.Title, URL: "/ideas/" + idea.Slug})
+			data.Items = append(data.Items, module.WidgetItem{Label: idea.Title, URL: "/ideas/" + idea.ID})
 		}
 	}
 	return []module.WidgetData{data}

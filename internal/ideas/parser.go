@@ -10,13 +10,11 @@ import (
 	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/itemid"
-	"github.com/fahad/dashboard/internal/slug"
 )
 
 // Idea represents a single idea in the flat-file ideas.md format.
 type Idea struct {
 	ID          string   `json:"id,omitempty"` // permanent, [id:]; empty until the service assigns one
-	Slug        string   `json:"slug"`
 	Title       string   `json:"title"`
 	Status      string   `json:"status"` // untriaged, parked, dropped, converted
 	Tags        []string `json:"tags,omitempty"`
@@ -176,7 +174,6 @@ func parseIdeaLine(raw string) *Idea {
 	}
 
 	idea.Title = strings.TrimSpace(raw)
-	idea.Slug = slug.Slugify(idea.Title)
 
 	// Only the four statuses exist; anything else (a typo, or text meant
 	// for the badge's CSS class) reads as untriaged.
@@ -246,9 +243,4 @@ func RenderIdeas(heading string, ideas []Idea) []byte {
 	}
 
 	return []byte(b.String())
-}
-
-// Slugify exposes the shared slug generation for use by the handler.
-func Slugify(title string) string {
-	return slug.Slugify(title)
 }

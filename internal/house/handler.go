@@ -181,26 +181,26 @@ func (h *Handler) AddMaintenance(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/house?msg=maintenance-added", http.StatusSeeOther)
 }
 
-// LogDone handles POST /house/maintenance/{slug}/log.
+// LogDone handles POST /house/maintenance/{id}/log.
 func (h *Handler) LogDone(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
 	note := strings.TrimSpace(r.FormValue("note"))
-	if err := h.maintenanceSvc.LogCompletion(slug, note); err != nil {
+	if err := h.maintenanceSvc.LogCompletion(id, note); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
 
-	http.Redirect(w, r, "/house?msg=completion-logged#"+slug, http.StatusSeeOther) //nolint:gosec // G710: fixed local path; slug only lands in the fragment
+	http.Redirect(w, r, "/house?msg=completion-logged#maint-"+id, http.StatusSeeOther) //nolint:gosec // G710: fixed local path; the ID only lands in the fragment
 }
 
-// EditMaintenance handles POST /house/maintenance/{slug}/edit.
+// EditMaintenance handles POST /house/maintenance/{id}/edit.
 func (h *Handler) EditMaintenance(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
@@ -216,7 +216,7 @@ func (h *Handler) EditMaintenance(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.maintenanceSvc.UpdateEdit(slug, title, notes, tags); err != nil {
+	if err := h.maintenanceSvc.UpdateEdit(id, title, notes, tags); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
@@ -224,34 +224,35 @@ func (h *Handler) EditMaintenance(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/house?msg=item-edited", http.StatusSeeOther)
 }
 
-// DeleteMaintenance handles POST /house/maintenance/{slug}/delete.
+// DeleteMaintenance handles POST /house/maintenance/{id}/delete.
 func (h *Handler) DeleteMaintenance(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
-	if err := h.maintenanceSvc.Delete(slug); err != nil {
+	id := chi.URLParam(r, "id")
+	if err := h.maintenanceSvc.Delete(id); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
-	httputil.OfferUndo(w, "/house/maintenance/"+slug+"/restore")
+	httputil.OfferUndo(w, "/house/maintenance/"+id+"/restore")
 	http.Redirect(w, r, "/house?msg=item-deleted", http.StatusSeeOther)
 }
 
-// RestoreMaintenance handles POST /house/maintenance/{slug}/restore.
+// RestoreMaintenance handles POST /house/maintenance/{id}/restore.
 func (h *Handler) RestoreMaintenance(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
-	if err := h.maintenanceSvc.Restore(slug); err != nil {
+	id := chi.URLParam(r, "id")
+	if err := h.maintenanceSvc.Restore(id); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
 	http.Redirect(w, r, "/house?msg=item-restored", http.StatusSeeOther)
 }
 
-// PurgeMaintenance handles POST /house/maintenance/{slug}/purge.
+// PurgeMaintenance handles POST /house/maintenance/{id}/purge.
 func (h *Handler) PurgeMaintenance(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
-	if err := h.maintenanceSvc.PermanentDelete(slug); err != nil {
+	id := chi.URLParam(r, "id")
+	if err := h.maintenanceSvc.PermanentDelete(id); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
+	h.commentarySt.ForgetItems(id)
 	http.Redirect(w, r, "/house?msg=item-purged", http.StatusSeeOther)
 }
 
@@ -308,29 +309,29 @@ func (h *Handler) AddProject(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/house?msg=project-added", http.StatusSeeOther)
 }
 
-// CompleteProject handles POST /house/projects/{slug}/complete.
+// CompleteProject handles POST /house/projects/{id}/complete.
 func (h *Handler) CompleteProject(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
-	if err := h.projectsSvc.Complete(slug); err != nil {
+	id := chi.URLParam(r, "id")
+	if err := h.projectsSvc.Complete(id); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
 	http.Redirect(w, r, "/house", http.StatusSeeOther)
 }
 
-// UncompleteProject handles POST /house/projects/{slug}/uncomplete.
+// UncompleteProject handles POST /house/projects/{id}/uncomplete.
 func (h *Handler) UncompleteProject(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
-	if err := h.projectsSvc.Uncomplete(slug); err != nil {
+	id := chi.URLParam(r, "id")
+	if err := h.projectsSvc.Uncomplete(id); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
 	http.Redirect(w, r, "/house", http.StatusSeeOther)
 }
 
-// EditProject handles POST /house/projects/{slug}/edit.
+// EditProject handles POST /house/projects/{id}/edit.
 func (h *Handler) EditProject(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
@@ -346,57 +347,58 @@ func (h *Handler) EditProject(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.projectsSvc.ApplyEdit(slug, tracker.Edit{Title: title, Body: &body, Tags: &tags}); err != nil {
+	if err := h.projectsSvc.ApplyEdit(id, tracker.Edit{Title: title, Body: &body, Tags: &tags}); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
 	http.Redirect(w, r, "/house?msg=item-edited", http.StatusSeeOther)
 }
 
-// UpdateStatus handles POST /house/projects/{slug}/status.
+// UpdateStatus handles POST /house/projects/{id}/status.
 func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
 	status := tracker.SanitiseStatus(r.FormValue("status"))
-	if err := h.projectsSvc.UpdateStatus(slug, status); err != nil {
+	if err := h.projectsSvc.UpdateStatus(id, status); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
 	http.Redirect(w, r, "/house?msg=status-updated", http.StatusSeeOther)
 }
 
-// DeleteProject handles POST /house/projects/{slug}/delete.
+// DeleteProject handles POST /house/projects/{id}/delete.
 func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
-	if err := h.projectsSvc.Delete(slug); err != nil {
+	id := chi.URLParam(r, "id")
+	if err := h.projectsSvc.Delete(id); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
-	httputil.OfferUndo(w, "/house/projects/"+slug+"/restore")
+	httputil.OfferUndo(w, "/house/projects/"+id+"/restore")
 	http.Redirect(w, r, "/house?msg=item-deleted", http.StatusSeeOther)
 }
 
-// RestoreProject handles POST /house/projects/{slug}/restore.
+// RestoreProject handles POST /house/projects/{id}/restore.
 func (h *Handler) RestoreProject(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
-	if err := h.projectsSvc.Restore(slug); err != nil {
+	id := chi.URLParam(r, "id")
+	if err := h.projectsSvc.Restore(id); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
 	http.Redirect(w, r, "/house?msg=item-restored", http.StatusSeeOther)
 }
 
-// PurgeProject handles POST /house/projects/{slug}/purge.
+// PurgeProject handles POST /house/projects/{id}/purge.
 func (h *Handler) PurgeProject(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
-	if err := h.projectsSvc.PermanentDelete(slug); err != nil {
+	id := chi.URLParam(r, "id")
+	if err := h.projectsSvc.PermanentDelete(id); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
+	h.commentarySt.ForgetItems(id)
 	http.Redirect(w, r, "/house?msg=item-purged", http.StatusSeeOther)
 }
 

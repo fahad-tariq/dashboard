@@ -11,7 +11,6 @@ import (
 	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/itemid"
-	"github.com/fahad/dashboard/internal/slug"
 )
 
 // ItemType distinguishes tasks from goals.
@@ -25,7 +24,6 @@ const (
 // Item represents a single tracker entry -- either a task or a goal.
 type Item struct {
 	ID        string // permanent, [id:]; empty until the service assigns one
-	Slug      string
 	Title     string
 	Type      ItemType
 	Priority  string  // "high", "medium", "low", or ""
@@ -280,7 +278,7 @@ func parseItemLine(raw string, done bool) *Item { //nolint:gocyclo // one branch
 		title = strings.TrimSpace(planOrderRe.ReplaceAllString(title, ""))
 	}
 
-	// Extract from-idea: [from-idea: slug]
+	// Extract from-idea: [from-idea: id]
 	if m := fromIdeaRe.FindStringSubmatch(title); m != nil {
 		item.FromIdea = m[1]
 		title = strings.TrimSpace(fromIdeaRe.ReplaceAllString(title, ""))
@@ -333,7 +331,6 @@ func parseItemLine(raw string, done bool) *Item { //nolint:gocyclo // one branch
 	}
 
 	item.Title = strings.TrimSpace(title)
-	item.Slug = Slugify(item.Title)
 
 	return item
 }
@@ -453,11 +450,5 @@ func ParseQuickAdd(input string) Item {
 	}
 
 	item.Title = strings.Join(titleParts, " ")
-	item.Slug = Slugify(item.Title)
 	return item
-}
-
-// Slugify converts a title to a URL-safe slug.
-func Slugify(title string) string {
-	return slug.Slugify(title)
 }

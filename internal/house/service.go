@@ -107,17 +107,17 @@ func (s *Service) ListOverdue(now time.Time) []MaintenanceItem {
 	return out
 }
 
-// Get returns a single item by slug.
-func (s *Service) Get(slug string) (*MaintenanceItem, error) {
+// Get returns a single item by id.
+func (s *Service) Get(id string) (*MaintenanceItem, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for i := range s.cache {
-		if s.cache[i].Slug == slug {
+		if id != "" && s.cache[i].ID == id {
 			cp := s.cache[i]
 			return &cp, nil
 		}
 	}
-	return nil, fmt.Errorf("maintenance item %q not found", slug)
+	return nil, fmt.Errorf("maintenance item %q not found", id)
 }
 
 // Add appends a new maintenance item.
@@ -132,7 +132,6 @@ func (s *Service) Add(item *MaintenanceItem) error {
 	if item.Added == "" {
 		item.Added = time.Now().In(s.loc).Format("2006-01-02")
 	}
-	item.Slug = Slugify(item.Title)
 
 	items, err := ParseMaintenance(s.maintPath)
 	if err != nil {
@@ -153,7 +152,7 @@ func (s *Service) Add(item *MaintenanceItem) error {
 	return nil
 }
 
-func (s *Service) mutate(slug string, fn func(*MaintenanceItem) error) error {
+func (s *Service) mutate(id string, fn func(*MaintenanceItem) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -163,7 +162,7 @@ func (s *Service) mutate(slug string, fn func(*MaintenanceItem) error) error {
 	}
 
 	for i := range items {
-		if items[i].Slug == slug {
+		if id != "" && items[i].ID == id {
 			if err := fn(&items[i]); err != nil {
 				return err
 			}
@@ -174,12 +173,12 @@ func (s *Service) mutate(slug string, fn func(*MaintenanceItem) error) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("maintenance item %q not found", slug)
+	return fmt.Errorf("maintenance item %q not found", id)
 }
 
 // LogCompletion prepends a new log entry for the given item.
-func (s *Service) LogCompletion(slug, note string) error {
-	return s.mutate(slug, func(item *MaintenanceItem) error {
+func (s *Service) LogCompletion(id, note string) error {
+	return s.mutate(id, func(item *MaintenanceItem) error {
 		// Strip newlines to prevent markdown injection.
 		note = strings.ReplaceAll(note, "\n", " ")
 		note = strings.ReplaceAll(note, "\r", " ")
@@ -196,11 +195,10 @@ func (s *Service) LogCompletion(slug, note string) error {
 }
 
 // UpdateEdit updates the title and tags of a maintenance item.
-func (s *Service) UpdateEdit(slug, title, notes string, tags []string) error {
-	return s.mutate(slug, func(item *MaintenanceItem) error {
+func (s *Service) UpdateEdit(id, title, notes string, tags []string) error {
+	return s.mutate(id, func(item *MaintenanceItem) error {
 		if title := httputil.CleanTitle(title); title != "" {
 			item.Title = title
-			item.Slug = Slugify(title)
 		}
 		item.Tags = tags
 		item.Notes = notes
@@ -209,34 +207,34 @@ func (s *Service) UpdateEdit(slug, title, notes string, tags []string) error {
 }
 
 // UpdateCadence changes the cadence of a maintenance item.
-func (s *Service) UpdateCadence(slug, cadence string) error {
+func (s *Service) UpdateCadence(id, cadence string) error {
 	if _, _, err := ParseCadence(cadence); err != nil {
 		return err
 	}
-	return s.mutate(slug, func(item *MaintenanceItem) error {
+	return s.mutate(id, func(item *MaintenanceItem) error {
 		item.Cadence = cadence
 		return nil
 	})
 }
 
 // Delete soft-deletes a maintenance item.
-func (s *Service) Delete(slug string) error {
-	return s.mutate(slug, func(item *MaintenanceItem) error {
+func (s *Service) Delete(id string) error {
+	return s.mutate(id, func(item *MaintenanceItem) error {
 		item.DeletedAt = time.Now().In(s.loc).Format("2006-01-02")
 		return nil
 	})
 }
 
 // Restore clears the DeletedAt field.
-func (s *Service) Restore(slug string) error {
-	return s.mutate(slug, func(item *MaintenanceItem) error {
+func (s *Service) Restore(id string) error {
+	return s.mutate(id, func(item *MaintenanceItem) error {
 		item.DeletedAt = ""
 		return nil
 	})
 }
 
 // PermanentDelete removes an item from the file entirely.
-func (s *Service) PermanentDelete(slug string) error {
+func (s *Service) PermanentDelete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -246,7 +244,7 @@ func (s *Service) PermanentDelete(slug string) error {
 	}
 
 	for i := range items {
-		if items[i].Slug == slug {
+		if id != "" && items[i].ID == id {
 			items = append(items[:i], items[i+1:]...)
 			if err := s.write(items); err != nil {
 				return err
@@ -255,30 +253,33 @@ func (s *Service) PermanentDelete(slug string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("maintenance item %q not found", slug)
+	return fmt.Errorf("maintenance item %q not found", id)
 }
 
-// PurgeExpired permanently removes items deleted more than `days` ago.
-func (s *Service) PurgeExpired(days int) error {
+// PurgeExpired permanently removes items deleted more than `days` ago
+// and returns their IDs.
+func (s *Service) PurgeExpired(days int) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	items, err := ParseMaintenance(s.maintPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var purged []string
 	cutoff := httputil.CutoffDate(days, s.loc)
 	var kept []MaintenanceItem
 	for _, it := range items {
 		if it.DeletedAt != "" {
 			deletedTime, err := time.Parse("2006-01-02", it.DeletedAt)
 			if err != nil {
-				slog.Warn("malformed deleted date, skipping purge", "slug", it.Slug, "deleted_at", it.DeletedAt)
+				slog.Warn("malformed deleted date, skipping purge", "id", it.ID, "deleted_at", it.DeletedAt)
 				kept = append(kept, it)
 				continue
 			}
 			if !deletedTime.After(cutoff) {
+				purged = append(purged, it.ID)
 				continue // purge
 			}
 		}
@@ -286,14 +287,14 @@ func (s *Service) PurgeExpired(days int) error {
 	}
 
 	if len(kept) == len(items) {
-		return nil
+		return nil, nil
 	}
 
 	if err := s.write(kept); err != nil {
-		return err
+		return nil, err
 	}
 	s.cache = kept
-	return nil
+	return purged, nil
 }
 
 // Search returns items whose title matches the query (case-insensitive).

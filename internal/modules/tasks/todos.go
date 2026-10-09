@@ -9,6 +9,7 @@ import (
 
 	"github.com/fahad/dashboard/internal/auth"
 	"github.com/fahad/dashboard/internal/insights"
+	"github.com/fahad/dashboard/internal/itemid"
 	"github.com/fahad/dashboard/internal/module"
 	"github.com/fahad/dashboard/internal/search"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -64,16 +65,16 @@ func (m *Todos) Routes(r chi.Router) {
 func (m *Todos) APIRoutes(r chi.Router) {
 	r.Get("/todos", tracker.APIListTodos(m.lists))
 	r.Post("/todos", tracker.APIAddTodo(m.lists))
-	r.Get("/todos/{slug}", tracker.APIGetTodo(m.lists))
-	r.Put("/todos/{slug}", tracker.APIUpdateTodo(m.lists))
-	r.Post("/todos/{slug}/complete", tracker.APICompleteTodo(m.lists))
-	r.Post("/todos/{slug}/uncomplete", tracker.APIUncompleteTodo(m.lists))
-	r.Delete("/todos/{slug}", tracker.APIDeleteTodo(m.lists))
-	r.Put("/todos/{slug}/priority", tracker.APIUpdatePriority(m.lists))
-	r.Put("/todos/{slug}/tags", tracker.APIUpdateTags(m.lists))
-	r.Post("/todos/{slug}/substeps", tracker.APIAddSubStep(m.lists))
-	r.Put("/todos/{slug}/substeps/{index}", tracker.APIToggleSubStep(m.lists))
-	r.Delete("/todos/{slug}/substeps/{index}", tracker.APIRemoveSubStep(m.lists))
+	r.Get("/todos/"+itemid.Route, tracker.APIGetTodo(m.lists))
+	r.Put("/todos/"+itemid.Route, tracker.APIUpdateTodo(m.lists))
+	r.Post("/todos/"+itemid.Route+"/complete", tracker.APICompleteTodo(m.lists))
+	r.Post("/todos/"+itemid.Route+"/uncomplete", tracker.APIUncompleteTodo(m.lists))
+	r.Delete("/todos/"+itemid.Route, tracker.APIDeleteTodo(m.lists))
+	r.Put("/todos/"+itemid.Route+"/priority", tracker.APIUpdatePriority(m.lists))
+	r.Put("/todos/"+itemid.Route+"/tags", tracker.APIUpdateTags(m.lists))
+	r.Post("/todos/"+itemid.Route+"/substeps", tracker.APIAddSubStep(m.lists))
+	r.Put("/todos/"+itemid.Route+"/substeps/{index}", tracker.APIToggleSubStep(m.lists))
+	r.Delete("/todos/"+itemid.Route+"/substeps/{index}", tracker.APIRemoveSubStep(m.lists))
 }
 
 // Watches covers every user's personal.md, plus the owner's file when
@@ -120,7 +121,7 @@ func goalsWidget(svc *tracker.Service, now time.Time) (module.WidgetData, bool) 
 			continue
 		}
 		data.Count++
-		row := module.WidgetItem{Label: it.Title, URL: "/goals#item-" + it.Slug}
+		row := module.WidgetItem{Label: it.Title, URL: "/goals#item-" + it.ID}
 		if it.Target > 0 {
 			label := formatNum(it.Current) + "/" + formatNum(it.Target)
 			if it.Unit != "" {

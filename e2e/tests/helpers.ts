@@ -30,6 +30,26 @@ export function uniqueTitle(prefix: string): string {
   return `${prefix} ${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
 }
 
+/** Fixed item IDs from e2e/fixtures; every seeded item line ends in `[id: ...]`. */
+export const fixtureIds = {
+  renewPassport: 'pssp0rt1',
+  planWeekendHike: 'h1k3wknd',
+  lodgeTaxReturn: 'txrtrn01',
+  read12Books: 'bks12gl0',
+  // Two open tasks titled "Call the bank".
+  callTheBank1: 'bnkc4ll1',
+  callTheBank2: 'bnkc4ll2',
+  bookDentist: 'dntst001',
+  schoolPickupRoster: 'rstr0001',
+  paintBackFence: 'fnc3pnt1',
+  cleanGutters: 'gttrs001',
+  homeWeatherStation: 'wthr5tn1',
+  learnToSail: 's41l1ng1',
+} as const;
+
+/** The 8-character item ID alphabet: digits and consonants other than y. */
+export const itemIdPattern = '[b-df-hj-np-tv-xz0-9]{8}';
+
 export function dataDir(): string {
   const dir = process.env.E2E_DATA_DIR;
   if (!dir) throw new Error('E2E_DATA_DIR is not set; run the suite via e2e/run.sh');

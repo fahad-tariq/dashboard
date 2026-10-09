@@ -17,6 +17,10 @@ const Alphabet = "bcdfghjklmnpqrstvwxz0123456789"
 // Len is the length of every ID.
 const Len = 8
 
+// Route is the chi path parameter for an item ID. Its character class spells
+// Alphabet as ranges, so a malformed ID never reaches a handler.
+const Route = "{id:[b-df-hj-np-tv-xz0-9]{8}}"
+
 var (
 	validRe = regexp.MustCompile(`^[` + Alphabet + `]{8}$`)
 	// tagRe matches a final [id: ...] tag, whatever it holds.
@@ -26,6 +30,37 @@ var (
 // Valid reports whether s is a well-formed ID.
 func Valid(s string) bool {
 	return validRe.MatchString(s)
+}
+
+// ParseList splits a comma-separated list of IDs, as select mode and the
+// planner post them. It returns nil if the list is empty or any entry is not
+// a valid ID.
+func ParseList(csv string) []string {
+	var ids []string
+	for part := range strings.SplitSeq(csv, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if !Valid(part) {
+			return nil
+		}
+		ids = append(ids, part)
+	}
+	return ids
+}
+
+// AllValid reports whether ids is non-empty and every entry is a valid ID.
+func AllValid(ids []string) bool {
+	if len(ids) == 0 {
+		return false
+	}
+	for _, id := range ids {
+		if !Valid(id) {
+			return false
+		}
+	}
+	return true
 }
 
 // New returns a random ID from crypto/rand.

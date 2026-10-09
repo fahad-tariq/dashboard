@@ -116,7 +116,7 @@ func TestRoundTrip_PreservesBlankLines(t *testing.T) {
 
 	original := []ideas.Idea{
 		{
-			Slug:    "test-idea",
+			ID:      "tstd1231",
 			Title:   "Test Idea",
 			Status:  "untriaged",
 			Tags:    []string{"go", "testing"},
@@ -168,9 +168,9 @@ func TestRoundTrip_MultipleIdeas(t *testing.T) {
 	path := filepath.Join(dir, "ideas.md")
 
 	original := []ideas.Idea{
-		{Slug: "first", Title: "First", Status: "untriaged", Added: "2026-03-14", Body: "Body one."},
-		{Slug: "second", Title: "Second", Status: "parked", Added: "2026-03-15", Body: "Body two."},
-		{Slug: "third", Title: "Third", Status: "dropped", Added: "2026-03-16"},
+		{ID: "frst1231", Title: "First", Status: "untriaged", Added: "2026-03-14", Body: "Body one."},
+		{ID: "scnd1231", Title: "Second", Status: "parked", Added: "2026-03-15", Body: "Body two."},
+		{ID: "thrd1231", Title: "Third", Status: "dropped", Added: "2026-03-16"},
 	}
 
 	if err := ideas.WriteIdeas(path, "Ideas", original); err != nil {
@@ -210,7 +210,7 @@ func TestServiceCRUD(t *testing.T) {
 
 	// Add.
 	idea := &ideas.Idea{
-		Slug:  "my-idea",
+		ID:    "md123451",
 		Title: "My Idea",
 		Tags:  []string{"test"},
 		Body:  "Some content.",
@@ -235,7 +235,7 @@ func TestServiceCRUD(t *testing.T) {
 	}
 
 	// Get.
-	got, err := svc.Get("my-idea")
+	got, err := svc.Get("md123451")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -244,10 +244,10 @@ func TestServiceCRUD(t *testing.T) {
 	}
 
 	// Edit.
-	if err := svc.Edit("my-idea", "", "Updated content.", []string{"test", "updated"}, nil); err != nil {
+	if err := svc.Edit("md123451", "", "Updated content.", []string{"test", "updated"}, nil); err != nil {
 		t.Fatalf("edit: %v", err)
 	}
-	updated, _ := svc.Get("my-idea")
+	updated, _ := svc.Get("md123451")
 	if !slices.Equal(updated.Tags, []string{"test", "updated"}) {
 		t.Errorf("updated tags: got %v", updated.Tags)
 	}
@@ -256,7 +256,7 @@ func TestServiceCRUD(t *testing.T) {
 	}
 
 	// Delete (soft-delete).
-	if err := svc.Delete("my-idea"); err != nil {
+	if err := svc.Delete("md123451"); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	list, _ = svc.List()
@@ -265,7 +265,7 @@ func TestServiceCRUD(t *testing.T) {
 	}
 
 	// Soft-deleted item still accessible via Get.
-	deleted, err := svc.Get("my-idea")
+	deleted, err := svc.Get("md123451")
 	if err != nil {
 		t.Fatalf("get soft-deleted: %v", err)
 	}
@@ -274,7 +274,7 @@ func TestServiceCRUD(t *testing.T) {
 	}
 
 	// Permanent delete removes completely.
-	if err := svc.Restore("my-idea"); err != nil {
+	if err := svc.Restore("md123451"); err != nil {
 		t.Fatalf("restore: %v", err)
 	}
 	list, _ = svc.List()
@@ -282,7 +282,7 @@ func TestServiceCRUD(t *testing.T) {
 		t.Errorf("expected 1 after restore, got %d", len(list))
 	}
 
-	if err := svc.PermanentDelete("my-idea"); err != nil {
+	if err := svc.PermanentDelete("md123451"); err != nil {
 		t.Fatalf("permanent delete: %v", err)
 	}
 	list, _ = svc.List()
@@ -300,18 +300,18 @@ func TestServiceTriage(t *testing.T) {
 
 	svc := ideas.NewService(path, time.UTC)
 	if err := svc.Add(&ideas.Idea{
-		Slug:  "park-me",
+		ID:    "prkm1231",
 		Title: "Park Me",
 		Body:  "To be parked.",
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := svc.Triage("park-me", "park"); err != nil {
+	if err := svc.Triage("prkm1231", "park"); err != nil {
 		t.Fatalf("triage park: %v", err)
 	}
 
-	idea, err := svc.Get("park-me")
+	idea, err := svc.Get("prkm1231")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -319,18 +319,18 @@ func TestServiceTriage(t *testing.T) {
 		t.Errorf("status: got %q, want parked", idea.Status)
 	}
 
-	if err := svc.Triage("park-me", "drop"); err != nil {
+	if err := svc.Triage("prkm1231", "drop"); err != nil {
 		t.Fatalf("triage drop: %v", err)
 	}
-	idea, _ = svc.Get("park-me")
+	idea, _ = svc.Get("prkm1231")
 	if idea.Status != "dropped" {
 		t.Errorf("status: got %q, want dropped", idea.Status)
 	}
 
-	if err := svc.Triage("park-me", "untriage"); err != nil {
+	if err := svc.Triage("prkm1231", "untriage"); err != nil {
 		t.Fatalf("triage untriage: %v", err)
 	}
-	idea, _ = svc.Get("park-me")
+	idea, _ = svc.Get("prkm1231")
 	if idea.Status != "untriaged" {
 		t.Errorf("status: got %q, want untriaged", idea.Status)
 	}
@@ -342,16 +342,16 @@ func TestConvertedToRoundTrip(t *testing.T) {
 
 	original := []ideas.Idea{
 		{
-			Slug:        "converted-idea",
+			ID:          "cnvrtdd1",
 			Title:       "Converted Idea",
 			Status:      "converted",
 			Tags:        []string{"feature"},
 			Added:       "2026-03-16",
-			ConvertedTo: "converted-idea",
+			ConvertedTo: "cnvrtdd1",
 			Body:        "This was converted to a task.",
 		},
 		{
-			Slug:   "normal-idea",
+			ID:     "nrmld121",
 			Title:  "Normal Idea",
 			Status: "untriaged",
 			Added:  "2026-03-17",
@@ -375,8 +375,8 @@ func TestConvertedToRoundTrip(t *testing.T) {
 	if got.Status != "converted" {
 		t.Errorf("status: got %q, want %q", got.Status, "converted")
 	}
-	if got.ConvertedTo != "converted-idea" {
-		t.Errorf("converted-to: got %q, want %q", got.ConvertedTo, "converted-idea")
+	if got.ConvertedTo != "cnvrtdd1" {
+		t.Errorf("converted-to: got %q, want %q", got.ConvertedTo, "cnvrtdd1")
 	}
 
 	normal := parsed[1]
@@ -391,7 +391,7 @@ func TestConvertedToPreservesBlankLines(t *testing.T) {
 
 	original := []ideas.Idea{
 		{
-			Slug:        "rich-idea",
+			ID:          "rchd1231",
 			Title:       "Rich Idea",
 			Status:      "converted",
 			ConvertedTo: "rich-task",
@@ -425,26 +425,26 @@ func TestServiceMarkConverted(t *testing.T) {
 
 	svc := ideas.NewService(path, time.UTC)
 	if err := svc.Add(&ideas.Idea{
-		Slug:  "convert-me",
+		ID:    "cnvrtm11",
 		Title: "Convert Me",
 		Body:  "To be converted.",
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := svc.MarkConverted("convert-me", "convert-me"); err != nil {
+	if err := svc.MarkConverted("cnvrtm11", "cnvrtm11"); err != nil {
 		t.Fatalf("mark converted: %v", err)
 	}
 
-	idea, err := svc.Get("convert-me")
+	idea, err := svc.Get("cnvrtm11")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if idea.Status != "converted" {
 		t.Errorf("status: got %q, want converted", idea.Status)
 	}
-	if idea.ConvertedTo != "convert-me" {
-		t.Errorf("converted-to: got %q, want %q", idea.ConvertedTo, "convert-me")
+	if idea.ConvertedTo != "cnvrtm11" {
+		t.Errorf("converted-to: got %q, want %q", idea.ConvertedTo, "cnvrtm11")
 	}
 
 	// Verify the idea is not deleted.
@@ -467,7 +467,7 @@ func TestConversionFlowWithLinkage(t *testing.T) {
 
 	ideaSvc := ideas.NewService(ideasPath, time.UTC)
 	if err := ideaSvc.Add(&ideas.Idea{
-		Slug:  "my-feature",
+		ID:    "mftr1231",
 		Title: "My Feature",
 		Tags:  []string{"tech"},
 		Body:  "Build a new feature.",
@@ -476,15 +476,16 @@ func TestConversionFlowWithLinkage(t *testing.T) {
 	}
 
 	// Simulate the full conversion flow.
-	idea, _ := ideaSvc.Get("my-feature")
+	idea, _ := ideaSvc.Get("mftr1231")
 
 	// Create tracker item with FromIdea set.
 	taskItem := tracker.Item{
+		ID:       "b7k2m9xq",
 		Title:    idea.Title,
 		Type:     tracker.TaskType,
 		Body:     idea.Body,
 		Tags:     idea.Tags,
-		FromIdea: idea.Slug,
+		FromIdea: idea.ID,
 	}
 	items := []tracker.Item{taskItem}
 	if err := tracker.WriteTracker(trackerPath, "Personal", items); err != nil {
@@ -492,26 +493,26 @@ func TestConversionFlowWithLinkage(t *testing.T) {
 	}
 
 	// Mark idea as converted.
-	taskSlug := tracker.Slugify(idea.Title)
-	if err := ideaSvc.MarkConverted("my-feature", taskSlug); err != nil {
+	taskID := taskItem.ID
+	if err := ideaSvc.MarkConverted("mftr1231", taskID); err != nil {
 		t.Fatalf("mark converted: %v", err)
 	}
 
 	// Verify linkage on both sides.
-	converted, _ := ideaSvc.Get("my-feature")
+	converted, _ := ideaSvc.Get("mftr1231")
 	if converted.Status != "converted" {
 		t.Errorf("idea status: got %q, want converted", converted.Status)
 	}
-	if converted.ConvertedTo != taskSlug {
-		t.Errorf("idea converted-to: got %q, want %q", converted.ConvertedTo, taskSlug)
+	if converted.ConvertedTo != taskID {
+		t.Errorf("idea converted-to: got %q, want %q", converted.ConvertedTo, taskID)
 	}
 
 	parsedItems, _ := tracker.ParseTracker(trackerPath)
 	if len(parsedItems) != 1 {
 		t.Fatalf("expected 1 task, got %d", len(parsedItems))
 	}
-	if parsedItems[0].FromIdea != "my-feature" {
-		t.Errorf("task from-idea: got %q, want %q", parsedItems[0].FromIdea, "my-feature")
+	if parsedItems[0].FromIdea != "mftr1231" {
+		t.Errorf("task from-idea: got %q, want %q", parsedItems[0].FromIdea, "mftr1231")
 	}
 }
 
@@ -521,7 +522,7 @@ func TestIdeasCaptionedImagesRoundTrip(t *testing.T) {
 
 	original := []ideas.Idea{
 		{
-			Slug:   "captioned-idea",
+			ID:     "cptndd11",
 			Title:  "Captioned Idea",
 			Status: "untriaged",
 			Added:  "2026-03-16",
@@ -555,18 +556,18 @@ func TestServiceAddResearch(t *testing.T) {
 
 	svc := ideas.NewService(path, time.UTC)
 	if err := svc.Add(&ideas.Idea{
-		Slug:  "research-me",
+		ID:    "rsrchm11",
 		Title: "Research Me",
 		Body:  "Initial content.",
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := svc.AddResearch("research-me", "Some research findings."); err != nil {
+	if err := svc.AddResearch("rsrchm11", "Some research findings."); err != nil {
 		t.Fatalf("add research: %v", err)
 	}
 
-	idea, _ := svc.Get("research-me")
+	idea, _ := svc.Get("rsrchm11")
 	if !strings.Contains(idea.Body, "## Research") {
 		t.Errorf("body should contain ## Research heading, got %q", idea.Body)
 	}

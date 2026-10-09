@@ -2,6 +2,7 @@ import {
   addTask,
   expandTrackerItem,
   expect,
+  fixtureIds,
   test,
   trackerItem,
   trackerSection,
@@ -83,4 +84,40 @@ test('seeded sub-steps render with progress', async ({ page }) => {
   await expandTrackerItem(item);
   await expect(item.locator('.substep-item-done', { hasText: 'Pick a trail' })).toBeVisible();
   await expect(item.locator('.tracker-item-body')).toHaveText('Somewhere within two hours of Sydney.');
+});
+
+test('two tasks with the same title are completed and trashed independently', async ({ page }) => {
+  const title = 'Call the bank';
+  const first = page.locator(`#open-list > #item-${fixtureIds.callTheBank1}`);
+  const second = page.locator(`#open-list > #item-${fixtureIds.callTheBank2}`);
+  await page.goto('/todos');
+  await waitForSseSettle(page);
+  await expect(trackerItem(page, title)).toHaveCount(2);
+  await expect(first).toBeVisible();
+  await expect(second).toBeVisible();
+
+  // Completing the first moves only it to Done.
+  await first.getByRole('button', { name: `Complete ${title}` }).click();
+  await expect(first).toHaveCount(0);
+  await expect(second).toBeVisible();
+  await expect(trackerItem(page, title)).toHaveCount(1);
+  const done = trackerSection(page, /^Done \(\d+\)/);
+  await done.locator('summary').click();
+  const doneFirst = done.locator(`#item-${fixtureIds.callTheBank1}`);
+  await expect(doneFirst).toBeVisible();
+  await expect(done.locator(`#item-${fixtureIds.callTheBank2}`)).toHaveCount(0);
+
+  // Reopen it, then trash the second: the first stays open.
+  await doneFirst.getByRole('button', { name: `Mark ${title} not done` }).click();
+  await expect(first).toBeVisible();
+  await expandTrackerItem(second);
+  await second.getByRole('button', { name: 'trash' }).click();
+  await expect(second).toHaveCount(0);
+  await expect(first).toBeVisible();
+  await expect(trackerItem(page, title)).toHaveCount(1);
+
+  // Undo brings the second back, leaving the fixture as it was.
+  await page.locator('#toast').getByRole('button', { name: 'undo' }).click();
+  await expect(second).toBeVisible();
+  await expect(trackerItem(page, title)).toHaveCount(2);
 });

@@ -6,6 +6,7 @@ import {
   expandPlanItem,
   expandTrackerItem,
   expect,
+  itemIdPattern,
   planFromPicker,
   planItem,
   STYLES,
@@ -133,12 +134,12 @@ for (const style of STYLES) for (const theme of THEMES) {
 
     test('idea detail page', async ({ page }) => {
       await gotoInTheme(page, '/ideas', theme);
-      const href = await page.evaluate(() => {
+      const href = await page.evaluate((idPattern) => {
         const link = Array.from(document.querySelectorAll<HTMLAnchorElement>('main a[href^="/ideas/"]')).find((a) =>
-          /^\/ideas\/[a-z0-9][a-z0-9-]*$/.test(a.getAttribute('href') ?? ''),
+          new RegExp(`^/ideas/${idPattern}$`).test(a.getAttribute('href') ?? ''),
         );
         return link?.getAttribute('href') ?? null;
-      });
+      }, itemIdPattern);
       expect(href, 'an idea detail link on /ideas').not.toBeNull();
       await gotoInTheme(page, href as string, theme);
       await expectNoSeriousViolations(page, `${href} (${style}, ${theme})`);
@@ -322,7 +323,7 @@ test('keyboard only: expand, reorder and complete a plan item', async ({ page })
 
   // Move whichever of the two is not already at the top of the personal list.
   const [title, rowId] = (await personalTitles()).indexOf(second) > 0 ? [second, secondId] : [first, firstId];
-  expect(rowId).toMatch(/^plan-todos-[a-z0-9-]+$/);
+  expect(rowId).toMatch(new RegExp(`^plan-todos-${itemIdPattern}$`));
   const byId = (suffix: string) => page.locator(`[id="${rowId}${suffix}"]`);
 
   // Start from the skip link rather than tabbing through the nav.

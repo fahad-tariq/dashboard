@@ -171,26 +171,26 @@ func TestMutationsKeepIDs(t *testing.T) {
 	trackerIDs := all("b7k2m9xq", "t9d3fgh2", "2c4v6b8n")
 	cases := map[string]tcase{
 		"tracker rename": {"tracker", trackerSeed, trk(func(s *tracker.Service) error {
-			return s.ApplyEdit("pay-rego", tracker.Edit{Title: "Pay the rego"})
+			return s.ApplyEdit("b7k2m9xq", tracker.Edit{Title: "Pay the rego"})
 		}), trackerIDs, map[string]string{"b7k2m9xq": "Pay the rego", "t9d3fgh2": "Pay rego"}},
-		"tracker complete":    {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.Complete("pay-rego") }), trackerIDs, nil},
-		"tracker trash":       {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.Delete("pay-rego") }), trackerIDs, nil},
-		"tracker restore":     {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.Restore("old") }), trackerIDs, nil},
-		"tracker bulk":        {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.BulkAddTag([]string{"old"}, "car") }), trackerIDs, nil},
-		"tracker bulk plan":   {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.BulkSetPlanned([]string{"old"}, "2026-10-10") }), trackerIDs, nil},
-		"tracker sub-step":    {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.ToggleSubStep("pay-rego", 0) }), trackerIDs, nil},
-		"tracker purge one":   {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.PermanentDelete("old") }), all("b7k2m9xq", "t9d3fgh2"), nil},
-		"tracker purge trash": {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.PurgeExpired(7) }), all("b7k2m9xq", "t9d3fgh2"), nil},
-		"idea rename": {"ideas", ideasSeed, ids(func(s *ideas.Service) error { return s.Edit("kayak", "Sea kayak", "", nil, nil) }),
+		"tracker complete":    {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.Complete("b7k2m9xq") }), trackerIDs, nil},
+		"tracker trash":       {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.Delete("b7k2m9xq") }), trackerIDs, nil},
+		"tracker restore":     {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.Restore("2c4v6b8n") }), trackerIDs, nil},
+		"tracker bulk":        {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.BulkAddTag([]string{"2c4v6b8n"}, "car") }), trackerIDs, nil},
+		"tracker bulk plan":   {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.BulkSetPlanned([]string{"2c4v6b8n"}, "2026-10-10") }), trackerIDs, nil},
+		"tracker sub-step":    {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.ToggleSubStep("b7k2m9xq", 0) }), trackerIDs, nil},
+		"tracker purge one":   {"tracker", trackerSeed, trk(func(s *tracker.Service) error { return s.PermanentDelete("2c4v6b8n") }), all("b7k2m9xq", "t9d3fgh2"), nil},
+		"tracker purge trash": {"tracker", trackerSeed, trk(func(s *tracker.Service) error { _, err := s.PurgeExpired(7); return err }), all("b7k2m9xq", "t9d3fgh2"), nil},
+		"idea rename": {"ideas", ideasSeed, ids(func(s *ideas.Service) error { return s.Edit("w3th3rs7", "Sea kayak", "", nil, nil) }),
 			all("w3th3rs7", "r4st8kd2"), map[string]string{"w3th3rs7": "Sea kayak"}},
-		"idea triage":     {"ideas", ideasSeed, ids(func(s *ideas.Service) error { return s.Triage("kayak", "park") }), all("w3th3rs7", "r4st8kd2"), nil},
-		"idea bulk trash": {"ideas", ideasSeed, ids(func(s *ideas.Service) error { return s.BulkDelete([]string{"kayak", "sail"}) }), all("w3th3rs7", "r4st8kd2"), nil},
-		"idea convert":    {"ideas", ideasSeed, ids(func(s *ideas.Service) error { return s.MarkConverted("kayak", "b7k2m9xq") }), all("w3th3rs7", "r4st8kd2"), nil},
-		"idea purge":      {"ideas", ideasSeed, ids(func(s *ideas.Service) error { return s.PermanentDelete("sail") }), all("w3th3rs7"), nil},
-		"maintenance log": {"maintenance", maintSeed, mnt(func(s *house.Service) error { return s.LogCompletion("clean-gutters", "done") }), all("g7tt3rs2", "4rc0nnn1"), nil},
-		"maintenance rename": {"maintenance", maintSeed, mnt(func(s *house.Service) error { return s.UpdateEdit("clean-gutters", "Clear gutters", "", nil) }),
+		"idea triage":     {"ideas", ideasSeed, ids(func(s *ideas.Service) error { return s.Triage("w3th3rs7", "park") }), all("w3th3rs7", "r4st8kd2"), nil},
+		"idea bulk trash": {"ideas", ideasSeed, ids(func(s *ideas.Service) error { return s.BulkDelete([]string{"w3th3rs7", "r4st8kd2"}) }), all("w3th3rs7", "r4st8kd2"), nil},
+		"idea convert":    {"ideas", ideasSeed, ids(func(s *ideas.Service) error { return s.MarkConverted("w3th3rs7", "b7k2m9xq") }), all("w3th3rs7", "r4st8kd2"), nil},
+		"idea purge":      {"ideas", ideasSeed, ids(func(s *ideas.Service) error { return s.PermanentDelete("r4st8kd2") }), all("w3th3rs7"), nil},
+		"maintenance log": {"maintenance", maintSeed, mnt(func(s *house.Service) error { return s.LogCompletion("g7tt3rs2", "done") }), all("g7tt3rs2", "4rc0nnn1"), nil},
+		"maintenance rename": {"maintenance", maintSeed, mnt(func(s *house.Service) error { return s.UpdateEdit("g7tt3rs2", "Clear gutters", "", nil) }),
 			all("g7tt3rs2", "4rc0nnn1"), map[string]string{"g7tt3rs2": "Clear gutters"}},
-		"maintenance purge": {"maintenance", maintSeed, mnt(func(s *house.Service) error { return s.PermanentDelete("service-aircon") }), all("g7tt3rs2"), nil},
+		"maintenance purge": {"maintenance", maintSeed, mnt(func(s *house.Service) error { return s.PermanentDelete("4rc0nnn1") }), all("g7tt3rs2"), nil},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -265,7 +265,7 @@ func TestExternalEditGetsIDsOnResync(t *testing.T) {
 	if changed, _ := svc.ResyncIfChanged(); changed {
 		t.Error("the service's own ID write was taken for an external edit")
 	}
-	if err := svc.Complete("pay-rego"); err != nil {
+	if err := svc.Complete("b7k2m9xq"); err != nil {
 		t.Fatal(err)
 	}
 	if got := fileIDs(t, "tracker", path); got[newID] != "Typed by hand" {
@@ -357,14 +357,14 @@ func TestMoveAndConvertUseIDs(t *testing.T) {
 		seedFile(t, ideasPath, "# Ideas\n\n- [ ] Kayak [status: untriaged] [id: w3th3rs7]\n")
 	})
 
-	if rr := env.post(t, "/todos/pay-rego/move", nil); rr.Code != 303 {
+	if rr := env.post(t, "/todos/b7k2m9xq/move", nil); rr.Code != 303 {
 		t.Fatalf("move: status %d", rr.Code)
 	}
 	if got := fileIDs(t, "tracker", family); got["b7k2m9xq"] != "Pay rego" {
 		t.Errorf("moved task lost its ID: %v", got)
 	}
 
-	if rr := env.post(t, "/ideas/kayak/to-task", url.Values{"target": {"personal"}}); rr.Code != 303 {
+	if rr := env.post(t, "/ideas/w3th3rs7/to-task", url.Values{"target": {"personal"}}); rr.Code != 303 {
 		t.Fatalf("to-task: status %d", rr.Code)
 	}
 	items, err := tracker.ParseTracker(personal)

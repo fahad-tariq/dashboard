@@ -107,15 +107,15 @@ func TestAPIAddIdea_InvalidJSON(t *testing.T) {
 
 func TestAPITriageIdea_Valid(t *testing.T) {
 	h, svc := newTestHandler(t)
-	if err := svc.Add(&ideas.Idea{Slug: "triage-me", Title: "Triage Me", Body: "Content."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "tr4g3m3b", Title: "Triage Me", Body: "Content."}); err != nil {
 		t.Fatal(err)
 	}
 
 	body := `{"action":"park"}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/ideas/triage-me/triage", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/ideas/tr4g3m3b/triage", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	req = withChiURLParam(req, "slug", "triage-me")
+	req = withChiURLParam(req, "id", "tr4g3m3b")
 
 	rec := httptest.NewRecorder()
 	h.APITriageIdea(rec, req)
@@ -124,7 +124,7 @@ func TestAPITriageIdea_Valid(t *testing.T) {
 		t.Fatalf("status: got %d, want %d\nbody: %s", rec.Code, http.StatusOK, rec.Body.String())
 	}
 
-	idea, _ := svc.Get("triage-me")
+	idea, _ := svc.Get("tr4g3m3b")
 	if idea.Status != "parked" {
 		t.Errorf("status: got %q, want parked", idea.Status)
 	}
@@ -132,15 +132,15 @@ func TestAPITriageIdea_Valid(t *testing.T) {
 
 func TestAPIAddResearch_Valid(t *testing.T) {
 	h, svc := newTestHandler(t)
-	if err := svc.Add(&ideas.Idea{Slug: "research-target", Title: "Research Target", Body: "Initial body."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "r3s3rch1", Title: "Research Target", Body: "Initial body."}); err != nil {
 		t.Fatal(err)
 	}
 
 	body := `{"content":"New research findings."}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/ideas/research-target/research", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/ideas/r3s3rch1/research", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	req = withChiURLParam(req, "slug", "research-target")
+	req = withChiURLParam(req, "id", "r3s3rch1")
 
 	rec := httptest.NewRecorder()
 	h.APIAddResearch(rec, req)
@@ -149,7 +149,7 @@ func TestAPIAddResearch_Valid(t *testing.T) {
 		t.Fatalf("status: got %d, want %d\nbody: %s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
 
-	idea, _ := svc.Get("research-target")
+	idea, _ := svc.Get("r3s3rch1")
 	if !strings.Contains(idea.Body, "## Research") {
 		t.Errorf("body should contain ## Research heading, got %q", idea.Body)
 	}
@@ -163,13 +163,13 @@ func TestAPIAddResearch_Valid(t *testing.T) {
 
 func TestAPIListIdeas_ExcludesDeleted(t *testing.T) {
 	h, svc := newTestHandler(t)
-	if err := svc.Add(&ideas.Idea{Slug: "active-idea", Title: "Active Idea", Body: "Visible."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "ct1v3dd1", Title: "Active Idea", Body: "Visible."}); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.Add(&ideas.Idea{Slug: "trashed-idea", Title: "Trashed Idea", Body: "Hidden."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "trsh3dd1", Title: "Trashed Idea", Body: "Hidden."}); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.Delete("trashed-idea"); err != nil {
+	if err := svc.Delete("trsh3dd1"); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 

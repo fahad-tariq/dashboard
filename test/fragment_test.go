@@ -64,14 +64,14 @@ func TestHTMXMutationReturnsFragment(t *testing.T) {
 		key           string
 		undo          string
 	}{
-		"tracker complete": {path: "/todos/plan-weekend-hike/complete", referer: "/todos", live: `class="tracker-page list-page"`, key: "task-completed"},
-		"tracker trash":    {path: "/todos/plan-weekend-hike/delete", referer: "/todos", live: `class="tracker-page list-page"`, key: "item-deleted", undo: "/todos/plan-weekend-hike/restore"},
-		"plan complete":    {path: "/plan/renew-passport/complete", form: url.Values{"list": {"todos"}}, live: `class="homepage-page"`, key: "plan-completed"},
-		"plan clear":       {path: "/plan/clear", form: url.Values{"list": {"family"}, "slug": {"organise-school-pickup-roster"}}, live: `class="homepage-page"`, key: "plan-cleared"},
-		"idea triage":      {path: "/ideas/home-weather-station/triage", form: url.Values{"action": {"park"}}, live: `class="ideas-page list-page"`, key: "idea-triaged"},
-		"idea trash":       {path: "/ideas/learn-to-sail/delete", live: `class="ideas-page list-page"`, key: "idea-deleted", undo: "/ideas/learn-to-sail/restore"},
-		"maintenance log":  {path: "/house/maintenance/clean-gutters/log", form: url.Values{"note": {"done"}}, live: `class="house-page"`, key: "completion-logged"},
-		"project trash":    {path: "/house/projects/paint-the-back-fence/delete", live: `class="house-page"`, key: "item-deleted", undo: "/house/projects/paint-the-back-fence/restore"},
+		"tracker complete": {path: "/todos/" + planHike + "/complete", referer: "/todos", live: `class="tracker-page list-page"`, key: "task-completed"},
+		"tracker trash":    {path: "/todos/" + planHike + "/delete", referer: "/todos", live: `class="tracker-page list-page"`, key: "item-deleted", undo: "/todos/" + planHike + "/restore"},
+		"plan complete":    {path: "/plan/" + renewPassport + "/complete", form: url.Values{"list": {"todos"}}, live: `class="homepage-page"`, key: "plan-completed"},
+		"plan clear":       {path: "/plan/clear", form: url.Values{"list": {"family"}, "id": {pickupRoster}}, live: `class="homepage-page"`, key: "plan-cleared"},
+		"idea triage":      {path: "/ideas/" + weatherStation + "/triage", form: url.Values{"action": {"park"}}, live: `class="ideas-page list-page"`, key: "idea-triaged"},
+		"idea trash":       {path: "/ideas/" + learnSail + "/delete", live: `class="ideas-page list-page"`, key: "idea-deleted", undo: "/ideas/" + learnSail + "/restore"},
+		"maintenance log":  {path: "/house/maintenance/" + cleanGutters + "/log", form: url.Values{"note": {"done"}}, live: `class="house-page"`, key: "completion-logged"},
+		"project trash":    {path: "/house/projects/" + paintFence + "/delete", live: `class="house-page"`, key: "item-deleted", undo: "/house/projects/" + paintFence + "/restore"},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -108,12 +108,12 @@ func TestHTMXMutationReturnsFragment(t *testing.T) {
 func TestFragmentResponsesLeavePlainPostsAndErrors(t *testing.T) {
 	h, _ := renderRouter(t)
 
-	rr := htmxPost(t, h, "/todos/plan-weekend-hike/complete", "/todos", nil, false)
+	rr := htmxPost(t, h, "/todos/"+planHike+"/complete", "/todos", nil, false)
 	if rr.Code != http.StatusSeeOther || rr.Header().Get("HX-Trigger") != "" {
 		t.Errorf("plain post: status %d, HX-Trigger %q; want 303 and none", rr.Code, rr.Header().Get("HX-Trigger"))
 	}
 
-	rr = htmxPost(t, h, "/todos/no-such-task/complete", "/todos", nil, true)
+	rr = htmxPost(t, h, "/todos/n0n3x1st/complete", "/todos", nil, true)
 	if rr.Code != http.StatusBadRequest || !strings.Contains(rr.Body.String(), "not found") {
 		t.Errorf("missing item: status %d body %q; want 400 with the reason", rr.Code, rr.Body.String())
 	}
@@ -125,7 +125,7 @@ func TestFragmentResponsesLeavePlainPostsAndErrors(t *testing.T) {
 
 	// A protocol-relative referer is reduced to its path and replayed
 	// locally; nothing points the page off the site.
-	rr = htmxPost(t, h, "/todos/plan-weekend-hike/complete", "//evil.example/x", nil, true)
+	rr = htmxPost(t, h, "/todos/"+planHike+"/complete", "//evil.example/x", nil, true)
 	if rr.Header().Get("Location") != "" || strings.Contains(rr.Body.String(), "evil.example") {
 		t.Errorf("foreign referer: status %d Location %q; want a local replay", rr.Code, rr.Header().Get("Location"))
 	}
@@ -163,8 +163,8 @@ func TestPlannerXHRGetsNoContent(t *testing.T) {
 		path string
 		form url.Values
 	}{
-		"set":     {"/plan/set", url.Values{"slug": {"plan-weekend-hike"}, "list": {"todos"}, "date": {"2026-10-09"}}},
-		"reorder": {"/plan/reorder", url.Values{"slugs": {"renew-passport"}, "list": {"todos"}}},
+		"set":     {"/plan/set", url.Values{"id": {planHike}, "list": {"todos"}, "date": {"2026-10-09"}}},
+		"reorder": {"/plan/reorder", url.Values{"ids": {renewPassport}, "list": {"todos"}}},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -185,12 +185,12 @@ func TestPlannerXHRGetsNoContent(t *testing.T) {
 // navigation; replaying it would swap the login form into the list.
 func TestFragmentReplayKeepsTheSession(t *testing.T) {
 	h, _, _ := authRouter(t, []testUser{{"owner@test.com", "correct-horse-battery"}}, map[string]string{
-		"1/personal.md": "# Personal\n\n- [ ] Water plants [added: 2026-10-01]\n",
+		"1/personal.md": "# Personal\n\n- [ ] Water plants [added: 2026-10-01] [id: w4t3rpl5]\n",
 	})
 	cookie := login(t, h, "owner@test.com", "correct-horse-battery")
 
 	post := func(c *http.Cookie) *httptest.ResponseRecorder {
-		req := httptest.NewRequest("POST", "/todos/water-plants/complete", nil)
+		req := httptest.NewRequest("POST", "/todos/w4t3rpl5/complete", nil)
 		req.Header.Set("HX-Request", "true")
 		req.Header.Set("Referer", "/todos")
 		req.Header.Set("HX-Current-URL", "http://example.com/todos")

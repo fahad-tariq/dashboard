@@ -85,14 +85,14 @@
         {{if .UnplannedPersonal}}
         <span class="plan-list-label meta-dim">Personal</span>
         {{range .UnplannedPersonal}}
-        <div class="plan-pick-item" id="pick-todos-{{.Slug}}" data-row data-keep-attr="style" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+        <div class="plan-pick-item" id="pick-todos-{{.ID}}" data-row data-keep-attr="style" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
             <span class="plan-pick-title">{{.Title}}</span>
             <div class="plan-pick-meta">
                 {{if eq .Priority "high"}}<span class="badge badge-priority-high">high</span>{{end}}
                 {{range $i, $t := .Tags}}{{if lt $i 2}}<span class="badge badge-tag">{{$t}}</span>{{end}}{{end}}
             </div>
             <form method="POST" action="/plan/set" class="inline-form" hx-boost="true">
-                <input type="hidden" name="slug" value="{{.Slug}}">
+                <input type="hidden" name="id" value="{{.ID}}">
                 <input type="hidden" name="list" value="todos">
                 <input type="hidden" name="date" value="{{$.Today}}">
                 <button type="submit" class="btn btn-secondary btn-sm" data-row-focus aria-label="Plan {{.Title}} for today">today</button>
@@ -103,14 +103,14 @@
         {{if .UnplannedFamily}}
         <span class="plan-list-label meta-dim">Family</span>
         {{range .UnplannedFamily}}
-        <div class="plan-pick-item" id="pick-family-{{.Slug}}" data-row data-keep-attr="style" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+        <div class="plan-pick-item" id="pick-family-{{.ID}}" data-row data-keep-attr="style" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
             <span class="plan-pick-title">{{.Title}}</span>
             <div class="plan-pick-meta">
                 {{if eq .Priority "high"}}<span class="badge badge-priority-high">high</span>{{end}}
                 {{range $i, $t := .Tags}}{{if lt $i 2}}<span class="badge badge-tag">{{$t}}</span>{{end}}{{end}}
             </div>
             <form method="POST" action="/plan/set" class="inline-form" hx-boost="true">
-                <input type="hidden" name="slug" value="{{.Slug}}">
+                <input type="hidden" name="id" value="{{.ID}}">
                 <input type="hidden" name="list" value="family">
                 <input type="hidden" name="date" value="{{$.Today}}">
                 <button type="submit" class="btn btn-secondary btn-sm" data-row-focus aria-label="Plan {{.Title}} for today">today</button>
@@ -121,14 +121,14 @@
         {{if .UnplannedHouse}}
         <span class="plan-list-label meta-dim">House</span>
         {{range .UnplannedHouse}}
-        <div class="plan-pick-item" id="pick-house-{{.Slug}}" data-row data-keep-attr="style" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
+        <div class="plan-pick-item" id="pick-house-{{.ID}}" data-row data-keep-attr="style" data-title="{{.Title}}" data-tags="{{range .Tags}}{{.}} {{end}}">
             <span class="plan-pick-title">{{.Title}}</span>
             <div class="plan-pick-meta">
                 {{if eq .Priority "high"}}<span class="badge badge-priority-high">high</span>{{end}}
                 {{range $i, $t := .Tags}}{{if lt $i 2}}<span class="badge badge-tag">{{$t}}</span>{{end}}{{end}}
             </div>
             <form method="POST" action="/plan/set" class="inline-form" hx-boost="true">
-                <input type="hidden" name="slug" value="{{.Slug}}">
+                <input type="hidden" name="id" value="{{.ID}}">
                 <input type="hidden" name="list" value="house">
                 <input type="hidden" name="date" value="{{$.Today}}">
                 <button type="submit" class="btn btn-secondary btn-sm" data-row-focus aria-label="Plan {{.Title}} for today">today</button>
@@ -171,10 +171,10 @@
 <script src="{{static "planner.js"}}"></script>
 {{end}}
 
-{{define "plan-row"}}{{$i := .Item}}{{$id := printf "plan-%s-%s" .List $i.Slug}}
-<div class="plan-item minimised{{if $i.Done}} plan-item-done{{end}}{{if ne $i.Planned .Today}} plan-item-carried{{end}}" id="{{$id}}" data-row data-keep-class="minimised" data-priority="{{$i.Priority}}" data-slug="{{$i.Slug}}" data-list="{{.List}}" {{if not $i.Done}}draggable="true"{{end}} onclick="planItemClick(event)">
+{{define "plan-row"}}{{$i := .Item}}{{$id := printf "plan-%s-%s" .List $i.ID}}
+<div class="plan-item minimised{{if $i.Done}} plan-item-done{{end}}{{if ne $i.Planned .Today}} plan-item-carried{{end}}" id="{{$id}}" data-row data-keep-class="minimised" data-priority="{{$i.Priority}}" data-id="{{$i.ID}}" data-list="{{.List}}" {{if not $i.Done}}draggable="true"{{end}} onclick="planItemClick(event)">
     {{if $i.Done}}<span class="plan-tick"><span class="tick tick-done" aria-hidden="true"></span></span>
-    {{else}}<form method="POST" action="/plan/{{$i.Slug}}/complete" class="inline-form plan-tick" data-submit="celebrate" hx-boost="true" hx-swap="morph swap:200ms">
+    {{else}}<form method="POST" action="/plan/{{$i.ID}}/complete" class="inline-form plan-tick" data-submit="celebrate" hx-boost="true" hx-swap="morph swap:200ms">
         <input type="hidden" name="list" value="{{.List}}">
         <button type="submit" class="tick item-complete-btn" id="{{$id}}-done" title="Complete"><span class="sr-only">done {{$i.Title}}</span></button>
     </form>{{end}}
@@ -201,11 +201,11 @@
                 <button type="button" class="btn btn-icon btn-sm plan-reorder-btn" id="{{$id}}-down" aria-label="Move {{$i.Title}} down" title="Move down" onclick="planMoveDown(this)">&darr;</button>
                 {{end}}
                 <form method="POST" action="/plan/clear" class="inline-form" hx-boost="true">
-                    <input type="hidden" name="slug" value="{{$i.Slug}}">
+                    <input type="hidden" name="id" value="{{$i.ID}}">
                     <input type="hidden" name="list" value="{{.List}}">
                     <button type="submit" class="btn btn-quiet btn-sm plan-remove-btn" id="{{$id}}-drop" title="Remove from plan">drop<span class="sr-only"> {{$i.Title}}</span></button>
                 </form>
-                <a href="/{{.List}}#item-{{$i.Slug}}" class="plan-item-link">open in list</a>
+                <a href="/{{.List}}#item-{{$i.ID}}" class="plan-item-link">open in list</a>
             </div>
         </div>
     </div>

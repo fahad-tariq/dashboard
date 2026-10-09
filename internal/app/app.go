@@ -124,7 +124,7 @@ func NewRouterWith(shutdownCtx context.Context, cfg *config.Config, database *sq
 	}
 	render.SetPages(tmpls.modules)
 	svcs.watch(cfg, broker, reg)
-	go runHourly(shutdownCtx, func() { svcs.purgeExpired(database) })
+	go runHourly(shutdownCtx, func() { svcs.purgeExpired(database, commentaryStore) })
 
 	sm := newSessionManager(shutdownCtx, cfg, database)
 	h := svcs.handlers(cfg, database, sm, broker, commentaryStore, tmpls.core, tmpls.login, reg)
@@ -293,19 +293,22 @@ func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.Sess
 }
 
 // purgeExpired removes items trashed more than trashRetentionDays ago from
-// the shared lists and every user's lists.
-func (s appServices) purgeExpired(database *sql.DB) {
-	type purger interface{ PurgeExpired(days int) error }
-	shared := map[string]purger{
-		"family":         s.registry.Family(),
-		"house projects": s.registry.HouseProjects(),
-		"maintenance":    s.registry.Maintenance(),
+// the shared lists and every user's lists, with their commentary.
+func (s appServices) purgeExpired(database *sql.DB, comments *commentary.Store) {
+	type purger interface {
+		PurgeExpired(days int) ([]string, error)
 	}
-	for name, svc := range shared {
-		if err := svc.PurgeExpired(trashRetentionDays); err != nil {
-			slog.Error("purge failed", "list", name, "error", err)
+	purge := func(svc purger, attrs ...any) {
+		ids, err := svc.PurgeExpired(trashRetentionDays)
+		if err != nil {
+			slog.Error("purge failed", append(attrs, "error", err)...)
+			return
 		}
+		comments.ForgetItems(ids...)
 	}
+	purge(s.registry.Family(), "list", "family")
+	purge(s.registry.HouseProjects(), "list", "house projects")
+	purge(s.registry.Maintenance(), "list", "maintenance")
 	users, err := auth.AllUsers(database)
 	if err != nil {
 		slog.Error("listing users for purge", "error", err)
@@ -313,12 +316,8 @@ func (s appServices) purgeExpired(database *sql.DB) {
 	}
 	for _, u := range users {
 		svc := s.registry.ForUser(u.ID)
-		if err := svc.Personal.PurgeExpired(trashRetentionDays); err != nil {
-			slog.Error("personal purge failed", "user_id", u.ID, "error", err)
-		}
-		if err := svc.Ideas.PurgeExpired(trashRetentionDays); err != nil {
-			slog.Error("ideas purge failed", "user_id", u.ID, "error", err)
-		}
+		purge(svc.Personal, "list", "personal", "user_id", u.ID)
+		purge(svc.Ideas, "list", "ideas", "user_id", u.ID)
 	}
 }
 

@@ -111,15 +111,15 @@ func TestPagesRefreshOnTheirModulesEvents(t *testing.T) {
 }
 
 // The homepage summary cards are module widgets. Links to tracker items use
-// the row ids (#item-{slug}), like the planner's "open in list" links.
+// the row ids (#item-{id}), like the planner's "open in list" links.
 func TestHomepageWidgetsComeFromModules(t *testing.T) {
 	env := newAppEnv(t)
 	userDir := filepath.Join(env.cfg.UserDataDir, "1")
 	files := map[string]string{
-		filepath.Join(userDir, "personal.md"): "# Personal\n\n- [ ] Water plants !high\n- [ ] Run 100km [goal: 20/100 km]\n",
-		filepath.Join(userDir, "ideas.md"):    "# Ideas\n\n- [ ] Solar oven [status: untriaged]\n",
-		env.cfg.FamilyPath:                    "# Family\n\n- [ ] Book holiday\n",
-		env.cfg.MaintenancePath:               "# Maintenance\n\n- [ ] Clean gutters [cadence: 3m]\n  - [x] 2020-01-01\n",
+		filepath.Join(userDir, "personal.md"): "# Personal\n\n- [ ] Water plants !high [id: w4t3rpl5]\n- [ ] Run 100km [goal: 20/100 km]\n",
+		filepath.Join(userDir, "ideas.md"):    "# Ideas\n\n- [ ] Solar oven [status: untriaged] [id: s0l4r0vn]\n",
+		env.cfg.FamilyPath:                    "# Family\n\n- [ ] Book holiday [id: hl1d4bk5]\n",
+		env.cfg.MaintenancePath:               "# Maintenance\n\n- [ ] Clean gutters [cadence: 3m] [id: gtt3rs55]\n  - [x] 2020-01-01\n",
 	}
 	for path, content := range files {
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
@@ -131,11 +131,11 @@ func TestHomepageWidgetsComeFromModules(t *testing.T) {
 
 	body := env.get(t, "/")
 	tests := map[string]struct{ id, want string }{
-		"todos":       {"widget-todos", `<a href="/todos#item-water-plants">Water plants</a>`},
+		"todos":       {"widget-todos", `<a href="/todos#item-w4t3rpl5">Water plants</a>`},
 		"goals":       {"widget-todos-goals", "Run 100km"},
-		"family":      {"widget-family", `<a href="/family#item-book-holiday">Book holiday</a>`},
-		"maintenance": {"widget-house", `<a href="/house#maint-clean-gutters">Clean gutters</a>`},
-		"ideas":       {"widget-ideas", `<a href="/ideas/solar-oven">Solar oven</a>`},
+		"family":      {"widget-family", `<a href="/family#item-hl1d4bk5">Book holiday</a>`},
+		"maintenance": {"widget-house", `<a href="/house#maint-gtt3rs55">Clean gutters</a>`},
+		"ideas":       {"widget-ideas", `<a href="/ideas/s0l4r0vn">Solar oven</a>`},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestHomepageWidgetsComeFromModules(t *testing.T) {
 	}
 
 	t.Run("search links tracker results to their rows", func(t *testing.T) {
-		if got := env.get(t, "/search?q=water"); !strings.Contains(got, `href="/todos#item-water-plants"`) {
+		if got := env.get(t, "/search?q=water"); !strings.Contains(got, `href="/todos#item-w4t3rpl5"`) {
 			t.Errorf("search result does not link to the row:\n%s", got)
 		}
 	})

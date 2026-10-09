@@ -34,7 +34,7 @@ func taskWidget(id, title, path string, svc *tracker.Service, today string) (mod
 	}
 	planned := map[string]bool{}
 	for _, it := range slices.Concat(svc.ListPlanned(today), svc.ListOverdue(today)) {
-		planned[it.Slug] = true
+		planned[it.ID] = true
 	}
 	var open []tracker.Item
 	count := 0
@@ -43,7 +43,7 @@ func taskWidget(id, title, path string, svc *tracker.Service, today string) (mod
 			continue
 		}
 		count++
-		if !planned[it.Slug] {
+		if !planned[it.ID] {
 			open = append(open, it)
 		}
 	}
@@ -64,7 +64,7 @@ func taskWidget(id, title, path string, svc *tracker.Service, today string) (mod
 	})
 	data := module.WidgetData{ID: id, Title: title, Count: count, CountLabel: "open", Note: "oldest first", Link: path}
 	for _, it := range open[:min(len(open), 5)] {
-		data.Items = append(data.Items, module.WidgetItem{Label: it.Title, URL: path + "#item-" + it.Slug, Priority: it.Priority})
+		data.Items = append(data.Items, module.WidgetItem{Label: it.Title, URL: path + "#item-" + it.ID, Priority: it.Priority})
 	}
 	return data, true
 }

@@ -16,11 +16,11 @@ import (
 
 func TestBuildCalendarDays_Grouping(t *testing.T) {
 	personal := []tracker.Item{
-		{Slug: "a", Title: "Task A", Planned: "2026-03-16"},
-		{Slug: "b", Title: "Task B", Planned: "2026-03-18"},
+		{Title: "Task A", Planned: "2026-03-16"},
+		{Title: "Task B", Planned: "2026-03-18"},
 	}
 	family := []tracker.Item{
-		{Slug: "c", Title: "Task C", Planned: "2026-03-16"},
+		{Title: "Task C", Planned: "2026-03-16"},
 	}
 
 	start := time.Date(2026, 3, 16, 0, 0, 0, 0, time.UTC) // Monday
@@ -64,8 +64,8 @@ func TestBuildCalendarDays_Grouping(t *testing.T) {
 
 func TestBuildCalendarDays_MonthBoundary(t *testing.T) {
 	personal := []tracker.Item{
-		{Slug: "a", Title: "Last day of March", Planned: "2026-03-31"},
-		{Slug: "b", Title: "First day of April", Planned: "2026-04-01"},
+		{Title: "Last day of March", Planned: "2026-03-31"},
+		{Title: "First day of April", Planned: "2026-04-01"},
 	}
 
 	// Week spanning March/April boundary: Mon 30 Mar - Sun 5 Apr.

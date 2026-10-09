@@ -61,7 +61,7 @@ func TestTrackerRedirectBackRejectsOffsiteReferer(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			env := setupTrackerEnv(t)
-			req := httptest.NewRequest("POST", "/todos/existing-task/priority", strings.NewReader("priority=high"))
+			req := httptest.NewRequest("POST", "/todos/"+existingTask+"/priority", strings.NewReader("priority=high"))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			if tc.referer != "" {
 				req.Header.Set("Referer", tc.referer)

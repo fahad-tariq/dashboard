@@ -55,9 +55,9 @@ func TestBulkTrashFlashIsNotAnError(t *testing.T) {
 // carries the restore path, which the layout offers as an undo button.
 func TestIdeaDetailTrashOffersUndo(t *testing.T) {
 	h, _ := renderRouter(t)
-	body := renderPage(t, h, "/ideas/home-weather-station")
+	body := renderPage(t, h, "/ideas/"+weatherStation)
 
-	form := regexp.MustCompile(`<form[^>]*action="/ideas/home-weather-station/delete"[^>]*>`).FindString(body)
+	form := regexp.MustCompile(`<form[^>]*action="/ideas/w3th3rst/delete"[^>]*>`).FindString(body)
 	if form == "" {
 		t.Fatal("no trash form on the idea detail page")
 	}
@@ -66,13 +66,13 @@ func TestIdeaDetailTrashOffersUndo(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/ideas/home-weather-station/delete", nil))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/ideas/"+weatherStation+"/delete", nil))
 	loc := rr.Header().Get("Location")
-	if rr.Code != http.StatusSeeOther || !strings.Contains(loc, "undo=%2Fideas%2Fhome-weather-station%2Frestore") {
+	if rr.Code != http.StatusSeeOther || !strings.Contains(loc, "undo=%2Fideas%2F"+weatherStation+"%2Frestore") {
 		t.Fatalf("trash = %d to %q, want a 303 carrying the restore path", rr.Code, loc)
 	}
 	list := renderPage(t, h, loc)
-	undo := `<form method="POST" action="/ideas/home-weather-station/restore" class="flash-undo">`
+	undo := `<form method="POST" action="/ideas/w3th3rst/restore" class="flash-undo">`
 	if !strings.Contains(list, undo) {
 		t.Errorf("list page after trash has no undo form %q", undo)
 	}

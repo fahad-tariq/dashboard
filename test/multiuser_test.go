@@ -128,19 +128,20 @@ func TestMoveFromPersonalToFamily(t *testing.T) {
 	}
 
 	// Add a task to personal.
-	if _, err := user1.Personal.AddItem(tracker.Item{Title: "Move me", Type: tracker.TaskType}); err != nil {
+	id, err := user1.Personal.AddItem(tracker.Item{Title: "Move me", Type: tracker.TaskType})
+	if err != nil {
 		t.Fatalf("adding personal task: %v", err)
 	}
 
 	// Get the item and move it to family.
-	item, err := user1.Personal.Get("move-me")
+	item, err := user1.Personal.Get(id)
 	if err != nil {
 		t.Fatalf("getting item: %v", err)
 	}
 	if _, err := familySvc.AddItem(*item); err != nil {
 		t.Fatalf("adding to family: %v", err)
 	}
-	if err := user1.Personal.Delete("move-me"); err != nil {
+	if err := user1.Personal.Delete(id); err != nil {
 		t.Fatalf("deleting from personal: %v", err)
 	}
 
@@ -170,7 +171,6 @@ func TestToTaskFromIdeasCreatesInUserPersonal(t *testing.T) {
 
 	// Add an idea for user 1.
 	idea := &ideas.Idea{
-		Slug:  "test-idea",
 		Title: "Test Idea",
 		Tags:  []string{"feature"},
 		Body:  "# Test Idea\n\nSome description.",

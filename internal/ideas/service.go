@@ -95,25 +95,12 @@ func (s *Service) ListDeleted() []Idea {
 	return out
 }
 
-// Get returns a single idea by slug.
-func (s *Service) Get(slug string) (*Idea, error) {
+// Get returns a single idea by id.
+func (s *Service) Get(id string) (*Idea, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for i := range s.cache {
-		if s.cache[i].Slug == slug {
-			cp := s.cache[i]
-			return &cp, nil
-		}
-	}
-	return nil, fmt.Errorf("idea %q not found", slug)
-}
-
-// GetByID returns a single idea by ID.
-func (s *Service) GetByID(id string) (*Idea, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for i := range s.cache {
-		if s.cache[i].ID == id {
+		if id != "" && s.cache[i].ID == id {
 			cp := s.cache[i]
 			return &cp, nil
 		}
@@ -130,7 +117,6 @@ func (s *Service) Add(idea *Idea) error {
 	if idea.Title == "" {
 		return fmt.Errorf("empty title")
 	}
-	idea.Slug = Slugify(idea.Title)
 	if idea.Added == "" {
 		idea.Added = time.Now().In(s.loc).Format("2006-01-02")
 	}
@@ -157,7 +143,7 @@ func (s *Service) Add(idea *Idea) error {
 	return nil
 }
 
-func (s *Service) mutate(slug string, fn func(*Idea) error) error {
+func (s *Service) mutate(id string, fn func(*Idea) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -167,7 +153,7 @@ func (s *Service) mutate(slug string, fn func(*Idea) error) error {
 	}
 
 	for i := range ideas {
-		if ideas[i].Slug == slug {
+		if id != "" && ideas[i].ID == id {
 			if err := fn(&ideas[i]); err != nil {
 				return err
 			}
@@ -178,11 +164,11 @@ func (s *Service) mutate(slug string, fn func(*Idea) error) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("idea %q not found", slug)
+	return fmt.Errorf("idea %q not found", id)
 }
 
-func (s *Service) Triage(slug, action string) error {
-	return s.mutate(slug, func(idea *Idea) error {
+func (s *Service) Triage(id, action string) error {
+	return s.mutate(id, func(idea *Idea) error {
 		switch action {
 		case "park":
 			idea.Status = "parked"
@@ -197,12 +183,11 @@ func (s *Service) Triage(slug, action string) error {
 	})
 }
 
-func (s *Service) Edit(slug, title, body string, tags, images []string) error {
+func (s *Service) Edit(id, title, body string, tags, images []string) error {
 	title = httputil.CleanTitle(title)
-	return s.mutate(slug, func(idea *Idea) error {
+	return s.mutate(id, func(idea *Idea) error {
 		if title != "" {
 			idea.Title = title
-			idea.Slug = Slugify(title)
 		}
 		idea.Body = body
 		idea.Tags = tags
@@ -213,7 +198,6 @@ func (s *Service) Edit(slug, title, body string, tags, images []string) error {
 				if t, ok := strings.CutPrefix(strings.TrimSpace(line), "# "); ok {
 					if t = httputil.CleanTitle(t); t != "" {
 						idea.Title = t
-						idea.Slug = Slugify(t)
 					}
 					break
 				}
@@ -224,23 +208,23 @@ func (s *Service) Edit(slug, title, body string, tags, images []string) error {
 }
 
 // Delete soft-deletes an idea by setting its DeletedAt timestamp.
-func (s *Service) Delete(slug string) error {
-	return s.mutate(slug, func(idea *Idea) error {
+func (s *Service) Delete(id string) error {
+	return s.mutate(id, func(idea *Idea) error {
 		idea.DeletedAt = time.Now().In(s.loc).Format("2006-01-02")
 		return nil
 	})
 }
 
 // Restore clears the DeletedAt field, returning an idea from trash.
-func (s *Service) Restore(slug string) error {
-	return s.mutate(slug, func(idea *Idea) error {
+func (s *Service) Restore(id string) error {
+	return s.mutate(id, func(idea *Idea) error {
 		idea.DeletedAt = ""
 		return nil
 	})
 }
 
 // PermanentDelete removes an idea from the file entirely.
-func (s *Service) PermanentDelete(slug string) error {
+func (s *Service) PermanentDelete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -250,7 +234,7 @@ func (s *Service) PermanentDelete(slug string) error {
 	}
 
 	for i := range ideas {
-		if ideas[i].Slug == slug {
+		if id != "" && ideas[i].ID == id {
 			ideas = append(ideas[:i], ideas[i+1:]...)
 			if err := s.write(ideas); err != nil {
 				return err
@@ -259,30 +243,33 @@ func (s *Service) PermanentDelete(slug string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("idea %q not found", slug)
+	return fmt.Errorf("idea %q not found", id)
 }
 
-// PurgeExpired permanently removes ideas deleted more than `days` ago.
-func (s *Service) PurgeExpired(days int) error {
+// PurgeExpired permanently removes ideas deleted more than `days` ago
+// and returns their IDs.
+func (s *Service) PurgeExpired(days int) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	ideas, err := ParseIdeas(s.ideasPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var purged []string
 	cutoff := httputil.CutoffDate(days, s.loc)
 	var kept []Idea
 	for _, idea := range ideas {
 		if idea.DeletedAt != "" {
 			deletedTime, err := time.Parse("2006-01-02", idea.DeletedAt)
 			if err != nil {
-				slog.Warn("malformed deleted date, skipping purge for idea", "slug", idea.Slug, "deleted_at", idea.DeletedAt)
+				slog.Warn("malformed deleted date, skipping purge for idea", "id", idea.ID, "deleted_at", idea.DeletedAt)
 				kept = append(kept, idea)
 				continue
 			}
 			if !deletedTime.After(cutoff) {
+				purged = append(purged, idea.ID)
 				continue // purge this idea (deleted on or before cutoff date)
 			}
 		}
@@ -290,20 +277,23 @@ func (s *Service) PurgeExpired(days int) error {
 	}
 
 	if len(kept) == len(ideas) {
-		return nil // nothing to purge
+		return nil, nil // nothing to purge
 	}
 
 	if err := s.write(kept); err != nil {
-		return err
+		return nil, err
 	}
 	s.cache = kept
-	return nil
+	return purged, nil
 }
 
 // mutateBatch acquires the lock once, parses the file once, applies fn to all
-// matched slugs, writes once, and updates cache once. If any slug is not found,
+// matched ids, writes once, and updates cache once. If any id is not found,
 // the entire batch fails with no changes written.
-func (s *Service) mutateBatch(slugs []string, fn func(*Idea) error) error {
+func (s *Service) mutateBatch(ids []string, fn func(*Idea) error) error {
+	if !itemid.AllValid(ids) {
+		return fmt.Errorf("one or more ideas not found")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -312,21 +302,21 @@ func (s *Service) mutateBatch(slugs []string, fn func(*Idea) error) error {
 		return err
 	}
 
-	slugSet := make(map[string]bool, len(slugs))
-	for _, sl := range slugs {
-		slugSet[sl] = true
+	idSet := make(map[string]bool, len(ids))
+	for _, v := range ids {
+		idSet[v] = true
 	}
 
 	found := 0
 	for i := range ideas {
-		if slugSet[ideas[i].Slug] {
+		if idSet[ideas[i].ID] {
 			if err := fn(&ideas[i]); err != nil {
 				return err
 			}
 			found++
 		}
 	}
-	if found != len(slugSet) {
+	if found != len(idSet) {
 		return fmt.Errorf("one or more ideas not found")
 	}
 
@@ -338,16 +328,16 @@ func (s *Service) mutateBatch(slugs []string, fn func(*Idea) error) error {
 }
 
 // BulkDelete soft-deletes multiple ideas in a single file write.
-func (s *Service) BulkDelete(slugs []string) error {
+func (s *Service) BulkDelete(ids []string) error {
 	now := time.Now().In(s.loc).Format("2006-01-02")
-	return s.mutateBatch(slugs, func(idea *Idea) error {
+	return s.mutateBatch(ids, func(idea *Idea) error {
 		idea.DeletedAt = now
 		return nil
 	})
 }
 
 // BulkTriage changes the status of multiple ideas in a single file write.
-func (s *Service) BulkTriage(slugs []string, action string) error {
+func (s *Service) BulkTriage(ids []string, action string) error {
 	var status string
 	switch action {
 	case "park":
@@ -357,15 +347,15 @@ func (s *Service) BulkTriage(slugs []string, action string) error {
 	default:
 		return fmt.Errorf("unknown bulk triage action %q", action)
 	}
-	return s.mutateBatch(slugs, func(idea *Idea) error {
+	return s.mutateBatch(ids, func(idea *Idea) error {
 		idea.Status = status
 		return nil
 	})
 }
 
 // MarkConverted sets an idea's status to "converted" and records the task's ID.
-func (s *Service) MarkConverted(slug, taskID string) error {
-	return s.mutate(slug, func(idea *Idea) error {
+func (s *Service) MarkConverted(id, taskID string) error {
+	return s.mutate(id, func(idea *Idea) error {
 		idea.Status = "converted"
 		idea.ConvertedTo = taskID
 		return nil
@@ -373,7 +363,7 @@ func (s *Service) MarkConverted(slug, taskID string) error {
 }
 
 // RelinkConvertedTo rewrites each [converted-to:] value for which resolve returns
-// a replacement (an older file's task slug becoming the task's ID) and
+// a replacement (an older file's task id becoming the task's ID) and
 // reports how many changed.
 func (s *Service) RelinkConvertedTo(resolve func(ref string) (string, bool)) (int, error) {
 	s.mu.Lock()
@@ -408,8 +398,8 @@ func (s *Service) All() []Idea {
 	return slices.Clone(s.cache)
 }
 
-func (s *Service) AddResearch(slug string, content string) error {
-	return s.mutate(slug, func(idea *Idea) error {
+func (s *Service) AddResearch(id string, content string) error {
+	return s.mutate(id, func(idea *Idea) error {
 		if !strings.Contains(idea.Body, "## Research") {
 			if idea.Body != "" {
 				idea.Body += "\n\n"
@@ -456,8 +446,8 @@ func (s *Service) Resync() error {
 
 // GetResearch returns the idea's body (research is inline).
 // This exists for API compatibility.
-func (s *Service) GetResearch(slug string) ([]byte, error) {
-	idea, err := s.Get(slug)
+func (s *Service) GetResearch(id string) ([]byte, error) {
+	idea, err := s.Get(id)
 	if err != nil {
 		return nil, err
 	}

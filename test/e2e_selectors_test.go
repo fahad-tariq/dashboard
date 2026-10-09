@@ -28,8 +28,8 @@ func TestE2ESelectorsExist(t *testing.T) {
 	classRe := regexp.MustCompile(`\.([a-zA-Z][\w-]*)`)
 	idRe := regexp.MustCompile(`#([a-zA-Z][\w-]*)`)
 	wordRe := regexp.MustCompile(`[a-zA-Z][\w-]*`)
-	// Row ids embed a slug from the seeded data (the Phase 4 id scheme).
-	slugID := regexp.MustCompile(`^(item|idea|maint|plan|pick|deleted)-`)
+	// Row ids embed an item ID from the seeded data.
+	rowID := regexp.MustCompile(`^(item|idea|maint|plan|pick|deleted)-`)
 
 	missing := map[string][]string{}
 	check := func(token, spec string) {
@@ -53,7 +53,7 @@ func TestE2ESelectorsExist(t *testing.T) {
 					checked++
 				}
 				for _, id := range idRe.FindAllStringSubmatch(sel, -1) {
-					if !slugID.MatchString(id[1]) {
+					if !rowID.MatchString(id[1]) {
 						check(id[1], spec)
 					}
 					checked++

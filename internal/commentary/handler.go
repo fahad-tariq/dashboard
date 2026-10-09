@@ -12,19 +12,17 @@ import (
 
 const maxCommentaryLen = 5000
 
-// APISetCommentary handles PUT /api/v1/commentary/{list}/{slug}.
+// APISetCommentary handles PUT /api/v1/commentary/{list}/{id}.
 func APISetCommentary(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		list := chi.URLParam(r, "list")
-		slug := chi.URLParam(r, "slug")
+		id := chi.URLParam(r, "id")
 
 		if !httputil.ValidateListWithIdeas(list) {
 			httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid list"})
 			return
 		}
-		list = httputil.NormaliseList(list)
-
 		var req struct {
 			Content string `json:"content"`
 		}
@@ -41,7 +39,7 @@ func APISetCommentary(store *Store) http.HandlerFunc {
 			return
 		}
 
-		if err := store.Set(slug, list, 1, req.Content); err != nil {
+		if err := store.Set(id, 1, req.Content); err != nil {
 			httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save commentary"})
 			return
 		}
@@ -49,11 +47,11 @@ func APISetCommentary(store *Store) http.HandlerFunc {
 	}
 }
 
-// APIGetCommentary handles GET /api/v1/commentary/{list}/{slug}.
+// APIGetCommentary handles GET /api/v1/commentary/{list}/{id}.
 func APIGetCommentary(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list := chi.URLParam(r, "list")
-		slug := chi.URLParam(r, "slug")
+		id := chi.URLParam(r, "id")
 
 		if !httputil.ValidateListWithIdeas(list) {
 			httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid list"})
@@ -61,33 +59,31 @@ func APIGetCommentary(store *Store) http.HandlerFunc {
 		}
 		list = httputil.NormaliseList(list)
 
-		content, err := store.Get(slug, list, 1)
+		content, err := store.Get(id, 1)
 		if err != nil {
 			httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read commentary"})
 			return
 		}
 
 		httputil.WriteJSON(w, http.StatusOK, map[string]any{
-			"slug":    slug,
+			"id":      id,
 			"list":    list,
 			"content": content,
 		})
 	}
 }
 
-// APIDeleteCommentary handles DELETE /api/v1/commentary/{list}/{slug}.
+// APIDeleteCommentary handles DELETE /api/v1/commentary/{list}/{id}.
 func APIDeleteCommentary(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list := chi.URLParam(r, "list")
-		slug := chi.URLParam(r, "slug")
+		id := chi.URLParam(r, "id")
 
 		if !httputil.ValidateListWithIdeas(list) {
 			httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid list"})
 			return
 		}
-		list = httputil.NormaliseList(list)
-
-		if err := store.Delete(slug, list, 1); err != nil {
+		if err := store.Delete(id, 1); err != nil {
 			httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete commentary"})
 			return
 		}

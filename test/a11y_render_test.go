@@ -19,6 +19,18 @@ import (
 // renderRouter builds the real router in local no-auth mode with a personal
 // list holding one task planned for today, one unplanned task with
 // sub-steps, and one goal.
+// IDs of the items renderRouter seeds.
+const (
+	renewPassport  = "r3nwpsp5"
+	planHike       = "hk3w33k5"
+	readBooks      = "r3dbkk12"
+	pickupRoster   = "r5t3rpk2"
+	weatherStation = "w3th3rst"
+	learnSail      = "s41l1ng5"
+	cleanGutters   = "gtt3rs55"
+	paintFence     = "f3nc3p41"
+)
+
 func renderRouter(t *testing.T) (http.Handler, *config.Config) {
 	t.Helper()
 	return renderRouterWith(t, nil)
@@ -39,24 +51,24 @@ func renderRouterWith(t *testing.T, edit func(seeds map[string]string, today str
 	}
 	today := time.Now().In(cfg.Location).Format("2006-01-02")
 	personal := "# Personal\n\n" +
-		"- [ ] Renew passport !high [added: 2026-09-01] [planned: " + today + "]\n" +
-		"- [ ] Plan weekend hike [added: 2026-09-20] [tags: outdoors]\n" +
+		"- [ ] Renew passport !high [added: 2026-09-01] [planned: " + today + "] [id: " + renewPassport + "]\n" +
+		"- [ ] Plan weekend hike [added: 2026-09-20] [tags: outdoors] [id: " + planHike + "]\n" +
 		"  - [x] Pick a trail\n" +
 		"  - [ ] Check the weather\n" +
-		"- [ ] Read 12 books [goal: 3/12 books] [added: 2026-01-01]\n"
+		"- [ ] Read 12 books [goal: 3/12 books] [added: 2026-01-01] [id: " + readBooks + "]\n"
 	seeds := map[string]string{
 		"PERSONAL_PATH": personal,
 		"FAMILY_PATH": "# Family\n\n" +
-			"- [ ] Organise school pickup roster !medium [added: 2026-09-15] [tags: kids] [planned: " + today + "]\n",
+			"- [ ] Organise school pickup roster !medium [added: 2026-09-15] [tags: kids] [planned: " + today + "] [id: " + pickupRoster + "]\n",
 		"IDEAS_PATH": "# Ideas\n\n" +
-			"- [ ] Home weather station [status: untriaged] [tags: electronics] [added: 2026-09-10]\n" +
+			"- [ ] Home weather station [status: untriaged] [tags: electronics] [added: 2026-09-10] [id: " + weatherStation + "]\n" +
 			"  Raspberry Pi with a BME280 sensor on the balcony.\n\n" +
-			"- [ ] Learn to sail [status: parked] [tags: outdoors] [added: 2026-08-01]\n",
+			"- [ ] Learn to sail [status: parked] [tags: outdoors] [added: 2026-08-01] [id: " + learnSail + "]\n",
 		"MAINTENANCE_PATH": "# Maintenance\n\n" +
-			"- [ ] Clean gutters [cadence: 6m] [tags: exterior] [added: 2026-01-10]\n" +
+			"- [ ] Clean gutters [cadence: 6m] [tags: exterior] [added: 2026-01-10] [id: " + cleanGutters + "]\n" +
 			"  - [x] 2026-03-01 - front and back\n",
 		"HOUSE_PROJECTS_PATH": "# House\n\n" +
-			"- [ ] Paint the back fence [added: 2026-09-01] [tags: exterior] [budget: 400] [status: todo]\n",
+			"- [ ] Paint the back fence [added: 2026-09-01] [tags: exterior] [budget: 400] [status: todo] [id: " + paintFence + "]\n",
 	}
 	if edit != nil {
 		edit(seeds, today)
@@ -109,7 +121,7 @@ func TestLayoutInjectsContrastCheckedSeasonalColour(t *testing.T) {
 	}
 }
 
-var mainPages = []string{"/", "/todos", "/family", "/goals", "/ideas", "/ideas/home-weather-station", "/house", "/digest", "/plan/calendar", "/plan/calendar?view=month"}
+var mainPages = []string{"/", "/todos", "/family", "/goals", "/ideas", "/ideas/" + weatherStation, "/house", "/digest", "/plan/calendar", "/plan/calendar?view=month"}
 
 func TestLayoutLandmarksAndLiveRegions(t *testing.T) {
 	h, _ := renderRouter(t)
@@ -174,13 +186,13 @@ func TestPlanRowMarkup(t *testing.T) {
 	h, _ := renderRouter(t)
 	body := renderPage(t, h, "/")
 	for _, want := range []string{
-		`id="plan-todos-renew-passport"`,
-		`<button type="button" class="plan-item-toggle" id="plan-todos-renew-passport-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="plan-todos-renew-passport-detail">`,
-		`class="plan-item-detail" id="plan-todos-renew-passport-detail"`,
-		`id="plan-todos-renew-passport-up" aria-label="Move Renew passport up"`,
-		`id="plan-todos-renew-passport-down" aria-label="Move Renew passport down"`,
-		`id="plan-todos-renew-passport-done"`,
-		`id="plan-todos-renew-passport-drop"`,
+		`id="plan-todos-r3nwpsp5"`,
+		`<button type="button" class="plan-item-toggle" id="plan-todos-r3nwpsp5-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="plan-todos-r3nwpsp5-detail">`,
+		`class="plan-item-detail" id="plan-todos-r3nwpsp5-detail"`,
+		`id="plan-todos-r3nwpsp5-up" aria-label="Move Renew passport up"`,
+		`id="plan-todos-r3nwpsp5-down" aria-label="Move Renew passport down"`,
+		`id="plan-todos-r3nwpsp5-done"`,
+		`id="plan-todos-r3nwpsp5-drop"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("homepage missing %q", want)
@@ -192,13 +204,13 @@ func TestTrackerRowMarkup(t *testing.T) {
 	h, _ := renderRouter(t)
 	body := renderPage(t, h, "/todos")
 	for _, want := range []string{
-		`id="item-plan-weekend-hike"`,
-		`id="item-plan-weekend-hike-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="item-plan-weekend-hike-detail" aria-label="Plan weekend hike"`,
-		`class="tracker-item-detail" id="item-plan-weekend-hike-detail"`,
-		`id="item-plan-weekend-hike-substep-0-toggle" aria-label="Mark step not done: Pick a trail"`,
-		`id="item-plan-weekend-hike-substep-1-toggle" aria-label="Mark step done: Check the weather"`,
-		`id="item-plan-weekend-hike-substep-1-promote" aria-label="Promote step to task: Check the weather"`,
-		`id="item-plan-weekend-hike-substep-1-remove" aria-label="Remove step: Check the weather"`,
+		`id="item-hk3w33k5"`,
+		`id="item-hk3w33k5-toggle" data-row-focus data-keep-attr="aria-expanded" aria-expanded="false" aria-controls="item-hk3w33k5-detail" aria-label="Plan weekend hike"`,
+		`class="tracker-item-detail" id="item-hk3w33k5-detail"`,
+		`id="item-hk3w33k5-substep-0-toggle" aria-label="Mark step not done: Pick a trail"`,
+		`id="item-hk3w33k5-substep-1-toggle" aria-label="Mark step done: Check the weather"`,
+		`id="item-hk3w33k5-substep-1-promote" aria-label="Promote step to task: Check the weather"`,
+		`id="item-hk3w33k5-substep-1-remove" aria-label="Remove step: Check the weather"`,
 		`aria-label="Complete Plan weekend hike"`,
 		`<span class="badge badge-tag">`,
 		`<aside class="list-rail" aria-label="Todos overview and filters">`,

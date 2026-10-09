@@ -55,7 +55,7 @@ func TestDueSoonWidget(t *testing.T) {
 				"- [ ] Trashed task [deadline: " + day(0) + "] [deleted: " + day(-1) + "]\n"
 		},
 		func(day func(int) string) string {
-			return "- [ ] Sign permission slip [deadline: " + day(1) + "]\n"
+			return "- [ ] Sign permission slip [deadline: " + day(1) + "] [id: s1gnp3rm]\n"
 		})
 	body := render(t, h, "/")
 	widget := dueWidgetRe.FindString(body)
@@ -74,11 +74,11 @@ func TestDueSoonWidget(t *testing.T) {
 	for _, want := range []string{
 		`<span class="stat-value stat-danger">4</span> <span class="meta-dim">due</span>`,
 		`<span class="widget-meta widget-meta-danger"><span aria-hidden="true">overdue 2d</span><span class="sr-only">Overdue by 2 days</span></span>`,
-		`<a href="/family#item-sign-permission-slip" data-row-focus>Sign permission slip</a> <span class="meta-dim">Family</span>`,
+		`<a href="/family#item-s1gnp3rm" data-row-focus>Sign permission slip</a> <span class="meta-dim">Family</span>`,
 		// Lodge tax is already in today's plan (carried over counts too).
 		`<span class="badge badge-planned">planned</span>`,
 		`aria-label="Plan Book dentist for today">plan today</button>`,
-		`<input type="hidden" name="list" value="family"><input type="hidden" name="slug" value="sign-permission-slip">`,
+		`<input type="hidden" name="id" value="s1gnp3rm"><input type="hidden" name="list" value="family">`,
 	} {
 		if !strings.Contains(widget, want) {
 			t.Errorf("widget lacks %s\n%s", want, widget)
@@ -105,9 +105,11 @@ func TestDueSoonWidgetHiddenWhenNothingIsDue(t *testing.T) {
 // in place of the button.
 func TestDueSoonPlanToday(t *testing.T) {
 	h, cfg := dueRouter(t,
-		func(day func(int) string) string { return "- [ ] Book dentist [deadline: " + day(1) + "]\n" },
+		func(day func(int) string) string {
+			return "- [ ] Book dentist [deadline: " + day(1) + "] [id: bkd3nt15]\n"
+		},
 		func(func(int) string) string { return "" })
-	req := httptest.NewRequest("POST", "/plan/set", strings.NewReader(url.Values{"slug": {"book-dentist"}, "list": {"todos"}}.Encode()))
+	req := httptest.NewRequest("POST", "/plan/set", strings.NewReader(url.Values{"id": {"bkd3nt15"}, "list": {"todos"}}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("HX-Request", "true")
 	rr := httptest.NewRecorder()
@@ -124,11 +126,11 @@ func TestDueSoonPlanToday(t *testing.T) {
 		t.Errorf("not planned for %s:\n%s", today, data)
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, `id="plan-todos-book-dentist"`) {
+	if !strings.Contains(body, `id="plan-todos-bkd3nt15"`) {
 		t.Error("task not in today's plan")
 	}
 	widget := dueWidgetRe.FindString(body)
-	for _, want := range []string{`id="widget-todos-due-todos-book-dentist" data-row`, `<span class="badge badge-planned">planned</span>`} {
+	for _, want := range []string{`id="widget-todos-due-todos-bkd3nt15" data-row`, `<span class="badge badge-planned">planned</span>`} {
 		if !strings.Contains(widget, want) {
 			t.Errorf("widget lacks %s\n%s", want, widget)
 		}
@@ -143,9 +145,9 @@ func TestDueSoonPlanToday(t *testing.T) {
 func TestDueBadges(t *testing.T) {
 	h, _ := dueRouter(t,
 		func(day func(int) string) string {
-			return "- [ ] Book dentist [deadline: " + day(0) + "] [planned: " + day(0) + "]\n" +
-				"- [ ] Pay rego [deadline: " + day(5) + "] [planned: " + day(0) + "]\n" +
-				"- [ ] Lodge tax [deadline: " + day(-1) + "] [planned: " + day(-3) + "]\n" +
+			return "- [ ] Book dentist [deadline: " + day(0) + "] [planned: " + day(0) + "] [id: bkd3nt15]\n" +
+				"- [ ] Pay rego [deadline: " + day(5) + "] [planned: " + day(0) + "] [id: p4r3g055]\n" +
+				"- [ ] Lodge tax [deadline: " + day(-1) + "] [planned: " + day(-3) + "] [id: l0dgt4x5]\n" +
 				"- [ ] Run 100km [goal: 10/100 km] [deadline: " + day(-1) + "]\n"
 		},
 		func(func(int) string) string { return "" })
@@ -156,24 +158,24 @@ func TestDueBadges(t *testing.T) {
 	if !strings.Contains(todos, `<span class="sr-only">Due today</span>`) {
 		t.Error("todos row lacks the due-today badge")
 	}
-	for _, want := range []string{`<label for="task-deadline" class="date-field-label">Due</label>`, `id="item-pay-rego-deadline" value="`, `data-action="clear-date" data-clear="item-pay-rego-deadline"`} {
+	for _, want := range []string{`<label for="task-deadline" class="date-field-label">Due</label>`, `id="item-p4r3g055-deadline" value="`, `data-action="clear-date" data-clear="item-p4r3g055-deadline"`} {
 		if !strings.Contains(todos, want) {
 			t.Errorf("todos page lacks %s", want)
 		}
 	}
 
 	home := render(t, h, "/")
-	planRow := func(slug string) string {
-		return regexp.MustCompile(`(?s)id="plan-todos-` + slug + `".*?<div class="plan-item-detail"`).FindString(home)
+	planRow := func(id string) string {
+		return regexp.MustCompile(`(?s)id="plan-todos-` + id + `".*?<div class="plan-item-detail"`).FindString(home)
 	}
-	if !strings.Contains(planRow("book-dentist"), `<span aria-hidden="true">due today</span>`) {
+	if !strings.Contains(planRow("bkd3nt15"), `<span aria-hidden="true">due today</span>`) {
 		t.Error("plan row due today lacks the label")
 	}
-	if strings.Contains(planRow("pay-rego"), "badge-due") {
+	if strings.Contains(planRow("p4r3g055"), "badge-due") {
 		t.Error("plan row due in 5 days shows a due label")
 	}
-	if !regexp.MustCompile(`<span class="plan-item-date">from 3 days ago &middot; <time class="badge badge-due badge-due-danger"`).MatchString(planRow("lodge-tax")) {
-		t.Errorf("carried and overdue row lacks the merged label:\n%s", planRow("lodge-tax"))
+	if !regexp.MustCompile(`<span class="plan-item-date">from 3 days ago &middot; <time class="badge badge-due badge-due-danger"`).MatchString(planRow("l0dgt4x5")) {
+		t.Errorf("carried and overdue row lacks the merged label:\n%s", planRow("l0dgt4x5"))
 	}
 
 	goals := render(t, h, "/goals")
@@ -192,12 +194,12 @@ func TestDeadlineSurvivesMoveAndPartialEdits(t *testing.T) {
 		wantRow string
 	}{
 		"move to family": {
-			path:    "/todos/book-dentist/move",
+			path:    "/todos/bkd3nt15/move",
 			file:    func(c *config.Config) string { return c.FamilyPath },
 			wantRow: "- [ ] Book dentist [added: 2026-09-01] [deadline: 2026-11-20]",
 		},
 		"house project edit": {
-			path:    "/house/projects/fix-the-gate/edit",
+			path:    "/house/projects/g4t3f1x5/edit",
 			form:    url.Values{"title": {"Fix the gate"}, "body": {"New hinges"}, "tags": {"exterior"}},
 			file:    func(c *config.Config) string { return c.HouseProjectsPath },
 			wantRow: "- [ ] Fix the gate [added: 2026-09-01] [deadline: 2026-11-20] [tags: exterior] [status: todo]",
@@ -206,8 +208,8 @@ func TestDeadlineSurvivesMoveAndPartialEdits(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			h, cfg := renderRouterWith(t, func(seeds map[string]string, _ string) {
-				seeds["PERSONAL_PATH"] = "# Personal\n\n- [ ] Book dentist [added: 2026-09-01] [deadline: 2026-11-20]\n"
-				seeds["HOUSE_PROJECTS_PATH"] = "# House\n\n- [ ] Fix the gate [added: 2026-09-01] [deadline: 2026-11-20] [status: todo]\n"
+				seeds["PERSONAL_PATH"] = "# Personal\n\n- [ ] Book dentist [added: 2026-09-01] [deadline: 2026-11-20] [id: bkd3nt15]\n"
+				seeds["HOUSE_PROJECTS_PATH"] = "# House\n\n- [ ] Fix the gate [added: 2026-09-01] [deadline: 2026-11-20] [status: todo] [id: g4t3f1x5]\n"
 			})
 			req := httptest.NewRequest("POST", tc.path, strings.NewReader(tc.form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

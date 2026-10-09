@@ -40,13 +40,17 @@ func BenchmarkMutate200(b *testing.B) {
 	if err := svc.Resync(); err != nil {
 		b.Fatal(err)
 	}
-	slug := tracker.Slugify("Task number 100")
+	items, err := svc.List()
+	if err != nil {
+		b.Fatal(err)
+	}
+	id := items[100].ID
 	priorities := []string{"high", "low"}
 
 	b.ReportAllocs()
 	i := 0
 	for b.Loop() {
-		if err := svc.UpdatePriority(slug, priorities[i%2]); err != nil {
+		if err := svc.UpdatePriority(id, priorities[i%2]); err != nil {
 			b.Fatal(err)
 		}
 		i++

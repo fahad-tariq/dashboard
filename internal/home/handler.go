@@ -18,6 +18,7 @@ import (
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/insights"
+	"github.com/fahad/dashboard/internal/itemid"
 	"github.com/fahad/dashboard/internal/module"
 	"github.com/fahad/dashboard/internal/tracker"
 )
@@ -138,14 +139,14 @@ func buildPlanSection(svc *tracker.Service, items []tracker.Item, today string) 
 	carried := svc.ListOverdue(today)
 	exclude := make(map[string]bool, len(planned)+len(carried))
 	for _, it := range planned {
-		exclude[it.Slug] = true
+		exclude[it.ID] = true
 	}
 	for _, it := range carried {
-		exclude[it.Slug] = true
+		exclude[it.ID] = true
 	}
 	var unplanned []tracker.Item
 	for _, it := range items {
-		if it.Type == tracker.TaskType && !it.Done && !exclude[it.Slug] {
+		if it.Type == tracker.TaskType && !it.Done && !exclude[it.ID] {
 			unplanned = append(unplanned, it)
 		}
 	}
@@ -330,11 +331,11 @@ func (h *Handler) SetPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slug := strings.TrimSpace(r.FormValue("slug"))
+	id := strings.TrimSpace(r.FormValue("id"))
 	list := strings.TrimSpace(r.FormValue("list"))
 	date := strings.TrimSpace(r.FormValue("date"))
-	if slug == "" || list == "" {
-		http.Error(w, "Missing slug or list", http.StatusBadRequest)
+	if !itemid.Valid(id) || list == "" {
+		http.Error(w, "Missing or invalid item id, or missing list", http.StatusBadRequest)
 		return
 	}
 	if date == "" {
@@ -347,7 +348,7 @@ func (h *Handler) SetPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := svc.SetPlanned(slug, date); err != nil {
+	if err := svc.SetPlanned(id, date); err != nil {
 		http.Error(w, planError(err, "Item not found"), http.StatusBadRequest)
 		return
 	}
@@ -366,10 +367,10 @@ func (h *Handler) ClearPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slug := strings.TrimSpace(r.FormValue("slug"))
+	id := strings.TrimSpace(r.FormValue("id"))
 	list := strings.TrimSpace(r.FormValue("list"))
-	if slug == "" || list == "" {
-		http.Error(w, "Missing slug or list", http.StatusBadRequest)
+	if !itemid.Valid(id) || list == "" {
+		http.Error(w, "Missing or invalid item id, or missing list", http.StatusBadRequest)
 		return
 	}
 
@@ -379,7 +380,7 @@ func (h *Handler) ClearPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := svc.ClearPlanned(slug); err != nil {
+	if err := svc.ClearPlanned(id); err != nil {
 		http.Error(w, "Item not found", http.StatusBadRequest)
 		return
 	}
@@ -387,17 +388,17 @@ func (h *Handler) ClearPlanned(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/?msg=plan-cleared", http.StatusSeeOther)
 }
 
-// CompletePlanned handles POST /plan/{slug}/complete -- completes a task from the plan view.
+// CompletePlanned handles POST /plan/{id}/complete -- completes a task from the plan view.
 func (h *Handler) CompletePlanned(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	list := strings.TrimSpace(r.FormValue("list"))
-	if slug == "" || list == "" {
-		http.Error(w, "Missing slug or list", http.StatusBadRequest)
+	if !itemid.Valid(id) || list == "" {
+		http.Error(w, "Missing or invalid item id, or missing list", http.StatusBadRequest)
 		return
 	}
 
@@ -407,7 +408,7 @@ func (h *Handler) CompletePlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := svc.Complete(slug); err != nil {
+	if err := svc.Complete(id); err != nil {
 		http.Error(w, "Item not found", http.StatusBadRequest)
 		return
 	}
@@ -422,11 +423,11 @@ func (h *Handler) BulkSetPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slugs := httputil.ParseCSV(r.FormValue("slugs"))
+	ids := itemid.ParseList(r.FormValue("ids"))
 	list := strings.TrimSpace(r.FormValue("list"))
 	date := strings.TrimSpace(r.FormValue("date"))
-	if len(slugs) == 0 || list == "" {
-		http.Error(w, "No items selected", http.StatusBadRequest)
+	if len(ids) == 0 || list == "" {
+		http.Error(w, "No valid items selected", http.StatusBadRequest)
 		return
 	}
 	if date == "" {
@@ -439,7 +440,7 @@ func (h *Handler) BulkSetPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := svc.BulkSetPlanned(slugs, date); err != nil {
+	if err := svc.BulkSetPlanned(ids, date); err != nil {
 		http.Error(w, planError(err, "Failed to update items"), http.StatusBadRequest)
 		return
 	}
@@ -454,10 +455,10 @@ func (h *Handler) ReorderPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slugs := httputil.ParseCSV(r.FormValue("slugs"))
+	ids := itemid.ParseList(r.FormValue("ids"))
 	list := strings.TrimSpace(r.FormValue("list"))
-	if len(slugs) == 0 || list == "" {
-		http.Error(w, "Missing slugs or list", http.StatusBadRequest)
+	if len(ids) == 0 || list == "" {
+		http.Error(w, "Missing or invalid item ids, or missing list", http.StatusBadRequest)
 		return
 	}
 
@@ -467,7 +468,7 @@ func (h *Handler) ReorderPlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := svc.ReorderPlanned(slugs); err != nil {
+	if err := svc.ReorderPlanned(ids); err != nil {
 		http.Error(w, "Failed to reorder", http.StatusBadRequest)
 		return
 	}
@@ -504,7 +505,7 @@ func (h *Handler) clearAllOverdue(l Lists) {
 	today := time.Now().In(h.loc).Format("2006-01-02")
 	for _, svc := range []*tracker.Service{l.Personal, l.Family, l.HouseProjects} {
 		for _, it := range svc.ListOverdue(today) {
-			_ = svc.ClearPlanned(it.Slug)
+			_ = svc.ClearPlanned(it.ID)
 		}
 	}
 }
@@ -544,9 +545,9 @@ func (h *Handler) APIListPlan(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// APISetPlan handles PUT /api/v1/plan/{slug}.
+// APISetPlan handles PUT /api/v1/plan/{id}.
 func (h *Handler) APISetPlan(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 
 	var body struct {
 		Date string `json:"date"`
@@ -565,7 +566,7 @@ func (h *Handler) APISetPlan(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid list", http.StatusBadRequest)
 		return
 	}
-	if err := svc.SetPlanned(slug, body.Date); err != nil {
+	if err := svc.SetPlanned(id, body.Date); err != nil {
 		if errors.Is(err, tracker.ErrInvalidDate) {
 			http.Error(w, tracker.InvalidDateMessage, http.StatusBadRequest)
 			return
@@ -577,9 +578,9 @@ func (h *Handler) APISetPlan(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// APIClearPlan handles DELETE /api/v1/plan/{slug}.
+// APIClearPlan handles DELETE /api/v1/plan/{id}.
 func (h *Handler) APIClearPlan(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 
 	var body struct {
 		List string `json:"list"`
@@ -594,7 +595,7 @@ func (h *Handler) APIClearPlan(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid list", http.StatusBadRequest)
 		return
 	}
-	if err := svc.ClearPlanned(slug); err != nil {
+	if err := svc.ClearPlanned(id); err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
@@ -607,7 +608,6 @@ func planItemsToAPI(items []tracker.Item, list string) []map[string]any {
 	for _, it := range items {
 		m := map[string]any{
 			"id":       it.ID,
-			"slug":     it.Slug,
 			"title":    it.Title,
 			"priority": it.Priority,
 			"done":     it.Done,

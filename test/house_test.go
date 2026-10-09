@@ -151,7 +151,6 @@ func TestParseMaintenanceNoLogEntries(t *testing.T) {
 func TestWriteMaintenanceRoundTrip(t *testing.T) {
 	input := []house.MaintenanceItem{
 		{
-			Slug:    "clean-gutters",
 			Title:   "Clean gutters",
 			Cadence: "3m",
 			Tags:    []string{"exterior"},
@@ -162,7 +161,6 @@ func TestWriteMaintenanceRoundTrip(t *testing.T) {
 			},
 		},
 		{
-			Slug:    "mow-lawn",
 			Title:   "Mow lawn",
 			Cadence: "2w",
 			Tags:    []string{"garden"},

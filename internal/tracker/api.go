@@ -47,7 +47,6 @@ func resolveListService(list string, personal, family *Service) *Service {
 func itemToAPI(it Item, list string) map[string]any {
 	m := map[string]any{
 		"id":              it.ID,
-		"slug":            it.Slug,
 		"title":           it.Title,
 		"type":            string(it.Type),
 		"priority":        it.Priority,
@@ -113,11 +112,11 @@ func APIListTodos(resolve ServiceResolver) http.HandlerFunc {
 	}
 }
 
-// APIGetTodo returns a single item by slug.
+// APIGetTodo returns a single item by id.
 func APIGetTodo(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		personalSvc, familySvc := resolve(r)
-		slug := chi.URLParam(r, "slug")
+		id := chi.URLParam(r, "id")
 		list := r.URL.Query().Get("list")
 		if !isAPIList(list) {
 			jsonError(w, "list parameter required (personal or family)", http.StatusBadRequest)
@@ -125,7 +124,7 @@ func APIGetTodo(resolve ServiceResolver) http.HandlerFunc {
 		}
 
 		svc := resolveListService(list, personalSvc, familySvc)
-		item, err := svc.Get(slug)
+		item, err := svc.Get(id)
 		if err != nil {
 			if httputil.IsNotFound(err) {
 				jsonError(w, "item not found", http.StatusNotFound)
@@ -188,8 +187,10 @@ func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 			return
 		}
 
-		item.ID = id
-		item.Slug = Slugify(item.Title)
+		// Answer with the stored item: the service cleans the title.
+		if created, err := svc.Get(id); err == nil {
+			item = *created
+		}
 		httputil.WriteJSON(w, http.StatusCreated, itemToAPI(item, httputil.NormaliseList(req.List)))
 	}
 }
@@ -199,7 +200,7 @@ func APIUpdateTodo(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		slug := chi.URLParam(r, "slug")
+		id := chi.URLParam(r, "id")
 		// Pointers tell an omitted field (kept) from an empty one (cleared).
 		var req struct {
 			Title    string    `json:"title"`
@@ -234,7 +235,7 @@ func APIUpdateTodo(resolve ServiceResolver) http.HandlerFunc {
 		}
 
 		svc := resolveListService(req.List, personalSvc, familySvc)
-		if e := svc.ApplyEdit(slug, edit); e != nil {
+		if e := svc.ApplyEdit(id, edit); e != nil {
 			if errors.Is(e, ErrInvalidDate) {
 				jsonError(w, "invalid deadline: use YYYY-MM-DD", http.StatusBadRequest)
 				return
@@ -252,22 +253,22 @@ func APIUpdateTodo(resolve ServiceResolver) http.HandlerFunc {
 
 // APICompleteTodo marks a task as done.
 func APICompleteTodo(resolve ServiceResolver) http.HandlerFunc {
-	return statusMutation(resolve, func(svc *Service, slug string) error {
-		return svc.Complete(slug)
+	return statusMutation(resolve, func(svc *Service, id string) error {
+		return svc.Complete(id)
 	})
 }
 
 // APIUncompleteTodo marks a task as not done.
 func APIUncompleteTodo(resolve ServiceResolver) http.HandlerFunc {
-	return statusMutation(resolve, func(svc *Service, slug string) error {
-		return svc.Uncomplete(slug)
+	return statusMutation(resolve, func(svc *Service, id string) error {
+		return svc.Uncomplete(id)
 	})
 }
 
 // APIDeleteTodo soft-deletes a task.
 func APIDeleteTodo(resolve ServiceResolver) http.HandlerFunc {
-	return statusMutation(resolve, func(svc *Service, slug string) error {
-		return svc.Delete(slug)
+	return statusMutation(resolve, func(svc *Service, id string) error {
+		return svc.Delete(id)
 	})
 }
 
@@ -276,7 +277,7 @@ func APIUpdatePriority(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		slug := chi.URLParam(r, "slug")
+		id := chi.URLParam(r, "id")
 		var req struct {
 			Priority string `json:"priority"`
 			List     string `json:"list"`
@@ -292,7 +293,7 @@ func APIUpdatePriority(resolve ServiceResolver) http.HandlerFunc {
 		req.Priority = sanitisePriority(req.Priority)
 
 		svc := resolveListService(req.List, personalSvc, familySvc)
-		if err := svc.UpdatePriority(slug, req.Priority); err != nil {
+		if err := svc.UpdatePriority(id, req.Priority); err != nil {
 			if httputil.IsNotFound(err) {
 				jsonError(w, "item not found", http.StatusNotFound)
 				return
@@ -309,7 +310,7 @@ func APIUpdateTags(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		slug := chi.URLParam(r, "slug")
+		id := chi.URLParam(r, "id")
 		var req struct {
 			Tags []string `json:"tags"`
 			List string   `json:"list"`
@@ -328,7 +329,7 @@ func APIUpdateTags(resolve ServiceResolver) http.HandlerFunc {
 		}
 
 		svc := resolveListService(req.List, personalSvc, familySvc)
-		if err := svc.UpdateTags(slug, req.Tags); err != nil {
+		if err := svc.UpdateTags(id, req.Tags); err != nil {
 			if httputil.IsNotFound(err) {
 				jsonError(w, "item not found", http.StatusNotFound)
 				return
@@ -345,7 +346,7 @@ func APIAddSubStep(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		slug := chi.URLParam(r, "slug")
+		id := chi.URLParam(r, "id")
 		var req struct {
 			Text string `json:"text"`
 			List string `json:"list"`
@@ -370,7 +371,7 @@ func APIAddSubStep(resolve ServiceResolver) http.HandlerFunc {
 		req.Text = httputil.StripInlineMetadata(req.Text)
 
 		svc := resolveListService(req.List, personalSvc, familySvc)
-		if err := svc.AddSubStep(slug, req.Text); err != nil {
+		if err := svc.AddSubStep(id, req.Text); err != nil {
 			if httputil.IsNotFound(err) {
 				jsonError(w, "item not found", http.StatusNotFound)
 				return
@@ -384,24 +385,24 @@ func APIAddSubStep(resolve ServiceResolver) http.HandlerFunc {
 
 // APIToggleSubStep toggles a sub-step's done state.
 func APIToggleSubStep(resolve ServiceResolver) http.HandlerFunc {
-	return subStepIndexMutation(resolve, func(svc *Service, slug string, index int) error {
-		return svc.ToggleSubStep(slug, index)
+	return subStepIndexMutation(resolve, func(svc *Service, id string, index int) error {
+		return svc.ToggleSubStep(id, index)
 	})
 }
 
 // APIRemoveSubStep removes a sub-step by index.
 func APIRemoveSubStep(resolve ServiceResolver) http.HandlerFunc {
-	return subStepIndexMutation(resolve, func(svc *Service, slug string, index int) error {
-		return svc.RemoveSubStep(slug, index)
+	return subStepIndexMutation(resolve, func(svc *Service, id string, index int) error {
+		return svc.RemoveSubStep(id, index)
 	})
 }
 
-// statusMutation is a helper for simple slug+list mutation endpoints.
-func statusMutation(resolve ServiceResolver, fn func(svc *Service, slug string) error) http.HandlerFunc {
+// statusMutation is a helper for simple id+list mutation endpoints.
+func statusMutation(resolve ServiceResolver, fn func(svc *Service, id string) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		slug := chi.URLParam(r, "slug")
+		id := chi.URLParam(r, "id")
 		var req struct {
 			List string `json:"list"`
 		}
@@ -415,7 +416,7 @@ func statusMutation(resolve ServiceResolver, fn func(svc *Service, slug string) 
 		}
 
 		svc := resolveListService(req.List, personalSvc, familySvc)
-		if err := fn(svc, slug); err != nil {
+		if err := fn(svc, id); err != nil {
 			if httputil.IsNotFound(err) {
 				jsonError(w, "item not found", http.StatusNotFound)
 				return
@@ -428,11 +429,11 @@ func statusMutation(resolve ServiceResolver, fn func(svc *Service, slug string) 
 }
 
 // subStepIndexMutation is a helper for sub-step operations that take an index from the URL.
-func subStepIndexMutation(resolve ServiceResolver, fn func(svc *Service, slug string, index int) error) http.HandlerFunc {
+func subStepIndexMutation(resolve ServiceResolver, fn func(svc *Service, id string, index int) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		slug := chi.URLParam(r, "slug")
+		id := chi.URLParam(r, "id")
 		indexStr := chi.URLParam(r, "index")
 		index, err := strconv.Atoi(indexStr)
 		if err != nil || index < 0 {
@@ -453,7 +454,7 @@ func subStepIndexMutation(resolve ServiceResolver, fn func(svc *Service, slug st
 		}
 
 		svc := resolveListService(req.List, personalSvc, familySvc)
-		if err := fn(svc, slug, index); err != nil {
+		if err := fn(svc, id, index); err != nil {
 			if strings.Contains(err.Error(), "out of range") {
 				jsonError(w, err.Error(), http.StatusBadRequest)
 				return

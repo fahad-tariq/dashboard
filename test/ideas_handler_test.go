@@ -84,14 +84,14 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 
 	r := chi.NewRouter()
 	r.Get("/ideas", handler.IdeasPage)
-	r.Get("/ideas/{slug}", handler.IdeaDetail)
+	r.Get("/ideas/{id}", handler.IdeaDetail)
 	r.Post("/ideas/add", handler.QuickAdd)
-	r.Post("/ideas/{slug}/triage", handler.TriageAction)
-	r.Post("/ideas/{slug}/to-task", handler.ToTask)
-	r.Post("/ideas/{slug}/edit", handler.Edit)
-	r.Post("/ideas/{slug}/delete", handler.DeleteIdea)
-	r.Post("/ideas/{slug}/restore", handler.RestoreIdea)
-	r.Post("/ideas/{slug}/purge", handler.PermanentDeleteIdea)
+	r.Post("/ideas/{id}/triage", handler.TriageAction)
+	r.Post("/ideas/{id}/to-task", handler.ToTask)
+	r.Post("/ideas/{id}/edit", handler.Edit)
+	r.Post("/ideas/{id}/delete", handler.DeleteIdea)
+	r.Post("/ideas/{id}/restore", handler.RestoreIdea)
+	r.Post("/ideas/{id}/purge", handler.PermanentDeleteIdea)
 	r.Post("/ideas/bulk/delete", handler.BulkDeleteIdeas)
 	r.Post("/ideas/bulk/triage", handler.BulkTriageIdeas)
 
@@ -103,19 +103,14 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 	}
 }
 
-// addTestIdea is a helper that adds an idea via the service and returns its slug.
+// addTestIdea adds an idea via the service and returns its ID.
 func addTestIdea(t *testing.T, svc *ideas.Service, title string) string {
 	t.Helper()
-	slug := ideas.Slugify(title)
-	err := svc.Add(&ideas.Idea{
-		Slug:  slug,
-		Title: title,
-		Tags:  []string{"test"},
-	})
-	if err != nil {
+	idea := &ideas.Idea{Title: title, Tags: []string{"test"}}
+	if err := svc.Add(idea); err != nil {
 		t.Fatalf("adding test idea: %v", err)
 	}
-	return slug
+	return idea.ID
 }
 
 func TestIdeasPageRenders(t *testing.T) {
@@ -139,9 +134,9 @@ func TestIdeasPageRenders(t *testing.T) {
 
 func TestIdeaDetailRenders(t *testing.T) {
 	env := setupIdeasEnv(t)
-	slug := addTestIdea(t, env.ideasSvc, "Build a widget")
+	id := addTestIdea(t, env.ideasSvc, "Build a widget")
 
-	req := httptest.NewRequest("GET", "/ideas/"+slug, nil)
+	req := httptest.NewRequest("GET", "/ideas/"+id, nil)
 	rr := httptest.NewRecorder()
 	env.router.ServeHTTP(rr, req)
 
@@ -189,11 +184,11 @@ func TestIdeasQuickAdd(t *testing.T) {
 	}
 
 	// Verify idea was created.
-	slug := ideas.Slugify("My new idea")
-	idea, err := env.ideasSvc.Get(slug)
-	if err != nil {
-		t.Fatalf("idea not found after quick add: %v", err)
+	list, err := env.ideasSvc.List()
+	if err != nil || len(list) != 1 {
+		t.Fatalf("ideas after quick add: %v, %v", list, err)
 	}
+	idea := list[0]
 	if idea.Title != "My new idea" {
 		t.Errorf("expected title 'My new idea', got %q", idea.Title)
 	}
@@ -225,10 +220,10 @@ func TestIdeasQuickAddEmptyTitle(t *testing.T) {
 
 func TestIdeasTriageAction(t *testing.T) {
 	env := setupIdeasEnv(t)
-	slug := addTestIdea(t, env.ideasSvc, "Triage me")
+	id := addTestIdea(t, env.ideasSvc, "Triage me")
 
 	form := url.Values{"action": {"park"}}
-	req := httptest.NewRequest("POST", "/ideas/"+slug+"/triage", strings.NewReader(form.Encode()))
+	req := httptest.NewRequest("POST", "/ideas/"+id+"/triage", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rr := httptest.NewRecorder()
 	env.router.ServeHTTP(rr, req)
@@ -238,7 +233,7 @@ func TestIdeasTriageAction(t *testing.T) {
 	}
 
 	// Verify status changed.
-	idea, err := env.ideasSvc.Get(slug)
+	idea, err := env.ideasSvc.Get(id)
 	if err != nil {
 		t.Fatalf("idea not found: %v", err)
 	}
@@ -251,7 +246,7 @@ func TestIdeasTriageAction(t *testing.T) {
 // as multipart/form-data, not urlencoded.
 func TestIdeasTriageActionMultipart(t *testing.T) {
 	env := setupIdeasEnv(t)
-	slug := addTestIdea(t, env.ideasSvc, "Triage via fetch")
+	id := addTestIdea(t, env.ideasSvc, "Triage via fetch")
 
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
@@ -261,7 +256,7 @@ func TestIdeasTriageActionMultipart(t *testing.T) {
 	if err := mw.Close(); err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest("POST", "/ideas/"+slug+"/triage", &body)
+	req := httptest.NewRequest("POST", "/ideas/"+id+"/triage", &body)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	rr := httptest.NewRecorder()
 	env.router.ServeHTTP(rr, req)
@@ -269,7 +264,7 @@ func TestIdeasTriageActionMultipart(t *testing.T) {
 	if rr.Code != http.StatusSeeOther {
 		t.Errorf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
-	idea, err := env.ideasSvc.Get(slug)
+	idea, err := env.ideasSvc.Get(id)
 	if err != nil {
 		t.Fatalf("idea not found: %v", err)
 	}
@@ -280,10 +275,10 @@ func TestIdeasTriageActionMultipart(t *testing.T) {
 
 func TestIdeasTriageInvalidAction(t *testing.T) {
 	env := setupIdeasEnv(t)
-	slug := addTestIdea(t, env.ideasSvc, "Bad triage")
+	id := addTestIdea(t, env.ideasSvc, "Bad triage")
 
 	form := url.Values{"action": {"invalid"}}
-	req := httptest.NewRequest("POST", "/ideas/"+slug+"/triage", strings.NewReader(form.Encode()))
+	req := httptest.NewRequest("POST", "/ideas/"+id+"/triage", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rr := httptest.NewRecorder()
 	env.router.ServeHTTP(rr, req)
@@ -295,9 +290,9 @@ func TestIdeasTriageInvalidAction(t *testing.T) {
 
 func TestIdeasToTask(t *testing.T) {
 	env := setupIdeasEnv(t)
-	slug := addTestIdea(t, env.ideasSvc, "Convert me")
+	id := addTestIdea(t, env.ideasSvc, "Convert me")
 
-	req := httptest.NewRequest("POST", "/ideas/"+slug+"/to-task", nil)
+	req := httptest.NewRequest("POST", "/ideas/"+id+"/to-task", nil)
 	rr := httptest.NewRecorder()
 	env.router.ServeHTTP(rr, req)
 
@@ -306,7 +301,7 @@ func TestIdeasToTask(t *testing.T) {
 	}
 
 	// Verify idea was marked as converted (not deleted).
-	idea, err := env.ideasSvc.Get(slug)
+	idea, err := env.ideasSvc.Get(id)
 	if err != nil {
 		t.Fatalf("expected idea to still exist after conversion, got error: %v", err)
 	}
@@ -333,7 +328,7 @@ func TestIdeasToTask(t *testing.T) {
 
 func TestIdeasEdit(t *testing.T) {
 	env := setupIdeasEnv(t)
-	slug := addTestIdea(t, env.ideasSvc, "Edit me")
+	id := addTestIdea(t, env.ideasSvc, "Edit me")
 
 	form := url.Values{
 		"title":  {"Edit me"},
@@ -341,7 +336,7 @@ func TestIdeasEdit(t *testing.T) {
 		"tags":   {"updated, tags"},
 		"images": {""},
 	}
-	req := httptest.NewRequest("POST", "/ideas/"+slug+"/edit", strings.NewReader(form.Encode()))
+	req := httptest.NewRequest("POST", "/ideas/"+id+"/edit", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rr := httptest.NewRecorder()
 	env.router.ServeHTTP(rr, req)
@@ -351,7 +346,7 @@ func TestIdeasEdit(t *testing.T) {
 	}
 
 	// Verify changes.
-	idea, err := env.ideasSvc.Get(slug)
+	idea, err := env.ideasSvc.Get(id)
 	if err != nil {
 		t.Fatalf("idea not found: %v", err)
 	}
@@ -365,7 +360,7 @@ func TestIdeasEdit(t *testing.T) {
 
 func TestIdeasEditTitle(t *testing.T) {
 	env := setupIdeasEnv(t)
-	slug := addTestIdea(t, env.ideasSvc, "Old title")
+	id := addTestIdea(t, env.ideasSvc, "Old title")
 
 	form := url.Values{
 		"title":  {"New title"},
@@ -373,7 +368,7 @@ func TestIdeasEditTitle(t *testing.T) {
 		"tags":   {""},
 		"images": {""},
 	}
-	req := httptest.NewRequest("POST", "/ideas/"+slug+"/edit", strings.NewReader(form.Encode()))
+	req := httptest.NewRequest("POST", "/ideas/"+id+"/edit", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rr := httptest.NewRecorder()
 	env.router.ServeHTTP(rr, req)
@@ -382,17 +377,10 @@ func TestIdeasEditTitle(t *testing.T) {
 		t.Errorf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	// Old slug should no longer work.
-	_, err := env.ideasSvc.Get(slug)
-	if err == nil {
-		t.Error("expected old slug to no longer resolve")
-	}
-
-	// New slug should work.
-	newSlug := ideas.Slugify("New title")
-	idea, err := env.ideasSvc.Get(newSlug)
+	// A rename keeps the ID.
+	idea, err := env.ideasSvc.Get(id)
 	if err != nil {
-		t.Fatalf("idea not found under new slug: %v", err)
+		t.Fatalf("idea not found after rename: %v", err)
 	}
 	if idea.Title != "New title" {
 		t.Errorf("expected title 'New title', got %q", idea.Title)
@@ -420,9 +408,9 @@ func TestIdeasEditNonExistent(t *testing.T) {
 
 func TestIdeasDelete(t *testing.T) {
 	env := setupIdeasEnv(t)
-	slug := addTestIdea(t, env.ideasSvc, "Delete me")
+	id := addTestIdea(t, env.ideasSvc, "Delete me")
 
-	req := httptest.NewRequest("POST", "/ideas/"+slug+"/delete", nil)
+	req := httptest.NewRequest("POST", "/ideas/"+id+"/delete", nil)
 	rr := httptest.NewRecorder()
 	env.router.ServeHTTP(rr, req)
 
@@ -431,7 +419,7 @@ func TestIdeasDelete(t *testing.T) {
 	}
 
 	// Verify idea is soft-deleted (still accessible via Get, excluded from List).
-	idea, err := env.ideasSvc.Get(slug)
+	idea, err := env.ideasSvc.Get(id)
 	if err != nil {
 		t.Fatalf("expected soft-deleted idea to still be accessible via Get: %v", err)
 	}
@@ -441,7 +429,7 @@ func TestIdeasDelete(t *testing.T) {
 
 	list, _ := env.ideasSvc.List()
 	for _, i := range list {
-		if i.Slug == slug {
+		if i.ID == id {
 			t.Error("soft-deleted idea should not appear in List()")
 		}
 	}
@@ -461,15 +449,15 @@ func TestIdeasDeleteNonExistent(t *testing.T) {
 
 func TestIdeasRestore(t *testing.T) {
 	env := setupIdeasEnv(t)
-	slug := addTestIdea(t, env.ideasSvc, "Restore me")
+	id := addTestIdea(t, env.ideasSvc, "Restore me")
 
 	// Soft delete.
-	req := httptest.NewRequest("POST", "/ideas/"+slug+"/delete", nil)
+	req := httptest.NewRequest("POST", "/ideas/"+id+"/delete", nil)
 	rr := httptest.NewRecorder()
 	env.router.ServeHTTP(rr, req)
 
 	// Restore.
-	req = httptest.NewRequest("POST", "/ideas/"+slug+"/restore", nil)
+	req = httptest.NewRequest("POST", "/ideas/"+id+"/restore", nil)
 	rr = httptest.NewRecorder()
 	env.router.ServeHTTP(rr, req)
 
@@ -477,7 +465,7 @@ func TestIdeasRestore(t *testing.T) {
 		t.Fatalf("expected 303, got %d", rr.Code)
 	}
 
-	idea, err := env.ideasSvc.Get(slug)
+	idea, err := env.ideasSvc.Get(id)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -488,7 +476,7 @@ func TestIdeasRestore(t *testing.T) {
 	list, _ := env.ideasSvc.List()
 	found := false
 	for _, i := range list {
-		if i.Slug == slug {
+		if i.ID == id {
 			found = true
 		}
 	}
@@ -499,15 +487,15 @@ func TestIdeasRestore(t *testing.T) {
 
 func TestIdeasPurge(t *testing.T) {
 	env := setupIdeasEnv(t)
-	slug := addTestIdea(t, env.ideasSvc, "Purge me")
+	id := addTestIdea(t, env.ideasSvc, "Purge me")
 
 	// Soft delete.
-	req := httptest.NewRequest("POST", "/ideas/"+slug+"/delete", nil)
+	req := httptest.NewRequest("POST", "/ideas/"+id+"/delete", nil)
 	rr := httptest.NewRecorder()
 	env.router.ServeHTTP(rr, req)
 
 	// Permanently delete.
-	req = httptest.NewRequest("POST", "/ideas/"+slug+"/purge", nil)
+	req = httptest.NewRequest("POST", "/ideas/"+id+"/purge", nil)
 	rr = httptest.NewRecorder()
 	env.router.ServeHTTP(rr, req)
 
@@ -515,7 +503,7 @@ func TestIdeasPurge(t *testing.T) {
 		t.Fatalf("expected 303, got %d", rr.Code)
 	}
 
-	_, err := env.ideasSvc.Get(slug)
+	_, err := env.ideasSvc.Get(id)
 	if err == nil {
 		t.Error("expected idea to be permanently deleted")
 	}
@@ -523,11 +511,11 @@ func TestIdeasPurge(t *testing.T) {
 
 func TestBulkDeleteIdeasHandler(t *testing.T) {
 	env := setupIdeasEnv(t)
-	slug1 := addTestIdea(t, env.ideasSvc, "Alpha idea")
-	slug2 := addTestIdea(t, env.ideasSvc, "Beta idea")
+	id1 := addTestIdea(t, env.ideasSvc, "Alpha idea")
+	id2 := addTestIdea(t, env.ideasSvc, "Beta idea")
 	addTestIdea(t, env.ideasSvc, "Gamma idea")
 
-	form := url.Values{"slugs": {slug1 + ", " + slug2}}
+	form := url.Values{"ids": {id1 + ", " + id2}}
 	req := httptest.NewRequest("POST", "/ideas/bulk/delete", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rr := httptest.NewRecorder()
@@ -549,11 +537,11 @@ func TestBulkDeleteIdeasHandler(t *testing.T) {
 
 func TestBulkTriageIdeasHandler(t *testing.T) {
 	env := setupIdeasEnv(t)
-	slug1 := addTestIdea(t, env.ideasSvc, "Triage alpha")
-	slug2 := addTestIdea(t, env.ideasSvc, "Triage beta")
+	id1 := addTestIdea(t, env.ideasSvc, "Triage alpha")
+	id2 := addTestIdea(t, env.ideasSvc, "Triage beta")
 
 	form := url.Values{
-		"slugs":  {slug1 + ", " + slug2},
+		"ids":    {id1 + ", " + id2},
 		"action": {"park"},
 	}
 	req := httptest.NewRequest("POST", "/ideas/bulk/triage", strings.NewReader(form.Encode()))
@@ -565,8 +553,8 @@ func TestBulkTriageIdeasHandler(t *testing.T) {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	a, _ := env.ideasSvc.Get(slug1)
-	b, _ := env.ideasSvc.Get(slug2)
+	a, _ := env.ideasSvc.Get(id1)
+	b, _ := env.ideasSvc.Get(id2)
 	if a.Status != "parked" || b.Status != "parked" {
 		t.Errorf("expected both parked, got %q and %q", a.Status, b.Status)
 	}
@@ -575,7 +563,7 @@ func TestBulkTriageIdeasHandler(t *testing.T) {
 func TestBulkDeleteIdeasNoSlugs(t *testing.T) {
 	env := setupIdeasEnv(t)
 
-	form := url.Values{"slugs": {""}}
+	form := url.Values{"ids": {""}}
 	req := httptest.NewRequest("POST", "/ideas/bulk/delete", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rr := httptest.NewRecorder()

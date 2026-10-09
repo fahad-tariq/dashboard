@@ -1,4 +1,4 @@
-import { expect, expectNoReload, markNoReload, test, uniqueTitle, waitForSseSettle } from './helpers';
+import { expect, expectNoReload, fixtureIds, markNoReload, test, uniqueTitle, waitForSseSettle } from './helpers';
 
 test('add a maintenance item and log a completion', async ({ page }) => {
   const title = uniqueTitle('Flush hot water tank');
@@ -46,11 +46,15 @@ test('seeded maintenance item shows its log and cadence', async ({ page }) => {
   await page.goto('/house');
   const row = page.locator('tr.house-row-maint', { hasText: 'Clean gutters' });
   await expect(row).toBeVisible();
+  await expect(row).toHaveAttribute('id', `maint-${fixtureIds.cleanGutters}`);
   // A click anywhere on the row still toggles it, as a mouse convenience.
   await row.locator('td').nth(1).click();
   await expect(row.locator('button.house-row-toggle')).toHaveAttribute('aria-expanded', 'true');
   const detail = row.locator('xpath=following-sibling::tr[1]');
+  await expect(detail).toHaveAttribute('id', `maint-${fixtureIds.cleanGutters}-detail`);
   await expect(detail).toContainText('every 6m');
   await expect(detail).toContainText('1 entry');
-  await expect(page.locator('tr.house-row-proj', { hasText: 'Paint the back fence' })).toBeVisible();
+  const project = page.locator('tr.house-row-proj', { hasText: 'Paint the back fence' });
+  await expect(project).toBeVisible();
+  await expect(project).toHaveAttribute('id', `item-${fixtureIds.paintBackFence}`);
 });

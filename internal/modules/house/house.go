@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	houselib "github.com/fahad/dashboard/internal/house"
+	"github.com/fahad/dashboard/internal/itemid"
 	"github.com/fahad/dashboard/internal/module"
 	"github.com/fahad/dashboard/internal/search"
 	"github.com/fahad/dashboard/internal/tracker"
@@ -45,19 +46,19 @@ func (m *Module) Routes(r chi.Router) {
 	h := m.handler
 	r.Get("/house", h.HousePage)
 	r.Post("/house/maintenance/add", h.AddMaintenance)
-	r.Post("/house/maintenance/{slug}/log", h.LogDone)
-	r.Post("/house/maintenance/{slug}/edit", h.EditMaintenance)
-	r.Post("/house/maintenance/{slug}/delete", h.DeleteMaintenance)
-	r.Post("/house/maintenance/{slug}/restore", h.RestoreMaintenance)
-	r.Post("/house/maintenance/{slug}/purge", h.PurgeMaintenance)
+	r.Post("/house/maintenance/"+itemid.Route+"/log", h.LogDone)
+	r.Post("/house/maintenance/"+itemid.Route+"/edit", h.EditMaintenance)
+	r.Post("/house/maintenance/"+itemid.Route+"/delete", h.DeleteMaintenance)
+	r.Post("/house/maintenance/"+itemid.Route+"/restore", h.RestoreMaintenance)
+	r.Post("/house/maintenance/"+itemid.Route+"/purge", h.PurgeMaintenance)
 	r.Post("/house/projects/add", h.AddProject)
-	r.Post("/house/projects/{slug}/edit", h.EditProject)
-	r.Post("/house/projects/{slug}/complete", h.CompleteProject)
-	r.Post("/house/projects/{slug}/uncomplete", h.UncompleteProject)
-	r.Post("/house/projects/{slug}/status", h.UpdateStatus)
-	r.Post("/house/projects/{slug}/delete", h.DeleteProject)
-	r.Post("/house/projects/{slug}/restore", h.RestoreProject)
-	r.Post("/house/projects/{slug}/purge", h.PurgeProject)
+	r.Post("/house/projects/"+itemid.Route+"/edit", h.EditProject)
+	r.Post("/house/projects/"+itemid.Route+"/complete", h.CompleteProject)
+	r.Post("/house/projects/"+itemid.Route+"/uncomplete", h.UncompleteProject)
+	r.Post("/house/projects/"+itemid.Route+"/status", h.UpdateStatus)
+	r.Post("/house/projects/"+itemid.Route+"/delete", h.DeleteProject)
+	r.Post("/house/projects/"+itemid.Route+"/restore", h.RestoreProject)
+	r.Post("/house/projects/"+itemid.Route+"/purge", h.PurgeProject)
 }
 
 func (m *Module) Watches() []module.WatchSpec {
@@ -85,7 +86,7 @@ func (m *Module) Widgets(_ context.Context, _ int64, now time.Time) []module.Wid
 	}
 	data := module.WidgetData{Title: "House Maintenance", Count: len(overdue), CountLabel: "overdue", Link: "/house"}
 	for _, it := range overdue {
-		data.Items = append(data.Items, module.WidgetItem{Label: it.Title, URL: "/house#maint-" + it.Slug, Severity: module.SeverityDanger})
+		data.Items = append(data.Items, module.WidgetItem{Label: it.Title, URL: "/house#maint-" + it.ID, Severity: module.SeverityDanger})
 	}
 	return []module.WidgetData{data}
 }

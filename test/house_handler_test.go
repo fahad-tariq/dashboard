@@ -19,23 +19,23 @@ import (
 func TestHouseProjectEditKeepsImages(t *testing.T) {
 	dir := t.TempDir()
 	projectsPath := filepath.Join(dir, "house-projects.md")
-	writeFile(t, projectsPath, "# House Projects\n\n- [ ] Kitchen splashback [images: tiles.jpg|Chosen tile] [status: active]\n")
+	writeFile(t, projectsPath, "# House Projects\n\n- [ ] Kitchen splashback [images: tiles.jpg|Chosen tile] [status: active] [id: k1tchn55]\n")
 	maintPath := filepath.Join(dir, "maintenance.md")
 	writeFile(t, maintPath, "# Maintenance\n")
 	projects := tracker.NewService(projectsPath, "House Projects", time.UTC)
 	h := house.NewHandler(house.NewService(maintPath, time.UTC), projects, nil, time.UTC)
 
 	form := url.Values{"title": {"Kitchen splashback"}, "body": {"Grout is grey."}, "tags": {"kitchen"}}
-	req := httptest.NewRequest(http.MethodPost, "/house/projects/kitchen-splashback/edit", strings.NewReader(form.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/house/projects/k1tchn55/edit", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req = withChiURLParam(req, "slug", "kitchen-splashback")
+	req = withChiURLParam(req, "id", "k1tchn55")
 	w := httptest.NewRecorder()
 	h.EditProject(w, req)
 	if w.Code >= 400 {
 		t.Fatalf("status = %d; body: %s", w.Code, w.Body.String())
 	}
 
-	item, err := projects.Get("kitchen-splashback")
+	item, err := projects.Get("k1tchn55")
 	if err != nil {
 		t.Fatal(err)
 	}

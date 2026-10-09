@@ -15,7 +15,7 @@ import (
 // a date field can never inject a tag. Valid dates are written, and an empty
 // deadline clears it.
 func TestDateEntryPointsValidate(t *testing.T) {
-	const seed = "# Personal\n\n- [ ] Renew licence [added: 2026-09-01] [deadline: 2026-11-20]\n"
+	const seed = "# Personal\n\n- [ ] Renew licence [added: 2026-09-01] [deadline: 2026-11-20] [id: r3nwl1c5]\n"
 	type call struct {
 		method, path string
 		form         url.Values // a form post when set
@@ -41,61 +41,61 @@ func TestDateEntryPointsValidate(t *testing.T) {
 			want:       "Run 100km [goal: 0/100] [added: ",
 		},
 		"plan set rejects an injected date": {
-			call:       call{method: "POST", path: "/plan/set", form: url.Values{"slug": {"renew-licence"}, "list": {"todos"}, "date": {"x] [tags: y"}}},
+			call:       call{method: "POST", path: "/plan/set", form: url.Values{"id": {"r3nwl1c5"}, "list": {"todos"}, "date": {"x] [tags: y"}}},
 			wantStatus: http.StatusBadRequest,
 		},
 		"plan set accepts a real date": {
-			call:       call{method: "POST", path: "/plan/set", form: url.Values{"slug": {"renew-licence"}, "list": {"todos"}, "date": {"2026-10-09"}}},
+			call:       call{method: "POST", path: "/plan/set", form: url.Values{"id": {"r3nwl1c5"}, "list": {"todos"}, "date": {"2026-10-09"}}},
 			wantStatus: http.StatusSeeOther,
 			want:       "[planned: 2026-10-09]",
 		},
 		"plan bulk set rejects an injected date": {
-			call:       call{method: "POST", path: "/plan/bulk/set", form: url.Values{"slugs": {"renew-licence"}, "list": {"todos"}, "date": {"x] [tags: y"}}},
+			call:       call{method: "POST", path: "/plan/bulk/set", form: url.Values{"ids": {"r3nwl1c5"}, "list": {"todos"}, "date": {"x] [tags: y"}}},
 			wantStatus: http.StatusBadRequest,
 		},
 		"plan bulk set rejects a short date": {
-			call:       call{method: "POST", path: "/plan/bulk/set", form: url.Values{"slugs": {"renew-licence"}, "list": {"todos"}, "date": {"2026-1-9"}}},
+			call:       call{method: "POST", path: "/plan/bulk/set", form: url.Values{"ids": {"r3nwl1c5"}, "list": {"todos"}, "date": {"2026-1-9"}}},
 			wantStatus: http.StatusBadRequest,
 		},
 		"API plan set rejects an injected date": {
-			call:       call{method: "PUT", path: "/api/v1/plan/renew-licence", json: `{"list":"personal","date":"x] [tags: y"}`},
+			call:       call{method: "PUT", path: "/api/v1/plan/r3nwl1c5", json: `{"list":"personal","date":"x] [tags: y"}`},
 			wantStatus: http.StatusBadRequest,
 		},
 		"edit form rejects an injected deadline": {
-			call:       call{method: "POST", path: "/todos/renew-licence/edit", form: url.Values{"title": {"Renew licence"}, "deadline": {"x] [tags: y"}}},
+			call:       call{method: "POST", path: "/todos/r3nwl1c5/edit", form: url.Values{"title": {"Renew licence"}, "deadline": {"x] [tags: y"}}},
 			wantStatus: http.StatusBadRequest,
 		},
 		"edit form sets a deadline": {
-			call:       call{method: "POST", path: "/todos/renew-licence/edit", form: url.Values{"title": {"Renew licence"}, "deadline": {"2026-10-30"}}},
+			call:       call{method: "POST", path: "/todos/r3nwl1c5/edit", form: url.Values{"title": {"Renew licence"}, "deadline": {"2026-10-30"}}},
 			wantStatus: http.StatusSeeOther,
 			want:       "[deadline: 2026-10-30]",
 		},
 		"edit form with an empty deadline clears it": {
-			call:       call{method: "POST", path: "/todos/renew-licence/edit", form: url.Values{"title": {"Renew licence"}, "deadline": {""}}},
+			call:       call{method: "POST", path: "/todos/r3nwl1c5/edit", form: url.Values{"title": {"Renew licence"}, "deadline": {""}}},
 			wantStatus: http.StatusSeeOther,
 			wantNot:    "[deadline:",
 		},
 		"edit form without the field keeps the deadline": {
-			call:       call{method: "POST", path: "/todos/renew-licence/edit", form: url.Values{"title": {"Renew licence"}, "body": {"Bring the old card"}}},
+			call:       call{method: "POST", path: "/todos/r3nwl1c5/edit", form: url.Values{"title": {"Renew licence"}, "body": {"Bring the old card"}}},
 			wantStatus: http.StatusSeeOther,
 			want:       "[deadline: 2026-11-20]",
 		},
 		"API edit rejects an injected deadline": {
-			call:       call{method: "PUT", path: "/api/v1/todos/renew-licence", json: `{"list":"personal","deadline":"x] [tags: y"}`},
+			call:       call{method: "PUT", path: "/api/v1/todos/r3nwl1c5", json: `{"list":"personal","deadline":"x] [tags: y"}`},
 			wantStatus: http.StatusBadRequest,
 		},
 		"API edit sets a deadline": {
-			call:       call{method: "PUT", path: "/api/v1/todos/renew-licence", json: `{"list":"personal","deadline":"2026-10-30"}`},
+			call:       call{method: "PUT", path: "/api/v1/todos/r3nwl1c5", json: `{"list":"personal","deadline":"2026-10-30"}`},
 			wantStatus: http.StatusOK,
 			want:       "[deadline: 2026-10-30]",
 		},
 		"API edit with an empty deadline clears it": {
-			call:       call{method: "PUT", path: "/api/v1/todos/renew-licence", json: `{"list":"personal","deadline":""}`},
+			call:       call{method: "PUT", path: "/api/v1/todos/r3nwl1c5", json: `{"list":"personal","deadline":""}`},
 			wantStatus: http.StatusOK,
 			wantNot:    "[deadline:",
 		},
 		"API edit without the field keeps the deadline": {
-			call:       call{method: "PUT", path: "/api/v1/todos/renew-licence", json: `{"list":"personal","body":"Bring the old card"}`},
+			call:       call{method: "PUT", path: "/api/v1/todos/r3nwl1c5", json: `{"list":"personal","body":"Bring the old card"}`},
 			wantStatus: http.StatusOK,
 			want:       "[deadline: 2026-11-20]",
 		},

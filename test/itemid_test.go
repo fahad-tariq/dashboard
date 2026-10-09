@@ -1,6 +1,8 @@
 package test
 
 import (
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -58,6 +60,43 @@ func TestItemIDAssign(t *testing.T) {
 				if want, ok := tc.keep[i]; ok && it.ID != want {
 					t.Errorf("item %d ID %q, want %q kept", i, it.ID, want)
 				}
+			}
+		})
+	}
+}
+
+// The route pattern accepts exactly the alphabet's characters, so every ID
+// the generator makes is routable and nothing else is.
+func TestItemIDRouteMatchesAlphabet(t *testing.T) {
+	class := regexp.MustCompile(`\{id:(\[[^\]]+\])\{8\}\}`).FindStringSubmatch(itemid.Route)
+	if class == nil {
+		t.Fatalf("Route %q is not {id:[...]{8}}", itemid.Route)
+	}
+	re := regexp.MustCompile("^" + class[1] + "$")
+	for c := 0; c < 128; c++ {
+		ch := string(rune(c))
+		if got, want := re.MatchString(ch), strings.Contains(itemid.Alphabet, ch); got != want {
+			t.Errorf("%q: route accepts %v, alphabet holds %v", ch, got, want)
+		}
+	}
+}
+
+func TestItemIDParseList(t *testing.T) {
+	cases := map[string]struct {
+		in   string
+		want []string
+	}{
+		"one":              {"b7k2m9xq", []string{"b7k2m9xq"}},
+		"two with spaces":  {" b7k2m9xq , t9d3fgh2 ", []string{"b7k2m9xq", "t9d3fgh2"}},
+		"empty":            {"", nil},
+		"one invalid":      {"b7k2m9xq,pay-rego", nil},
+		"tag injection":    {"b7k2m9xq] [tags: x", nil},
+		"blank entries ok": {"b7k2m9xq,,", []string{"b7k2m9xq"}},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := itemid.ParseList(tc.in); !slices.Equal(got, tc.want) {
+				t.Errorf("ParseList(%q) = %v, want %v", tc.in, got, tc.want)
 			}
 		})
 	}

@@ -158,15 +158,9 @@ func (h *Handler) IdeasPage(w http.ResponseWriter, r *http.Request) {
 
 // IdeaDetail renders a single idea's detail page.
 func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	svc := h.resolve(r)
-	idea, err := svc.Get(slug)
-	if err != nil && itemid.Valid(slug) {
-		// A task's "From idea" link holds the idea's ID.
-		if idea, err = svc.GetByID(slug); err == nil {
-			slug = idea.Slug
-		}
-	}
+	idea, err := svc.Get(id)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -181,7 +175,7 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 	data["IsDeleted"] = idea.DeletedAt != ""
 
 	if h.commentarySt != nil {
-		if c, err := h.commentarySt.Get(slug, "ideas", int(auth.UserID(r.Context()))); err == nil && c != "" {
+		if c, err := h.commentarySt.Get(id, int(auth.UserID(r.Context()))); err == nil && c != "" {
 			if rendered, err := markdown.Render([]byte(c)); err == nil {
 				data["CommentaryHTML"] = template.HTML(rendered) //nolint:gosec // G203: markdown.Render output is bluemonday-sanitised
 			}
@@ -207,7 +201,6 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	idea := &Idea{
-		Slug:   Slugify(title),
 		Title:  title,
 		Tags:   httputil.ParseCSV(r.FormValue("tags")),
 		Images: httputil.ReconstructImages(r),
@@ -229,7 +222,7 @@ const triageMaxBytes = 64 << 10
 
 // TriageAction changes an idea's status (park/drop/untriage).
 func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	// triageAnimate posts FormData (multipart); plain form posts are urlencoded.
 	r.Body = http.MaxBytesReader(w, r.Body, triageMaxBytes)
 	if err := r.ParseMultipartForm(triageMaxBytes); err != nil && !errors.Is(err, http.ErrNotMultipart) { //nolint:gosec // G120: body capped by MaxBytesReader above
@@ -240,7 +233,7 @@ func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 	action := r.FormValue("action")
 	svc := h.resolve(r)
 
-	if err := svc.Triage(slug, action); err != nil {
+	if err := svc.Triage(id, action); err != nil {
 		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
 		return
 	}
@@ -250,7 +243,7 @@ func (h *Handler) TriageAction(w http.ResponseWriter, r *http.Request) {
 
 // ToTask converts an idea to a task (personal, family, or house project) and marks it as converted.
 func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 
 	target := r.FormValue("target")
 	if target == "" {
@@ -258,7 +251,7 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	svc := h.resolve(r)
-	idea, err := svc.Get(slug)
+	idea, err := svc.Get(id)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -266,18 +259,18 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 
 	taskID, err := h.toTask(r.Context(), idea.Title, idea.Body, idea.Tags, idea.ID, target)
 	if err != nil {
-		httputil.ServerError(w, "converting idea to task", err, "slug", slug)
+		httputil.ServerError(w, "converting idea to task", err, "id", id)
 		return
 	}
 
-	_ = svc.MarkConverted(slug, taskID)
+	_ = svc.MarkConverted(id, taskID)
 
 	http.Redirect(w, r, "/ideas?msg=idea-converted", http.StatusSeeOther)
 }
 
 // Edit updates an idea's body, tags, and images.
 func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
@@ -289,7 +282,7 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 	images := httputil.ReconstructImages(r)
 
 	svc := h.resolve(r)
-	if err := svc.Edit(slug, title, body, tags, images); err != nil {
+	if err := svc.Edit(id, title, body, tags, images); err != nil {
 		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
 		return
 	}
@@ -299,14 +292,14 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 
 // DeleteIdea removes an idea.
 func (h *Handler) DeleteIdea(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	svc := h.resolve(r)
-	if err := svc.Delete(slug); err != nil {
+	if err := svc.Delete(id); err != nil {
 		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
 		return
 	}
 
-	restore := "/ideas/" + slug + "/restore"
+	restore := "/ideas/" + id + "/restore"
 	httputil.OfferUndo(w, restore)
 	// The undo parameter serves plain posts (the idea page); htmx requests get
 	// the toast instead.
@@ -315,9 +308,9 @@ func (h *Handler) DeleteIdea(w http.ResponseWriter, r *http.Request) {
 
 // RestoreIdea restores a soft-deleted idea.
 func (h *Handler) RestoreIdea(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	svc := h.resolve(r)
-	if err := svc.Restore(slug); err != nil {
+	if err := svc.Restore(id); err != nil {
 		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
 		return
 	}
@@ -326,12 +319,13 @@ func (h *Handler) RestoreIdea(w http.ResponseWriter, r *http.Request) {
 
 // PermanentDeleteIdea permanently removes an idea from the file.
 func (h *Handler) PermanentDeleteIdea(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	svc := h.resolve(r)
-	if err := svc.PermanentDelete(slug); err != nil {
+	if err := svc.PermanentDelete(id); err != nil {
 		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
 		return
 	}
+	h.commentarySt.ForgetItems(id)
 	http.Redirect(w, r, "/ideas?msg=idea-purged", http.StatusSeeOther)
 }
 
@@ -341,13 +335,13 @@ func (h *Handler) BulkDeleteIdeas(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := httputil.ParseCSV(r.FormValue("slugs"))
-	if len(slugs) == 0 {
-		http.Error(w, "No ideas selected", http.StatusBadRequest)
+	ids := itemid.ParseList(r.FormValue("ids"))
+	if len(ids) == 0 {
+		http.Error(w, "No valid ideas selected", http.StatusBadRequest)
 		return
 	}
 	svc := h.resolve(r)
-	if err := svc.BulkDelete(slugs); err != nil {
+	if err := svc.BulkDelete(ids); err != nil {
 		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
 		return
 	}
@@ -360,14 +354,14 @@ func (h *Handler) BulkTriageIdeas(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := httputil.ParseCSV(r.FormValue("slugs"))
-	if len(slugs) == 0 {
-		http.Error(w, "No ideas selected", http.StatusBadRequest)
+	ids := itemid.ParseList(r.FormValue("ids"))
+	if len(ids) == 0 {
+		http.Error(w, "No valid ideas selected", http.StatusBadRequest)
 		return
 	}
 	action := r.FormValue("action")
 	svc := h.resolve(r)
-	if err := svc.BulkTriage(slugs, action); err != nil {
+	if err := svc.BulkTriage(ids, action); err != nil {
 		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
 		return
 	}
@@ -412,7 +406,6 @@ func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 	}
 
 	idea := &Idea{
-		Slug:  Slugify(req.Title),
 		Title: req.Title,
 		Tags:  tags,
 		Added: time.Now().In(h.loc).Format("2006-01-02"),
@@ -431,7 +424,7 @@ func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
 // APITriageIdea changes an idea's status via JSON API.
 func (h *Handler) APITriageIdea(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	var req struct {
 		Action string `json:"action"`
 	}
@@ -441,7 +434,7 @@ func (h *Handler) APITriageIdea(w http.ResponseWriter, r *http.Request) {
 	}
 
 	svc := h.resolve(r)
-	if err := svc.Triage(slug, req.Action); err != nil {
+	if err := svc.Triage(id, req.Action); err != nil {
 		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -452,7 +445,7 @@ func (h *Handler) APITriageIdea(w http.ResponseWriter, r *http.Request) {
 // APIAddResearch appends research content to an idea's body.
 func (h *Handler) APIAddResearch(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	var req struct {
 		Content string `json:"content"`
 	}
@@ -462,7 +455,7 @@ func (h *Handler) APIAddResearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	svc := h.resolve(r)
-	if err := svc.AddResearch(slug, req.Content); err != nil {
+	if err := svc.AddResearch(id, req.Content); err != nil {
 		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}

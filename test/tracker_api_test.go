@@ -31,10 +31,10 @@ func setupAPIEnv(t *testing.T) *apiTestEnv {
 	dir := t.TempDir()
 	personalPath := filepath.Join(dir, "personal.md")
 	familyPath := filepath.Join(dir, "family.md")
-	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Existing task [tags: backend]\n- [ ] Private item [tags: private]\n"), 0o644); err != nil {
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Existing task [tags: backend] [id: xst1ngtk]\n- [ ] Private item [tags: private] [id: prv4t3tm]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(familyPath, []byte("# Family\n\n- [ ] Family task\n"), 0o644); err != nil {
+	if err := os.WriteFile(familyPath, []byte("# Family\n\n- [ ] Family task [id: fm1l7tsk]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -50,16 +50,16 @@ func setupAPIEnv(t *testing.T) *apiTestEnv {
 	r := chi.NewRouter()
 	r.Get("/api/v1/todos", tracker.APIListTodos(fixed))
 	r.Post("/api/v1/todos", tracker.APIAddTodo(fixed))
-	r.Get("/api/v1/todos/{slug}", tracker.APIGetTodo(fixed))
-	r.Put("/api/v1/todos/{slug}", tracker.APIUpdateTodo(fixed))
-	r.Post("/api/v1/todos/{slug}/complete", tracker.APICompleteTodo(fixed))
-	r.Post("/api/v1/todos/{slug}/uncomplete", tracker.APIUncompleteTodo(fixed))
-	r.Delete("/api/v1/todos/{slug}", tracker.APIDeleteTodo(fixed))
-	r.Put("/api/v1/todos/{slug}/priority", tracker.APIUpdatePriority(fixed))
-	r.Put("/api/v1/todos/{slug}/tags", tracker.APIUpdateTags(fixed))
-	r.Post("/api/v1/todos/{slug}/substeps", tracker.APIAddSubStep(fixed))
-	r.Put("/api/v1/todos/{slug}/substeps/{index}", tracker.APIToggleSubStep(fixed))
-	r.Delete("/api/v1/todos/{slug}/substeps/{index}", tracker.APIRemoveSubStep(fixed))
+	r.Get("/api/v1/todos/{id}", tracker.APIGetTodo(fixed))
+	r.Put("/api/v1/todos/{id}", tracker.APIUpdateTodo(fixed))
+	r.Post("/api/v1/todos/{id}/complete", tracker.APICompleteTodo(fixed))
+	r.Post("/api/v1/todos/{id}/uncomplete", tracker.APIUncompleteTodo(fixed))
+	r.Delete("/api/v1/todos/{id}", tracker.APIDeleteTodo(fixed))
+	r.Put("/api/v1/todos/{id}/priority", tracker.APIUpdatePriority(fixed))
+	r.Put("/api/v1/todos/{id}/tags", tracker.APIUpdateTags(fixed))
+	r.Post("/api/v1/todos/{id}/substeps", tracker.APIAddSubStep(fixed))
+	r.Put("/api/v1/todos/{id}/substeps/{index}", tracker.APIToggleSubStep(fixed))
+	r.Delete("/api/v1/todos/{id}/substeps/{index}", tracker.APIRemoveSubStep(fixed))
 
 	return &apiTestEnv{personalSvc: personalSvc, familySvc: familySvc, router: r}
 }
@@ -173,9 +173,9 @@ func TestAPIAddTodoMissingList(t *testing.T) {
 func TestAPIGetTodo(t *testing.T) {
 	env := setupAPIEnv(t)
 
-	w := apiRequest(t, env, "GET", "/api/v1/todos/existing-task?list=personal", "")
+	w := apiRequest(t, env, "GET", "/api/v1/todos/"+existingTask+"?list=personal", "")
 	if w.Code != 200 {
-		t.Fatalf("GET /todos/existing-task status = %d, want 200", w.Code)
+		t.Fatalf("GET /todos/%s status = %d, want 200", existingTask, w.Code)
 	}
 
 	var resp map[string]any
@@ -199,13 +199,13 @@ func TestAPIGetTodoNotFound(t *testing.T) {
 func TestAPICompleteTodo(t *testing.T) {
 	env := setupAPIEnv(t)
 
-	w := apiRequest(t, env, "POST", "/api/v1/todos/existing-task/complete",
+	w := apiRequest(t, env, "POST", "/api/v1/todos/"+existingTask+"/complete",
 		`{"list":"personal"}`)
 	if w.Code != 200 {
 		t.Fatalf("POST complete status = %d; body: %s", w.Code, w.Body.String())
 	}
 
-	item, _ := env.personalSvc.Get("existing-task")
+	item, _ := env.personalSvc.Get(existingTask)
 	if !item.Done {
 		t.Error("item should be done after complete")
 	}
@@ -214,13 +214,13 @@ func TestAPICompleteTodo(t *testing.T) {
 func TestAPIDeleteTodo(t *testing.T) {
 	env := setupAPIEnv(t)
 
-	w := apiRequest(t, env, "DELETE", "/api/v1/todos/existing-task",
+	w := apiRequest(t, env, "DELETE", "/api/v1/todos/"+existingTask,
 		`{"list":"personal"}`)
 	if w.Code != 200 {
 		t.Fatalf("DELETE status = %d; body: %s", w.Code, w.Body.String())
 	}
 
-	item, _ := env.personalSvc.Get("existing-task")
+	item, _ := env.personalSvc.Get(existingTask)
 	if item.DeletedAt == "" {
 		t.Error("item should be soft-deleted")
 	}
@@ -229,13 +229,13 @@ func TestAPIDeleteTodo(t *testing.T) {
 func TestAPIUpdatePriority(t *testing.T) {
 	env := setupAPIEnv(t)
 
-	w := apiRequest(t, env, "PUT", "/api/v1/todos/existing-task/priority",
+	w := apiRequest(t, env, "PUT", "/api/v1/todos/"+existingTask+"/priority",
 		`{"priority":"high","list":"personal"}`)
 	if w.Code != 200 {
 		t.Fatalf("PUT priority status = %d; body: %s", w.Code, w.Body.String())
 	}
 
-	item, _ := env.personalSvc.Get("existing-task")
+	item, _ := env.personalSvc.Get(existingTask)
 	if item.Priority != "high" {
 		t.Errorf("priority = %q, want high", item.Priority)
 	}
@@ -245,37 +245,37 @@ func TestAPISubSteps(t *testing.T) {
 	env := setupAPIEnv(t)
 
 	// Add sub-step
-	w := apiRequest(t, env, "POST", "/api/v1/todos/existing-task/substeps",
+	w := apiRequest(t, env, "POST", "/api/v1/todos/"+existingTask+"/substeps",
 		`{"text":"First step","list":"personal"}`)
 	if w.Code != 200 {
 		t.Fatalf("POST substeps status = %d; body: %s", w.Code, w.Body.String())
 	}
 
-	item, _ := env.personalSvc.Get("existing-task")
+	item, _ := env.personalSvc.Get(existingTask)
 	if item.SubStepsTotal != 1 {
 		t.Fatalf("SubStepsTotal = %d, want 1", item.SubStepsTotal)
 	}
 
 	// Toggle sub-step
-	w = apiRequest(t, env, "PUT", "/api/v1/todos/existing-task/substeps/0",
+	w = apiRequest(t, env, "PUT", "/api/v1/todos/"+existingTask+"/substeps/0",
 		`{"list":"personal"}`)
 	if w.Code != 200 {
 		t.Fatalf("PUT substeps/0 status = %d; body: %s", w.Code, w.Body.String())
 	}
 
-	item, _ = env.personalSvc.Get("existing-task")
+	item, _ = env.personalSvc.Get(existingTask)
 	if item.SubStepsDone != 1 {
 		t.Errorf("SubStepsDone = %d, want 1", item.SubStepsDone)
 	}
 
 	// Remove sub-step
-	w = apiRequest(t, env, "DELETE", "/api/v1/todos/existing-task/substeps/0",
+	w = apiRequest(t, env, "DELETE", "/api/v1/todos/"+existingTask+"/substeps/0",
 		`{"list":"personal"}`)
 	if w.Code != 200 {
 		t.Fatalf("DELETE substeps/0 status = %d; body: %s", w.Code, w.Body.String())
 	}
 
-	item, _ = env.personalSvc.Get("existing-task")
+	item, _ = env.personalSvc.Get(existingTask)
 	if item.SubStepsTotal != 0 {
 		t.Errorf("SubStepsTotal = %d after remove, want 0", item.SubStepsTotal)
 	}
@@ -285,7 +285,7 @@ func TestAPISubStepBoundsCheck(t *testing.T) {
 	env := setupAPIEnv(t)
 
 	// Try to toggle index 99 on item with no sub-steps
-	w := apiRequest(t, env, "PUT", "/api/v1/todos/existing-task/substeps/99",
+	w := apiRequest(t, env, "PUT", "/api/v1/todos/"+existingTask+"/substeps/99",
 		`{"list":"personal"}`)
 	if w.Code != 400 {
 		t.Errorf("PUT substeps/99 status = %d, want 400", w.Code)
@@ -295,7 +295,7 @@ func TestAPISubStepBoundsCheck(t *testing.T) {
 func TestAPIInvalidListReturns400(t *testing.T) {
 	env := setupAPIEnv(t)
 
-	w := apiRequest(t, env, "POST", "/api/v1/todos/existing-task/complete",
+	w := apiRequest(t, env, "POST", "/api/v1/todos/"+existingTask+"/complete",
 		`{"list":"invalid"}`)
 	if w.Code != 400 {
 		t.Errorf("POST with invalid list status = %d, want 400", w.Code)
@@ -312,17 +312,17 @@ func TestAPIRejectsHouseList(t *testing.T) {
 	tests := map[string]struct {
 		method, path, body string
 	}{
-		"get":         {"GET", "/api/v1/todos/existing-task?list=house", ""},
+		"get":         {"GET", "/api/v1/todos/" + existingTask + "?list=house", ""},
 		"add":         {"POST", "/api/v1/todos", `{"title":"x","list":"house"}`},
-		"update":      {"PUT", "/api/v1/todos/existing-task", `{"title":"x","list":"house"}`},
-		"complete":    {"POST", "/api/v1/todos/existing-task/complete", `{"list":"house"}`},
-		"uncomplete":  {"POST", "/api/v1/todos/existing-task/uncomplete", `{"list":"house"}`},
-		"delete":      {"DELETE", "/api/v1/todos/existing-task", `{"list":"house"}`},
-		"priority":    {"PUT", "/api/v1/todos/existing-task/priority", `{"priority":"high","list":"house"}`},
-		"tags":        {"PUT", "/api/v1/todos/existing-task/tags", `{"tags":["a"],"list":"house"}`},
-		"add substep": {"POST", "/api/v1/todos/existing-task/substeps", `{"text":"x","list":"house"}`},
-		"toggle step": {"PUT", "/api/v1/todos/existing-task/substeps/0", `{"list":"house"}`},
-		"remove step": {"DELETE", "/api/v1/todos/existing-task/substeps/0", `{"list":"house"}`},
+		"update":      {"PUT", "/api/v1/todos/" + existingTask, `{"title":"x","list":"house"}`},
+		"complete":    {"POST", "/api/v1/todos/" + existingTask + "/complete", `{"list":"house"}`},
+		"uncomplete":  {"POST", "/api/v1/todos/" + existingTask + "/uncomplete", `{"list":"house"}`},
+		"delete":      {"DELETE", "/api/v1/todos/" + existingTask, `{"list":"house"}`},
+		"priority":    {"PUT", "/api/v1/todos/" + existingTask + "/priority", `{"priority":"high","list":"house"}`},
+		"tags":        {"PUT", "/api/v1/todos/" + existingTask + "/tags", `{"tags":["a"],"list":"house"}`},
+		"add substep": {"POST", "/api/v1/todos/" + existingTask + "/substeps", `{"text":"x","list":"house"}`},
+		"toggle step": {"PUT", "/api/v1/todos/" + existingTask + "/substeps/0", `{"list":"house"}`},
+		"remove step": {"DELETE", "/api/v1/todos/" + existingTask + "/substeps/0", `{"list":"house"}`},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -377,17 +377,16 @@ func TestAPIUpdateTodoKeepsOmittedFields(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			env := setupAPIEnv(t)
-			if err := env.personalSvc.ApplyEdit("existing-task", tracker.Edit{Body: new("Original notes"), Images: &[]string{"a.png"}}); err != nil {
+			if err := env.personalSvc.ApplyEdit(existingTask, tracker.Edit{Body: new("Original notes"), Images: &[]string{"a.png"}}); err != nil {
 				t.Fatal(err)
 			}
-			w := apiRequest(t, env, "PUT", "/api/v1/todos/existing-task", tc.body)
+			w := apiRequest(t, env, "PUT", "/api/v1/todos/"+existingTask, tc.body)
 			if w.Code != 200 {
 				t.Fatalf("PUT status = %d; body: %s", w.Code, w.Body.String())
 			}
-			slug := tracker.Slugify(tc.wantTitle)
-			item, err := env.personalSvc.Get(slug)
+			item, err := env.personalSvc.Get(existingTask)
 			if err != nil {
-				t.Fatalf("get %s: %v", slug, err)
+				t.Fatalf("get %s: %v", existingTask, err)
 			}
 			if item.Title != tc.wantTitle || item.Body != tc.wantBody {
 				t.Errorf("title, body = %q, %q; want %q, %q", item.Title, item.Body, tc.wantTitle, tc.wantBody)
@@ -402,7 +401,7 @@ func TestAPIUpdateTodoKeepsOmittedFields(t *testing.T) {
 func TestAPIUpdateTodoEnforcesLimits(t *testing.T) {
 	env := setupAPIEnv(t)
 	long := strings.Repeat("x", 100001)
-	w := apiRequest(t, env, "PUT", "/api/v1/todos/existing-task", `{"body":"`+long+`","list":"personal"}`)
+	w := apiRequest(t, env, "PUT", "/api/v1/todos/"+existingTask, `{"body":"`+long+`","list":"personal"}`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("oversized body: status = %d, want 400", w.Code)
 	}

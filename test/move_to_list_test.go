@@ -25,7 +25,7 @@ func TestMoveToListKeepsItemWhenTargetWriteFails(t *testing.T) {
 	srcDir, dstDir := t.TempDir(), t.TempDir()
 	personalPath := filepath.Join(srcDir, "personal.md")
 	familyPath := filepath.Join(dstDir, "family.md")
-	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Fix the gate\n"), 0o644); err != nil {
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Fix the gate [id: g4t3f1x5]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
@@ -53,14 +53,14 @@ func TestMoveToListKeepsItemWhenTargetWriteFails(t *testing.T) {
 
 	h := tracker.NewHandler(personal, family, map[string]*template.Template{}, "todos", time.UTC)
 	r := chi.NewRouter()
-	r.Post("/todos/{slug}/move", h.MoveToList)
+	r.Post("/todos/{id}/move", h.MoveToList)
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequest("POST", "/todos/fix-the-gate/move", nil))
+	r.ServeHTTP(rr, httptest.NewRequest("POST", "/todos/g4t3f1x5/move", nil))
 
 	if rr.Code < http.StatusInternalServerError {
 		t.Errorf("status = %d, want a server error for the failed move", rr.Code)
 	}
-	if _, err := personal.Get("fix-the-gate"); err != nil {
+	if _, err := personal.Get("g4t3f1x5"); err != nil {
 		t.Fatalf("item lost from the source after a failed move: %v", err)
 	}
 	content, err := os.ReadFile(personalPath)

@@ -18,14 +18,14 @@ func TestIdeasServiceEdit_TitleOnly(t *testing.T) {
 
 	svc := ideas.NewService(path, time.UTC)
 	if err := svc.Add(&ideas.Idea{
-		Slug:  "original-title",
+		ID:    "rgnlttl1",
 		Title: "Original Title",
 		Body:  "Some body text.",
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	err := svc.Edit("original-title", "", "# New Title\n\nSome body text.", nil, nil)
+	err := svc.Edit("rgnlttl1", "", "# New Title\n\nSome body text.", nil, nil)
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
@@ -37,18 +37,13 @@ func TestIdeasServiceEdit_TitleOnly(t *testing.T) {
 	if list[0].Title != "New Title" {
 		t.Errorf("title should be %q, got %q", "New Title", list[0].Title)
 	}
-	if list[0].Slug != ideas.Slugify("New Title") {
-		t.Errorf("slug should update to %q, got %q", ideas.Slugify("New Title"), list[0].Slug)
+	if list[0].ID != "rgnlttl1" {
+		t.Errorf("ID should stay %q, got %q", "rgnlttl1", list[0].ID)
 	}
 
-	_, err = svc.Get("original-title")
-	if err == nil {
-		t.Error("old slug should no longer resolve")
-	}
-
-	got, err := svc.Get(list[0].Slug)
+	got, err := svc.Get("rgnlttl1")
 	if err != nil {
-		t.Fatalf("get by new slug: %v", err)
+		t.Fatalf("get after rename: %v", err)
 	}
 	if got.Title != "New Title" {
 		t.Errorf("get title: got %q", got.Title)
@@ -64,24 +59,24 @@ func TestIdeasServiceEdit_BodyOnly(t *testing.T) {
 
 	svc := ideas.NewService(path, time.UTC)
 	if err := svc.Add(&ideas.Idea{
-		Slug:  "keep-slug",
+		ID:    "kpslg121",
 		Title: "Keep Slug",
 		Body:  "Old body.",
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	err := svc.Edit("keep-slug", "", "Updated body content.", nil, nil)
+	err := svc.Edit("kpslg121", "", "Updated body content.", nil, nil)
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
 
-	got, err := svc.Get("keep-slug")
+	got, err := svc.Get("kpslg121")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if got.Slug != "keep-slug" {
-		t.Errorf("slug should remain %q, got %q", "keep-slug", got.Slug)
+	if got.ID != "kpslg121" {
+		t.Errorf("ID should remain %q, got %q", "kpslg121", got.ID)
 	}
 	if got.Body != "Updated body content." {
 		t.Errorf("body: got %q", got.Body)
@@ -91,7 +86,7 @@ func TestIdeasServiceEdit_BodyOnly(t *testing.T) {
 	}
 }
 
-func TestIdeasServiceEdit_TitleCollision(t *testing.T) {
+func TestIdeasServiceEdit_DuplicateTitles(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
 	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
@@ -99,14 +94,14 @@ func TestIdeasServiceEdit_TitleCollision(t *testing.T) {
 	}
 
 	svc := ideas.NewService(path, time.UTC)
-	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "lph12341", Title: "Alpha", Body: "First."}); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "bt123451", Title: "Beta", Body: "Second."}); err != nil {
 		t.Fatal(err)
 	}
 
-	err := svc.Edit("beta", "", "# Alpha\n\nNew body for beta.", nil, nil)
+	err := svc.Edit("bt123451", "", "# Alpha\n\nNew body for beta.", nil, nil)
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
@@ -116,12 +111,14 @@ func TestIdeasServiceEdit_TitleCollision(t *testing.T) {
 		t.Fatalf("expected 2 ideas, got %d", len(list))
 	}
 
-	// Service does not deduplicate slugs on collision -- both ideas end up
-	// with the same slug. Get returns whichever appears first.
+	// Both ideas are titled Alpha and keep their own IDs.
 	for _, idea := range list {
-		if idea.Slug != "alpha" {
-			t.Errorf("expected both slugs to be %q, got %q", "alpha", idea.Slug)
+		if idea.Title != "Alpha" {
+			t.Errorf("expected both titles to be Alpha, got %q", idea.Title)
 		}
+	}
+	if list[0].ID != "lph12341" || list[1].ID != "bt123451" {
+		t.Errorf("IDs = %q, %q; want lph12341, bt123451", list[0].ID, list[1].ID)
 	}
 }
 
@@ -133,11 +130,11 @@ func TestIdeasServiceEdit_BlankTitle(t *testing.T) {
 	}
 
 	svc := ideas.NewService(path, time.UTC)
-	if err := svc.Add(&ideas.Idea{Slug: "has-title", Title: "Has Title", Body: "Content."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "hsttl121", Title: "Has Title", Body: "Content."}); err != nil {
 		t.Fatal(err)
 	}
 
-	err := svc.Edit("has-title", "", "# \n\nBody without title.", nil, nil)
+	err := svc.Edit("hsttl121", "", "# \n\nBody without title.", nil, nil)
 
 	// The service permits blank titles from headings (no validation).
 	// Verify the idea still exists regardless of slug change.
@@ -155,25 +152,19 @@ func TestIdeasServiceEdit_ExplicitTitle(t *testing.T) {
 	}
 
 	svc := ideas.NewService(path, time.UTC)
-	if err := svc.Add(&ideas.Idea{Slug: "old-idea", Title: "Old Idea", Body: "Body."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "ldd12341", Title: "Old Idea", Body: "Body."}); err != nil {
 		t.Fatal(err)
 	}
 
-	err := svc.Edit("old-idea", "Renamed Idea", "Body.", nil, nil)
+	err := svc.Edit("ldd12341", "Renamed Idea", "Body.", nil, nil)
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
 
-	// Old slug gone.
-	_, err = svc.Get("old-idea")
-	if err == nil {
-		t.Error("old slug should no longer resolve")
-	}
-
-	// New slug exists with updated title.
-	got, err := svc.Get("renamed-idea")
+	// The ID survives the rename.
+	got, err := svc.Get("ldd12341")
 	if err != nil {
-		t.Fatalf("get by new slug: %v", err)
+		t.Fatalf("get after rename: %v", err)
 	}
 	if got.Title != "Renamed Idea" {
 		t.Errorf("title: got %q, want %q", got.Title, "Renamed Idea")
@@ -188,17 +179,17 @@ func TestIdeasServiceEdit_ExplicitTitleOverridesBodyHeading(t *testing.T) {
 	}
 
 	svc := ideas.NewService(path, time.UTC)
-	if err := svc.Add(&ideas.Idea{Slug: "test", Title: "Test", Body: "Body."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "tst12341", Title: "Test", Body: "Body."}); err != nil {
 		t.Fatal(err)
 	}
 
 	// Explicit title should win over body heading.
-	err := svc.Edit("test", "Explicit Title", "# Body Heading\n\nContent.", nil, nil)
+	err := svc.Edit("tst12341", "Explicit Title", "# Body Heading\n\nContent.", nil, nil)
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
 
-	got, err := svc.Get("explicit-title")
+	got, err := svc.Get("tst12341")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -207,7 +198,7 @@ func TestIdeasServiceEdit_ExplicitTitleOverridesBodyHeading(t *testing.T) {
 	}
 }
 
-func TestIdeasServiceEdit_NonExistentSlug(t *testing.T) {
+func TestIdeasServiceEdit_NonExistentID(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ideas.md")
 	if err := os.WriteFile(path, []byte("# Ideas\n\n"), 0o644); err != nil {
@@ -215,7 +206,7 @@ func TestIdeasServiceEdit_NonExistentSlug(t *testing.T) {
 	}
 
 	svc := ideas.NewService(path, time.UTC)
-	if err := svc.Add(&ideas.Idea{Slug: "exists", Title: "Exists", Body: "Here."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "xsts1231", Title: "Exists", Body: "Here."}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -233,15 +224,15 @@ func TestIdeasServiceSoftDeleteAndRestore(t *testing.T) {
 	}
 
 	svc := ideas.NewService(path, time.UTC)
-	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "lph12341", Title: "Alpha", Body: "First."}); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "bt123451", Title: "Beta", Body: "Second."}); err != nil {
 		t.Fatal(err)
 	}
 
 	// Soft delete Alpha.
-	if err := svc.Delete("alpha"); err != nil {
+	if err := svc.Delete("lph12341"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 
@@ -253,7 +244,7 @@ func TestIdeasServiceSoftDeleteAndRestore(t *testing.T) {
 
 	// Alpha in ListDeleted.
 	deleted := svc.ListDeleted()
-	if len(deleted) != 1 || deleted[0].Slug != "alpha" {
+	if len(deleted) != 1 || deleted[0].ID != "lph12341" {
 		t.Fatalf("expected alpha in ListDeleted, got %v", deleted)
 	}
 
@@ -264,7 +255,7 @@ func TestIdeasServiceSoftDeleteAndRestore(t *testing.T) {
 	}
 
 	// Restore Alpha.
-	if err := svc.Restore("alpha"); err != nil {
+	if err := svc.Restore("lph12341"); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 
@@ -273,7 +264,7 @@ func TestIdeasServiceSoftDeleteAndRestore(t *testing.T) {
 		t.Fatalf("expected 2 in List after restore, got %d", len(list))
 	}
 
-	restored, _ := svc.Get("alpha")
+	restored, _ := svc.Get("lph12341")
 	if restored.DeletedAt != "" {
 		t.Error("expected DeletedAt to be cleared after restore")
 	}
@@ -287,15 +278,15 @@ func TestIdeasServicePermanentDelete(t *testing.T) {
 	}
 
 	svc := ideas.NewService(path, time.UTC)
-	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "lph12341", Title: "Alpha", Body: "First."}); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := svc.PermanentDelete("alpha"); err != nil {
+	if err := svc.PermanentDelete("lph12341"); err != nil {
 		t.Fatalf("PermanentDelete: %v", err)
 	}
 
-	_, err := svc.Get("alpha")
+	_, err := svc.Get("lph12341")
 	if err == nil {
 		t.Error("expected error after permanent delete")
 	}
@@ -322,7 +313,7 @@ func TestIdeasServicePurgeExpired(t *testing.T) {
 	}
 	svc := ideas.NewService(path, time.UTC)
 
-	if err := svc.PurgeExpired(7); err != nil {
+	if _, err := svc.PurgeExpired(7); err != nil {
 		t.Fatalf("PurgeExpired: %v", err)
 	}
 
@@ -350,7 +341,7 @@ func TestIdeasServicePurgeExpiredMalformedDate(t *testing.T) {
 	}
 	svc := ideas.NewService(path, time.UTC)
 
-	if err := svc.PurgeExpired(7); err != nil {
+	if _, err := svc.PurgeExpired(7); err != nil {
 		t.Fatalf("PurgeExpired: %v", err)
 	}
 
@@ -368,17 +359,17 @@ func TestIdeasServiceBulkDelete(t *testing.T) {
 	}
 
 	svc := ideas.NewService(path, time.UTC)
-	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "lph12341", Title: "Alpha", Body: "First."}); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "bt123451", Title: "Beta", Body: "Second."}); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.Add(&ideas.Idea{Slug: "gamma", Title: "Gamma", Body: "Third."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "gmm12341", Title: "Gamma", Body: "Third."}); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := svc.BulkDelete([]string{"alpha", "gamma"}); err != nil {
+	if err := svc.BulkDelete([]string{"lph12341", "gmm12341"}); err != nil {
 		t.Fatalf("BulkDelete: %v", err)
 	}
 
@@ -386,7 +377,7 @@ func TestIdeasServiceBulkDelete(t *testing.T) {
 	if len(list) != 1 {
 		t.Fatalf("expected 1 active idea, got %d", len(list))
 	}
-	if list[0].Slug != "beta" {
+	if list[0].ID != "bt123451" {
 		t.Errorf("expected Beta, got %q", list[0].Title)
 	}
 
@@ -404,22 +395,22 @@ func TestIdeasServiceBulkTriage(t *testing.T) {
 	}
 
 	svc := ideas.NewService(path, time.UTC)
-	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha", Body: "First."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "lph12341", Title: "Alpha", Body: "First."}); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.Add(&ideas.Idea{Slug: "beta", Title: "Beta", Body: "Second."}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "bt123451", Title: "Beta", Body: "Second."}); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := svc.BulkTriage([]string{"alpha", "beta"}, "park"); err != nil {
+	if err := svc.BulkTriage([]string{"lph12341", "bt123451"}, "park"); err != nil {
 		t.Fatalf("BulkTriage: %v", err)
 	}
 
-	alpha, _ := svc.Get("alpha")
+	alpha, _ := svc.Get("lph12341")
 	if alpha.Status != "parked" {
 		t.Errorf("Alpha status: got %q, want %q", alpha.Status, "parked")
 	}
-	beta, _ := svc.Get("beta")
+	beta, _ := svc.Get("bt123451")
 	if beta.Status != "parked" {
 		t.Errorf("Beta status: got %q, want %q", beta.Status, "parked")
 	}
@@ -433,15 +424,15 @@ func TestIdeasServiceBulkTriageDrop(t *testing.T) {
 	}
 
 	svc := ideas.NewService(path, time.UTC)
-	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha"}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "lph12341", Title: "Alpha"}); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := svc.BulkTriage([]string{"alpha"}, "drop"); err != nil {
+	if err := svc.BulkTriage([]string{"lph12341"}, "drop"); err != nil {
 		t.Fatalf("BulkTriage drop: %v", err)
 	}
 
-	alpha, _ := svc.Get("alpha")
+	alpha, _ := svc.Get("lph12341")
 	if alpha.Status != "dropped" {
 		t.Errorf("Alpha status: got %q, want %q", alpha.Status, "dropped")
 	}
@@ -455,11 +446,11 @@ func TestIdeasServiceBulkTriageInvalidAction(t *testing.T) {
 	}
 
 	svc := ideas.NewService(path, time.UTC)
-	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha"}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "lph12341", Title: "Alpha"}); err != nil {
 		t.Fatal(err)
 	}
 
-	err := svc.BulkTriage([]string{"alpha"}, "invalid")
+	err := svc.BulkTriage([]string{"lph12341"}, "invalid")
 	if err == nil {
 		t.Fatal("expected error for invalid triage action")
 	}
@@ -473,17 +464,17 @@ func TestIdeasServiceBulkInvalidSlugRollsBack(t *testing.T) {
 	}
 
 	svc := ideas.NewService(path, time.UTC)
-	if err := svc.Add(&ideas.Idea{Slug: "alpha", Title: "Alpha"}); err != nil {
+	if err := svc.Add(&ideas.Idea{ID: "lph12341", Title: "Alpha"}); err != nil {
 		t.Fatal(err)
 	}
 
-	err := svc.BulkDelete([]string{"alpha", "nonexistent"})
+	err := svc.BulkDelete([]string{"lph12341", "nonexistent"})
 	if err == nil {
 		t.Fatal("expected error for invalid slug")
 	}
 
 	// Alpha should NOT be deleted because the batch failed atomically.
-	alpha, _ := svc.Get("alpha")
+	alpha, _ := svc.Get("lph12341")
 	if alpha.DeletedAt != "" {
 		t.Error("Alpha should not be deleted -- batch should have failed atomically")
 	}
@@ -495,7 +486,7 @@ func TestIdeasDeletedAtRoundTrip(t *testing.T) {
 
 	original := []ideas.Idea{
 		{
-			Slug:      "deleted-idea",
+			ID:        "dltdd121",
 			Title:     "Deleted Idea",
 			Status:    "untriaged",
 			Added:     "2026-03-16",
@@ -503,7 +494,7 @@ func TestIdeasDeletedAtRoundTrip(t *testing.T) {
 			Body:      "Paragraph one.\n\nParagraph two.",
 		},
 		{
-			Slug:   "normal-idea",
+			ID:     "nrmld121",
 			Title:  "Normal Idea",
 			Status: "untriaged",
 			Added:  "2026-03-16",

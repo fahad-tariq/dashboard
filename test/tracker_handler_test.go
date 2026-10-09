@@ -26,13 +26,16 @@ type trackerTestEnv struct {
 	router          *chi.Mux
 }
 
+// existingTask is the ID of the task setupTrackerEnv and setupAPIEnv seed.
+const existingTask = "xst1ngtk"
+
 func setupTrackerEnv(t *testing.T) *trackerTestEnv {
 	t.Helper()
 
 	dir := t.TempDir()
 	personalPath := filepath.Join(dir, "personal.md")
 	familyPath := filepath.Join(dir, "family.md")
-	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Existing task\n"), 0o644); err != nil {
+	if err := os.WriteFile(personalPath, []byte("# Personal\n\n- [ ] Existing task [id: xst1ngtk]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(familyPath, []byte("# Family\n\n"), 0o644); err != nil {
@@ -74,17 +77,17 @@ func setupTrackerEnv(t *testing.T) *trackerTestEnv {
 	r.Get("/goals", personalHandler.GoalsPage)
 	r.Post("/todos/add", personalHandler.QuickAdd)
 	r.Post("/todos/add-goal", personalHandler.AddGoal)
-	r.Post("/todos/{slug}/complete", personalHandler.Complete)
-	r.Post("/todos/{slug}/uncomplete", personalHandler.Uncomplete)
-	r.Post("/todos/{slug}/notes", personalHandler.UpdateNotes)
-	r.Post("/todos/{slug}/edit", personalHandler.UpdateEdit)
-	r.Post("/todos/{slug}/delete", personalHandler.Delete)
-	r.Post("/todos/{slug}/priority", personalHandler.UpdatePriority)
-	r.Post("/todos/{slug}/tags", personalHandler.UpdateTags)
-	r.Post("/todos/{slug}/move", personalHandler.MoveToList)
-	r.Post("/todos/{slug}/progress", personalHandler.UpdateProgress)
-	r.Post("/todos/{slug}/restore", personalHandler.Restore)
-	r.Post("/todos/{slug}/purge", personalHandler.Purge)
+	r.Post("/todos/{id}/complete", personalHandler.Complete)
+	r.Post("/todos/{id}/uncomplete", personalHandler.Uncomplete)
+	r.Post("/todos/{id}/notes", personalHandler.UpdateNotes)
+	r.Post("/todos/{id}/edit", personalHandler.UpdateEdit)
+	r.Post("/todos/{id}/delete", personalHandler.Delete)
+	r.Post("/todos/{id}/priority", personalHandler.UpdatePriority)
+	r.Post("/todos/{id}/tags", personalHandler.UpdateTags)
+	r.Post("/todos/{id}/move", personalHandler.MoveToList)
+	r.Post("/todos/{id}/progress", personalHandler.UpdateProgress)
+	r.Post("/todos/{id}/restore", personalHandler.Restore)
+	r.Post("/todos/{id}/purge", personalHandler.Purge)
 	r.Post("/todos/bulk/complete", personalHandler.BulkComplete)
 	r.Post("/todos/bulk/delete", personalHandler.BulkDelete)
 	r.Post("/todos/bulk/priority", personalHandler.BulkPriority)
@@ -92,12 +95,12 @@ func setupTrackerEnv(t *testing.T) *trackerTestEnv {
 
 	r.Get("/family", familyHandler.TrackerPage)
 	r.Post("/family/add", familyHandler.QuickAdd)
-	r.Post("/family/{slug}/complete", familyHandler.Complete)
-	r.Post("/family/{slug}/uncomplete", familyHandler.Uncomplete)
-	r.Post("/family/{slug}/delete", familyHandler.Delete)
-	r.Post("/family/{slug}/move", familyHandler.MoveToList)
-	r.Post("/family/{slug}/restore", familyHandler.Restore)
-	r.Post("/family/{slug}/purge", familyHandler.Purge)
+	r.Post("/family/{id}/complete", familyHandler.Complete)
+	r.Post("/family/{id}/uncomplete", familyHandler.Uncomplete)
+	r.Post("/family/{id}/delete", familyHandler.Delete)
+	r.Post("/family/{id}/move", familyHandler.MoveToList)
+	r.Post("/family/{id}/restore", familyHandler.Restore)
+	r.Post("/family/{id}/purge", familyHandler.Purge)
 
 	return &trackerTestEnv{
 		personalHandler: personalHandler,
@@ -240,13 +243,13 @@ func TestAddGoal(t *testing.T) {
 func TestCompleteTask(t *testing.T) {
 	env := setupTrackerEnv(t)
 
-	rr := postForm(env.router, "/todos/existing-task/complete", nil)
+	rr := postForm(env.router, "/todos/"+existingTask+"/complete", nil)
 
 	if rr.Code != http.StatusSeeOther {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	item, err := env.personalSvc.Get("existing-task")
+	item, err := env.personalSvc.Get(existingTask)
 	if err != nil {
 		t.Fatalf("getting item: %v", err)
 	}
@@ -262,15 +265,15 @@ func TestUncompleteTask(t *testing.T) {
 	env := setupTrackerEnv(t)
 
 	// First complete it.
-	postForm(env.router, "/todos/existing-task/complete", nil)
+	postForm(env.router, "/todos/"+existingTask+"/complete", nil)
 	// Then uncomplete it.
-	rr := postForm(env.router, "/todos/existing-task/uncomplete", nil)
+	rr := postForm(env.router, "/todos/"+existingTask+"/uncomplete", nil)
 
 	if rr.Code != http.StatusSeeOther {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	item, err := env.personalSvc.Get("existing-task")
+	item, err := env.personalSvc.Get(existingTask)
 	if err != nil {
 		t.Fatalf("getting item: %v", err)
 	}
@@ -285,7 +288,7 @@ func TestUncompleteTask(t *testing.T) {
 func TestUpdateNotes(t *testing.T) {
 	env := setupTrackerEnv(t)
 
-	rr := postForm(env.router, "/todos/existing-task/notes", url.Values{
+	rr := postForm(env.router, "/todos/"+existingTask+"/notes", url.Values{
 		"body": {"Some notes here"},
 	})
 
@@ -293,7 +296,7 @@ func TestUpdateNotes(t *testing.T) {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	item, err := env.personalSvc.Get("existing-task")
+	item, err := env.personalSvc.Get(existingTask)
 	if err != nil {
 		t.Fatalf("getting item: %v", err)
 	}
@@ -305,7 +308,7 @@ func TestUpdateNotes(t *testing.T) {
 func TestUpdateEdit(t *testing.T) {
 	env := setupTrackerEnv(t)
 
-	rr := postForm(env.router, "/todos/existing-task/edit", url.Values{
+	rr := postForm(env.router, "/todos/"+existingTask+"/edit", url.Values{
 		"title":  {"Existing task"},
 		"body":   {"Updated body"},
 		"tags":   {"work, urgent"},
@@ -316,7 +319,7 @@ func TestUpdateEdit(t *testing.T) {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	item, err := env.personalSvc.Get("existing-task")
+	item, err := env.personalSvc.Get(existingTask)
 	if err != nil {
 		t.Fatalf("getting item: %v", err)
 	}
@@ -334,7 +337,7 @@ func TestUpdateEdit(t *testing.T) {
 func TestUpdateEditTitle(t *testing.T) {
 	env := setupTrackerEnv(t)
 
-	rr := postForm(env.router, "/todos/existing-task/edit", url.Values{
+	rr := postForm(env.router, "/todos/"+existingTask+"/edit", url.Values{
 		"title": {"Renamed task"},
 		"body":  {""},
 		"tags":  {""},
@@ -344,14 +347,8 @@ func TestUpdateEditTitle(t *testing.T) {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	// Old slug should no longer exist.
-	_, err := env.personalSvc.Get("existing-task")
-	if err == nil {
-		t.Error("expected old slug 'existing-task' to not exist after rename")
-	}
-
-	// New slug should exist.
-	item, err := env.personalSvc.Get("renamed-task")
+	// A rename keeps the ID.
+	item, err := env.personalSvc.Get(existingTask)
 	if err != nil {
 		t.Fatalf("getting renamed item: %v", err)
 	}
@@ -363,14 +360,14 @@ func TestUpdateEditTitle(t *testing.T) {
 func TestDeleteTask(t *testing.T) {
 	env := setupTrackerEnv(t)
 
-	rr := postForm(env.router, "/todos/existing-task/delete", nil)
+	rr := postForm(env.router, "/todos/"+existingTask+"/delete", nil)
 
 	if rr.Code != http.StatusSeeOther {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
 	// Delete is now soft-delete: item still exists via Get but is excluded from List.
-	item, err := env.personalSvc.Get("existing-task")
+	item, err := env.personalSvc.Get(existingTask)
 	if err != nil {
 		t.Fatalf("expected soft-deleted item to still be accessible via Get: %v", err)
 	}
@@ -380,7 +377,7 @@ func TestDeleteTask(t *testing.T) {
 
 	items, _ := env.personalSvc.List()
 	for _, it := range items {
-		if it.Slug == "existing-task" {
+		if it.ID == existingTask {
 			t.Error("soft-deleted item should not appear in List()")
 		}
 	}
@@ -389,7 +386,7 @@ func TestDeleteTask(t *testing.T) {
 func TestUpdatePriority(t *testing.T) {
 	env := setupTrackerEnv(t)
 
-	rr := postForm(env.router, "/todos/existing-task/priority", url.Values{
+	rr := postForm(env.router, "/todos/"+existingTask+"/priority", url.Values{
 		"priority": {"high"},
 	})
 
@@ -397,7 +394,7 @@ func TestUpdatePriority(t *testing.T) {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	item, err := env.personalSvc.Get("existing-task")
+	item, err := env.personalSvc.Get(existingTask)
 	if err != nil {
 		t.Fatalf("getting item: %v", err)
 	}
@@ -409,7 +406,7 @@ func TestUpdatePriority(t *testing.T) {
 func TestUpdateTags(t *testing.T) {
 	env := setupTrackerEnv(t)
 
-	rr := postForm(env.router, "/todos/existing-task/tags", url.Values{
+	rr := postForm(env.router, "/todos/"+existingTask+"/tags", url.Values{
 		"tags": {"finance, health"},
 	})
 
@@ -417,7 +414,7 @@ func TestUpdateTags(t *testing.T) {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	item, err := env.personalSvc.Get("existing-task")
+	item, err := env.personalSvc.Get(existingTask)
 	if err != nil {
 		t.Fatalf("getting item: %v", err)
 	}
@@ -429,7 +426,7 @@ func TestUpdateTags(t *testing.T) {
 func TestMoveToList(t *testing.T) {
 	env := setupTrackerEnv(t)
 
-	rr := postForm(env.router, "/todos/existing-task/move", nil)
+	rr := postForm(env.router, "/todos/"+existingTask+"/move", nil)
 
 	if rr.Code != http.StatusSeeOther {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
@@ -439,13 +436,13 @@ func TestMoveToList(t *testing.T) {
 	}
 
 	// Item should no longer be in personal list.
-	_, err := env.personalSvc.Get("existing-task")
+	_, err := env.personalSvc.Get(existingTask)
 	if err == nil {
 		t.Error("expected item to be removed from personal list")
 	}
 
 	// Item should now be in family list.
-	item, err := env.familySvc.Get("existing-task")
+	item, err := env.familySvc.Get(existingTask)
 	if err != nil {
 		t.Fatalf("expected item in family list: %v", err)
 	}
@@ -465,7 +462,8 @@ func TestUpdateProgress(t *testing.T) {
 		"unit":    {"km"},
 	})
 
-	rr := postForm(env.router, "/todos/run-distance/progress", url.Values{
+	goal := idOf(t, env.personalSvc, "Run distance")
+	rr := postForm(env.router, "/todos/"+goal+"/progress", url.Values{
 		"delta": {"10"},
 	})
 
@@ -473,7 +471,7 @@ func TestUpdateProgress(t *testing.T) {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	item, err := env.personalSvc.Get("run-distance")
+	item, err := env.personalSvc.Get(goal)
 	if err != nil {
 		t.Fatalf("getting goal: %v", err)
 	}
@@ -493,7 +491,8 @@ func TestSetProgress(t *testing.T) {
 		"unit":    {"dollars"},
 	})
 
-	rr := postForm(env.router, "/todos/save-money/progress", url.Values{
+	goal := idOf(t, env.personalSvc, "Save money")
+	rr := postForm(env.router, "/todos/"+goal+"/progress", url.Values{
 		"delta": {"500"},
 		"set":   {"1"},
 	})
@@ -502,7 +501,7 @@ func TestSetProgress(t *testing.T) {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	item, err := env.personalSvc.Get("save-money")
+	item, err := env.personalSvc.Get(goal)
 	if err != nil {
 		t.Fatalf("getting goal: %v", err)
 	}
@@ -544,15 +543,15 @@ func TestRestoreTask(t *testing.T) {
 	env := setupTrackerEnv(t)
 
 	// Soft delete first.
-	postForm(env.router, "/todos/existing-task/delete", nil)
+	postForm(env.router, "/todos/"+existingTask+"/delete", nil)
 
 	// Then restore.
-	rr := postForm(env.router, "/todos/existing-task/restore", nil)
+	rr := postForm(env.router, "/todos/"+existingTask+"/restore", nil)
 	if rr.Code != http.StatusSeeOther {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	item, err := env.personalSvc.Get("existing-task")
+	item, err := env.personalSvc.Get(existingTask)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -570,15 +569,15 @@ func TestPurgeTask(t *testing.T) {
 	env := setupTrackerEnv(t)
 
 	// Soft delete first.
-	postForm(env.router, "/todos/existing-task/delete", nil)
+	postForm(env.router, "/todos/"+existingTask+"/delete", nil)
 
 	// Then permanently delete.
-	rr := postForm(env.router, "/todos/existing-task/purge", nil)
+	rr := postForm(env.router, "/todos/"+existingTask+"/purge", nil)
 	if rr.Code != http.StatusSeeOther {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	_, err := env.personalSvc.Get("existing-task")
+	_, err := env.personalSvc.Get(existingTask)
 	if err == nil {
 		t.Error("expected item to be permanently deleted")
 	}
@@ -586,11 +585,10 @@ func TestPurgeTask(t *testing.T) {
 
 func TestBulkCompleteHandler(t *testing.T) {
 	env := setupTrackerEnv(t)
-	// Add another task.
-	postForm(env.router, "/todos/add", url.Values{"title": {"Second task"}})
+	second := addSecondTask(t, env)
 
 	rr := postForm(env.router, "/todos/bulk/complete", url.Values{
-		"slugs": {"existing-task, second-task"},
+		"ids": {existingTask + ", " + second},
 	})
 
 	if rr.Code != http.StatusSeeOther {
@@ -601,8 +599,8 @@ func TestBulkCompleteHandler(t *testing.T) {
 		t.Errorf("expected bulk-completed flash, got %q", loc)
 	}
 
-	a, _ := env.personalSvc.Get("existing-task")
-	b, _ := env.personalSvc.Get("second-task")
+	a, _ := env.personalSvc.Get(existingTask)
+	b, _ := env.personalSvc.Get(second)
 	if !a.Done || !b.Done {
 		t.Error("expected both tasks to be completed")
 	}
@@ -610,10 +608,10 @@ func TestBulkCompleteHandler(t *testing.T) {
 
 func TestBulkDeleteHandler(t *testing.T) {
 	env := setupTrackerEnv(t)
-	postForm(env.router, "/todos/add", url.Values{"title": {"Second task"}})
+	second := addSecondTask(t, env)
 
 	rr := postForm(env.router, "/todos/bulk/delete", url.Values{
-		"slugs": {"existing-task, second-task"},
+		"ids": {existingTask + ", " + second},
 	})
 
 	if rr.Code != http.StatusSeeOther {
@@ -630,7 +628,7 @@ func TestBulkPriorityHandler(t *testing.T) {
 	env := setupTrackerEnv(t)
 
 	rr := postForm(env.router, "/todos/bulk/priority", url.Values{
-		"slugs":    {"existing-task"},
+		"ids":      {existingTask},
 		"priority": {"high"},
 	})
 
@@ -638,7 +636,7 @@ func TestBulkPriorityHandler(t *testing.T) {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	item, _ := env.personalSvc.Get("existing-task")
+	item, _ := env.personalSvc.Get(existingTask)
 	if item.Priority != "high" {
 		t.Errorf("expected priority 'high', got %q", item.Priority)
 	}
@@ -648,15 +646,15 @@ func TestBulkAddTagHandler(t *testing.T) {
 	env := setupTrackerEnv(t)
 
 	rr := postForm(env.router, "/todos/bulk/tag", url.Values{
-		"slugs": {"existing-task"},
-		"tag":   {"urgent"},
+		"ids": {existingTask},
+		"tag": {"urgent"},
 	})
 
 	if rr.Code != http.StatusSeeOther {
 		t.Fatalf("expected 303, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	item, _ := env.personalSvc.Get("existing-task")
+	item, _ := env.personalSvc.Get(existingTask)
 	if len(item.Tags) != 1 || item.Tags[0] != "urgent" {
 		t.Errorf("expected tags [urgent], got %v", item.Tags)
 	}
@@ -666,7 +664,7 @@ func TestBulkNoSlugsReturns400(t *testing.T) {
 	env := setupTrackerEnv(t)
 
 	rr := postForm(env.router, "/todos/bulk/complete", url.Values{
-		"slugs": {""},
+		"ids": {""},
 	})
 
 	if rr.Code != http.StatusBadRequest {
@@ -678,11 +676,28 @@ func TestBulkAddTagMissingTag(t *testing.T) {
 	env := setupTrackerEnv(t)
 
 	rr := postForm(env.router, "/todos/bulk/tag", url.Values{
-		"slugs": {"existing-task"},
-		"tag":   {""},
+		"ids": {existingTask},
+		"tag": {""},
 	})
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
+}
+
+// addSecondTask adds "Second task" through the router and returns its ID.
+func addSecondTask(t *testing.T, env *trackerTestEnv) string {
+	t.Helper()
+	postForm(env.router, "/todos/add", url.Values{"title": {"Second task"}})
+	items, err := env.personalSvc.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range items {
+		if it.Title == "Second task" {
+			return it.ID
+		}
+	}
+	t.Fatal("Second task was not added")
+	return ""
 }

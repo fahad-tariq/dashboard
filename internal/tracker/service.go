@@ -79,7 +79,7 @@ func (s *Service) AssignedOnLoad() bool {
 	return s.assignedOnLoad
 }
 
-func (s *Service) mutate(slug string, fn func(*Item) error) error {
+func (s *Service) mutate(id string, fn func(*Item) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -90,7 +90,7 @@ func (s *Service) mutate(slug string, fn func(*Item) error) error {
 
 	found := false
 	for i := range items {
-		if items[i].Slug == slug {
+		if id != "" && items[i].ID == id {
 			if err := fn(&items[i]); err != nil {
 				return err
 			}
@@ -100,7 +100,7 @@ func (s *Service) mutate(slug string, fn func(*Item) error) error {
 		}
 	}
 	if !found {
-		return fmt.Errorf("tracker item %q not found", slug)
+		return fmt.Errorf("tracker item %q not found", id)
 	}
 
 	if err := s.write(items); err != nil {
@@ -135,16 +135,16 @@ func (s *Service) ListDeleted() []Item {
 	return out
 }
 
-func (s *Service) Get(slug string) (*Item, error) {
+func (s *Service) Get(id string) (*Item, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for i := range s.cache {
-		if s.cache[i].Slug == slug {
+		if id != "" && s.cache[i].ID == id {
 			cp := s.cache[i]
 			return &cp, nil
 		}
 	}
-	return nil, fmt.Errorf("tracker item %q not found", slug)
+	return nil, fmt.Errorf("tracker item %q not found", id)
 }
 
 // AddItem appends item and returns its ID. An item keeps an ID it brings
@@ -165,7 +165,6 @@ func (s *Service) AddItem(item Item) (string, error) {
 			return "", err
 		}
 	}
-	item.Slug = Slugify(item.Title)
 	if item.Added == "" {
 		item.Added = time.Now().In(s.loc).Format("2006-01-02")
 	}
@@ -189,23 +188,23 @@ func (s *Service) AddItem(item Item) (string, error) {
 	return item.ID, nil
 }
 
-func (s *Service) UpdateNotes(slug, body string) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) UpdateNotes(id, body string) error {
+	return s.mutate(id, func(it *Item) error {
 		it.Body = body
 		return nil
 	})
 }
 
-func (s *Service) Complete(slug string) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) Complete(id string) error {
+	return s.mutate(id, func(it *Item) error {
 		it.Done = true
 		it.Completed = time.Now().In(s.loc).Format("2006-01-02")
 		return nil
 	})
 }
 
-func (s *Service) Uncomplete(slug string) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) Uncomplete(id string) error {
+	return s.mutate(id, func(it *Item) error {
 		it.Done = false
 		it.Completed = ""
 		return nil
@@ -214,8 +213,8 @@ func (s *Service) Uncomplete(slug string) error {
 
 // UpdateStatus sets the status field of an item (house projects only).
 // Setting status to "done" also marks the item as completed; other statuses clear it.
-func (s *Service) UpdateStatus(slug, status string) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) UpdateStatus(id, status string) error {
+	return s.mutate(id, func(it *Item) error {
 		it.Status = status
 		if status == "done" {
 			it.Done = true
@@ -231,23 +230,23 @@ func (s *Service) UpdateStatus(slug, status string) error {
 }
 
 // Delete soft-deletes an item by setting its DeletedAt timestamp.
-func (s *Service) Delete(slug string) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) Delete(id string) error {
+	return s.mutate(id, func(it *Item) error {
 		it.DeletedAt = time.Now().In(s.loc).Format("2006-01-02")
 		return nil
 	})
 }
 
 // Restore clears the DeletedAt field, returning an item from trash.
-func (s *Service) Restore(slug string) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) Restore(id string) error {
+	return s.mutate(id, func(it *Item) error {
 		it.DeletedAt = ""
 		return nil
 	})
 }
 
 // PermanentDelete removes an item from the file entirely.
-func (s *Service) PermanentDelete(slug string) error {
+func (s *Service) PermanentDelete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -258,13 +257,13 @@ func (s *Service) PermanentDelete(slug string) error {
 
 	idx := -1
 	for i := range items {
-		if items[i].Slug == slug {
+		if id != "" && items[i].ID == id {
 			idx = i
 			break
 		}
 	}
 	if idx < 0 {
-		return fmt.Errorf("tracker item %q not found", slug)
+		return fmt.Errorf("tracker item %q not found", id)
 	}
 
 	items = append(items[:idx], items[idx+1:]...)
@@ -275,27 +274,30 @@ func (s *Service) PermanentDelete(slug string) error {
 	return nil
 }
 
-// PurgeExpired permanently removes items deleted more than `days` ago.
-func (s *Service) PurgeExpired(days int) error {
+// PurgeExpired permanently removes items deleted more than `days` ago
+// and returns their IDs.
+func (s *Service) PurgeExpired(days int) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	items, err := ParseTracker(s.trackerPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var purged []string
 	cutoff := httputil.CutoffDate(days, s.loc)
 	var kept []Item
 	for _, it := range items {
 		if it.DeletedAt != "" {
 			deletedTime, err := time.Parse("2006-01-02", it.DeletedAt)
 			if err != nil {
-				slog.Warn("malformed deleted date, skipping purge for item", "slug", it.Slug, "deleted_at", it.DeletedAt)
+				slog.Warn("malformed deleted date, skipping purge for item", "id", it.ID, "deleted_at", it.DeletedAt)
 				kept = append(kept, it)
 				continue
 			}
 			if !deletedTime.After(cutoff) {
+				purged = append(purged, it.ID)
 				continue // purge this item (deleted on or before cutoff date)
 			}
 		}
@@ -303,20 +305,23 @@ func (s *Service) PurgeExpired(days int) error {
 	}
 
 	if len(kept) == len(items) {
-		return nil // nothing to purge
+		return nil, nil // nothing to purge
 	}
 
 	if err := s.write(kept); err != nil {
-		return err
+		return nil, err
 	}
 	s.cache = kept
-	return nil
+	return purged, nil
 }
 
 // mutateBatch acquires the lock once, parses the file once, applies fn to all
-// matched slugs, writes once, and updates cache once. If any slug is not found,
+// matched ids, writes once, and updates cache once. If any id is not found,
 // the entire batch fails with no changes written.
-func (s *Service) mutateBatch(slugs []string, fn func(*Item) error) error {
+func (s *Service) mutateBatch(ids []string, fn func(*Item) error) error {
+	if !itemid.AllValid(ids) {
+		return fmt.Errorf("one or more tracker items not found")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -325,14 +330,14 @@ func (s *Service) mutateBatch(slugs []string, fn func(*Item) error) error {
 		return err
 	}
 
-	slugSet := make(map[string]bool, len(slugs))
-	for _, sl := range slugs {
-		slugSet[sl] = true
+	idSet := make(map[string]bool, len(ids))
+	for _, v := range ids {
+		idSet[v] = true
 	}
 
 	found := 0
 	for i := range items {
-		if slugSet[items[i].Slug] {
+		if idSet[items[i].ID] {
 			if err := fn(&items[i]); err != nil {
 				return err
 			}
@@ -340,7 +345,7 @@ func (s *Service) mutateBatch(slugs []string, fn func(*Item) error) error {
 			found++
 		}
 	}
-	if found != len(slugSet) {
+	if found != len(idSet) {
 		return fmt.Errorf("one or more tracker items not found")
 	}
 
@@ -352,9 +357,9 @@ func (s *Service) mutateBatch(slugs []string, fn func(*Item) error) error {
 }
 
 // BulkComplete marks multiple items as done in a single file write.
-func (s *Service) BulkComplete(slugs []string) error {
+func (s *Service) BulkComplete(ids []string) error {
 	now := time.Now().In(s.loc).Format("2006-01-02")
-	return s.mutateBatch(slugs, func(it *Item) error {
+	return s.mutateBatch(ids, func(it *Item) error {
 		it.Done = true
 		it.Completed = now
 		return nil
@@ -362,17 +367,17 @@ func (s *Service) BulkComplete(slugs []string) error {
 }
 
 // BulkDelete soft-deletes multiple items in a single file write.
-func (s *Service) BulkDelete(slugs []string) error {
+func (s *Service) BulkDelete(ids []string) error {
 	now := time.Now().In(s.loc).Format("2006-01-02")
-	return s.mutateBatch(slugs, func(it *Item) error {
+	return s.mutateBatch(ids, func(it *Item) error {
 		it.DeletedAt = now
 		return nil
 	})
 }
 
 // BulkUpdatePriority sets the priority on multiple items in a single file write.
-func (s *Service) BulkUpdatePriority(slugs []string, priority string) error {
-	return s.mutateBatch(slugs, func(it *Item) error {
+func (s *Service) BulkUpdatePriority(ids []string, priority string) error {
+	return s.mutateBatch(ids, func(it *Item) error {
 		it.Priority = priority
 		return nil
 	})
@@ -380,8 +385,8 @@ func (s *Service) BulkUpdatePriority(slugs []string, priority string) error {
 
 // BulkAddTag appends a tag to multiple items in a single file write.
 // Skips items that already have the tag.
-func (s *Service) BulkAddTag(slugs []string, tag string) error {
-	return s.mutateBatch(slugs, func(it *Item) error {
+func (s *Service) BulkAddTag(ids []string, tag string) error {
+	return s.mutateBatch(ids, func(it *Item) error {
 		if slices.Contains(it.Tags, tag) {
 			return nil
 		}
@@ -390,15 +395,15 @@ func (s *Service) BulkAddTag(slugs []string, tag string) error {
 	})
 }
 
-func (s *Service) UpdatePriority(slug, priority string) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) UpdatePriority(id, priority string) error {
+	return s.mutate(id, func(it *Item) error {
 		it.Priority = priority
 		return nil
 	})
 }
 
-func (s *Service) UpdateTags(slug string, tags []string) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) UpdateTags(id string, tags []string) error {
+	return s.mutate(id, func(it *Item) error {
 		it.Tags = tags
 		return nil
 	})
@@ -416,19 +421,18 @@ type Edit struct {
 
 // ApplyEdit changes only the fields e sets. Every edit goes through it: the
 // web form sets every field it shows, the API and the house page only some.
-func (s *Service) ApplyEdit(slug string, e Edit) error {
+func (s *Service) ApplyEdit(id string, e Edit) error {
 	if e.Deadline != nil && *e.Deadline != "" {
 		if err := validDate(*e.Deadline); err != nil {
 			return err
 		}
 	}
-	return s.mutate(slug, func(it *Item) error {
+	return s.mutate(id, func(it *Item) error {
 		if e.Deadline != nil {
 			it.Deadline = *e.Deadline
 		}
 		if title := httputil.CleanTitle(e.Title); title != "" {
 			it.Title = title
-			it.Slug = Slugify(title)
 		}
 		if e.Body != nil {
 			it.Body = *e.Body
@@ -444,7 +448,7 @@ func (s *Service) ApplyEdit(slug string, e Edit) error {
 }
 
 // RelinkFromIdea rewrites each [from-idea:] value for which resolve returns
-// a replacement (an older file's idea slug becoming the idea's ID) and
+// a replacement (an older file's idea id becoming the idea's ID) and
 // reports how many changed.
 func (s *Service) RelinkFromIdea(resolve func(ref string) (string, bool)) (int, error) {
 	s.mu.Lock()
@@ -479,10 +483,10 @@ func (s *Service) All() []Item {
 	return slices.Clone(s.cache)
 }
 
-func (s *Service) SetProgress(slug string, value float64) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) SetProgress(id string, value float64) error {
+	return s.mutate(id, func(it *Item) error {
 		if it.Type != GoalType {
-			return fmt.Errorf("goal %q not found", slug)
+			return fmt.Errorf("goal %q not found", id)
 		}
 		it.Current = value
 		if it.Current < 0 {
@@ -492,10 +496,10 @@ func (s *Service) SetProgress(slug string, value float64) error {
 	})
 }
 
-func (s *Service) UpdateProgress(slug string, delta float64) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) UpdateProgress(id string, delta float64) error {
+	return s.mutate(id, func(it *Item) error {
 		if it.Type != GoalType {
-			return fmt.Errorf("goal %q not found", slug)
+			return fmt.Errorf("goal %q not found", id)
 		}
 		it.Current += delta
 		if it.Current < 0 {
@@ -537,11 +541,11 @@ func (s *Service) Search(query string) []Item {
 
 // SetPlanned marks an item as planned for the given date (YYYY-MM-DD).
 // Resets PlanOrder since a new day has no established order yet.
-func (s *Service) SetPlanned(slug, date string) error {
+func (s *Service) SetPlanned(id, date string) error {
 	if err := validDate(date); err != nil {
 		return err
 	}
-	return s.mutate(slug, func(it *Item) error {
+	return s.mutate(id, func(it *Item) error {
 		it.Planned = date
 		it.PlanOrder = 0
 		return nil
@@ -549,8 +553,8 @@ func (s *Service) SetPlanned(slug, date string) error {
 }
 
 // ClearPlanned removes the planned date and resets PlanOrder.
-func (s *Service) ClearPlanned(slug string) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) ClearPlanned(id string) error {
+	return s.mutate(id, func(it *Item) error {
 		it.Planned = ""
 		it.PlanOrder = 0
 		return nil
@@ -559,25 +563,25 @@ func (s *Service) ClearPlanned(slug string) error {
 
 // BulkSetPlanned sets the planned date on multiple items in a single file write.
 // Resets PlanOrder since bulk-planning from /todos shouldn't carry stale order.
-func (s *Service) BulkSetPlanned(slugs []string, date string) error {
+func (s *Service) BulkSetPlanned(ids []string, date string) error {
 	if err := validDate(date); err != nil {
 		return err
 	}
-	return s.mutateBatch(slugs, func(it *Item) error {
+	return s.mutateBatch(ids, func(it *Item) error {
 		it.Planned = date
 		it.PlanOrder = 0
 		return nil
 	})
 }
 
-// ReorderPlanned sets PlanOrder = position+1 for each slug in the given order.
-func (s *Service) ReorderPlanned(slugs []string) error {
-	slugIndex := make(map[string]int, len(slugs))
-	for i, sl := range slugs {
-		slugIndex[sl] = i + 1
+// ReorderPlanned sets PlanOrder = position+1 for each id in the given order.
+func (s *Service) ReorderPlanned(ids []string) error {
+	idIndex := make(map[string]int, len(ids))
+	for i, v := range ids {
+		idIndex[v] = i + 1
 	}
-	return s.mutateBatch(slugs, func(it *Item) error {
-		it.PlanOrder = slugIndex[it.Slug]
+	return s.mutateBatch(ids, func(it *Item) error {
+		it.PlanOrder = idIndex[it.ID]
 		return nil
 	})
 }
@@ -622,8 +626,8 @@ func (s *Service) ListPlannedRange(start, end string) []Item {
 }
 
 // AddSubStep appends a new unchecked sub-step to the item body.
-func (s *Service) AddSubStep(slug, text string) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) AddSubStep(id, text string) error {
+	return s.mutate(id, func(it *Item) error {
 		line := "- [ ] " + strings.TrimSpace(text)
 		if it.Body == "" {
 			it.Body = line
@@ -635,8 +639,8 @@ func (s *Service) AddSubStep(slug, text string) error {
 }
 
 // ToggleSubStep toggles the done state of the Nth sub-step in the body.
-func (s *Service) ToggleSubStep(slug string, index int) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) ToggleSubStep(id string, index int) error {
+	return s.mutate(id, func(it *Item) error {
 		lines := strings.Split(it.Body, "\n")
 		stepIdx := 0
 		for i, line := range lines {
@@ -660,8 +664,8 @@ func (s *Service) ToggleSubStep(slug string, index int) error {
 }
 
 // RemoveSubStep removes the Nth sub-step from the body.
-func (s *Service) RemoveSubStep(slug string, index int) error {
-	return s.mutate(slug, func(it *Item) error {
+func (s *Service) RemoveSubStep(id string, index int) error {
+	return s.mutate(id, func(it *Item) error {
 		lines := strings.Split(it.Body, "\n")
 		stepIdx := 0
 		for i, line := range lines {

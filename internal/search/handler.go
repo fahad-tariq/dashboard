@@ -62,12 +62,12 @@ func (h *Handler) SearchAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 // Tracker searches one tracker list. svc returns the user's service; anchor
-// prefixes the item slug in result links (e.g. "/todos#").
+// prefixes the item ID in result links (e.g. "/todos#").
 func Tracker(category, anchor string, svc func(userID int64) *tracker.Service) module.Searcher {
 	return module.SearchFunc(func(_ context.Context, uid int64, q string) []module.SearchResult {
 		var out []module.SearchResult
 		for _, it := range svc(uid).Search(q) {
-			out = append(out, module.SearchResult{Title: it.Title, Category: category, URL: anchor + it.Slug, Snippet: Snippet(it.Body, q)})
+			out = append(out, module.SearchResult{Title: it.Title, Category: category, URL: anchor + it.ID, Snippet: Snippet(it.Body, q)})
 		}
 		return out
 	})
@@ -78,7 +78,7 @@ func Maintenance(svc *house.Service) module.Searcher {
 	return module.SearchFunc(func(_ context.Context, _ int64, q string) []module.SearchResult {
 		var out []module.SearchResult
 		for _, it := range svc.Search(q) {
-			out = append(out, module.SearchResult{Title: it.Title, Category: "house", URL: "/house#maint-" + it.Slug})
+			out = append(out, module.SearchResult{Title: it.Title, Category: "house", URL: "/house#maint-" + it.ID})
 		}
 		return out
 	})
@@ -89,7 +89,7 @@ func Ideas(svc func(userID int64) *ideas.Service) module.Searcher {
 	return module.SearchFunc(func(_ context.Context, uid int64, q string) []module.SearchResult {
 		var out []module.SearchResult
 		for _, it := range svc(uid).Search(q) {
-			out = append(out, module.SearchResult{Title: it.Title, Category: "ideas", URL: "/ideas/" + it.Slug, Snippet: Snippet(it.Body, q)})
+			out = append(out, module.SearchResult{Title: it.Title, Category: "ideas", URL: "/ideas/" + it.ID, Snippet: Snippet(it.Body, q)})
 		}
 		return out
 	})

@@ -20,6 +20,7 @@ import (
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/home"
 	"github.com/fahad/dashboard/internal/httputil"
+	"github.com/fahad/dashboard/internal/itemid"
 	"github.com/fahad/dashboard/internal/module"
 	"github.com/fahad/dashboard/internal/search"
 	"github.com/fahad/dashboard/internal/sse"
@@ -82,7 +83,7 @@ func mountBrowserRoutes(r chi.Router, cfg *config.Config, database *sql.DB, sm *
 		r.Post("/account/password", h.account.PasswordSubmit)
 
 		mountAppRoutes(r, h)
-		r.Get("/commentary/{list}/{slug}", commentary.WebGetCommentary(h.commentary))
+		r.Get("/commentary/{list}/"+itemid.Route, commentary.WebGetCommentary(h.commentary))
 		for _, m := range reg.Modules() {
 			man := m.Manifest()
 			if err = mountModule(r, man.ID, man.Prefixes, m.Routes); err != nil {
@@ -121,7 +122,7 @@ func mountAppRoutes(r chi.Router, h *handlers) {
 	// Daily planner routes.
 	r.Post("/plan/set", h.home.SetPlanned)
 	r.Post("/plan/clear", h.home.ClearPlanned)
-	r.Post("/plan/{slug}/complete", h.home.CompletePlanned)
+	r.Post("/plan/"+itemid.Route+"/complete", h.home.CompletePlanned)
 	r.Post("/plan/bulk/set", h.home.BulkSetPlanned)
 	r.Post("/plan/bulk/clear-carried", h.home.ClearCarriedOver)
 	r.Post("/plan/reorder", h.home.ReorderPlanned)
@@ -143,13 +144,13 @@ func mountAPIRoutes(root chi.Router, cfg *config.Config, h *handlers, reg *modul
 		r.Use(httputil.RateLimitMiddleware(apiRateLimiter))
 
 		r.Get("/plan", h.home.APIListPlan)
-		r.Put("/plan/{slug}", h.home.APISetPlan)
-		r.Delete("/plan/{slug}", h.home.APIClearPlan)
+		r.Put("/plan/"+itemid.Route, h.home.APISetPlan)
+		r.Delete("/plan/"+itemid.Route, h.home.APIClearPlan)
 		r.Post("/plan/reorder", h.home.APIReorderPlan)
 		r.Post("/plan/clear-carried", h.home.APIClearCarried)
-		r.Put("/commentary/{list}/{slug}", commentary.APISetCommentary(h.commentary))
-		r.Get("/commentary/{list}/{slug}", commentary.APIGetCommentary(h.commentary))
-		r.Delete("/commentary/{list}/{slug}", commentary.APIDeleteCommentary(h.commentary))
+		r.Put("/commentary/{list}/"+itemid.Route, commentary.APISetCommentary(h.commentary))
+		r.Get("/commentary/{list}/"+itemid.Route, commentary.APIGetCommentary(h.commentary))
+		r.Delete("/commentary/{list}/"+itemid.Route, commentary.APIDeleteCommentary(h.commentary))
 		// Module API routes sit under /api/v1/<module-id>, so none can
 		// shadow a core API route.
 		for _, m := range reg.Modules() {

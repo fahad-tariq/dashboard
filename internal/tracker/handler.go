@@ -3,6 +3,7 @@ package tracker
 import (
 	"errors"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"github.com/fahad/dashboard/internal/auth"
 	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/httputil"
+	"github.com/fahad/dashboard/internal/itemid"
 )
 
 var PriorityWeight = map[string]int{"high": 0, "medium": 1, "low": 2, "": 3}
@@ -400,7 +402,7 @@ func (h *Handler) redirectBack(w http.ResponseWriter, r *http.Request, anchor st
 }
 
 func (h *Handler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
@@ -408,18 +410,18 @@ func (h *Handler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 
 	body := strings.TrimSpace(r.FormValue("body"))
 	svc, _ := h.resolve(r)
-	if err := svc.UpdateNotes(slug, body); err != nil {
+	if err := svc.UpdateNotes(id, body); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
 
-	h.redirectBack(w, r, slug, "notes-updated")
+	h.redirectBack(w, r, "item-"+id, "notes-updated")
 }
 
 func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	svc, _ := h.resolve(r)
-	if err := svc.Complete(slug); err != nil {
+	if err := svc.Complete(id); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
@@ -427,9 +429,9 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Uncomplete(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	svc, _ := h.resolve(r)
-	if err := svc.Uncomplete(slug); err != nil {
+	if err := svc.Uncomplete(id); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
@@ -437,7 +439,7 @@ func (h *Handler) Uncomplete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
@@ -451,35 +453,35 @@ func (h *Handler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 
 	svc, _ := h.resolve(r)
 	if r.FormValue("set") != "" {
-		if err := svc.SetProgress(slug, val); err != nil {
+		if err := svc.SetProgress(id, val); err != nil {
 			http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 			return
 		}
 	} else {
-		if err := svc.UpdateProgress(slug, val); err != nil {
+		if err := svc.UpdateProgress(id, val); err != nil {
 			http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 			return
 		}
 	}
 
-	h.redirectBack(w, r, slug)
+	h.redirectBack(w, r, "item-"+id)
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	svc, _ := h.resolve(r)
-	if err := svc.Delete(slug); err != nil {
+	if err := svc.Delete(id); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
-	httputil.OfferUndo(w, "/"+h.listName+"/"+slug+"/restore")
+	httputil.OfferUndo(w, "/"+h.listName+"/"+id+"/restore")
 	h.redirectBack(w, r, "", "item-deleted")
 }
 
 func (h *Handler) Restore(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	svc, _ := h.resolve(r)
-	if err := svc.Restore(slug); err != nil {
+	if err := svc.Restore(id); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
@@ -487,47 +489,48 @@ func (h *Handler) Restore(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Purge(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	svc, _ := h.resolve(r)
-	if err := svc.PermanentDelete(slug); err != nil {
+	if err := svc.PermanentDelete(id); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
+	h.commentarySt.ForgetItems(id)
 	h.redirectBack(w, r, "", "item-purged")
 }
 
 func (h *Handler) UpdatePriority(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 	priority := sanitisePriority(r.FormValue("priority"))
 	svc, _ := h.resolve(r)
-	if err := svc.UpdatePriority(slug, priority); err != nil {
+	if err := svc.UpdatePriority(id, priority); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
-	h.redirectBack(w, r, slug, "priority-updated")
+	h.redirectBack(w, r, "item-"+id, "priority-updated")
 }
 
 func (h *Handler) UpdateTags(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 	tags := httputil.ParseCSV(r.FormValue("tags"))
 	svc, _ := h.resolve(r)
-	if err := svc.UpdateTags(slug, tags); err != nil {
+	if err := svc.UpdateTags(id, tags); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
-	h.redirectBack(w, r, slug, "tags-updated")
+	h.redirectBack(w, r, "item-"+id, "tags-updated")
 }
 
 func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
@@ -544,12 +547,12 @@ func (h *Handler) UpdateEdit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	svc, _ := h.resolve(r)
-	if err := svc.ApplyEdit(slug, edit); err != nil {
+	if err := svc.ApplyEdit(id, edit); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
 
-	h.redirectBack(w, r, slug, "item-updated")
+	h.redirectBack(w, r, "item-"+id, "item-updated")
 }
 
 func (h *Handler) BulkComplete(w http.ResponseWriter, r *http.Request) {
@@ -557,13 +560,13 @@ func (h *Handler) BulkComplete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := httputil.ParseCSV(r.FormValue("slugs"))
-	if len(slugs) == 0 {
-		http.Error(w, "No items selected", http.StatusBadRequest)
+	ids := itemid.ParseList(r.FormValue("ids"))
+	if len(ids) == 0 {
+		http.Error(w, "No valid items selected", http.StatusBadRequest)
 		return
 	}
 	svc, _ := h.resolve(r)
-	if err := svc.BulkComplete(slugs); err != nil {
+	if err := svc.BulkComplete(ids); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
@@ -575,13 +578,13 @@ func (h *Handler) BulkDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := httputil.ParseCSV(r.FormValue("slugs"))
-	if len(slugs) == 0 {
-		http.Error(w, "No items selected", http.StatusBadRequest)
+	ids := itemid.ParseList(r.FormValue("ids"))
+	if len(ids) == 0 {
+		http.Error(w, "No valid items selected", http.StatusBadRequest)
 		return
 	}
 	svc, _ := h.resolve(r)
-	if err := svc.BulkDelete(slugs); err != nil {
+	if err := svc.BulkDelete(ids); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
@@ -593,14 +596,14 @@ func (h *Handler) BulkPriority(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := httputil.ParseCSV(r.FormValue("slugs"))
-	if len(slugs) == 0 {
-		http.Error(w, "No items selected", http.StatusBadRequest)
+	ids := itemid.ParseList(r.FormValue("ids"))
+	if len(ids) == 0 {
+		http.Error(w, "No valid items selected", http.StatusBadRequest)
 		return
 	}
 	priority := sanitisePriority(r.FormValue("priority"))
 	svc, _ := h.resolve(r)
-	if err := svc.BulkUpdatePriority(slugs, priority); err != nil {
+	if err := svc.BulkUpdatePriority(ids, priority); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
@@ -612,9 +615,9 @@ func (h *Handler) BulkAddTag(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := httputil.ParseCSV(r.FormValue("slugs"))
-	if len(slugs) == 0 {
-		http.Error(w, "No items selected", http.StatusBadRequest)
+	ids := itemid.ParseList(r.FormValue("ids"))
+	if len(ids) == 0 {
+		http.Error(w, "No valid items selected", http.StatusBadRequest)
 		return
 	}
 	tag := strings.TrimSpace(r.FormValue("tag"))
@@ -623,7 +626,7 @@ func (h *Handler) BulkAddTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	svc, _ := h.resolve(r)
-	if err := svc.BulkAddTag(slugs, tag); err != nil {
+	if err := svc.BulkAddTag(ids, tag); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
@@ -631,10 +634,10 @@ func (h *Handler) BulkAddTag(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PlanForToday(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	today := time.Now().In(h.loc).Format("2006-01-02")
 	svc, _ := h.resolve(r)
-	if err := svc.SetPlanned(slug, today); err != nil {
+	if err := svc.SetPlanned(id, today); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
@@ -646,14 +649,14 @@ func (h *Handler) BulkPlanForToday(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
-	slugs := httputil.ParseCSV(r.FormValue("slugs"))
-	if len(slugs) == 0 {
-		http.Error(w, "No items selected", http.StatusBadRequest)
+	ids := itemid.ParseList(r.FormValue("ids"))
+	if len(ids) == 0 {
+		http.Error(w, "No valid items selected", http.StatusBadRequest)
 		return
 	}
 	today := time.Now().In(h.loc).Format("2006-01-02")
 	svc, _ := h.resolve(r)
-	if err := svc.BulkSetPlanned(slugs, today); err != nil {
+	if err := svc.BulkSetPlanned(ids, today); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
@@ -661,26 +664,26 @@ func (h *Handler) BulkPlanForToday(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AddSubStep(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 	text := strings.TrimSpace(r.FormValue("text"))
 	if text == "" {
-		h.redirectBack(w, r, "item-"+slug)
+		h.redirectBack(w, r, "item-"+id)
 		return
 	}
 	svc, _ := h.resolve(r)
-	if err := svc.AddSubStep(slug, text); err != nil {
+	if err := svc.AddSubStep(id, text); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
-	h.redirectBack(w, r, "item-"+slug)
+	h.redirectBack(w, r, "item-"+id)
 }
 
 func (h *Handler) ToggleSubStep(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
@@ -691,15 +694,15 @@ func (h *Handler) ToggleSubStep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	svc, _ := h.resolve(r)
-	if err := svc.ToggleSubStep(slug, index); err != nil {
+	if err := svc.ToggleSubStep(id, index); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
-	h.redirectBack(w, r, "item-"+slug)
+	h.redirectBack(w, r, "item-"+id)
 }
 
 func (h *Handler) RemoveSubStep(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
@@ -710,15 +713,15 @@ func (h *Handler) RemoveSubStep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	svc, _ := h.resolve(r)
-	if err := svc.RemoveSubStep(slug, index); err != nil {
+	if err := svc.RemoveSubStep(id, index); err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
-	h.redirectBack(w, r, "item-"+slug)
+	h.redirectBack(w, r, "item-"+id)
 }
 
 func (h *Handler) PromoteSubStep(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
@@ -729,7 +732,7 @@ func (h *Handler) PromoteSubStep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	svc, _ := h.resolve(r)
-	item, err := svc.Get(slug)
+	item, err := svc.Get(id)
 	if err != nil {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
@@ -742,7 +745,7 @@ func (h *Handler) PromoteSubStep(w http.ResponseWriter, r *http.Request) {
 	text := steps[index].Text
 	// Mark the step as done (leaves it as a record) rather than removing it.
 	if !steps[index].Done {
-		if err := svc.ToggleSubStep(slug, index); err != nil {
+		if err := svc.ToggleSubStep(id, index); err != nil {
 			httputil.ServerError(w, "marking sub-step done", err)
 			return
 		}
@@ -751,14 +754,14 @@ func (h *Handler) PromoteSubStep(w http.ResponseWriter, r *http.Request) {
 		httputil.ServerError(w, "promoting sub-step to task", err)
 		return
 	}
-	h.redirectBack(w, r, "item-"+slug)
+	h.redirectBack(w, r, "item-"+id)
 }
 
 func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	id := chi.URLParam(r, "id")
 
 	svc, otherSvc := h.resolve(r)
-	item, err := svc.Get(slug)
+	item, err := svc.Get(id)
 	if err != nil {
 		http.Error(w, "Item not found", http.StatusBadRequest)
 		return
@@ -767,17 +770,23 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 	// The item keeps its ID unless the target already holds it (a leftover
 	// from a failed move). Add before deleting: a failed add leaves the item where it was, and a
 	// failed delete leaves a recoverable duplicate rather than losing it.
-	if _, err := otherSvc.AddItem(*item); err != nil {
+	newID, err := otherSvc.AddItem(*item)
+	if err != nil {
 		if errors.Is(err, ErrInvalidDate) {
 			// Only a hand-edited file can hold an impossible date.
 			http.Error(w, InvalidDateMessage, http.StatusBadRequest)
 			return
 		}
-		httputil.ServerError(w, "adding item to target list", err, "slug", slug)
+		httputil.ServerError(w, "adding item to target list", err, "id", id)
 		return
 	}
-	if err := svc.PermanentDelete(slug); err != nil {
-		httputil.ServerError(w, "item copied to target but not removed from source", err, "slug", slug)
+	if newID != id && h.commentarySt != nil {
+		if err := h.commentarySt.Copy(id, newID); err != nil {
+			slog.Error("copying commentary to a moved item", "error", err)
+		}
+	}
+	if err := svc.PermanentDelete(id); err != nil {
+		httputil.ServerError(w, "item copied to target but not removed from source", err, "id", id)
 		return
 	}
 
@@ -788,25 +797,25 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 // "/todos"). The list and goals pages are registered by the caller.
 func (h *Handler) Mount(r chi.Router, prefix string) {
 	r.Post(prefix+"/add", h.QuickAdd)
-	r.Post(prefix+"/{slug}/complete", h.Complete)
-	r.Post(prefix+"/{slug}/uncomplete", h.Uncomplete)
-	r.Post(prefix+"/{slug}/progress", h.UpdateProgress)
-	r.Post(prefix+"/{slug}/notes", h.UpdateNotes)
-	r.Post(prefix+"/{slug}/delete", h.Delete)
-	r.Post(prefix+"/{slug}/priority", h.UpdatePriority)
-	r.Post(prefix+"/{slug}/tags", h.UpdateTags)
-	r.Post(prefix+"/{slug}/edit", h.UpdateEdit)
-	r.Post(prefix+"/{slug}/move", h.MoveToList)
-	r.Post(prefix+"/{slug}/restore", h.Restore)
-	r.Post(prefix+"/{slug}/purge", h.Purge)
+	r.Post(prefix+"/"+itemid.Route+"/complete", h.Complete)
+	r.Post(prefix+"/"+itemid.Route+"/uncomplete", h.Uncomplete)
+	r.Post(prefix+"/"+itemid.Route+"/progress", h.UpdateProgress)
+	r.Post(prefix+"/"+itemid.Route+"/notes", h.UpdateNotes)
+	r.Post(prefix+"/"+itemid.Route+"/delete", h.Delete)
+	r.Post(prefix+"/"+itemid.Route+"/priority", h.UpdatePriority)
+	r.Post(prefix+"/"+itemid.Route+"/tags", h.UpdateTags)
+	r.Post(prefix+"/"+itemid.Route+"/edit", h.UpdateEdit)
+	r.Post(prefix+"/"+itemid.Route+"/move", h.MoveToList)
+	r.Post(prefix+"/"+itemid.Route+"/restore", h.Restore)
+	r.Post(prefix+"/"+itemid.Route+"/purge", h.Purge)
 	r.Post(prefix+"/bulk/complete", h.BulkComplete)
 	r.Post(prefix+"/bulk/delete", h.BulkDelete)
 	r.Post(prefix+"/bulk/priority", h.BulkPriority)
 	r.Post(prefix+"/bulk/tag", h.BulkAddTag)
-	r.Post(prefix+"/{slug}/plan", h.PlanForToday)
-	r.Post(prefix+"/{slug}/substep/add", h.AddSubStep)
-	r.Post(prefix+"/{slug}/substep/toggle", h.ToggleSubStep)
-	r.Post(prefix+"/{slug}/substep/remove", h.RemoveSubStep)
-	r.Post(prefix+"/{slug}/substep/promote", h.PromoteSubStep)
+	r.Post(prefix+"/"+itemid.Route+"/plan", h.PlanForToday)
+	r.Post(prefix+"/"+itemid.Route+"/substep/add", h.AddSubStep)
+	r.Post(prefix+"/"+itemid.Route+"/substep/toggle", h.ToggleSubStep)
+	r.Post(prefix+"/"+itemid.Route+"/substep/remove", h.RemoveSubStep)
+	r.Post(prefix+"/"+itemid.Route+"/substep/promote", h.PromoteSubStep)
 	r.Post(prefix+"/bulk/plan", h.BulkPlanForToday)
 }

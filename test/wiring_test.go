@@ -166,25 +166,25 @@ func TestNoAuthUsesLegacyPaths(t *testing.T) {
 
 // Commentary belongs to the logged-in user, not always user 1.
 func TestCommentaryScopedToUser(t *testing.T) {
-	idea := "# Ideas\n\n- [ ] Shared idea [status: untriaged] [added: 2026-09-10]\n"
+	idea := "# Ideas\n\n- [ ] Shared idea [status: untriaged] [added: 2026-09-10] [id: w3th3rs7]\n"
 	h, _, database := authRouter(t, []testUser{
 		{"one@test.com", "password-one"},
 		{"two@test.com", "password-two"},
 	}, map[string]string{"1/ideas.md": idea, "2/ideas.md": idea})
 	store := commentary.NewStore(database)
 	for uid, note := range map[int]string{1: "note for user one", 2: "note for user two"} {
-		if err := store.Set("shared-idea", "ideas", uid, note); err != nil {
+		if err := store.Set("w3th3rs7", uid, note); err != nil {
 			t.Fatal(err)
 		}
-		if err := store.Set("a-task", "personal", uid, note); err != nil {
+		if err := store.Set("b7k2m9xq", uid, note); err != nil {
 			t.Fatal(err)
 		}
 	}
 	cookie := login(t, h, "two@test.com", "password-two")
 
 	for name, path := range map[string]string{
-		"web commentary": "/commentary/todos/a-task",
-		"idea detail":    "/ideas/shared-idea",
+		"web commentary": "/commentary/todos/b7k2m9xq",
+		"idea detail":    "/ideas/w3th3rs7",
 	} {
 		t.Run(name, func(t *testing.T) {
 			rr := getAs(t, h, cookie, path)
