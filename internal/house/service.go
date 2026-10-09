@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/changes"
 	"github.com/fahad/dashboard/internal/httputil"
+	"github.com/fahad/dashboard/internal/itemid"
 )
 
 // Service manages maintenance items stored in a single flat-file.
@@ -38,7 +40,21 @@ func (s *Service) loadCache() {
 		items = nil
 	}
 	s.cache = items
-	s.recordOnDisk()
+	s.recordOrAssign(items)
+}
+
+// assignIDs gives items without an ID (or repeating one) a new ID in place.
+func assignIDs(items []MaintenanceItem) bool {
+	return itemid.Assign(items, func(it *MaintenanceItem) *string { return &it.ID })
+}
+
+// recordOrAssign records freshly parsed items as the file's content, or
+// assigns their missing IDs and saves them, so the cache and the file hold
+// the same IDs. Callers hold s.mu or own s.
+func (s *Service) recordOrAssign(items []MaintenanceItem) {
+	if !s.assignAndSave(items) {
+		s.recordOnDisk()
+	}
 }
 
 // List returns all non-deleted maintenance items from cache.
@@ -112,6 +128,12 @@ func (s *Service) Add(item *MaintenanceItem) error {
 		return err
 	}
 
+	taken := func(id string) bool {
+		return slices.ContainsFunc(items, func(it MaintenanceItem) bool { return it.ID == id })
+	}
+	if !itemid.Valid(item.ID) || taken(item.ID) {
+		item.ID = itemid.NewUnique(taken)
+	}
 	items = append(items, *item)
 	if err := s.write(items); err != nil {
 		return err
@@ -290,19 +312,47 @@ func (s *Service) Resync() error {
 		return err
 	}
 	s.cache = items
-	s.recordOnDisk()
+	s.recordOrAssign(items)
 	return nil
 }
 
-// write renders the file, replaces it atomically, then records and publishes
-// the change. Callers hold s.mu.
+// write saves items, then records and publishes the change. Callers hold
+// s.mu.
 func (s *Service) write(items []MaintenanceItem) error {
-	data := RenderMaintenance("Maintenance", items)
-	if err := atomicfile.Write(s.maintPath, data, 0o644); err != nil {
+	data, err := s.save(items)
+	if err != nil {
 		return err
 	}
 	s.Wrote(data)
 	return nil
+}
+
+// save assigns missing IDs in place, renders the file and replaces it
+// atomically. Callers hold s.mu.
+func (s *Service) save(items []MaintenanceItem) ([]byte, error) {
+	assignIDs(items)
+	data := RenderMaintenance("Maintenance", items)
+	if err := atomicfile.Write(s.maintPath, data, 0o644); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// assignAndSave gives freshly parsed items any missing IDs and, if it did,
+// saves the file and records it without publishing: the load or watcher
+// event that parsed them already tells open pages. Callers hold s.mu or own
+// s.
+func (s *Service) assignAndSave(items []MaintenanceItem) bool {
+	if !assignIDs(items) {
+		return false
+	}
+	data, err := s.save(items)
+	if err != nil {
+		slog.Error("writing assigned item ids", "file", s.maintPath, "error", err)
+		return false
+	}
+	s.Record(data)
+	return true
 }
 
 // recordOnDisk notes the file's current content so a watcher event for it is
@@ -339,5 +389,8 @@ func (s *Service) ResyncIfChanged() (bool, error) {
 		return false, err
 	}
 	s.cache = parsed
+	// An external edit may add items without IDs. Saving them back is
+	// recorded, so the watcher event it causes is skipped.
+	s.assignAndSave(parsed)
 	return true, nil
 }

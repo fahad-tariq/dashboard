@@ -10,6 +10,7 @@ import (
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
+	"github.com/fahad/dashboard/internal/itemid"
 )
 
 // runMigrateData handles the "migrate-data" CLI subcommand.
@@ -143,7 +144,9 @@ func runMigrateData() { //nolint:gocyclo // one-off migration command, linear st
 		}
 	}
 
-	// Write combined ideas.md.
+	// Write combined ideas.md, with IDs: it is written outside the service,
+	// which would otherwise assign them on its next load.
+	itemid.Assign(allIdeas, func(idea *ideas.Idea) *string { return &idea.ID })
 	if err := ideas.WriteIdeas(ideasPath, "Ideas", allIdeas); err != nil {
 		fmt.Fprintf(os.Stderr, "writing ideas.md: %v\n", err)
 		os.Exit(1)

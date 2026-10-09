@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fahad/dashboard/internal/db"
+	"github.com/fahad/dashboard/internal/itemid"
 	"github.com/fahad/dashboard/internal/tracker"
 )
 
@@ -30,12 +31,12 @@ func newTestService(t *testing.T, content string) *tracker.Service {
 func TestTrackerServiceAddItem(t *testing.T) {
 	svc := newTestService(t, "# Tracker\n\n")
 
-	slug, err := svc.AddItem(tracker.Item{Title: "Buy groceries", Type: tracker.TaskType})
+	id, err := svc.AddItem(tracker.Item{Title: "Buy groceries", Type: tracker.TaskType})
 	if err != nil {
 		t.Fatalf("AddItem: %v", err)
 	}
-	if slug != "buy-groceries" {
-		t.Errorf("AddItem slug = %q, want %q", slug, "buy-groceries")
+	if item, err := svc.Get("buy-groceries"); err != nil || item.ID != id || !itemid.Valid(id) {
+		t.Errorf("AddItem ID = %q; stored item %+v (%v)", id, item, err)
 	}
 
 	items, err := svc.List()

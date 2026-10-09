@@ -23,7 +23,7 @@ type Idea struct {
 	Images      []string `json:"images,omitempty"`
 	Project     string   `json:"project,omitempty"`
 	Added       string   `json:"added,omitempty"`
-	ConvertedTo string   `json:"converted_to,omitempty"` // slug of the task this idea was converted to
+	ConvertedTo string   `json:"converted_to,omitempty"` // ID of the task this idea was converted to (a slug in older files)
 	Body        string   `json:"body"`
 	DeletedAt   string   `json:"deleted_at,omitempty"` // soft-delete date, YYYY-MM-DD
 }

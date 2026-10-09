@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/changes"
 	"github.com/fahad/dashboard/internal/httputil"
+	"github.com/fahad/dashboard/internal/itemid"
 )
 
 // Service manages ideas stored in a single flat-file (ideas.md).
@@ -39,7 +41,21 @@ func (s *Service) loadCache() {
 		ideas = nil
 	}
 	s.cache = ideas
-	s.recordOnDisk()
+	s.recordOrAssign(ideas)
+}
+
+// assignIDs gives ideas without an ID (or repeating one) a new ID in place.
+func assignIDs(ideas []Idea) bool {
+	return itemid.Assign(ideas, func(idea *Idea) *string { return &idea.ID })
+}
+
+// recordOrAssign records freshly parsed items as the file's content, or
+// assigns their missing IDs and saves them, so the cache and the file hold
+// the same IDs. Callers hold s.mu or own s.
+func (s *Service) recordOrAssign(items []Idea) {
+	if !s.assignAndSave(items) {
+		s.recordOnDisk()
+	}
 }
 
 // List returns all non-deleted ideas from the in-memory cache.
@@ -81,7 +97,20 @@ func (s *Service) Get(slug string) (*Idea, error) {
 	return nil, fmt.Errorf("idea %q not found", slug)
 }
 
-// Add appends a new idea to the ideas.md file.
+// GetByID returns a single idea by ID.
+func (s *Service) GetByID(id string) (*Idea, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for i := range s.cache {
+		if s.cache[i].ID == id {
+			cp := s.cache[i]
+			return &cp, nil
+		}
+	}
+	return nil, fmt.Errorf("idea %q not found", id)
+}
+
+// Add appends a new idea to the ideas.md file and sets idea.ID.
 func (s *Service) Add(idea *Idea) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -103,6 +132,12 @@ func (s *Service) Add(idea *Idea) error {
 		return err
 	}
 
+	taken := func(id string) bool {
+		return slices.ContainsFunc(ideas, func(i Idea) bool { return i.ID == id })
+	}
+	if !itemid.Valid(idea.ID) || taken(idea.ID) {
+		idea.ID = itemid.NewUnique(taken)
+	}
 	ideas = append(ideas, *idea)
 	if err := s.write(ideas); err != nil {
 		return err
@@ -317,13 +352,49 @@ func (s *Service) BulkTriage(slugs []string, action string) error {
 	})
 }
 
-// MarkConverted sets an idea's status to "converted" and records the task slug.
-func (s *Service) MarkConverted(slug, taskSlug string) error {
+// MarkConverted sets an idea's status to "converted" and records the task's ID.
+func (s *Service) MarkConverted(slug, taskID string) error {
 	return s.mutate(slug, func(idea *Idea) error {
 		idea.Status = "converted"
-		idea.ConvertedTo = taskSlug
+		idea.ConvertedTo = taskID
 		return nil
 	})
+}
+
+// RelinkConvertedTo rewrites each [converted-to:] value for which resolve returns
+// a replacement (an older file's task slug becoming the task's ID) and
+// reports how many changed.
+func (s *Service) RelinkConvertedTo(resolve func(ref string) (string, bool)) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	items, err := ParseIdeas(s.ideasPath)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for i := range items {
+		if ref := items[i].ConvertedTo; ref != "" {
+			if id, ok := resolve(ref); ok && id != ref {
+				items[i].ConvertedTo = id
+				n++
+			}
+		}
+	}
+	if n == 0 {
+		return 0, nil
+	}
+	if err := s.write(items); err != nil {
+		return 0, err
+	}
+	s.cache = items
+	return n, nil
+}
+
+// All returns every cached idea, soft-deleted ones included.
+func (s *Service) All() []Idea {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return slices.Clone(s.cache)
 }
 
 func (s *Service) AddResearch(slug string, content string) error {
@@ -368,7 +439,7 @@ func (s *Service) Resync() error {
 		return err
 	}
 	s.cache = ideas
-	s.recordOnDisk()
+	s.recordOrAssign(ideas)
 	return nil
 }
 
@@ -382,15 +453,43 @@ func (s *Service) GetResearch(slug string) ([]byte, error) {
 	return []byte(idea.Body), nil
 }
 
-// write renders the file, replaces it atomically, then records and publishes
-// the change. Callers hold s.mu.
+// write saves items, then records and publishes the change. Callers hold
+// s.mu.
 func (s *Service) write(items []Idea) error {
-	data := RenderIdeas("Ideas", items)
-	if err := atomicfile.Write(s.ideasPath, data, 0o644); err != nil {
+	data, err := s.save(items)
+	if err != nil {
 		return err
 	}
 	s.Wrote(data)
 	return nil
+}
+
+// save assigns missing IDs in place, renders the file and replaces it
+// atomically. Callers hold s.mu.
+func (s *Service) save(items []Idea) ([]byte, error) {
+	assignIDs(items)
+	data := RenderIdeas("Ideas", items)
+	if err := atomicfile.Write(s.ideasPath, data, 0o644); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// assignAndSave gives freshly parsed items any missing IDs and, if it did,
+// saves the file and records it without publishing: the load or watcher
+// event that parsed them already tells open pages. Callers hold s.mu or own
+// s.
+func (s *Service) assignAndSave(items []Idea) bool {
+	if !assignIDs(items) {
+		return false
+	}
+	data, err := s.save(items)
+	if err != nil {
+		slog.Error("writing assigned item ids", "file", s.ideasPath, "error", err)
+		return false
+	}
+	s.Record(data)
+	return true
 }
 
 // recordOnDisk notes the file's current content so a watcher event for it is
@@ -427,5 +526,8 @@ func (s *Service) ResyncIfChanged() (bool, error) {
 		return false, err
 	}
 	s.cache = parsed
+	// An external edit may add ideas without IDs. Saving them back is
+	// recorded, so the watcher event it causes is skipped.
+	s.assignAndSave(parsed)
 	return true, nil
 }

@@ -39,7 +39,7 @@ type Item struct {
 	Deadline  string   // goals only, YYYY-MM-DD
 	Planned   string   // planned date, YYYY-MM-DD (daily planner)
 	PlanOrder int      // manual sort order within a day (0 = unset, 1+ = explicit)
-	FromIdea  string   // slug of the idea this task was converted from
+	FromIdea  string   // ID of the idea this task was converted from (a slug in older files)
 	Tags      []string // tags for categorisation and filtering
 	Images    []string // uploaded image filenames
 	DeletedAt string   // soft-delete date, YYYY-MM-DD (empty means not deleted)

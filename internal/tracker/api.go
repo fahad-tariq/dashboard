@@ -46,6 +46,7 @@ func resolveListService(list string, personal, family *Service) *Service {
 // itemToAPI converts a tracker Item to a JSON-friendly map.
 func itemToAPI(it Item, list string) map[string]any {
 	m := map[string]any{
+		"id":              it.ID,
 		"slug":            it.Slug,
 		"title":           it.Title,
 		"type":            string(it.Type),
@@ -168,7 +169,7 @@ func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 			return
 		}
 
-		req.Title = httputil.StripInlineMetadata(req.Title)
+		req.Title = httputil.CleanTitle(req.Title)
 		req.Body = httputil.StripInlineMetadata(req.Body)
 		req.Priority = sanitisePriority(req.Priority)
 
@@ -181,13 +182,14 @@ func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 		}
 
 		svc := resolveListService(req.List, personalSvc, familySvc)
-		slug, err := svc.AddItem(item)
+		id, err := svc.AddItem(item)
 		if err != nil {
 			jsonError(w, "failed to create item", http.StatusInternalServerError)
 			return
 		}
 
-		item.Slug = slug
+		item.ID = id
+		item.Slug = Slugify(item.Title)
 		httputil.WriteJSON(w, http.StatusCreated, itemToAPI(item, httputil.NormaliseList(req.List)))
 	}
 }

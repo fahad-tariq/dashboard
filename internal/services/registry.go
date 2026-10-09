@@ -172,12 +172,10 @@ func (r *Registry) ForUser(userID int64) *UserServices {
 	}
 
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if svc, ok := r.cache[userID]; ok {
+		r.mu.Unlock()
 		return svc
 	}
-
 	paths := r.pathsFor(userID)
 	svc := &UserServices{
 		Personal: tracker.NewService(paths.personal, "Personal", r.loc),
@@ -185,6 +183,10 @@ func (r *Registry) ForUser(userID int64) *UserServices {
 	}
 	r.wireUser(svc)
 	r.cache[userID] = svc
+	r.mu.Unlock()
+
+	// Outside r.mu: linking reads and writes services, never the registry.
+	r.linkReferences(userID, svc)
 	return svc
 }
 

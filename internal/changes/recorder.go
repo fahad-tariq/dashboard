@@ -34,6 +34,15 @@ func (r *Recorder) Wrote(data []byte) {
 	}
 }
 
+// Record records data as the file's current content without publishing:
+// for a service's own rewrite of a file it is loading, which open pages
+// learn about from the load itself.
+func (r *Recorder) Record(data []byte) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.last = sha256.Sum256(data)
+}
+
 // Differs reports whether data differs from the last content recorded, and
 // records data either way, so the same external edit is only acted on once.
 func (r *Recorder) Differs(data []byte) bool {

@@ -45,14 +45,14 @@ func (m *Module) ideas(userID int64) *idealib.Service {
 }
 
 // toTask adds a task converted from an idea to the target list ("personal",
-// "family" or "house") and returns its slug.
-func (m *Module) toTask(ctx context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error) {
+// "family" or "house") and returns its ID.
+func (m *Module) toTask(ctx context.Context, title, body string, tags []string, fromIdeaID, target string) (string, error) {
 	item := tracker.Item{
 		Title:    title,
 		Type:     tracker.TaskType,
 		Body:     body,
 		Tags:     tags,
-		FromIdea: fromIdeaSlug,
+		FromIdea: fromIdeaID,
 	}
 	switch target {
 	case "family":

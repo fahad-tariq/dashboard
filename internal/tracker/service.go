@@ -14,6 +14,7 @@ import (
 	"github.com/fahad/dashboard/internal/atomicfile"
 	"github.com/fahad/dashboard/internal/changes"
 	"github.com/fahad/dashboard/internal/httputil"
+	"github.com/fahad/dashboard/internal/itemid"
 )
 
 // ErrInvalidDate is returned for a date that is not a real YYYY-MM-DD day.
@@ -50,7 +51,21 @@ func (s *Service) loadCache() {
 		items = nil
 	}
 	s.cache = items
-	s.recordOnDisk()
+	s.recordOrAssign(items)
+}
+
+// assignIDs gives items without an ID (or repeating one) a new ID in place.
+func assignIDs(items []Item) bool {
+	return itemid.Assign(items, func(it *Item) *string { return &it.ID })
+}
+
+// recordOrAssign records freshly parsed items as the file's content, or
+// assigns their missing IDs and saves them, so the cache and the file hold
+// the same IDs. Callers hold s.mu or own s.
+func (s *Service) recordOrAssign(items []Item) {
+	if !s.assignAndSave(items) {
+		s.recordOnDisk()
+	}
 }
 
 func (s *Service) mutate(slug string, fn func(*Item) error) error {
@@ -121,7 +136,8 @@ func (s *Service) Get(slug string) (*Item, error) {
 	return nil, fmt.Errorf("tracker item %q not found", slug)
 }
 
-// AddItem appends item and returns the slug it was given.
+// AddItem appends item and returns its ID. An item keeps an ID it brings
+// (a move) unless this list already holds it.
 func (s *Service) AddItem(item Item) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -148,12 +164,18 @@ func (s *Service) AddItem(item Item) (string, error) {
 		return "", err
 	}
 
+	taken := func(id string) bool {
+		return slices.ContainsFunc(items, func(it Item) bool { return it.ID == id })
+	}
+	if !itemid.Valid(item.ID) || taken(item.ID) {
+		item.ID = itemid.NewUnique(taken)
+	}
 	items = append(items, item)
 	if err := s.write(items); err != nil {
 		return "", err
 	}
 	s.cache = items
-	return item.Slug, nil
+	return item.ID, nil
 }
 
 func (s *Service) UpdateNotes(slug, body string) error {
@@ -410,6 +432,42 @@ func (s *Service) ApplyEdit(slug string, e Edit) error {
 	})
 }
 
+// RelinkFromIdea rewrites each [from-idea:] value for which resolve returns
+// a replacement (an older file's idea slug becoming the idea's ID) and
+// reports how many changed.
+func (s *Service) RelinkFromIdea(resolve func(ref string) (string, bool)) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	items, err := ParseTracker(s.trackerPath)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for i := range items {
+		if ref := items[i].FromIdea; ref != "" {
+			if id, ok := resolve(ref); ok && id != ref {
+				items[i].FromIdea = id
+				n++
+			}
+		}
+	}
+	if n == 0 {
+		return 0, nil
+	}
+	if err := s.write(items); err != nil {
+		return 0, err
+	}
+	s.cache = items
+	return n, nil
+}
+
+// All returns every cached item, soft-deleted ones included.
+func (s *Service) All() []Item {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return slices.Clone(s.cache)
+}
+
 func (s *Service) SetProgress(slug string, value float64) error {
 	return s.mutate(slug, func(it *Item) error {
 		if it.Type != GoalType {
@@ -444,7 +502,7 @@ func (s *Service) Resync() error {
 		return err
 	}
 	s.cache = items
-	s.recordOnDisk()
+	s.recordOrAssign(items)
 	return nil
 }
 
@@ -629,15 +687,43 @@ func (s *Service) Summary() (Summary, error) {
 	return sum, nil
 }
 
-// write renders the file, replaces it atomically, then records and publishes
-// the change. Callers hold s.mu.
+// write saves items, then records and publishes the change. Callers hold
+// s.mu.
 func (s *Service) write(items []Item) error {
-	data := RenderTracker(s.heading, items)
-	if err := atomicfile.Write(s.trackerPath, data, 0o644); err != nil {
+	data, err := s.save(items)
+	if err != nil {
 		return err
 	}
 	s.Wrote(data)
 	return nil
+}
+
+// save assigns missing IDs in place, renders the file and replaces it
+// atomically. Callers hold s.mu.
+func (s *Service) save(items []Item) ([]byte, error) {
+	assignIDs(items)
+	data := RenderTracker(s.heading, items)
+	if err := atomicfile.Write(s.trackerPath, data, 0o644); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// assignAndSave gives freshly parsed items any missing IDs and, if it did,
+// saves the file and records it without publishing: the load or watcher
+// event that parsed them already tells open pages. Callers hold s.mu or own
+// s.
+func (s *Service) assignAndSave(items []Item) bool {
+	if !assignIDs(items) {
+		return false
+	}
+	data, err := s.save(items)
+	if err != nil {
+		slog.Error("writing assigned item ids", "file", s.trackerPath, "error", err)
+		return false
+	}
+	s.Record(data)
+	return true
 }
 
 // recordOnDisk notes the file's current content so a watcher event for it is
@@ -674,5 +760,8 @@ func (s *Service) ResyncIfChanged() (bool, error) {
 		return false, err
 	}
 	s.cache = parsed
+	// An external edit may add items without IDs. Saving them back is
+	// recorded, so the watcher event it causes is skipped.
+	s.assignAndSave(parsed)
 	return true, nil
 }

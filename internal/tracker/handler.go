@@ -2,7 +2,6 @@ package tracker
 
 import (
 	"errors"
-	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -765,15 +764,10 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	movedItem := *item
-
-	if _, err := otherSvc.Get(movedItem.Slug); err == nil {
-		movedItem.Slug = movedItem.Slug + "-" + fmt.Sprintf("%d", time.Now().Unix())
-	}
-
-	// Add before deleting: a failed add leaves the item where it was, and a
+	// The item keeps its ID unless the target already holds it (a leftover
+	// from a failed move). Add before deleting: a failed add leaves the item where it was, and a
 	// failed delete leaves a recoverable duplicate rather than losing it.
-	if _, err := otherSvc.AddItem(movedItem); err != nil {
+	if _, err := otherSvc.AddItem(*item); err != nil {
 		if errors.Is(err, ErrInvalidDate) {
 			// Only a hand-edited file can hold an impossible date.
 			http.Error(w, InvalidDateMessage, http.StatusBadRequest)

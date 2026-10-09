@@ -63,7 +63,7 @@
     </div>
     <div class="tracker-item-detail" id="item-{{.Slug}}-detail">
         <div>
-            {{if .FromIdea}}<div class="converted-link">From idea: <a href="/ideas/{{.FromIdea}}">{{.FromIdea}}</a></div>{{end}}
+            {{if .FromIdea}}<div class="converted-link">From <a href="/ideas/{{.FromIdea}}">the original idea</a></div>{{end}}
             {{$text := bodyText .Body}}{{$steps := substeps .Body}}{{$slug := .Slug}}
             {{if $text}}<div class="tracker-item-body">{{linkify $text}}</div>{{end}}
             {{if $steps}}

@@ -16,14 +16,15 @@ import (
 	"github.com/fahad/dashboard/internal/auth"
 	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/httputil"
+	"github.com/fahad/dashboard/internal/itemid"
 	"github.com/fahad/dashboard/internal/markdown"
 )
 
 // ToTaskFunc converts an idea to a task. Accepts context for user resolution.
-// fromIdeaSlug is recorded on the task for provenance tracking.
+// fromIdeaID is recorded on the task for provenance tracking.
 // target selects the destination list: "personal", "family", or "house".
-// Returns the slug of the created task and any error.
-type ToTaskFunc func(ctx context.Context, title, body string, tags []string, fromIdeaSlug, target string) (string, error)
+// Returns the ID of the created task and any error.
+type ToTaskFunc func(ctx context.Context, title, body string, tags []string, fromIdeaID, target string) (string, error)
 
 // ServiceResolver returns the ideas service for the current request.
 type ServiceResolver func(r *http.Request) *Service
@@ -160,6 +161,12 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	svc := h.resolve(r)
 	idea, err := svc.Get(slug)
+	if err != nil && itemid.Valid(slug) {
+		// A task's "From idea" link holds the idea's ID.
+		if idea, err = svc.GetByID(slug); err == nil {
+			slug = idea.Slug
+		}
+	}
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -257,13 +264,13 @@ func (h *Handler) ToTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	taskSlug, err := h.toTask(r.Context(), idea.Title, idea.Body, idea.Tags, slug, target)
+	taskID, err := h.toTask(r.Context(), idea.Title, idea.Body, idea.Tags, idea.ID, target)
 	if err != nil {
 		httputil.ServerError(w, "converting idea to task", err, "slug", slug)
 		return
 	}
 
-	_ = svc.MarkConverted(slug, taskSlug)
+	_ = svc.MarkConverted(slug, taskID)
 
 	http.Redirect(w, r, "/ideas?msg=idea-converted", http.StatusSeeOther)
 }

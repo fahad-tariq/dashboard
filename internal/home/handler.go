@@ -606,6 +606,7 @@ func planItemsToAPI(items []tracker.Item, list string) []map[string]any {
 	out := make([]map[string]any, 0, len(items))
 	for _, it := range items {
 		m := map[string]any{
+			"id":       it.ID,
 			"slug":     it.Slug,
 			"title":    it.Title,
 			"priority": it.Priority,

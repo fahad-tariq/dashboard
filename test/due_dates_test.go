@@ -220,7 +220,7 @@ func TestDeadlineSurvivesMoveAndPartialEdits(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(string(data), tc.wantRow+"\n") {
+			if !strings.Contains(string(data), tc.wantRow+" [id: ") {
 				t.Errorf("file lacks %q:\n%s", tc.wantRow, data)
 			}
 		})
