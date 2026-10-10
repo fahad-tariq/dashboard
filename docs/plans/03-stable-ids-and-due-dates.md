@@ -8,7 +8,7 @@ Give every list item a permanent ID, so renames, moves and duplicate titles stop
 |---|---|---|
 | 1 | Foundations and module framework | Done (2026-10-06) |
 | 2 | Exercise module | Parked (2026-10-07): the owner uses Hevy |
-| 3 (this) | Stable item IDs, due dates on tasks | Phases 1 to 3 done; Phase 4 after the owner has used Phase 3 for a day |
+| 3 (this) | Stable item IDs, due dates on tasks | Phases 1 to 3 done and signed off; Phase 4 next |
 
 ## Context
 
@@ -305,3 +305,4 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
 - Follow-ups (for `docs/backlog.md` in Phase 4): the idea "Converted to a task" link always points at `/todos#item-<id>`, even for family and house tasks (predates this phase); `APIReorderPlan` answers 500 for a well-formed ID not in the list (predates this phase, API off in production).
 - Tooling: the sandbox cannot download Go 1.27.2, so tests ran with `GOFLAGS=-modfile=$TMPDIR/dash-mod/go.mod` (a copy pinned to 1.27.1) and lint ran with `go.mod` briefly set to 1.27.1, then restored. `TestMigrateDataNeverOverwritesExistingIdeas` builds a binary and needs the `GOFLAGS` form.
 - Deploy 2026-10-10: commit `40b40e7`, CI run 38007753765 green. Image revision label `40b40e77056a3917b68d90b30301d1445965d480`. Backup `dashboard-backup-20261010-024228.tar.gz` (exit 0). Before: schema version 21, old `commentary` table 0 rows, no `item_commentary` (read from the backup's DB snapshot; the server has no `sqlite3`). SSH to fliptronic timed out for several minutes during the pre-checks and recovered unaided; nothing had changed in production meanwhile. The sha256 of all five data files was identical before the pull and after start-up. After: schema version 22 with `item_commentary` (from a second backup, `dashboard-backup-20261010-031229.tar.gz`). Caddy checks: `/login` 200, `/todos` 303, `/events` 401, `/api/v1/todos` 404, cross-site POST `/login` 403. `verify-stack.sh` all green.
+- Owner sign-off 2026-10-11: rename while expanded, same-title tasks, plan reorder, bulk plan from todos, search and widget links all work in the live app. New requests from that use (homepage plan: untick a done task, bulk select with complete, drop and trash) go through a design council before any code.
