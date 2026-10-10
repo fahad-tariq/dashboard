@@ -8,7 +8,7 @@ Give every list item a permanent ID, so renames, moves and duplicate titles stop
 |---|---|---|
 | 1 | Foundations and module framework | Done (2026-10-06) |
 | 2 | Exercise module | Parked (2026-10-07): the owner uses Hevy |
-| 3 (this) | Stable item IDs, due dates on tasks | Phases 1 to 3 done and signed off; Phase 4 (plan untick and bulk select) next, then Phase 5 (clean up) |
+| 3 (this) | Stable item IDs, due dates on tasks | Phases 1 to 4 done and signed off; Phase 5 (clean up and document) next |
 
 ## Context
 
@@ -221,7 +221,7 @@ Do not reopen these while executing this plan.
 - [x] **Tests.** Handler table tests: untick on all three lists, house status both ways, each bulk action on a mixed-list selection, a malformed entry and a missing ID that write nothing. Route goldens regenerated and the diff recorded. `TestE2ESelectorsExist`, `TestMorphSkipElementsHaveIDs`. Playwright: untick keeps focus on the circle; select two rows from different lists and complete, move to tomorrow, drop and trash them; axe in select mode.
 - [x] **Verification.** `make lint test` green, CI green, deploy and record it.
 - [x] Self-review with an independent agent; fix what holds up.
-- [ ] **STOP and wait for human review.** The owner tries untick and bulk select in the live app.
+- [x] **STOP and wait for human review.** The owner tries untick and bulk select in the live app.
 
 ---
 
@@ -341,3 +341,4 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
 - First CI run (`e3e65cf`): e2e failed. The plan's select-mode rules were in the `components` layer, but `.plan-item > .plan-tick { display: flex }` is in `pages`, which wins whatever the specificity, so the tick stayed visible over the checkbox and took its clicks (the axe and bulk specs). They now sit beside the plan row rules in `pages`. The reorder spec failed as a knock-on: the failed axe runs left twelve rows on today's plan, more than its 20-move loop can bubble past; the axe spec now drops its two rows afterwards.
 - Deploy 2026-10-10: commit `1e7b54e`, CI run 38070956768 green (e2e, lint, test, screenshots, vuln, build). Image revision label `1e7b54ebd7a30fc619debde61576c4cd4ab43d57`. Backup `dashboard-backup-20261010-173110.tar.gz` (exit 0). No migration. The sha256 of all five data files was identical before the pull and after start-up. Caddy checks: `/login` 200, `/todos` 303, `/events` 401, `/api/v1/todos` 404, cross-site POST `/login` 403. `verify-stack.sh`: `dash` OK on every run; other services (cca, otterholt, brotato) failed intermittently with `200000` (a 200 followed by a timed-out retry), a different set on each run, and its local sudo step cannot run in the sandbox.
 - Owner use after the deploy found three bugs, fixed test-first (`5866f57` failing tests, `234ca7e` fixes): a task carried over from yesterday read "from today" (`relativeDate` subtracted the date's UTC midnight from now's instant; now `insights.DaysAgo`, counting calendar days like `DueLabel`); a carried task vanished from the plan when ticked (`ListOverdue` returns open items only; carried tasks completed today now stay on the plan as done rows, and the carried count counts open ones); the toast's undo button showed with nothing to undo (`.btn`'s display beat `[hidden]`), and a plan tick now offers undo (`/plan/{id}/uncomplete?list=`). This also fixes `relativeDate` for its existing use, which the plan's non-goals had left alone. Deployed 2026-10-10: CI run 38074383597 green, image revision `234ca7eab7d0190882bb91913913d4507af75653`, backup `dashboard-backup-20261010-182116.tar.gz` (exit 0), data files byte-identical across the restart, Caddy checks as before, `verify-stack.sh` `dash` OK (`cca` failed with the intermittent `200000` again).
+- Owner sign-off 2026-10-11: untick, plan bulk select and the three follow-up fixes work in the live app. Phase 5 starts in a fresh session.
