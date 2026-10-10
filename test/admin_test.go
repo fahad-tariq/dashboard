@@ -203,21 +203,8 @@ func TestDeleteUserCascade(t *testing.T) {
 	database := newTestDB(t)
 	id := createTestUser(t, database, "alice@test.com", "password")
 
-	// Insert a tracker item for this user.
-	_, err := database.Exec(
-		"INSERT INTO tracker_items (slug, title, type, user_id) VALUES (?, ?, ?, ?)",
-		"task-1", "Task 1", "task", id,
-	)
-	if err != nil {
-		t.Fatalf("inserting tracker item: %v", err)
-	}
-
 	// Insert a session for this user.
-	err = database.QueryRow("SELECT 1").Err() // ensure DB works
-	if err != nil {
-		t.Fatalf("db check: %v", err)
-	}
-	_, err = database.Exec(
+	_, err := database.Exec(
 		"INSERT INTO sessions (token, data, expiry, user_id) VALUES (?, ?, ?, ?)",
 		"tok-alice", []byte("data"), time.Now().Add(time.Hour).Unix(), id,
 	)
@@ -233,15 +220,6 @@ func TestDeleteUserCascade(t *testing.T) {
 	user, _ := auth.FindByID(database, id)
 	if user != nil {
 		t.Error("user should be deleted")
-	}
-
-	// Tracker items should be gone.
-	var itemCount int
-	if err := database.QueryRow("SELECT COUNT(*) FROM tracker_items WHERE user_id = ?", id).Scan(&itemCount); err != nil {
-		t.Fatal(err)
-	}
-	if itemCount != 0 {
-		t.Errorf("tracker items should be deleted, got %d", itemCount)
 	}
 
 	// Sessions should be gone.

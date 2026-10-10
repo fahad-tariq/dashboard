@@ -370,7 +370,7 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Cascading delete: DB rows (users, tracker_items, sessions).
+	// Cascading delete: DB rows (users, sessions).
 	if err := auth.DeleteUser(h.db, id); err != nil {
 		slog.Error("deleting user", "error", err)
 		http.Redirect(w, r, "/admin/users?msg=delete-failed", http.StatusSeeOther)

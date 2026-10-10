@@ -227,15 +227,15 @@ Do not reopen these while executing this plan.
 
 ## Phase 5: Clean up and document
 
-- [ ] **Drop dead tables.** Add migrations dropping the old `commentary` table and the unused `tracker_items` table. Remove `DELETE FROM tracker_items` from `auth.DeleteUser` in the same change, or user deletion fails. Remove the backlog entry "Drop the `tracker_items` table".
-- [ ] **`CLAUDE.md`** (use the `claude-md-authoring` skill):
+- [x] **Drop dead tables.** Add migrations dropping the old `commentary` table and the unused `tracker_items` table. Remove `DELETE FROM tracker_items` from `auth.DeleteUser` in the same change, or user deletion fails. Remove the backlog entry "Drop the `tracker_items` table".
+- [x] **`CLAUDE.md`** (use the `claude-md-authoring` skill):
   - Update the id scheme to use IDs, and remove "renaming changes its slug and id".
   - Add `[id:]` to the tag list, with the rule that IDs are assigned on load and write.
   - Note that titles are stripped at the service layer and dates are validated in services.
   - Replace the `UpdateEdit`/`ApplyEdit` convention with the single `ApplyEdit` path.
   - Note deadlines on tasks.
-- [ ] **`docs/backlog.md`:** remove "Duplicate slugs" and the `MoveToList` suffix from known limitations, and add follow-ups found during the plan. If `README.md` lists tags or slug URLs, update it too.
-- [ ] Verify the docs against the code with parallel clean-context agents (the owner does not read docs).
+- [x] **`docs/backlog.md`:** remove "Duplicate slugs" and the `MoveToList` suffix from known limitations, and add follow-ups found during the plan. If `README.md` lists tags or slug URLs, update it too.
+- [x] Verify the docs against the code with parallel clean-context agents (the owner does not read docs).
 - [ ] **Verification.** `make lint test` green and CI green. Back up the DB before deploying, because this migration drops tables. Deploy and record it. Check the success criteria.
 - [ ] **STOP: plan complete.**
 
@@ -342,3 +342,10 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
 - Deploy 2026-10-10: commit `1e7b54e`, CI run 38070956768 green (e2e, lint, test, screenshots, vuln, build). Image revision label `1e7b54ebd7a30fc619debde61576c4cd4ab43d57`. Backup `dashboard-backup-20261010-173110.tar.gz` (exit 0). No migration. The sha256 of all five data files was identical before the pull and after start-up. Caddy checks: `/login` 200, `/todos` 303, `/events` 401, `/api/v1/todos` 404, cross-site POST `/login` 403. `verify-stack.sh`: `dash` OK on every run; other services (cca, otterholt, brotato) failed intermittently with `200000` (a 200 followed by a timed-out retry), a different set on each run, and its local sudo step cannot run in the sandbox.
 - Owner use after the deploy found three bugs, fixed test-first (`5866f57` failing tests, `234ca7e` fixes): a task carried over from yesterday read "from today" (`relativeDate` subtracted the date's UTC midnight from now's instant; now `insights.DaysAgo`, counting calendar days like `DueLabel`); a carried task vanished from the plan when ticked (`ListOverdue` returns open items only; carried tasks completed today now stay on the plan as done rows, and the carried count counts open ones); the toast's undo button showed with nothing to undo (`.btn`'s display beat `[hidden]`), and a plan tick now offers undo (`/plan/{id}/uncomplete?list=`). This also fixes `relativeDate` for its existing use, which the plan's non-goals had left alone. Deployed 2026-10-10: CI run 38074383597 green, image revision `234ca7eab7d0190882bb91913913d4507af75653`, backup `dashboard-backup-20261010-182116.tar.gz` (exit 0), data files byte-identical across the restart, Caddy checks as before, `verify-stack.sh` `dash` OK (`cca` failed with the intermittent `200000` again).
 - Owner sign-off 2026-10-11: untick, plan bulk select and the three follow-up fixes work in the live app. Phase 5 starts in a fresh session.
+
+### Phase 5 notes
+
+- Migrations 23 and 24 drop `commentary` and `tracker_items` (its two indexes go with it); `auth.DeleteUser` no longer touches `tracker_items`. `TestMigrationsDropDeadTables` checks a fresh database; a v22 database runs the same two statements. The "Drop the `tracker_items` table" backlog entry is gone.
+- Rollback: the Phase 4 binary starts on a v24 database (its loop has nothing to apply) and never read either table, but its `auth.DeleteUser` would fail with "no such table". Admin is frozen and production has one user; accepted.
+- Docs: `CLAUDE.md` gains an "Item IDs" paragraph (format, assignment on load and write, moves, references, routes and fields), the DOM id scheme uses IDs, `[id:]` and task deadlines join the tag list, input cleaning and date validation are recorded as service-layer rules, and the single `ApplyEdit` path replaces the `UpdateEdit`/`ApplyEdit` convention. `README.md`: IDs in the file formats and examples, `{id}` in routes and the API (`deadline` on PUT, `ids` on reorder), due dates, untick and plan bulk select in features, no `tracker_items`. `docs/backlog.md`: "Duplicate slugs" removed; Phase 2 and 3 follow-ups added under known limitations.
+- Doc verification (two clean-context agents, one for `CLAUDE.md`, one for README and backlog): fixed eleven claims, among them slugs "for display" (none), an empty title clearing (it keeps), the API's date error text, maintenance bodies keeping indentation, the "Due soon" five-row cap and planned badge, and house plan tests that now exist. Self-review (independent agent): no remaining reader of either table; fixed the stale `DeleteUser` comment; the rollback note above.

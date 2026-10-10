@@ -60,8 +60,7 @@ var migrations = []string{
 	`ALTER TABLE tracker_items ADD COLUMN budget REAL NOT NULL DEFAULT 0`,
 	`ALTER TABLE tracker_items ADD COLUMN actual REAL NOT NULL DEFAULT 0`,
 	`ALTER TABLE tracker_items ADD COLUMN status TEXT NOT NULL DEFAULT ''`,
-	// Commentary keyed by item ID. The slug-keyed commentary table above is
-	// left in place so the previous binary still runs after a rollback.
+	// Commentary keyed by item ID, replacing the slug-keyed table above.
 	`CREATE TABLE IF NOT EXISTS item_commentary (
 		item_id    TEXT NOT NULL,
 		user_id    INTEGER NOT NULL,
@@ -69,6 +68,10 @@ var migrations = []string{
 		updated_at TEXT NOT NULL,
 		PRIMARY KEY (item_id, user_id)
 	)`,
+	// Neither table has been read since item IDs replaced slugs; dropping
+	// tracker_items drops its indexes too.
+	`DROP TABLE IF EXISTS commentary`,
+	`DROP TABLE IF EXISTS tracker_items`,
 }
 
 func Migrate(db *sql.DB) error {

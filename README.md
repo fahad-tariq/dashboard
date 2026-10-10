@@ -52,7 +52,7 @@ These are the binary's defaults. Under Compose, the paths are set in `docker-com
 | Variable | Default | Description |
 |---|---|---|
 | `ADDR` | `:8080` | Listen address |
-| `DB_PATH` | `/data/db/dashboard.db` | SQLite database: users, sessions, commentary, schema version (and an unused `tracker_items` table) |
+| `DB_PATH` | `/data/db/dashboard.db` | SQLite database: users, sessions, commentary, schema version |
 | `USER_DATA_DIR` | `/data/users` | Per-user files: `{id}/personal.md`, `{id}/ideas.md` |
 | `FAMILY_PATH` | `/data/family.md` | Shared family tasks. Its directory is also where modules keep their own shared files |
 | `MAINTENANCE_PATH` | `/data/maintenance.md` | Shared house maintenance |
@@ -133,10 +133,13 @@ dash.example.net {
 - Select mode for bulk complete, plan, tag, priority and trash
 - Move tasks between personal and family
 - Goals track current/target with a unit, an optional deadline and a pace indicator
+- Personal and family tasks take an optional due date, shown as a row badge ("due Fri", "overdue 2d"); due dates never add a task to the plan
 
 ### Daily planner
 - The homepage shows today's plan, with tasks from personal, family and house projects
 - Plan a task from its row ("today"), the homepage picker or in bulk; unfinished plans carry over, labelled with the day they came from
+- Tick and untick on the plan; select mode completes, moves to tomorrow, drops or trashes several rows at once
+- Tasks due today or overdue say so in their plan row, and a "Due soon" widget lists up to 5 tasks overdue or due within 3 days (the count covers all), each with a "Plan today" button, or a "planned" badge once it is on today's plan
 - Reorder by drag-and-drop or the up/down buttons; `/plan/calendar` shows week and month views, and the week view reschedules by drag
 - Module widgets (open tasks oldest first, goals, overdue maintenance, untriaged ideas, tags) sit beside the plan on wide screens
 - `/digest` summarises activity for this week, last week or this month
@@ -168,44 +171,46 @@ dash.example.net {
 
 All lists are markdown checkbox items with inline metadata. Body lines are indented by 2 spaces; indented checkboxes are sub-steps (or log entries for maintenance), not new items.
 
-The files are safe to edit by hand, but the app rewrites the whole file on its next change: section headings (`## ...`) outside item bodies are discarded, blank lines and extra indentation in task and maintenance bodies are dropped (ideas keep them), and inline metadata is put back in a fixed order.
+Every item ends with `[id: xxxxxxxx]`: 8 characters of consonants (no `y`) and digits. The app adds an ID to any item without one, and repairs duplicates within a file, whenever it loads or writes the file; URLs, links between ideas and tasks, and commentary use the ID, so it survives renames and moves. Titles cannot set metadata: the app strips anything shaped like an inline tag from every title it writes.
+
+The files are safe to edit by hand, but the app rewrites the whole file on its next change: section headings (`## ...`) outside item bodies are discarded, blank lines are dropped from task and maintenance bodies, and extra indentation from task bodies (ideas keep both), and inline metadata is put back in a fixed order.
 
 ### Tasks and goals (`personal.md`, `family.md`)
 
 ```markdown
 # Personal
 
-- [ ] Run 5km !high [added: 2026-03-10] [planned: 2026-10-06] [tags: fitness, health]
+- [ ] Run 5km !high [added: 2026-03-10] [deadline: 2026-10-09] [planned: 2026-10-06] [tags: fitness, health] [id: r5kmx7q2]
   - [x] Buy shoes
   - [ ] Map a route
-- [ ] Reach 90kg [goal: 85.5/90 kg] [added: 2026-03-01] [deadline: 2026-06-30] [tags: health]
-- [ ] Document setup [from-idea: document-setup-idea] [tags: infra] [images: screenshot.png|Rack layout]
-- [x] Finish book club pick [completed: 2026-03-15] [tags: books]
-- [ ] Old errand [added: 2026-01-02] [deleted: 2026-10-01]
+- [ ] Reach 90kg [goal: 85.5/90 kg] [added: 2026-03-01] [deadline: 2026-06-30] [tags: health] [id: g90kgz4m]
+- [ ] Document setup [from-idea: c4ddxv3n] [tags: infra] [images: screenshot.png|Rack layout] [id: d0csr8p1]
+- [x] Finish book club pick [completed: 2026-03-15] [tags: books] [id: bkc1zbp9]
+- [ ] Old errand [added: 2026-01-02] [deleted: 2026-10-01] [id: 0ldrrnd5]
 ```
 
-Goals are supported in `personal.md` only. `[plan-order: N]` records manual plan order.
+Goals are supported in `personal.md` only. On a task `[deadline:]` is the due date; on a goal it is the target date. `[plan-order: N]` records manual plan order.
 
 ### Ideas (`ideas.md`)
 
 ```markdown
 # Ideas
 
-- [ ] Try Caddy instead of nginx [status: parked] [tags: infra, homelab] [project: homelabs] [added: 2026-03-14]
+- [ ] Try Caddy instead of nginx [status: parked] [tags: infra, homelab] [project: homelabs] [added: 2026-03-14] [id: c4ddxv3n]
   Replace nginx reverse proxy with Caddy for automatic HTTPS.
 
   ## Research
   Caddy auto-provisions TLS certs via ACME.
 ```
 
-Status values: `untriaged` (default), `parked`, `dropped`, `converted`. Converted ideas carry `[converted-to: task-slug]`. Blank lines in bodies are preserved.
+Status values: `untriaged` (default), `parked`, `dropped`, `converted`. Converted ideas carry `[converted-to: <task id>]`, and the task carries `[from-idea: <idea id>]`. Blank lines in bodies are preserved.
 
 ### House (`maintenance.md`, `house-projects.md`)
 
 ```markdown
 # Maintenance
 
-- [ ] Clean gutters [cadence: 6m] [tags: outdoor] [added: 2025-11-01]
+- [ ] Clean gutters [cadence: 6m] [tags: outdoor] [added: 2025-11-01] [id: gtt3rs6m]
   Use the long ladder from the shed.
   - [x] 2026-09-14 - Lots of leaves after the storm
   - [x] 2026-03-10
@@ -221,7 +226,7 @@ Browser routes need a session (or no-auth mode). Each list's mutations are POSTs
 |---|---|
 | `/` | Homepage and daily planner |
 | `/todos`, `/family`, `/goals` | Task and goal lists |
-| `/ideas`, `/ideas/{slug}` | Ideas list and detail |
+| `/ideas`, `/ideas/{id}` | Ideas list and detail |
 | `/house` | Maintenance and projects |
 | `/plan/calendar` | Planner week and month views |
 | `/digest` | Activity digest |
@@ -229,42 +234,42 @@ Browser routes need a session (or no-auth mode). Each list's mutations are POSTs
 | `/events` | Server-sent events for live refresh |
 | `/login`, `/account`, `/admin/users` | Accounts (logout and password change are POSTs) |
 | `/upload`, `/uploads/*` | Image upload and serving |
-| `/commentary/{list}/{slug}` | Commentary fragment, loaded when a row expands |
+| `/commentary/{list}/{id}` | Commentary fragment, loaded when a row expands |
 
-`/personal`, `/exploration` and `/exploration/{slug}` redirect to `/todos` and `/ideas`.
+`/personal`, `/exploration` and `/exploration/*` redirect to `/todos` and `/ideas`.
 
 ### API
 
 Mounted under `/api/v1` only when `DASHBOARD_API_TOKEN` is set (32+ characters). Send `Authorization: Bearer <token>`; the token acts as user 1. Writes (anything but GET, HEAD and OPTIONS) share one limit of 60 per minute across all callers, and more than 10 bad tokens per minute from one IP get 429. Request bodies are JSON. Responses are JSON, except that plan set and clear return plain-text errors.
 
-Todo routes need a list: `personal` (or `todos`) or `family`; anything else, including `house`, gets a 400. `GET /todos/{slug}` takes it as `?list=`; every other todo route that names a slug takes `"list"` in the JSON body. `GET /todos` returns `{"personal": [...], "family": [...]}`, including goals (with a `type` field) and done items, and leaves out items tagged `private`.
+Items are addressed by their ID (`{id}` is 8 characters from `bcdfghjklmnpqrstvwxz0123456789`; anything else gets the router's plain-text 404), and every item in a response carries `id`. Todo routes need a list: `personal` (or `todos`) or `family`; anything else, including `house`, gets a 400. `GET /todos/{id}` takes it as `?list=`; every other todo route that names an ID takes `"list"` in the JSON body. `GET /todos` returns `{"personal": [...], "family": [...]}`, including goals (with a `type` field) and done items, and leaves out items tagged `private`.
 
 | Method | Path | Body | Description |
 |---|---|---|---|
 | `GET` | `/api/v1/todos` | | List personal and family items |
 | `POST` | `/api/v1/todos` | `title, body, tags, priority, list` | Add a task |
-| `GET` | `/api/v1/todos/{slug}?list=` | | Get one item |
-| `PUT` | `/api/v1/todos/{slug}` | `title, body, tags, images, list` | Change any of these; omitted fields and an empty title keep their current values, and an empty `tags` or `images` list clears it. A changed title changes the slug, and the new slug is not returned |
-| `DELETE` | `/api/v1/todos/{slug}` | `list` | Move to the trash |
-| `POST` | `/api/v1/todos/{slug}/complete` | `list` | Complete |
-| `POST` | `/api/v1/todos/{slug}/uncomplete` | `list` | Reopen |
-| `PUT` | `/api/v1/todos/{slug}/priority` | `priority, list` | Set priority |
-| `PUT` | `/api/v1/todos/{slug}/tags` | `tags, list` | Set tags |
-| `POST` | `/api/v1/todos/{slug}/substeps` | `text, list` | Add a sub-step |
-| `PUT` | `/api/v1/todos/{slug}/substeps/{index}` | `list` | Toggle a sub-step |
-| `DELETE` | `/api/v1/todos/{slug}/substeps/{index}` | `list` | Remove a sub-step |
+| `GET` | `/api/v1/todos/{id}?list=` | | Get one item |
+| `PUT` | `/api/v1/todos/{id}` | `title, body, tags, images, deadline, list` | Change any of these; omitted fields and an empty title keep their current values, and an empty `body`, `tags`, `images` or `deadline` clears it. The ID does not change |
+| `DELETE` | `/api/v1/todos/{id}` | `list` | Move to the trash |
+| `POST` | `/api/v1/todos/{id}/complete` | `list` | Complete |
+| `POST` | `/api/v1/todos/{id}/uncomplete` | `list` | Reopen |
+| `PUT` | `/api/v1/todos/{id}/priority` | `priority, list` | Set priority |
+| `PUT` | `/api/v1/todos/{id}/tags` | `tags, list` | Set tags |
+| `POST` | `/api/v1/todos/{id}/substeps` | `text, list` | Add a sub-step |
+| `PUT` | `/api/v1/todos/{id}/substeps/{index}` | `list` | Toggle a sub-step |
+| `DELETE` | `/api/v1/todos/{id}/substeps/{index}` | `list` | Remove a sub-step |
 | `GET` | `/api/v1/ideas` | | List ideas |
 | `POST` | `/api/v1/ideas` | `title, body, tags` | Add an idea |
-| `PUT` | `/api/v1/ideas/{slug}/triage` | `action`: `park`, `drop` or `untriage` | Triage |
-| `POST` | `/api/v1/ideas/{slug}/research` | `content` | Append to the body, adding a `## Research` heading if there is none |
+| `PUT` | `/api/v1/ideas/{id}/triage` | `action`: `park`, `drop` or `untriage` | Triage |
+| `POST` | `/api/v1/ideas/{id}/research` | `content` | Append to the body, adding a `## Research` heading if there is none |
 | `GET` | `/api/v1/plan?date=` | | Plan for a date (default today) |
-| `PUT` | `/api/v1/plan/{slug}` | `date` (default today), `list` | Plan a task |
-| `DELETE` | `/api/v1/plan/{slug}` | `list` | Unplan a task |
-| `POST` | `/api/v1/plan/reorder` | `slugs, list` | Set plan order |
+| `PUT` | `/api/v1/plan/{id}` | `date` (default today), `list` | Plan a task |
+| `DELETE` | `/api/v1/plan/{id}` | `list` | Unplan a task |
+| `POST` | `/api/v1/plan/reorder` | `ids, list` | Set plan order |
 | `POST` | `/api/v1/plan/clear-carried` | | Unplan every carried-over task |
-| `GET` | `/api/v1/commentary/{list}/{slug}` | | Get commentary |
-| `PUT` | `/api/v1/commentary/{list}/{slug}` | `content` (max 5,000 characters) | Set commentary |
-| `DELETE` | `/api/v1/commentary/{list}/{slug}` | | Delete commentary |
+| `GET` | `/api/v1/commentary/{list}/{id}` | | Get commentary |
+| `PUT` | `/api/v1/commentary/{list}/{id}` | `content` (max 5,000 characters) | Set commentary |
+| `DELETE` | `/api/v1/commentary/{list}/{id}` | | Delete commentary |
 
 Plan routes also accept `house` as the list. Commentary `{list}` is `personal`, `todos`, `family`, `house` or `ideas`.
 

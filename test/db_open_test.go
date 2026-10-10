@@ -96,3 +96,37 @@ func TestPragmasOnEveryPooledConnection(t *testing.T) {
 		}
 	}
 }
+
+// The slug-keyed commentary table and the old tracker_items mirror are gone
+// once migrations run; item_commentary replaces the first.
+func TestMigrationsDropDeadTables(t *testing.T) {
+	database, err := db.Open(filepath.Join(t.TempDir(), "dashboard.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeDB(t, database) })
+
+	tests := map[string]struct {
+		name string
+		want bool
+	}{
+		"commentary dropped":    {name: "commentary", want: false},
+		"tracker_items dropped": {name: "tracker_items", want: false},
+		"list index dropped":    {name: "idx_tracker_items_list_user", want: false},
+		"unique index dropped":  {name: "idx_tracker_items_unique", want: false},
+		"item_commentary kept":  {name: "item_commentary", want: true},
+		"users kept":            {name: "users", want: true},
+		"sessions kept":         {name: "sessions", want: true},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			var n int
+			if err := database.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE name = ?", tc.name).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			if got := n == 1; got != tc.want {
+				t.Errorf("%s present = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}

@@ -196,8 +196,9 @@ func UpdateUserRole(db *sql.DB, id int64, role string) error {
 	return nil
 }
 
-// DeleteUser removes a user and all associated data in a transaction.
-// Cascades: deletes tracker_items and sessions for the user.
+// DeleteUser removes a user and their sessions in a transaction; the
+// user's markdown directory is left to the caller, and their commentary
+// rows stay behind.
 func DeleteUser(db *sql.DB, id int64) error {
 	tx, err := db.Begin()
 	if err != nil {
@@ -205,9 +206,6 @@ func DeleteUser(db *sql.DB, id int64) error {
 	}
 	defer func() { _ = tx.Rollback() }() // no-op after Commit
 
-	if _, err := tx.Exec("DELETE FROM tracker_items WHERE user_id = ?", id); err != nil {
-		return fmt.Errorf("deleting tracker items: %w", err)
-	}
 	if _, err := tx.Exec("DELETE FROM sessions WHERE user_id = ?", id); err != nil {
 		return fmt.Errorf("deleting sessions: %w", err)
 	}
