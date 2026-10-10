@@ -14,7 +14,7 @@ function planItemClick(e) {
     // In select mode a row click ticks its checkbox instead of expanding.
     if (item.closest('.select-mode')) {
         var cb = item.querySelector('.bulk-checkbox');
-        if (cb && e.target !== cb && !e.target.closest('a, form')) {
+        if (cb && e.target !== cb && !e.target.closest('a, form, button:not(.plan-item-toggle)')) {
             cb.checked = !cb.checked;
             if (typeof bulkCheckboxChanged === 'function') bulkCheckboxChanged();
         }
@@ -26,6 +26,17 @@ function planItemClick(e) {
     var toggle = item.querySelector('.plan-item-toggle');
     if (toggle) toggle.setAttribute('aria-expanded', String(wasMinimised));
     syncDraggable();
+}
+
+// collapsePlanRows minimises every plan row, so select mode never shows a
+// row's detail and its reorder and drop buttons.
+function collapsePlanRows() {
+    var items = document.querySelectorAll('.plan-today-tasks .plan-item:not(.minimised)');
+    for (var i = 0; i < items.length; i++) {
+        items[i].classList.add('minimised');
+        var toggle = items[i].querySelector('.plan-item-toggle');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
+    }
 }
 
 // syncDraggable lets open plan rows be dragged while minimised; an expanded

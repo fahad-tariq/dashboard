@@ -390,11 +390,9 @@
         border-color: var(--accent);
     }
     .tick-done::after,
+    .tick-done:hover::after,
     .tracker-item-completing .tick::after,
     .plan-item-completing .tick::after { border-color: var(--on-accent); }
-    /* A done tick unticks: hover and focus preview the open circle. */
-    .tick-done:is(:hover, :focus-visible)::before { background: transparent; }
-    .tick-done:is(:hover, :focus-visible)::after { border-color: var(--accent); }
 
     /* --- Pills and badges --------------------------------------------- */
     .badge {

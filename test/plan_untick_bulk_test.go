@@ -193,3 +193,19 @@ func TestPlanBulkActions(t *testing.T) {
 		})
 	}
 }
+
+// A task named twice in a selection, even under the list's other name, is
+// acted on and counted once.
+func TestPlanBulkCountsEachTaskOnce(t *testing.T) {
+	id := planIDs["todos"]
+	env := newSeededAppEnv(t, func(cfg *config.Config) {
+		planFiles(t, cfg, func(id string) string { return "- [ ] Sort it [id: " + id + "]\n" })
+	})
+	rr := env.post(t, "/plan/bulk/complete", url.Values{"items": {"personal:" + id + ",todos:" + id + ",todos:" + id}})
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
+	}
+	if page := env.get(t, rr.Header().Get("Location")); !strings.Contains(page, "1 task done.") {
+		t.Error("flash does not count the task once")
+	}
+}

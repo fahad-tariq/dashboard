@@ -96,10 +96,11 @@ func (h *Handler) parsePlanSelection(r *http.Request) (planSelection, error) {
 		if it, err := svc.Get(id); err != nil || it.DeletedAt != "" {
 			return sel, fmt.Errorf("selected item not found")
 		}
-		if seen[entry] {
+		key := list + ":" + id
+		if seen[key] {
 			continue
 		}
-		seen[entry] = true
+		seen[key] = true
 		if _, ok := sel.svcs[list]; !ok {
 			sel.order = append(sel.order, list)
 			sel.svcs[list] = svc

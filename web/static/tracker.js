@@ -201,6 +201,7 @@ function toggleSelectMode() {
     if (bulkSelectActive) {
         if (page) page.classList.add('select-mode');
         setSelectToggle(true);
+        if (typeof collapsePlanRows === 'function') collapsePlanRows();
         if (typeof syncDraggable === 'function') syncDraggable();
     } else {
         exitSelectMode();
@@ -303,7 +304,7 @@ function submitBulkAction(formId) {
 function confirmBulkDelete(form) {
     var n = fillBulkForm(form);
     if (n === 0) return false;
-    return confirmAction(form, 'Move ' + n + ' items to trash?');
+    return confirmAction(form, 'Move ' + n + (n === 1 ? ' item' : ' items') + ' to trash?');
 }
 
 // --- Delegated event dispatch ---

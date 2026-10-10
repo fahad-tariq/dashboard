@@ -206,21 +206,21 @@ Do not reopen these while executing this plan.
 
 **Purpose:** a done task can be unticked from the homepage plan, and several of today's tasks can be completed, moved to tomorrow, dropped or trashed at once. Added at the Phase 3 sign-off (2026-10-11) from the owner's use of the live app; a three-agent design council (interaction, visual and accessibility, implementation) agreed the shape below.
 
-- [ ] **House ticks set the status (bug, test-first).** Ticking a house project on the plan (`home.CompletePlanned`) or the house page (`house.CompleteProject`) calls `Complete`, which sets `Done` but leaves `Status`, so the house page and the digest disagree. Both call `UpdateStatus(id, "done")`.
-- [ ] **Untick.**
+- [x] **House ticks set the status (bug, test-first).** Ticking a house project on the plan (`home.CompletePlanned`) or the house page (`house.CompleteProject`) calls `Complete`, which sets `Done` but leaves `Status`, so the house page and the digest disagree. Both call `UpdateStatus(id, "done")`.
+- [x] **Untick.**
   - `POST /plan/{id}/uncomplete` with `list`, mirroring `CompletePlanned`. For house, `UpdateStatus(id, "todo")` (the earlier status is not stored, so in-progress becomes todo; accepted). Flash `plan-uncompleted`.
   - The done row's circle becomes a form button like the todos page's "Mark not done" (`tick tick-done`, accessible name "Mark {title} not done", `data-stop-click`). It keeps the id `{row}-done` in both states so morph pairs it and focus stays. Planned date and plan order are kept. No celebrate, no undo toast.
   - Hover and focus on a done tick preview the unticked state, on the plan and the todos page. Contrast checked in all six blocks.
-- [ ] **Bulk select on the plan.**
+- [x] **Bulk select on the plan.**
   - A "select" toggle (`aria-pressed`) beside the Today heading, reusing `tracker.js` select mode: `toggleSelectMode`/`exitSelectMode` also find the plan container; selection reads `.plan-item` as `list:id`.
   - In select mode the checkbox (`{row}-select`, "Select {title}") takes the tick's grid slot and the tick hides; only open rows are selectable; a row click toggles its checkbox instead of expanding; drag and the up/down buttons are off (`syncDraggable`).
   - Bar: select all, deselect, complete, move to tomorrow, drop, trash (trash confirms through `confirmBulkDelete`; no undo, as on todos). The bar wraps at 360px and does not cover the last row.
   - `POST /plan/bulk/{complete,tomorrow,clear,delete}` take `items=list:id,...`. Every entry is validated (`itemid.Valid`, known list) and every item checked to exist and not be deleted before anything is written; then one batch write per list, in turn, never two locks at once. A failure after the check (a race) answers an error flash. House complete goes through a batch status update so it sets `Status`. "Tomorrow" uses `BulkSetPlanned` with tomorrow in `loc`.
   - Flash messages carry the count. After a bulk action select mode exits and focus goes to the select toggle.
   - Coarse pointer: 44px minimums for `.bulk-checkbox` and `.bulk-bar .btn` (the todos page gains them too).
-- [ ] **Tests.** Handler table tests: untick on all three lists, house status both ways, each bulk action on a mixed-list selection, a malformed entry and a missing ID that write nothing. Route goldens regenerated and the diff recorded. `TestE2ESelectorsExist`, `TestMorphSkipElementsHaveIDs`. Playwright: untick keeps focus on the circle; select two rows from different lists and complete, move to tomorrow, drop and trash them; axe in select mode.
+- [x] **Tests.** Handler table tests: untick on all three lists, house status both ways, each bulk action on a mixed-list selection, a malformed entry and a missing ID that write nothing. Route goldens regenerated and the diff recorded. `TestE2ESelectorsExist`, `TestMorphSkipElementsHaveIDs`. Playwright: untick keeps focus on the circle; select two rows from different lists and complete, move to tomorrow, drop and trash them; axe in select mode.
 - [ ] **Verification.** `make lint test` green, CI green, deploy and record it.
-- [ ] Self-review with an independent agent; fix what holds up.
+- [x] Self-review with an independent agent; fix what holds up.
 - [ ] **STOP and wait for human review.** The owner tries untick and bulk select in the live app.
 
 ---
@@ -329,3 +329,12 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
 - Tooling: the sandbox cannot download Go 1.27.2, so tests ran with `GOFLAGS=-modfile=$TMPDIR/dash-mod/go.mod` (a copy pinned to 1.27.1) and lint ran with `go.mod` briefly set to 1.27.1, then restored. `TestMigrateDataNeverOverwritesExistingIdeas` builds a binary and needs the `GOFLAGS` form.
 - Deploy 2026-10-10: commit `40b40e7`, CI run 38007753765 green. Image revision label `40b40e77056a3917b68d90b30301d1445965d480`. Backup `dashboard-backup-20261010-024228.tar.gz` (exit 0). Before: schema version 21, old `commentary` table 0 rows, no `item_commentary` (read from the backup's DB snapshot; the server has no `sqlite3`). SSH to fliptronic timed out for several minutes during the pre-checks and recovered unaided; nothing had changed in production meanwhile. The sha256 of all five data files was identical before the pull and after start-up. After: schema version 22 with `item_commentary` (from a second backup, `dashboard-backup-20261010-031229.tar.gz`). Caddy checks: `/login` 200, `/todos` 303, `/events` 401, `/api/v1/todos` 404, cross-site POST `/login` 403. `verify-stack.sh` all green.
 - Owner sign-off 2026-10-11: rename while expanded, same-title tasks, plan reorder, bulk plan from todos, search and widget links all work in the live app. New requests from that use (homepage plan: untick a done task, bulk select with complete, drop and trash) go through a design council before any code.
+
+### Phase 4 notes
+
+- Commits: `337dfee` (failing test: house ticks leave the status), `acb7960` (fix), `4474c71` (untick and plan bulk select), then the review fixes.
+- House status: fixed in the service rather than per handler. Only house projects carry a `[status:]`, so `Complete` and `BulkComplete` set it to `done` when present and `Uncomplete` turns `done` back into `todo`. A hand-edited house line without a status is ticked without gaining one (accepted: the app always writes a status).
+- Plan vs code: the "move to tomorrow" action was added at the owner's request. Bulk forms are plain posts (as on the todos page), so after one the page reloads with select mode off and focus at the top, not on the select toggle. Counted flash messages use `?msg=<key>&n=<count>`; the homepage gained one error key, `plan-bulk-failed`, for a write failing after validation (a race). The coarse-pointer 44px minimums for checkboxes and `.btn` already existed in the utilities layer.
+- Dropped after the review: the hover and focus preview of an unticked circle on done ticks. The row stays put after a tick, so the pointer (and on iOS the sticky `:hover`) made a freshly ticked circle look open. The tooltip "Mark not done" and the pointer cursor remain.
+- Route goldens: five new routes in both files (`/plan/{id}/uncomplete`, `/plan/bulk/{complete,tomorrow,clear,delete}`); auth and no-auth stay identical.
+- Self-review (independent agent): nothing serious. Fixed: the done-tick preview above; up and down buttons in an expanded row still worked in select mode (entering select mode now collapses plan rows, and a button click no longer toggles the row's checkbox); `personal:x,todos:x` counted twice; the trash confirm said "1 items". Accepted: a done row's untick stays reachable by keyboard in select mode (pointer taps are off).
