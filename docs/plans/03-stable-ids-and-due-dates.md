@@ -8,7 +8,7 @@ Give every list item a permanent ID, so renames, moves and duplicate titles stop
 |---|---|---|
 | 1 | Foundations and module framework | Done (2026-10-06) |
 | 2 | Exercise module | Parked (2026-10-07): the owner uses Hevy |
-| 3 (this) | Stable item IDs, due dates on tasks | Phases 1 to 3 done and signed off; Phase 4 next |
+| 3 (this) | Stable item IDs, due dates on tasks | Phases 1 to 3 done and signed off; Phase 4 (plan untick and bulk select) next, then Phase 5 (clean up) |
 
 ## Context
 
@@ -202,7 +202,30 @@ Do not reopen these while executing this plan.
 
 ---
 
-## Phase 4: Clean up and document
+## Phase 4: Untick and bulk select on today's plan
+
+**Purpose:** a done task can be unticked from the homepage plan, and several of today's tasks can be completed, moved to tomorrow, dropped or trashed at once. Added at the Phase 3 sign-off (2026-10-11) from the owner's use of the live app; a three-agent design council (interaction, visual and accessibility, implementation) agreed the shape below.
+
+- [ ] **House ticks set the status (bug, test-first).** Ticking a house project on the plan (`home.CompletePlanned`) or the house page (`house.CompleteProject`) calls `Complete`, which sets `Done` but leaves `Status`, so the house page and the digest disagree. Both call `UpdateStatus(id, "done")`.
+- [ ] **Untick.**
+  - `POST /plan/{id}/uncomplete` with `list`, mirroring `CompletePlanned`. For house, `UpdateStatus(id, "todo")` (the earlier status is not stored, so in-progress becomes todo; accepted). Flash `plan-uncompleted`.
+  - The done row's circle becomes a form button like the todos page's "Mark not done" (`tick tick-done`, accessible name "Mark {title} not done", `data-stop-click`). It keeps the id `{row}-done` in both states so morph pairs it and focus stays. Planned date and plan order are kept. No celebrate, no undo toast.
+  - Hover and focus on a done tick preview the unticked state, on the plan and the todos page. Contrast checked in all six blocks.
+- [ ] **Bulk select on the plan.**
+  - A "select" toggle (`aria-pressed`) beside the Today heading, reusing `tracker.js` select mode: `toggleSelectMode`/`exitSelectMode` also find the plan container; selection reads `.plan-item` as `list:id`.
+  - In select mode the checkbox (`{row}-select`, "Select {title}") takes the tick's grid slot and the tick hides; only open rows are selectable; a row click toggles its checkbox instead of expanding; drag and the up/down buttons are off (`syncDraggable`).
+  - Bar: select all, deselect, complete, move to tomorrow, drop, trash (trash confirms through `confirmBulkDelete`; no undo, as on todos). The bar wraps at 360px and does not cover the last row.
+  - `POST /plan/bulk/{complete,tomorrow,clear,delete}` take `items=list:id,...`. Every entry is validated (`itemid.Valid`, known list) and every item checked to exist and not be deleted before anything is written; then one batch write per list, in turn, never two locks at once. A failure after the check (a race) answers an error flash. House complete goes through a batch status update so it sets `Status`. "Tomorrow" uses `BulkSetPlanned` with tomorrow in `loc`.
+  - Flash messages carry the count. After a bulk action select mode exits and focus goes to the select toggle.
+  - Coarse pointer: 44px minimums for `.bulk-checkbox` and `.bulk-bar .btn` (the todos page gains them too).
+- [ ] **Tests.** Handler table tests: untick on all three lists, house status both ways, each bulk action on a mixed-list selection, a malformed entry and a missing ID that write nothing. Route goldens regenerated and the diff recorded. `TestE2ESelectorsExist`, `TestMorphSkipElementsHaveIDs`. Playwright: untick keeps focus on the circle; select two rows from different lists and complete, move to tomorrow, drop and trash them; axe in select mode.
+- [ ] **Verification.** `make lint test` green, CI green, deploy and record it.
+- [ ] Self-review with an independent agent; fix what holds up.
+- [ ] **STOP and wait for human review.** The owner tries untick and bulk select in the live app.
+
+---
+
+## Phase 5: Clean up and document
 
 - [ ] **Drop dead tables.** Add migrations dropping the old `commentary` table and the unused `tracker_items` table. Remove `DELETE FROM tracker_items` from `auth.DeleteUser` in the same change, or user deletion fails. Remove the backlog entry "Drop the `tracker_items` table".
 - [ ] **`CLAUDE.md`** (use the `claude-md-authoring` skill):
@@ -297,12 +320,12 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
 - Route goldens: both files change only from `{slug}` to `{id:[b-df-hj-np-tv-xz0-9]{8}}`, and `GET /exploration/{slug}` becomes `GET /exploration/*` (redirects to `/ideas`). Auth and no-auth goldens remain identical.
 - Tests whose expectations changed on purpose: renames (`TestUpdateEditTitle`, the ideas edit tests, `TestTrackerServiceApplyEdit`) now keep the ID; `TestIdeasServiceEdit_TitleCollision` became `_DuplicateTitles`; a missing item is addressed by a valid unknown ID (`n0n3x1st`) to reach the handler's 400. Three bulk-date tests had been getting their 400 from the missing field rather than the bad date; fixed.
 - e2e: fixtures carry fixed IDs (`fixtureIds` in `e2e/tests/helpers.ts`), plus a same-title pair (`Call the bank`, `bnkc4ll1`/`bnkc4ll2`). New specs: `tasks.spec.ts` "two tasks with the same title are completed and trashed independently", `sse.spec.ts` "renaming an expanded item keeps its id and expanded state, here and in another tab".
-- `grep -rn -i slug internal/ web/` residue, each kept on purpose: `internal/slug` (the slugifier); `services/refs.go` (resolving older files' slug references, using `slug.Slugify` on titles); `cmd/dashboard/migrate.go` (legacy data matches research files by slugified title); `db/migrations.go` (old `tracker_items` and `commentary` tables, dropped in Phase 4); comments on `FromIdea`/`ConvertedTo` and in `services/registry.go` and `modules/ideas/ideas.go` about older slug values. Nothing in `web/`.
+- `grep -rn -i slug internal/ web/` residue, each kept on purpose: `internal/slug` (the slugifier); `services/refs.go` (resolving older files' slug references, using `slug.Slugify` on titles); `cmd/dashboard/migrate.go` (legacy data matches research files by slugified title); `db/migrations.go` (old `tracker_items` and `commentary` tables, dropped in Phase 5); comments on `FromIdea`/`ConvertedTo` and in `services/registry.go` and `modules/ideas/ideas.go` about older slug values. Nothing in `web/`.
 - Self-review (independent agent): nothing serious. Fixed test-first: `PromoteSubStep` panicked on a negative index (500; predates this phase). Added: commentary removal tests for the idea, maintenance and project purge routes and the colliding move. Not reachable from `test/`: the hourly `appServices.purgeExpired` (unexported); it calls the same `ForgetItems` with the IDs `PurgeExpired` returns, which is tested.
 - Council, security: no blockers. Low: commentary cleanup (`DeleteItems`, `Copy`) acts on an ID for every user, so with a second user a chance ID collision across two files could remove the other user's commentary. Info: the commentary API's `{list}` is ignored; with several users, old slug references on shared lists resolve against the first user loaded (Phase 2). All need a second user; multi-user code is frozen.
 - Council, deploy safety (built `6b41719` and the Phase 2 image's commit `d7c190e`, both in auth mode on fixtures plus Phase-2-shaped files): GO. Start-up and page reads leave every file byte-identical, twice. The migration adds one statement (schema 21 to 22, `CREATE TABLE IF NOT EXISTS item_commentary`); the Phase 2 binary starts on a v22 DB and serves every page, and its writes keep the `[id:]` tags, so rollback needs only the image pin (plus the backup if anything must be undone). Sixteen stale-tab posts (slug URLs, `slug=`/`slugs=` fields, old `?undo=` links) answered 404 or 400 and changed no file. Deploy checks added: before, `select version from schema_version` gives 21 and `select count(*) from commentary` gives 0; `shasum` of the three production files before stopping the old container and after the new one has served `/`, `/todos` and `/ideas` must match; after, the schema version is 22; hard-reload open tabs.
 - Accepted residue: items left without an ID (a failed load-time save) share the key `""` in the planner's exclude maps and give duplicate DOM ids until a write assigns them IDs.
-- Follow-ups (for `docs/backlog.md` in Phase 4): the idea "Converted to a task" link always points at `/todos#item-<id>`, even for family and house tasks (predates this phase); `APIReorderPlan` answers 500 for a well-formed ID not in the list (predates this phase, API off in production).
+- Follow-ups (for `docs/backlog.md` in Phase 5): the idea "Converted to a task" link always points at `/todos#item-<id>`, even for family and house tasks (predates this phase); `APIReorderPlan` answers 500 for a well-formed ID not in the list (predates this phase, API off in production).
 - Tooling: the sandbox cannot download Go 1.27.2, so tests ran with `GOFLAGS=-modfile=$TMPDIR/dash-mod/go.mod` (a copy pinned to 1.27.1) and lint ran with `go.mod` briefly set to 1.27.1, then restored. `TestMigrateDataNeverOverwritesExistingIdeas` builds a binary and needs the `GOFLAGS` form.
 - Deploy 2026-10-10: commit `40b40e7`, CI run 38007753765 green. Image revision label `40b40e77056a3917b68d90b30301d1445965d480`. Backup `dashboard-backup-20261010-024228.tar.gz` (exit 0). Before: schema version 21, old `commentary` table 0 rows, no `item_commentary` (read from the backup's DB snapshot; the server has no `sqlite3`). SSH to fliptronic timed out for several minutes during the pre-checks and recovered unaided; nothing had changed in production meanwhile. The sha256 of all five data files was identical before the pull and after start-up. After: schema version 22 with `item_commentary` (from a second backup, `dashboard-backup-20261010-031229.tar.gz`). Caddy checks: `/login` 200, `/todos` 303, `/events` 401, `/api/v1/todos` 404, cross-site POST `/login` 403. `verify-stack.sh` all green.
 - Owner sign-off 2026-10-11: rename while expanded, same-title tasks, plan reorder, bulk plan from todos, search and widget links all work in the live app. New requests from that use (homepage plan: untick a done task, bulk select with complete, drop and trash) go through a design council before any code.
