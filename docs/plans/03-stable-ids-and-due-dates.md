@@ -8,7 +8,7 @@ Give every list item a permanent ID, so renames, moves and duplicate titles stop
 |---|---|---|
 | 1 | Foundations and module framework | Done (2026-10-06) |
 | 2 | Exercise module | Parked (2026-10-07): the owner uses Hevy |
-| 3 (this) | Stable item IDs, due dates on tasks | Phases 1 to 4 done and signed off; Phase 5 (clean up and document) next |
+| 3 (this) | Stable item IDs, due dates on tasks | Done (2026-10-10) |
 
 ## Context
 
@@ -236,7 +236,7 @@ Do not reopen these while executing this plan.
   - Note deadlines on tasks.
 - [x] **`docs/backlog.md`:** remove "Duplicate slugs" and the `MoveToList` suffix from known limitations, and add follow-ups found during the plan. If `README.md` lists tags or slug URLs, update it too.
 - [x] Verify the docs against the code with parallel clean-context agents (the owner does not read docs).
-- [ ] **Verification.** `make lint test` green and CI green. Back up the DB before deploying, because this migration drops tables. Deploy and record it. Check the success criteria.
+- [x] **Verification.** `make lint test` green and CI green. Back up the DB before deploying, because this migration drops tables. Deploy and record it. Check the success criteria.
 - [ ] **STOP: plan complete.**
 
 ---
@@ -349,3 +349,13 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
 - Rollback: the Phase 4 binary starts on a v24 database (its loop has nothing to apply) and never read either table, but its `auth.DeleteUser` would fail with "no such table". Admin is frozen and production has one user; accepted.
 - Docs: `CLAUDE.md` gains an "Item IDs" paragraph (format, assignment on load and write, moves, references, routes and fields), the DOM id scheme uses IDs, `[id:]` and task deadlines join the tag list, input cleaning and date validation are recorded as service-layer rules, and the single `ApplyEdit` path replaces the `UpdateEdit`/`ApplyEdit` convention. `README.md`: IDs in the file formats and examples, `{id}` in routes and the API (`deadline` on PUT, `ids` on reorder), due dates, untick and plan bulk select in features, no `tracker_items`. `docs/backlog.md`: "Duplicate slugs" removed; Phase 2 and 3 follow-ups added under known limitations.
 - Doc verification (two clean-context agents, one for `CLAUDE.md`, one for README and backlog): fixed eleven claims, among them slugs "for display" (none), an empty title clearing (it keeps), the API's date error text, maintenance bodies keeping indentation, the "Due soon" five-row cap and planned badge, and house plan tests that now exist. Self-review (independent agent): no remaining reader of either table; fixed the stale `DeleteUser` comment; the rollback note above.
+- Deploy 2026-10-10: commit `378e051`, CI run 38077629907 green (e2e, screenshots, vuln, test, lint, build). Image revision label `378e051d445622b1267b072509f48d5415176349`. Backup `dashboard-backup-20261010-193528.tar.gz` (exit 0; the first `homelab-ssh` attempt timed out and an immediate retry worked). Before, from that backup's DB snapshot: schema version 22, `commentary` 0 rows, `item_commentary` 0 rows, `tracker_items` 43 stale mirror rows (not read since the mirror was dropped; they remain in this backup). The sha256 of all five data files was identical before the pull and after start-up. After, from a second backup (`dashboard-backup-20261010-194900.tar.gz`): schema version 24; tables `item_commentary`, `schema_version`, `sessions`, `users` (plus `sqlite_sequence`). Caddy checks: `/login` 200, `/todos` 303, `/events` 401, `/api/v1/todos` 404, cross-site POST `/login` 403. `verify-stack.sh`: `dash` OK; `pihole` (403) and `cca` (the intermittent `200000`) failed, and its local sudo steps cannot run in the sandbox.
+- Success criteria:
+  1. Same-title tasks: `test/address_by_id_test.go` and `e2e/tests/tasks.spec.ts` "two tasks with the same title are completed and trashed independently". Met.
+  2. Rename keeps the URL (`TestRenameKeepsTheItemURL`), expanded state across a live refresh (`e2e/tests/sse.spec.ts`) and commentary (`TestCommentaryFollowsTheItemID`). Met.
+  3. Move keeps the ID (`TestMoveAndConvertUseIDs`), deadline (`TestDeadlineSurvivesMoveAndPartialEdits`) and commentary (`TestCommentaryFollowsTheItemID`, including a move that must take a new ID). Met.
+  4. Every production item line carries an `[id:]`, per file in the Phase 2 notes. Met.
+  5. Due label in row, planner and widget, plan today keeping focus, nothing planned automatically: Phase 1 tests and e2e, signed off by the owner. Met.
+  6. Invalid dates and tag-carrying titles: a table row per input path (Phase 1 date validation, Phase 2 injection tests). Met.
+  7. Round-trip fixtures byte-identical; contrast, module contract, e2e selector and morph tests pass; route golden diffs explained in the Phase 3 and 4 notes. Met.
+  8. Lint, the race suite with `INTEGRATION=1` and Playwright in CI pass (run 38077629907). Met.
