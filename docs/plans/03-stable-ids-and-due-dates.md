@@ -8,7 +8,7 @@ Give every list item a permanent ID, so renames, moves and duplicate titles stop
 |---|---|---|
 | 1 | Foundations and module framework | Done (2026-10-06) |
 | 2 | Exercise module | Parked (2026-10-07): the owner uses Hevy |
-| 3 (this) | Stable item IDs, due dates on tasks | Phases 1 and 2 done; Phase 3 next |
+| 3 (this) | Stable item IDs, due dates on tasks | Phases 1 to 3 done; Phase 4 after the owner has used Phase 3 for a day |
 
 ## Context
 
@@ -167,38 +167,38 @@ Do not reopen these while executing this plan.
 
 **Purpose:** the web app and the API identify items by ID. This is the riskiest phase: a missed `data-slug` or `item-{{.Slug}}` silently breaks drag, select, focus or expanded state, and only Playwright catches it. Do it in one pass, because `tracker.js` and `planner.js` are shared across lists.
 
-- [ ] **Remove `Slug`.**
+- [x] **Remove `Slug`.**
   - Delete the `Slug` field from the tracker, maintenance and ideas item structs.
   - Services (`Get`, `mutate`, `mutateBatch`, `PermanentDelete`, `MarkConverted`, restore, bulk methods) take IDs.
   - Slug-keyed maps (`home/handler.go` `exclude`, `modules/tasks/tasks.go` `planned`, and any others the compiler finds) key on IDs.
-- [ ] **Routes and handlers.**
+- [x] **Routes and handlers.**
   - Every module mount, `/plan/...` and `/commentary/{list}/{id}` use `{id:[b-df-hj-np-tv-xz0-9]{8}}`, so a malformed ID never reaches a service.
   - Form fields `slug`/`slugs` become `id`/`ids`, validated before any service call.
   - Undo, `?undo=` and `redirectBack` anchors encode the ID (house `LogDone`, `PromoteSubStep`, the widget action).
   - `/exploration/*` redirects to `/ideas`.
   - Regenerate both route goldens and record the diff: parameter names and the regex only, plus the exploration change.
-- [ ] **Templates and JS.**
+- [x] **Templates and JS.**
   - DOM ids become `item-{id}`, `idea-{id}`, `maint-{id}`, `plan-{list}-{id}`, `pick-{list}-{id}`, keeping the existing suffixes.
   - `data-slug` becomes `data-id`, including `data-row`, `data-row-of`, `data-commentary-url` and the drag `dataTransfer`.
   - Update `tracker.js` (`getSelectedSlugs`, `#item-` hash handling), `planner.js` (`collectSlugs`, request bodies) and `house.js`.
   - The "From idea" link uses link text such as "Original idea", not the raw ID.
   - Search results, widget URLs, calendar entries and planner "open in list" links use IDs.
-- [ ] **Commentary.**
+- [x] **Commentary.**
   - Add migration entries (one statement each) creating `item_commentary` keyed `(item_id, user_id)`. The store, web handler, API handler and `httputil` validation use it.
   - Permanent delete and purge remove an item's commentary.
   - Tests: a renamed item keeps its commentary, and a moved item keeps it too.
-- [ ] **API.**
+- [x] **API.**
   - `/api/v1` routes take `{id}`. JSON items carry `id` and no `slug`. Plan endpoints take `ids`. `planItemsToAPI` and the ideas API include `id`.
-- [ ] **Tests and e2e.**
+- [x] **Tests and e2e.**
   - Update the slug-pinned Go tests. The largest are `ideas_handler_test`, `tracker_test`, `ideas_service_test`, `tracker_handler_test`, `planner_test` and `tracker_api_test`; also `commentary_*`, `bench_test`, `multiuser_test`, `admin_test`, `fragment_test`, `calendar_test`, `move_to_list_test`, `house_*`, `modules_test` and `api_test`.
   - Test-first regressions: two tasks with the same title are completed, edited and trashed independently, and a rename keeps the URL.
   - Give the Playwright fixtures fixed IDs and update the specs that address slugs (`search.spec.ts`, `planner.spec.ts`, and any others).
   - New spec: rename an expanded item and confirm it stays expanded after the live refresh.
   - `TestE2ESelectorsExist` and `TestMorphSkipElementsHaveIDs` pass.
   - End with `grep -rn -i slug internal/ web/`, and list in Working notes every remaining hit with its reason (for example, `internal/slug` used for display or anchors).
-- [ ] **Verification.** `make lint test` green. Route golden diff recorded. CI green, Playwright in all styles and themes included. Deploy and record it.
-- [ ] Self-review with an independent agent; fix what holds up.
-- [ ] **STOP and wait for human review.** The owner uses the live app for a day before Phase 4.
+- [x] **Verification.** `make lint test` green. Route golden diff recorded. CI green, Playwright in all styles and themes included. Deploy and record it.
+- [x] Self-review with an independent agent; fix what holds up.
+- [x] **STOP and wait for human review.** The owner uses the live app for a day before Phase 4.
 
 ---
 
@@ -304,3 +304,4 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
 - Accepted residue: items left without an ID (a failed load-time save) share the key `""` in the planner's exclude maps and give duplicate DOM ids until a write assigns them IDs.
 - Follow-ups (for `docs/backlog.md` in Phase 4): the idea "Converted to a task" link always points at `/todos#item-<id>`, even for family and house tasks (predates this phase); `APIReorderPlan` answers 500 for a well-formed ID not in the list (predates this phase, API off in production).
 - Tooling: the sandbox cannot download Go 1.27.2, so tests ran with `GOFLAGS=-modfile=$TMPDIR/dash-mod/go.mod` (a copy pinned to 1.27.1) and lint ran with `go.mod` briefly set to 1.27.1, then restored. `TestMigrateDataNeverOverwritesExistingIdeas` builds a binary and needs the `GOFLAGS` form.
+- Deploy 2026-10-10: commit `40b40e7`, CI run 38007753765 green. Image revision label `40b40e77056a3917b68d90b30301d1445965d480`. Backup `dashboard-backup-20261010-024228.tar.gz` (exit 0). Before: schema version 21, old `commentary` table 0 rows, no `item_commentary` (read from the backup's DB snapshot; the server has no `sqlite3`). SSH to fliptronic timed out for several minutes during the pre-checks and recovered unaided; nothing had changed in production meanwhile. The sha256 of all five data files was identical before the pull and after start-up. After: schema version 22 with `item_commentary` (from a second backup, `dashboard-backup-20261010-031229.tar.gz`). Caddy checks: `/login` 200, `/todos` 303, `/events` 401, `/api/v1/todos` 404, cross-site POST `/login` 403. `verify-stack.sh` all green.
