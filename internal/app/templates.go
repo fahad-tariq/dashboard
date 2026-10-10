@@ -74,23 +74,7 @@ func buildFuncMap(loc *time.Location, authEnabled bool, version string, static f
 			return []string{file, caption}
 		},
 		"relativeDate": func(date string) string {
-			t, err := time.Parse("2006-01-02", date)
-			if err != nil {
-				return date
-			}
-			days := int(time.Now().In(loc).Sub(t).Hours() / 24)
-			switch {
-			case days == 0:
-				return "today"
-			case days == 1:
-				return "yesterday"
-			case days < 7:
-				return fmt.Sprintf("%d days ago", days)
-			case days < 14:
-				return "1 week ago"
-			default:
-				return fmt.Sprintf("%d weeks ago", days/7)
-			}
+			return insights.DaysAgo(date, time.Now().In(loc))
 		},
 		"planPercent": func(done, total int) int {
 			if total == 0 {

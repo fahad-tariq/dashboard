@@ -2,9 +2,11 @@ package test
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -207,5 +209,52 @@ func TestPlanBulkCountsEachTaskOnce(t *testing.T) {
 	}
 	if page := env.get(t, rr.Header().Get("Location")); !strings.Contains(page, "1 task done.") {
 		t.Error("flash does not count the task once")
+	}
+}
+
+// A task carried over from an earlier day stays on today's plan once it is
+// ticked, struck through like a task planned for today, and can be unticked
+// there.
+func TestCarriedTaskStaysOnThePlanWhenTicked(t *testing.T) {
+	const id = "c4rr1d01"
+	yesterday := time.Now().In(time.Local).AddDate(0, 0, -1).Format("2006-01-02")
+	env := newSeededAppEnv(t, func(cfg *config.Config) {
+		seedFile(t, filepath.Join(cfg.UserDataDir, "1", "personal.md"),
+			"# Personal\n\n- [ ] Ring the council [planned: "+yesterday+"] [id: "+id+"]\n")
+	})
+	if rr := env.post(t, "/plan/"+id+"/complete", url.Values{"list": {"todos"}}); rr.Code != http.StatusSeeOther {
+		t.Fatalf("complete: status %d", rr.Code)
+	}
+	page := env.get(t, "/")
+	row := regexp.MustCompile(`(?s)<div class="plan-item[^"]*" id="plan-todos-` + id + `".*?</form>`).FindString(page)
+	if !strings.Contains(row, "plan-item-done") || !strings.Contains(row, `action="/plan/`+id+`/uncomplete"`) {
+		t.Errorf("ticked carried task is not a done row on the plan: %q", row)
+	}
+}
+
+// Ticking a task on the plan offers an undo that reopens it.
+func TestPlanCompleteOffersUndo(t *testing.T) {
+	const id = "t0d0pln1"
+	var path string
+	env := newSeededAppEnv(t, func(cfg *config.Config) {
+		path = filepath.Join(cfg.UserDataDir, "1", "personal.md")
+		seedFile(t, path, "# Personal\n\n- [ ] Sort it [planned: 2026-10-11] [id: "+id+"]\n")
+	})
+	req := httptest.NewRequest("POST", "/plan/"+id+"/complete", strings.NewReader("list=todos"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+	req.AddCookie(env.cookie)
+	rr := httptest.NewRecorder()
+	env.h.ServeHTTP(rr, req)
+	trigger := rr.Header().Get("HX-Trigger")
+	want := `"undo":"/plan/` + id + `/uncomplete?list=todos"`
+	if !strings.Contains(trigger, want) {
+		t.Fatalf("HX-Trigger %q lacks %s", trigger, want)
+	}
+	if rr := env.post(t, "/plan/"+id+"/uncomplete?list=todos", nil); rr.Code != http.StatusSeeOther {
+		t.Fatalf("undo: status %d", rr.Code)
+	}
+	if itemsByID(t, path)[id].Done {
+		t.Error("undo left the task done")
 	}
 }

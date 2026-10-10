@@ -359,3 +359,42 @@ func TestDueLabel(t *testing.T) {
 		})
 	}
 }
+
+// DaysAgo counts calendar days in now's location, so a plan from yesterday
+// reads "yesterday" at any hour, including the early morning in a zone
+// ahead of UTC.
+func TestDaysAgo(t *testing.T) {
+	syd, err := time.LoadLocation("Australia/Sydney")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := func(s string) time.Time {
+		v, err := time.ParseInLocation("2006-01-02 15:04", s, syd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	cases := map[string]struct {
+		date string
+		now  time.Time
+		want string
+	}{
+		"same day, late":            {"2026-10-11", at("2026-10-11 23:30"), "today"},
+		"same day, early":           {"2026-10-11", at("2026-10-11 00:10"), "today"},
+		"yesterday, early morning":  {"2026-10-10", at("2026-10-11 04:45"), "yesterday"},
+		"yesterday, evening":        {"2026-10-10", at("2026-10-11 21:00"), "yesterday"},
+		"three days, early morning": {"2026-10-08", at("2026-10-11 01:00"), "3 days ago"},
+		"one week":                  {"2026-10-04", at("2026-10-11 02:00"), "1 week ago"},
+		"two weeks":                 {"2026-09-27", at("2026-10-11 02:00"), "2 weeks ago"},
+		"across DST start":          {"2026-10-03", at("2026-10-05 01:00"), "2 days ago"},
+		"malformed":                 {"soon", at("2026-10-11 09:00"), "soon"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := insights.DaysAgo(tc.date, tc.now); got != tc.want {
+				t.Errorf("DaysAgo(%q, %s) = %q, want %q", tc.date, tc.now, got, tc.want)
+			}
+		})
+	}
+}

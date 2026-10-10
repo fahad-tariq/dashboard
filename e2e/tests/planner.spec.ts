@@ -129,6 +129,20 @@ test('untick a done task on the plan keeps focus on its circle', async ({ page }
   await planItem(page, title).getByRole('button', { name: `Mark ${title} not done` }).click();
   await expect(planItem(page, title)).not.toHaveClass(/plan-item-done/);
   await expect(planItem(page, title).getByRole('button', { name: `done ${title}` })).toBeFocused();
+  // Reopening offers no undo, so the toast shows no undo button.
+  await expect(page.locator('#toast .toast-text')).toHaveText('Reopened.');
+  await expect(page.locator('#toast .toast-undo')).toBeHidden();
+});
+
+test('ticking a task on the plan can be undone from the toast', async ({ page }) => {
+  const title = uniqueTitle('Book the car service');
+  await addTask(page, title);
+  const item = await planFromPicker(page, title);
+
+  await item.getByRole('button', { name: `done ${title}` }).click();
+  await expect(planItem(page, title)).toHaveClass(/plan-item-done/);
+  await page.locator('#toast .toast-undo').click();
+  await expect(planItem(page, title)).not.toHaveClass(/plan-item-done/);
 });
 
 test('bulk select on the plan spans lists: tomorrow and complete', async ({ page }) => {

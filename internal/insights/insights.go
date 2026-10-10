@@ -510,3 +510,26 @@ func DueLabel(deadline string, now time.Time) Due {
 	}
 	return due
 }
+
+// DaysAgo describes date (YYYY-MM-DD) relative to now: "today",
+// "yesterday", "3 days ago", "1 week ago", "2 weeks ago". A malformed date
+// is returned as given.
+func DaysAgo(date string, now time.Time) string {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return date
+	}
+	days := int(now.Sub(t).Hours() / 24)
+	switch {
+	case days == 0:
+		return "today"
+	case days == 1:
+		return "yesterday"
+	case days < 7:
+		return fmt.Sprintf("%d days ago", days)
+	case days < 14:
+		return "1 week ago"
+	default:
+		return fmt.Sprintf("%d weeks ago", days/7)
+	}
+}
