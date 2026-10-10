@@ -196,9 +196,9 @@ func (s *Service) UpdateNotes(id, body string) error {
 }
 
 func (s *Service) Complete(id string) error {
+	now := time.Now().In(s.loc).Format("2006-01-02")
 	return s.mutate(id, func(it *Item) error {
-		it.Done = true
-		it.Completed = time.Now().In(s.loc).Format("2006-01-02")
+		markDone(it, now)
 		return nil
 	})
 }
@@ -207,8 +207,23 @@ func (s *Service) Uncomplete(id string) error {
 	return s.mutate(id, func(it *Item) error {
 		it.Done = false
 		it.Completed = ""
+		// The status before "done" is not stored, so a reopened project
+		// starts again from todo.
+		if it.Status == "done" {
+			it.Status = "todo"
+		}
 		return nil
 	})
+}
+
+// markDone completes an item. Only house projects carry a status; theirs
+// becomes "done" too, so the house page agrees with the digest.
+func markDone(it *Item, today string) {
+	it.Done = true
+	it.Completed = today
+	if it.Status != "" {
+		it.Status = "done"
+	}
 }
 
 // UpdateStatus sets the status field of an item (house projects only).
@@ -360,8 +375,7 @@ func (s *Service) mutateBatch(ids []string, fn func(*Item) error) error {
 func (s *Service) BulkComplete(ids []string) error {
 	now := time.Now().In(s.loc).Format("2006-01-02")
 	return s.mutateBatch(ids, func(it *Item) error {
-		it.Done = true
-		it.Completed = now
+		markDone(it, now)
 		return nil
 	})
 }
