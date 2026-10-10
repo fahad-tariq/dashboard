@@ -102,12 +102,17 @@ POST    /ideas/{id:[b-df-hj-np-tv-xz0-9]{8}}/to-task
 POST    /ideas/{id:[b-df-hj-np-tv-xz0-9]{8}}/triage
 POST    /login
 POST    /logout
+POST    /plan/bulk/clear
 POST    /plan/bulk/clear-carried
+POST    /plan/bulk/complete
+POST    /plan/bulk/delete
 POST    /plan/bulk/set
+POST    /plan/bulk/tomorrow
 POST    /plan/clear
 POST    /plan/reorder
 POST    /plan/set
 POST    /plan/{id:[b-df-hj-np-tv-xz0-9]{8}}/complete
+POST    /plan/{id:[b-df-hj-np-tv-xz0-9]{8}}/uncomplete
 POST    /static/*
 POST    /todos/add
 POST    /todos/add-goal

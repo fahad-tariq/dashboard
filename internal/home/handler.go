@@ -247,8 +247,13 @@ func (h *Handler) renderHomePage(w http.ResponseWriter, r *http.Request, l Lists
 	data["TagSummaries"] = insights.TopN(insights.TagAggregation(tagInfos(personalItems, familyItems, allIdeas)), 5)
 
 	if msgKey := r.URL.Query().Get("msg"); msgKey != "" {
-		if flashMsg := resolvePlanFlash(msgKey, now); flashMsg != "" {
+		flashMsg := resolvePlanFlash(msgKey, now)
+		if flashMsg == "" {
+			flashMsg = resolvePlanCountFlash(msgKey, r.URL.Query().Get("n"))
+		}
+		if flashMsg != "" {
 			data["FlashMsg"] = flashMsg
+			data["FlashError"] = planFlashErrorKeys[msgKey]
 		}
 	}
 
@@ -306,10 +311,12 @@ func countOpenTasks(items []tracker.Item) int {
 }
 
 var planFlashMessages = map[string]string{
-	"plan-cleared":    "Removed from plan.",
-	"plan-bulk-set":   "Tasks added to today's plan.",
-	"carried-cleared": "Carried-over tasks dropped.",
-	"plan-reordered":  "Plan order updated.",
+	"plan-cleared":     "Removed from plan.",
+	"plan-bulk-set":    "Tasks added to today's plan.",
+	"carried-cleared":  "Carried-over tasks dropped.",
+	"plan-reordered":   "Plan order updated.",
+	"plan-uncompleted": "Reopened.",
+	"plan-bulk-failed": "Some tasks were not updated. Reload and check them.",
 }
 
 var rotatingPlanFlash = map[string][]string{

@@ -29,7 +29,7 @@
 {{end}}
 
 {{/* ===== Today's Plan ===== */}}
-<section class="plan-section" id="plan-section" aria-labelledby="plan-heading">
+<section class="plan-section" id="plan-section" aria-labelledby="plan-heading" data-keep-class="select-mode">
     <div class="plan-heading-row">
         <h2 class="plan-heading" id="plan-heading">Today</h2>
         {{if gt .PlanTotalCount 0}}
@@ -40,6 +40,7 @@
             <span class="plan-progress-text">{{.PlanDoneCount}} of {{.PlanTotalCount}} done</span>
         </div>
         {{end}}
+        {{if lt .PlanDoneCount .PlanTotalCount}}<button type="button" class="btn btn-secondary btn-sm select-toggle-btn" id="select-toggle" data-keep-class="active" data-keep-attr="aria-pressed" data-action="toggle-select-mode" aria-pressed="false">select</button>{{end}}
     </div>
 
     {{if .PlanAllDone}}
@@ -72,6 +73,30 @@
         {{range .HousePlanned}}{{template "plan-row" (dict "Item" . "List" "house" "Today" $.Today)}}{{end}}
         {{end}}
     </div>
+    {{if lt .PlanDoneCount .PlanTotalCount}}
+    {{/* Selections are list:id pairs, because the plan mixes three lists. */}}
+    <div class="bulk-bar" id="bulk-bar" data-keep-class="visible" role="toolbar" aria-label="Bulk actions on today's plan">
+        <span class="bulk-bar-count" id="bulk-bar-count" aria-live="polite">0 selected</span>
+        <button type="button" class="btn btn-quiet btn-sm" data-action="select-all">select all</button>
+        <button type="button" class="btn btn-quiet btn-sm" data-action="deselect-all">deselect</button>
+        <form method="POST" action="/plan/bulk/complete" id="bulk-complete-form">
+            <input type="hidden" name="items" value="">
+            <button type="submit" class="btn btn-secondary btn-sm" data-action="bulk-submit" data-bulk-form="bulk-complete-form">complete</button>
+        </form>
+        <form method="POST" action="/plan/bulk/tomorrow" id="bulk-tomorrow-form">
+            <input type="hidden" name="items" value="">
+            <button type="submit" class="btn btn-secondary btn-sm" data-action="bulk-submit" data-bulk-form="bulk-tomorrow-form">tomorrow</button>
+        </form>
+        <form method="POST" action="/plan/bulk/clear" id="bulk-clear-form">
+            <input type="hidden" name="items" value="">
+            <button type="submit" class="btn btn-secondary btn-sm" data-action="bulk-submit" data-bulk-form="bulk-clear-form">drop</button>
+        </form>
+        <form method="POST" action="/plan/bulk/delete" id="bulk-delete-form" data-submit="bulk-delete">
+            <input type="hidden" name="items" value="">
+            <button type="submit" class="btn btn-danger btn-sm">trash</button>
+        </form>
+    </div>
+    {{end}}
     {{end}}
 
     {{if not (or .PersonalPlanned .FamilyPlanned .HousePlanned)}}<p class="plan-empty">Nothing planned yet.</p>{{end}}
@@ -173,8 +198,13 @@
 
 {{define "plan-row"}}{{$i := .Item}}{{$id := printf "plan-%s-%s" .List $i.ID}}
 <div class="plan-item minimised{{if $i.Done}} plan-item-done{{end}}{{if ne $i.Planned .Today}} plan-item-carried{{end}}" id="{{$id}}" data-row data-keep-class="minimised" data-priority="{{$i.Priority}}" data-id="{{$i.ID}}" data-list="{{.List}}" {{if not $i.Done}}draggable="true"{{end}} onclick="planItemClick(event)">
-    {{if $i.Done}}<span class="plan-tick"><span class="tick tick-done" aria-hidden="true"></span></span>
-    {{else}}<form method="POST" action="/plan/{{$i.ID}}/complete" class="inline-form plan-tick" data-submit="celebrate" hx-boost="true" hx-swap="morph swap:200ms">
+    {{- /* The tick keeps the id {row}-done in both states, so a morph pairs it and focus stays on it. */}}
+    {{if $i.Done}}<form method="POST" action="/plan/{{$i.ID}}/uncomplete" class="inline-form plan-tick" hx-boost="true">
+        <input type="hidden" name="list" value="{{.List}}">
+        <button type="submit" class="tick tick-done item-undo-btn" id="{{$id}}-done" title="Mark not done" aria-label="Mark {{$i.Title}} not done"></button>
+    </form>
+    {{else}}<input type="checkbox" class="bulk-checkbox plan-select" id="{{$id}}-select" data-action="bulk-checkbox" aria-label="Select {{$i.Title}}">
+    <form method="POST" action="/plan/{{$i.ID}}/complete" class="inline-form plan-tick" data-submit="celebrate" hx-boost="true" hx-swap="morph swap:200ms">
         <input type="hidden" name="list" value="{{.List}}">
         <button type="submit" class="tick item-complete-btn" id="{{$id}}-done" title="Complete"><span class="sr-only">done {{$i.Title}}</span></button>
     </form>{{end}}

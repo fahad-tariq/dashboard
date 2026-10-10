@@ -575,6 +575,16 @@ func (s *Service) ClearPlanned(id string) error {
 	})
 }
 
+// BulkClearPlanned removes multiple items from the plan in a single file
+// write.
+func (s *Service) BulkClearPlanned(ids []string) error {
+	return s.mutateBatch(ids, func(it *Item) error {
+		it.Planned = ""
+		it.PlanOrder = 0
+		return nil
+	})
+}
+
 // BulkSetPlanned sets the planned date on multiple items in a single file write.
 // Resets PlanOrder since bulk-planning from /todos shouldn't carry stale order.
 func (s *Service) BulkSetPlanned(ids []string, date string) error {

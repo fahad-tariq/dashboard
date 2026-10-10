@@ -181,13 +181,27 @@ function triageAnimate(form) {
 // --- Bulk select mode ---
 var bulkSelectActive = false;
 
+// Select mode works on the list pages and on today's plan. Plan rows mix
+// three lists, so they are selected as "list:id"; list rows by ID.
+var selectScope = '.tracker-page, .ideas-page, .plan-section';
+var selectableRows = '.tracker-item, .plan-item';
+
+function setSelectToggle(active) {
+    var btn = document.getElementById('select-toggle');
+    if (!btn) return null;
+    btn.classList.toggle('active', active);
+    btn.textContent = active ? 'cancel' : 'select';
+    btn.setAttribute('aria-pressed', String(active));
+    return btn;
+}
+
 function toggleSelectMode() {
     bulkSelectActive = !bulkSelectActive;
-    var page = document.querySelector('.tracker-page, .ideas-page');
-    var btn = document.getElementById('select-toggle');
+    var page = document.querySelector(selectScope);
     if (bulkSelectActive) {
         if (page) page.classList.add('select-mode');
-        if (btn) { btn.classList.add('active'); btn.textContent = 'cancel'; }
+        setSelectToggle(true);
+        if (typeof syncDraggable === 'function') syncDraggable();
     } else {
         exitSelectMode();
     }
@@ -195,33 +209,41 @@ function toggleSelectMode() {
 
 function exitSelectMode() {
     bulkSelectActive = false;
-    var page = document.querySelector('.tracker-page, .ideas-page');
+    var page = document.querySelector(selectScope);
     if (page) page.classList.remove('select-mode');
-    var btn = document.getElementById('select-toggle');
-    if (btn) { btn.classList.remove('active'); btn.textContent = 'select'; btn.focus(); }
+    var btn = setSelectToggle(false);
+    if (btn) btn.focus();
     deselectAll();
     var bar = document.getElementById('bulk-bar');
     if (bar) bar.classList.remove('visible');
+    if (typeof syncDraggable === 'function') syncDraggable();
 }
 
 function bulkCheckboxChanged() {
     updateBulkBar();
 }
 
+function selectionValue(item) {
+    var id = item.getAttribute('data-id');
+    if (!id) return '';
+    if (item.classList.contains('plan-item')) return item.getAttribute('data-list') + ':' + id;
+    return id;
+}
+
 function getSelectedIDs() {
     var ids = [];
     var checkboxes = document.querySelectorAll('.bulk-checkbox:checked');
     checkboxes.forEach(function(cb) {
-        var item = cb.closest('.tracker-item');
+        var item = cb.closest(selectableRows);
         if (item) {
-            var id = item.getAttribute('data-id');
-            if (id) ids.push(id);
+            var value = selectionValue(item);
+            if (value) ids.push(value);
             item.classList.add('bulk-selected');
         }
     });
     // Clear unselected items.
     document.querySelectorAll('.bulk-checkbox:not(:checked)').forEach(function(cb) {
-        var item = cb.closest('.tracker-item');
+        var item = cb.closest(selectableRows);
         if (item) item.classList.remove('bulk-selected');
     });
     return ids;
@@ -242,7 +264,7 @@ function updateBulkBar() {
 }
 
 function selectAllVisible() {
-    var items = document.querySelectorAll('.tracker-item:not(.tracker-item-done)');
+    var items = document.querySelectorAll('.tracker-item:not(.tracker-item-done), .plan-item:not(.plan-item-done)');
     items.forEach(function(el) {
         if (el.style.display === 'none') return;
         if (!el.getAttribute('data-id')) return;
@@ -256,28 +278,32 @@ function deselectAll() {
     document.querySelectorAll('.bulk-checkbox').forEach(function(cb) {
         cb.checked = false;
     });
-    document.querySelectorAll('.tracker-item.bulk-selected').forEach(function(el) {
+    document.querySelectorAll('.tracker-item.bulk-selected, .plan-item.bulk-selected').forEach(function(el) {
         el.classList.remove('bulk-selected');
     });
     updateBulkBar();
 }
 
+// fillBulkForm writes the selection into the form's ids (list pages) or
+// items (plan) field and returns how many were selected.
+function fillBulkForm(form) {
+    var ids = getSelectedIDs();
+    if (ids.length === 0) return 0;
+    var input = form.querySelector('input[name="ids"], input[name="items"]');
+    if (input) input.value = ids.join(', ');
+    return ids.length;
+}
+
 function submitBulkAction(formId) {
     var form = document.getElementById(formId);
     if (!form) return false;
-    var ids = getSelectedIDs();
-    if (ids.length === 0) return false;
-    var input = form.querySelector('input[name="ids"]');
-    if (input) input.value = ids.join(', ');
-    return true;
+    return fillBulkForm(form) > 0;
 }
 
 function confirmBulkDelete(form) {
-    var ids = getSelectedIDs();
-    if (ids.length === 0) return false;
-    var input = form.querySelector('input[name="ids"]');
-    if (input) input.value = ids.join(', ');
-    return confirmAction(form, 'Move ' + ids.length + ' items to trash?');
+    var n = fillBulkForm(form);
+    if (n === 0) return false;
+    return confirmAction(form, 'Move ' + n + ' items to trash?');
 }
 
 // --- Delegated event dispatch ---
@@ -378,8 +404,7 @@ document.addEventListener('htmx:afterSettle', function() {
     if (activeFilterType) applyFilter();
     updateFilterBadge();
     if (bulkSelectActive) {
-        var btn = document.getElementById('select-toggle');
-        if (btn) btn.textContent = 'cancel';
+        setSelectToggle(true);
         updateBulkBar();
     }
 });

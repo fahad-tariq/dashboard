@@ -116,3 +116,74 @@ test('reorder plan items with the arrow buttons', async ({ page }) => {
   expect(titles[1]).toBe(second);
   expect(titles[0]).not.toBe(second);
 });
+
+test('untick a done task on the plan keeps focus on its circle', async ({ page }) => {
+  const title = uniqueTitle('Water the plants');
+  await addTask(page, title);
+  const item = await planFromPicker(page, title);
+
+  await item.getByRole('button', { name: `done ${title}` }).click();
+  await expect(planItem(page, title)).toHaveClass(/plan-item-done/);
+  await waitForSseSettle(page);
+
+  await planItem(page, title).getByRole('button', { name: `Mark ${title} not done` }).click();
+  await expect(planItem(page, title)).not.toHaveClass(/plan-item-done/);
+  await expect(planItem(page, title).getByRole('button', { name: `done ${title}` })).toBeFocused();
+});
+
+test('bulk select on the plan spans lists: tomorrow and complete', async ({ page }) => {
+  const mine = uniqueTitle('Return the library books');
+  const shared = uniqueTitle('Book the school photos');
+  const other = uniqueTitle('Top up the travel card');
+  await addTask(page, mine);
+  await addTask(page, shared, { list: 'family' });
+  await addTask(page, other);
+  for (const title of [mine, shared, other]) await planFromPicker(page, title);
+
+  const toggle = page.locator('#select-toggle');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(planItem(page, mine).locator('.plan-tick')).toBeHidden();
+  await page.getByLabel(`Select ${mine}`).check();
+  // A click on the row selects it in select mode, rather than expanding it.
+  await planItem(page, shared).locator('.plan-item-title').click();
+  await expect(planItem(page, shared)).toHaveClass(/\bminimised\b/);
+  await expect(page.locator('#bulk-bar-count')).toHaveText('2 selected');
+
+  await page.locator('#bulk-bar').getByRole('button', { name: 'tomorrow' }).click();
+  await expect(page.locator('#flash')).toHaveText('2 tasks moved to tomorrow.');
+  await expect(planItem(page, mine)).toHaveCount(0);
+  await expect(planItem(page, shared)).toHaveCount(0);
+  await expect(planItem(page, other)).toBeVisible();
+
+  await page.locator('#select-toggle').click();
+  await page.getByLabel(`Select ${other}`).check();
+  await page.locator('#bulk-bar').getByRole('button', { name: 'complete' }).click();
+  await expect(page.locator('#flash')).toHaveText('1 task done.');
+  await expect(planItem(page, other)).toHaveClass(/plan-item-done/);
+});
+
+test('bulk drop and trash on the plan', async ({ page }) => {
+  const dropped = uniqueTitle('Sort the recycling');
+  const trashed = uniqueTitle('Cancel the old gym');
+  await addTask(page, dropped);
+  await addTask(page, trashed);
+  for (const title of [dropped, trashed]) await planFromPicker(page, title);
+
+  await page.locator('#select-toggle').click();
+  await page.getByLabel(`Select ${dropped}`).check();
+  await page.locator('#bulk-bar').getByRole('button', { name: 'drop' }).click();
+  await expect(page.locator('#flash')).toHaveText('1 task removed from the plan.');
+  await expect(planItem(page, dropped)).toHaveCount(0);
+
+  await page.locator('#select-toggle').click();
+  await page.getByLabel(`Select ${trashed}`).check();
+  await page.locator('#bulk-bar').getByRole('button', { name: 'trash' }).click();
+  await page.locator('#confirm-modal-ok').click();
+  await expect(page.locator('#flash')).toHaveText('1 task moved to trash.');
+  await expect(planItem(page, trashed)).toHaveCount(0);
+
+  await page.goto('/todos');
+  await expect(trackerItem(page, dropped)).toBeVisible();
+  await expect(trackerItem(page, trashed)).toHaveCount(0);
+});

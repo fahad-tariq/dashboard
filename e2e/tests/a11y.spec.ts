@@ -171,6 +171,22 @@ for (const style of STYLES) for (const theme of THEMES) {
       await expectNoSeriousViolations(page, `/todos select mode (${style}, ${theme})`);
     });
 
+    test('plan select mode with a done row', async ({ page }) => {
+      const open = uniqueTitle(`Plan select ${style} ${theme}`);
+      const done = uniqueTitle(`Plan done ${style} ${theme}`);
+      await addTask(page, open);
+      await addTask(page, done);
+      await planFromPicker(page, open);
+      const doneItem = await planFromPicker(page, done);
+      await doneItem.getByRole('button', { name: `done ${done}` }).click();
+      await expect(planItem(page, done)).toHaveClass(/plan-item-done/);
+      await gotoInTheme(page, '/', theme);
+      await page.locator('#select-toggle').click();
+      await page.getByRole('checkbox', { name: `Select ${open}` }).check();
+      await expect(page.locator('#bulk-bar')).toBeVisible();
+      await expectNoSeriousViolations(page, `/ plan select mode (${style}, ${theme})`);
+    });
+
     test('confirm dialog open', async ({ page }) => {
       await gotoInTheme(page, '/todos', theme);
       const item = trackerItem(page, 'Plan weekend hike');

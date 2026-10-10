@@ -11,6 +11,15 @@
 function planItemClick(e) {
     var item = e.currentTarget;
     if (!item || !item.classList.contains('plan-item')) return;
+    // In select mode a row click ticks its checkbox instead of expanding.
+    if (item.closest('.select-mode')) {
+        var cb = item.querySelector('.bulk-checkbox');
+        if (cb && e.target !== cb && !e.target.closest('a, form')) {
+            cb.checked = !cb.checked;
+            if (typeof bulkCheckboxChanged === 'function') bulkCheckboxChanged();
+        }
+        return;
+    }
     if (!e.target.closest('.plan-item-toggle') && e.target.closest('a, button, input, select, textarea, label, form')) return;
     var wasMinimised = item.classList.contains('minimised');
     item.classList.toggle('minimised');
@@ -20,11 +29,13 @@ function planItemClick(e) {
 }
 
 // syncDraggable lets open plan rows be dragged while minimised; an expanded
-// row is not draggable, so text in its detail can be selected.
+// row is not draggable, so text in its detail can be selected. Nothing is
+// draggable in select mode.
 function syncDraggable() {
     var items = document.querySelectorAll('.plan-today-tasks .plan-item');
+    var selecting = !!document.querySelector('.plan-section.select-mode');
     for (var i = 0; i < items.length; i++) {
-        var on = !items[i].classList.contains('plan-item-done') && items[i].classList.contains('minimised');
+        var on = !selecting && !items[i].classList.contains('plan-item-done') && items[i].classList.contains('minimised');
         items[i].setAttribute('draggable', String(on));
     }
 }

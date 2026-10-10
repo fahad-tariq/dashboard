@@ -122,12 +122,13 @@ export async function expandTrackerItem(item: Locator): Promise<void> {
 export async function addTask(
   page: Page,
   title: string,
-  opts: { body?: string; tags?: string } = {},
+  opts: { body?: string; tags?: string; list?: 'todos' | 'family' } = {},
 ): Promise<Locator> {
-  await page.goto('/todos');
+  const list = opts.list ?? 'todos';
+  await page.goto(`/${list}`);
   await waitForSseSettle(page);
   await page.locator('details.tracker-add-form > summary', { hasText: 'Add task' }).click();
-  const form = page.locator('form[action="/todos/add"]');
+  const form = page.locator(`form[action="/${list}/add"]`);
   await form.getByLabel('Task title').fill(title);
   if (opts.tags) await form.getByLabel('Tags').fill(opts.tags);
   if (opts.body) await form.getByLabel('Notes').fill(opts.body);
