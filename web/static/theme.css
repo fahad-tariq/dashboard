@@ -1219,12 +1219,6 @@
     .select-mode .tracker-item { cursor: pointer; }
     .select-mode .tracker-item .tick { display: none; }
     .select-mode .tracker-item.bulk-selected { box-shadow: inset 0 0 0 2px var(--accent); }
-    /* On the plan the checkbox takes the tick's slot; done rows keep their
-       tick but ignore pointer taps while selecting. */
-    .plan-item > .bulk-checkbox { grid-column: 1; grid-row: 1; align-self: center; }
-    .select-mode .plan-item:not(.plan-item-done) > .plan-tick { display: none; }
-    .select-mode .plan-item-done > .plan-tick { pointer-events: none; }
-    .select-mode .plan-item.bulk-selected { box-shadow: inset 0 0 0 2px var(--accent); }
     .bulk-bar {
         display: none;
         position: fixed;
@@ -1554,6 +1548,13 @@
     .plan-item[data-priority="medium"]::before { background: var(--edge-medium); }
     .plan-item-done::before { display: none; }
     .plan-item > .plan-tick { grid-column: 1; grid-row: 1; display: flex; }
+    /* Select mode: the checkbox takes the tick's slot (these rules must sit
+       in this layer, or the display above wins); done rows keep their
+       tick but ignore pointer taps while selecting. */
+    .plan-item > .bulk-checkbox { grid-column: 1; grid-row: 1; align-self: center; }
+    .select-mode .plan-item:not(.plan-item-done) > .plan-tick { display: none; }
+    .select-mode .plan-item-done > .plan-tick { pointer-events: none; }
+    .select-mode .plan-item.bulk-selected { box-shadow: inset 0 0 0 2px var(--accent); }
     .plan-item-toggle {
         grid-column: 2;
         grid-row: 1;

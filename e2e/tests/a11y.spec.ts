@@ -185,6 +185,13 @@ for (const style of STYLES) for (const theme of THEMES) {
       await page.getByRole('checkbox', { name: `Select ${open}` }).check();
       await expect(page.locator('#bulk-bar')).toBeVisible();
       await expectNoSeriousViolations(page, `/ plan select mode (${style}, ${theme})`);
+
+      // Leave today's plan as it was: later specs walk the whole plan.
+      await page.locator('#bulk-bar').getByRole('button', { name: 'drop' }).click();
+      await expect(planItem(page, open)).toHaveCount(0);
+      await expandPlanItem(planItem(page, done));
+      await planItem(page, done).getByRole('button', { name: `drop ${done}` }).click();
+      await expect(planItem(page, done)).toHaveCount(0);
     });
 
     test('confirm dialog open', async ({ page }) => {
