@@ -1094,6 +1094,8 @@
         animation: dash-rise var(--dur-slow) var(--ease);
     }
     .toast[hidden] { display: none; }
+    /* .btn sets a display, which beats the hidden attribute. */
+    .toast-undo[hidden] { display: none; }
     .toast:not([hidden]) { display: flex; align-items: center; gap: var(--sp-3); }
     .toast-error { border-color: var(--danger); box-shadow: var(--shadow-pop), inset var(--edge-width) 0 0 var(--danger); }
     .toast-close {

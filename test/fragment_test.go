@@ -66,7 +66,7 @@ func TestHTMXMutationReturnsFragment(t *testing.T) {
 	}{
 		"tracker complete": {path: "/todos/" + planHike + "/complete", referer: "/todos", live: `class="tracker-page list-page"`, key: "task-completed"},
 		"tracker trash":    {path: "/todos/" + planHike + "/delete", referer: "/todos", live: `class="tracker-page list-page"`, key: "item-deleted", undo: "/todos/" + planHike + "/restore"},
-		"plan complete":    {path: "/plan/" + renewPassport + "/complete", form: url.Values{"list": {"todos"}}, live: `class="homepage-page"`, key: "plan-completed"},
+		"plan complete":    {path: "/plan/" + renewPassport + "/complete", form: url.Values{"list": {"todos"}}, live: `class="homepage-page"`, key: "plan-completed", undo: "/plan/" + renewPassport + "/uncomplete?list=todos"},
 		"plan clear":       {path: "/plan/clear", form: url.Values{"list": {"family"}, "id": {pickupRoster}}, live: `class="homepage-page"`, key: "plan-cleared"},
 		"idea triage":      {path: "/ideas/" + weatherStation + "/triage", form: url.Values{"action": {"park"}}, live: `class="ideas-page list-page"`, key: "idea-triaged"},
 		"idea trash":       {path: "/ideas/" + learnSail + "/delete", live: `class="ideas-page list-page"`, key: "idea-deleted", undo: "/ideas/" + learnSail + "/restore"},

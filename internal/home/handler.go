@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -149,11 +150,27 @@ func buildPlanSection(svc *tracker.Service, items []tracker.Item, today string) 
 		if it.Type == tracker.TaskType && !it.Done && !exclude[it.ID] {
 			unplanned = append(unplanned, it)
 		}
+		// A carried-over task ticked today stays on today's plan, done, as a
+		// task planned for today does.
+		if it.Done && it.Planned != "" && it.Planned < today && it.Completed == today {
+			carried = append(carried, it)
+		}
 	}
 	planned = append(planned, carried...)
 	sortPlanItems(planned)
 	sortByPriority(unplanned)
-	return planSection{planned: planned, carried: len(carried), unplanned: unplanned}
+	return planSection{planned: planned, carried: countOpen(carried), unplanned: unplanned}
+}
+
+// countOpen counts the items not yet done.
+func countOpen(items []tracker.Item) int {
+	n := 0
+	for _, it := range items {
+		if !it.Done {
+			n++
+		}
+	}
+	return n
 }
 
 func countDone(items []tracker.Item) int {
@@ -420,6 +437,8 @@ func (h *Handler) CompletePlanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The list is a validated name and the ID matched the route pattern.
+	httputil.OfferUndo(w, "/plan/"+id+"/uncomplete?list="+url.QueryEscape(list))
 	http.Redirect(w, r, "/?msg=plan-completed", http.StatusSeeOther)
 }
 

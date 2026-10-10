@@ -519,7 +519,11 @@ func DaysAgo(date string, now time.Time) string {
 	if err != nil {
 		return date
 	}
-	days := int(now.Sub(t).Hours() / 24)
+	// Count whole calendar days in UTC, as DueLabel does: subtracting the
+	// date's UTC midnight from now's instant reads yesterday as "today" in
+	// the hours a zone ahead of UTC is already on the next day.
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	days := int(today.Sub(t).Hours() / 24)
 	switch {
 	case days == 0:
 		return "today"
