@@ -128,7 +128,7 @@ Do not reopen these while executing this plan.
   - Add the middleware decided above to the `root.With` chain in `app.go`: it sets `Content-Type: text/html; charset=utf-8` in both `Write` and `WriteHeader` when no type is set (the rate-limited login page calls `WriteHeader(429)` before rendering), leaves handlers that set their own type untouched, and implements `Unwrap` so `/events` keeps flushing.
   - Record the wire size of `/`, `/todos` and `/ideas` before and after in Working notes.
 - [ ] **Verification.** `make lint test` with `INTEGRATION=1`. `TestE2ESelectorsExist` after the template edits. CI green. Deploy and record it; confirm in production that `/todos` arrives gzipped (curl through Caddy with the session cookie).
-- [ ] Perform a critical self-review of the changes with an independent agent and fix what holds up.
+- [x] Perform a critical self-review of the changes with an independent agent and fix what holds up.
 - [ ] **STOP and wait for human review.**
 
 ---
@@ -269,6 +269,8 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
 | `/ideas` | 20,573 | 4,778 | 20,573 |
 | `/login` | 3,370 | 1,120 | 3,370 |
 | `/account` | 11,550 | 3,290 | 11,550 |
+
+- Self-review (independent agent): no high or medium findings. Fixed: a 1xx status no longer latches the wrapper, so a later 200 is still labelled; the redirect test comment now says it covers POST redirects (`http.Redirect` types GET redirects itself). Accepted: chi's 405 writes no type and no body, so it is now labelled HTML and carries a 20-byte empty gzip stream; harmless, and nothing else on the browser chain writes an untyped bodiless 2xx, 4xx or 5xx.
 
 **Tooling.** `make lint` under nono needs `GOLANGCI_LINT_CACHE` pointed at a writable directory (the default under `~/Library/Caches` is not writable here).
 

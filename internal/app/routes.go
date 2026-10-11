@@ -234,9 +234,10 @@ type htmlTypeWriter struct {
 }
 
 func (w *htmlTypeWriter) WriteHeader(status int) {
-	if !w.wroteHeader {
+	// A 1xx is informational; the final status still decides the type.
+	if !w.wroteHeader && status >= http.StatusOK {
 		w.wroteHeader = true
-		if status >= http.StatusOK && status != http.StatusNoContent && status != http.StatusNotModified && (status < 300 || status >= 400) {
+		if status != http.StatusNoContent && status != http.StatusNotModified && (status < 300 || status >= 400) {
 			w.setType()
 		}
 	}

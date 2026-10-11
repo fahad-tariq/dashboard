@@ -71,7 +71,8 @@ func TestRateLimitedLoginCompressed(t *testing.T) {
 	}
 }
 
-// A redirect has no body, so it is not labelled HTML and gains no gzip body.
+// A redirect after a POST has no body, so it is not labelled HTML and gains
+// no gzip body. (http.Redirect types and fills GET redirects itself.)
 func TestRedirectNotCompressed(t *testing.T) {
 	h, _, _ := authRouter(t, []testUser{{"one@test.com", "password-one"}}, nil)
 	cookie := login(t, h, "one@test.com", "password-one")
