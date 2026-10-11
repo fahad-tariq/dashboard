@@ -74,6 +74,17 @@ var migrations = []string{
 	`DROP TABLE IF EXISTS tracker_items`,
 	// Commentary had no writer once the Ironclaw integration was dropped.
 	`DROP TABLE IF EXISTS item_commentary`,
+	// Per-device API tokens, stored as SHA-256 hashes; revoked rows stay so
+	// the account page can be audited from the database.
+	`CREATE TABLE IF NOT EXISTS api_tokens (
+		id           INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id      INTEGER NOT NULL,
+		name         TEXT NOT NULL,
+		token_hash   TEXT NOT NULL UNIQUE,
+		created_at   TEXT NOT NULL,
+		last_used_at TEXT NOT NULL DEFAULT '',
+		revoked_at   TEXT NOT NULL DEFAULT ''
+	)`,
 }
 
 func Migrate(db *sql.DB) error {

@@ -117,6 +117,7 @@ func TestMigrationsDropDeadTables(t *testing.T) {
 		"item_commentary dropped": {name: "item_commentary", want: false},
 		"users kept":              {name: "users", want: true},
 		"sessions kept":           {name: "sessions", want: true},
+		"api_tokens created":      {name: "api_tokens", want: true},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
