@@ -143,3 +143,29 @@ func TestPasswordChangeKeepsTokens(t *testing.T) {
 		t.Errorf("after a password change: API status %d, want 200", got)
 	}
 }
+
+// Only the owner's tokens open the API, so only the owner may mint them;
+// another user sees no token section.
+func TestAccountTokensOwnerOnly(t *testing.T) {
+	env := newTokenAppEnv(t, "", nil)
+	if _, err := auth.CreateUser(env.db, "second@test.com", "", "second-password"); err != nil {
+		t.Fatal(err)
+	}
+	cookie := login(t, env.h, "second@test.com", "second-password")
+
+	page := getAs(t, env.h, cookie, "/account").Body.String()
+	if strings.Contains(page, `action="/account/tokens"`) {
+		t.Error("a second user is offered the token form")
+	}
+	req := httptest.NewRequest("POST", "/account/tokens", strings.NewReader(url.Values{"name": {"x"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(cookie)
+	rr := httptest.NewRecorder()
+	env.h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("second user minting: status %d, want 403", rr.Code)
+	}
+	if n, _ := auth.CountTokens(env.db, 2); n != 0 {
+		t.Errorf("second user's tokens = %d, want 0", n)
+	}
+}
