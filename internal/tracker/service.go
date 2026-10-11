@@ -20,9 +20,9 @@ import (
 // ErrInvalidDate is returned for a date that is not a real YYYY-MM-DD day.
 var ErrInvalidDate = errors.New("invalid date")
 
-// validDate rejects anything but a real YYYY-MM-DD day. Dates are written
+// ValidDate rejects anything but a real YYYY-MM-DD day. Dates are written
 // into the item line as given, so this also stops a date injecting a tag.
-func validDate(date string) error {
+func ValidDate(date string) error {
 	if _, err := time.Parse("2006-01-02", date); err != nil {
 		return ErrInvalidDate
 	}
@@ -161,13 +161,14 @@ func (s *Service) AddItem(item Item) (string, error) {
 		if date == "" {
 			continue
 		}
-		if err := validDate(date); err != nil {
+		if err := ValidDate(date); err != nil {
 			return "", err
 		}
 	}
 	if item.Added == "" {
 		item.Added = time.Now().In(s.loc).Format("2006-01-02")
 	}
+	item.Tags, item.Images = httputil.CleanMetaList(item.Tags), httputil.CleanMetaList(item.Images)
 
 	items, err := ParseTracker(s.trackerPath)
 	if err != nil {
@@ -400,6 +401,11 @@ func (s *Service) BulkUpdatePriority(ids []string, priority string) error {
 // BulkAddTag appends a tag to multiple items in a single file write.
 // Skips items that already have the tag.
 func (s *Service) BulkAddTag(ids []string, tag string) error {
+	cleaned := httputil.CleanMetaList([]string{tag})
+	if len(cleaned) == 0 {
+		return nil // nothing left to add
+	}
+	tag = cleaned[0]
 	return s.mutateBatch(ids, func(it *Item) error {
 		if slices.Contains(it.Tags, tag) {
 			return nil
@@ -416,9 +422,11 @@ func (s *Service) UpdatePriority(id, priority string) error {
 	})
 }
 
+// UpdateTags replaces an item's tags. Values are cleaned here, as the file
+// writer would clean them, so the cache matches the file.
 func (s *Service) UpdateTags(id string, tags []string) error {
 	return s.mutate(id, func(it *Item) error {
-		it.Tags = tags
+		it.Tags = httputil.CleanMetaList(tags)
 		return nil
 	})
 }
@@ -437,7 +445,7 @@ type Edit struct {
 // web form sets every field it shows, the API and the house page only some.
 func (s *Service) ApplyEdit(id string, e Edit) error {
 	if e.Deadline != nil && *e.Deadline != "" {
-		if err := validDate(*e.Deadline); err != nil {
+		if err := ValidDate(*e.Deadline); err != nil {
 			return err
 		}
 	}
@@ -452,10 +460,10 @@ func (s *Service) ApplyEdit(id string, e Edit) error {
 			it.Body = *e.Body
 		}
 		if e.Tags != nil {
-			it.Tags = *e.Tags
+			it.Tags = httputil.CleanMetaList(*e.Tags)
 		}
 		if e.Images != nil {
-			it.Images = *e.Images
+			it.Images = httputil.CleanMetaList(*e.Images)
 		}
 		return nil
 	})
@@ -556,7 +564,7 @@ func (s *Service) Search(query string) []Item {
 // SetPlanned marks an item as planned for the given date (YYYY-MM-DD).
 // Resets PlanOrder since a new day has no established order yet.
 func (s *Service) SetPlanned(id, date string) error {
-	if err := validDate(date); err != nil {
+	if err := ValidDate(date); err != nil {
 		return err
 	}
 	return s.mutate(id, func(it *Item) error {
@@ -588,7 +596,7 @@ func (s *Service) BulkClearPlanned(ids []string) error {
 // BulkSetPlanned sets the planned date on multiple items in a single file write.
 // Resets PlanOrder since bulk-planning from /todos shouldn't carry stale order.
 func (s *Service) BulkSetPlanned(ids []string, date string) error {
-	if err := validDate(date); err != nil {
+	if err := ValidDate(date); err != nil {
 		return err
 	}
 	return s.mutateBatch(ids, func(it *Item) error {

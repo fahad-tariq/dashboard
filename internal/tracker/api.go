@@ -43,52 +43,115 @@ func resolveListService(list string, personal, family *Service) *Service {
 	return nil
 }
 
-// itemToAPI converts a tracker Item to a JSON-friendly map.
-func itemToAPI(it Item, list string) map[string]any {
-	m := map[string]any{
-		"id":              it.ID,
-		"title":           it.Title,
-		"type":            string(it.Type),
-		"priority":        it.Priority,
-		"done":            it.Done,
-		"tags":            it.Tags,
-		"added":           it.Added,
-		"planned":         it.Planned,
-		"deadline":        it.Deadline,
-		"body":            it.Body,
-		"sub_steps_done":  it.SubStepsDone,
-		"sub_steps_total": it.SubStepsTotal,
-		"list":            list,
-	}
-	if it.Type == GoalType {
-		m["current"] = it.Current
-		m["target"] = it.Target
-		m["unit"] = it.Unit
-	}
-	if it.Completed != "" {
-		m["completed"] = it.Completed
-	}
-	if it.FromIdea != "" {
-		m["from_idea"] = it.FromIdea
-	}
-	return m
+// APIItem is the JSON shape of a tracker item in every API response.
+type APIItem struct {
+	ID            string       `json:"id"`
+	List          string       `json:"list"`
+	Title         string       `json:"title"`
+	Type          string       `json:"type"`
+	Priority      string       `json:"priority"`
+	Done          bool         `json:"done"`
+	Tags          []string     `json:"tags"`
+	Images        []string     `json:"images"`
+	Body          string       `json:"body"`
+	SubSteps      []APISubStep `json:"sub_steps"`
+	SubStepsDone  int          `json:"sub_steps_done"`
+	SubStepsTotal int          `json:"sub_steps_total"`
+	Added         string       `json:"added"`
+	Completed     string       `json:"completed,omitempty"`
+	Deadline      string       `json:"deadline"`
+	Planned       string       `json:"planned"`
+	PlanOrder     int          `json:"plan_order"`
+	Deleted       string       `json:"deleted,omitempty"`
+	FromIdea      string       `json:"from_idea,omitempty"`
+
+	// Goals only.
+	Current *float64 `json:"current,omitempty"`
+	Target  *float64 `json:"target,omitempty"`
+	Unit    *string  `json:"unit,omitempty"`
+
+	// House projects only.
+	Status string   `json:"status,omitempty"`
+	Budget *float64 `json:"budget,omitempty"`
+	Actual *float64 `json:"actual,omitempty"`
 }
 
-// itemsToAPI converts a slice of items, filtering out private-tagged items.
-func itemsToAPI(items []Item, list string) []map[string]any {
-	out := make([]map[string]any, 0, len(items))
-	for _, it := range items {
-		if it.HasTag("private") {
-			continue
-		}
-		out = append(out, itemToAPI(it, list))
+// APISubStep is one checkbox line of an item's body.
+type APISubStep struct {
+	Text string `json:"text"`
+	Done bool   `json:"done"`
+}
+
+// APITodos is the response of GET /api/v1/todos.
+type APITodos struct {
+	Personal []APIItem `json:"personal"`
+	Family   []APIItem `json:"family"`
+}
+
+// ToAPI converts an item from list ("personal", "family" or "house") to its
+// API shape. Slices are never nil, so they encode as [] rather than null.
+func ToAPI(it Item, list string) APIItem {
+	out := APIItem{
+		ID:            it.ID,
+		List:          list,
+		Title:         it.Title,
+		Type:          string(it.Type),
+		Priority:      it.Priority,
+		Done:          it.Done,
+		Tags:          nonNil(it.Tags),
+		Images:        nonNil(it.Images),
+		Body:          it.Body,
+		SubSteps:      []APISubStep{},
+		SubStepsDone:  it.SubStepsDone,
+		SubStepsTotal: it.SubStepsTotal,
+		Added:         it.Added,
+		Completed:     it.Completed,
+		Deadline:      it.Deadline,
+		Planned:       it.Planned,
+		PlanOrder:     it.PlanOrder,
+		Deleted:       it.DeletedAt,
+		FromIdea:      it.FromIdea,
+	}
+	for _, step := range ParseSubSteps(it.Body) {
+		out.SubSteps = append(out.SubSteps, APISubStep(step))
+	}
+	if it.Type == GoalType {
+		out.Current, out.Target, out.Unit = &it.Current, &it.Target, &it.Unit
+	}
+	if list == "house" {
+		out.Status, out.Budget, out.Actual = it.Status, &it.Budget, &it.Actual
 	}
 	return out
 }
 
-// jsonError writes a JSON error response.
+// ToAPIList converts every item in items.
+func ToAPIList(items []Item, list string) []APIItem {
+	out := make([]APIItem, 0, len(items))
+	for _, it := range items {
+		out = append(out, ToAPI(it, list))
+	}
+	return out
+}
+
+func nonNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
+// WriteStored answers with the item as stored after a change.
+func WriteStored(w http.ResponseWriter, svc *Service, id, list string, status int) {
+	it, err := svc.Get(id)
+	if err != nil {
+		jsonError(w, "failed to read item", http.StatusInternalServerError)
+		return
+	}
+	httputil.WriteJSON(w, status, ToAPI(*it, httputil.NormaliseList(list)))
+}
+
 func jsonError(w http.ResponseWriter, msg string, status int) {
-	httputil.WriteJSON(w, status, map[string]string{"error": msg})
+	httputil.JSONError(w, msg, status)
 }
 
 // APIListTodos returns all non-deleted items grouped by list.
@@ -105,9 +168,9 @@ func APIListTodos(resolve ServiceResolver) http.HandlerFunc {
 			jsonError(w, "failed to list family items", http.StatusInternalServerError)
 			return
 		}
-		httputil.WriteJSON(w, http.StatusOK, map[string]any{
-			"personal": itemsToAPI(personal, "personal"),
-			"family":   itemsToAPI(family, "family"),
+		httputil.WriteJSON(w, http.StatusOK, APITodos{
+			Personal: ToAPIList(personal, "personal"),
+			Family:   ToAPIList(family, "family"),
 		})
 	}
 }
@@ -134,7 +197,7 @@ func APIGetTodo(resolve ServiceResolver) http.HandlerFunc {
 			return
 		}
 
-		httputil.WriteJSON(w, http.StatusOK, itemToAPI(*item, httputil.NormaliseList(list)))
+		httputil.WriteJSON(w, http.StatusOK, ToAPI(*item, httputil.NormaliseList(list)))
 	}
 }
 
@@ -188,10 +251,7 @@ func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 		}
 
 		// Answer with the stored item: the service cleans the title.
-		if created, err := svc.Get(id); err == nil {
-			item = *created
-		}
-		httputil.WriteJSON(w, http.StatusCreated, itemToAPI(item, httputil.NormaliseList(req.List)))
+		WriteStored(w, svc, id, req.List, http.StatusCreated)
 	}
 }
 
@@ -247,7 +307,7 @@ func APIUpdateTodo(resolve ServiceResolver) http.HandlerFunc {
 			jsonError(w, "failed to update item", http.StatusInternalServerError)
 			return
 		}
-		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		WriteStored(w, svc, id, req.List, http.StatusOK)
 	}
 }
 
@@ -301,7 +361,7 @@ func APIUpdatePriority(resolve ServiceResolver) http.HandlerFunc {
 			jsonError(w, "failed to update priority", http.StatusInternalServerError)
 			return
 		}
-		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		WriteStored(w, svc, id, req.List, http.StatusOK)
 	}
 }
 
@@ -337,7 +397,7 @@ func APIUpdateTags(resolve ServiceResolver) http.HandlerFunc {
 			jsonError(w, "failed to update tags", http.StatusInternalServerError)
 			return
 		}
-		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		WriteStored(w, svc, id, req.List, http.StatusOK)
 	}
 }
 
@@ -379,7 +439,7 @@ func APIAddSubStep(resolve ServiceResolver) http.HandlerFunc {
 			jsonError(w, "failed to add sub-step", http.StatusInternalServerError)
 			return
 		}
-		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		WriteStored(w, svc, id, req.List, http.StatusOK)
 	}
 }
 
@@ -424,7 +484,7 @@ func statusMutation(resolve ServiceResolver, fn func(svc *Service, id string) er
 			jsonError(w, "failed to update item", http.StatusInternalServerError)
 			return
 		}
-		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		WriteStored(w, svc, id, req.List, http.StatusOK)
 	}
 }
 
@@ -466,7 +526,7 @@ func subStepIndexMutation(resolve ServiceResolver, fn func(svc *Service, id stri
 			jsonError(w, "failed to update sub-step", http.StatusInternalServerError)
 			return
 		}
-		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		WriteStored(w, svc, id, req.List, http.StatusOK)
 	}
 }
 

@@ -2,7 +2,6 @@ package home
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -527,13 +526,32 @@ func (h *Handler) ClearCarriedOver(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/?msg=carried-cleared", http.StatusSeeOther)
 }
 
-func (h *Handler) clearAllOverdue(l Lists) {
+// clearAllOverdue unplans every carried-over task and returns the ones it
+// cleared, as stored afterwards.
+func (h *Handler) clearAllOverdue(l Lists) []tracker.APIItem {
 	today := time.Now().In(h.loc).Format("2006-01-02")
-	for _, svc := range []*tracker.Service{l.Personal, l.Family, l.HouseProjects} {
-		for _, it := range svc.ListOverdue(today) {
-			_ = svc.ClearPlanned(it.ID)
+	cleared := []tracker.APIItem{}
+	for _, pl := range planLists(l) {
+		for _, it := range pl.svc.ListOverdue(today) {
+			if pl.svc.ClearPlanned(it.ID) != nil {
+				continue
+			}
+			if stored, err := pl.svc.Get(it.ID); err == nil {
+				cleared = append(cleared, tracker.ToAPI(*stored, pl.name))
+			}
 		}
 	}
+	return cleared
+}
+
+type planList struct {
+	name string
+	svc  *tracker.Service
+}
+
+// planLists names the lists the planner works on, in display order.
+func planLists(l Lists) []planList {
+	return []planList{{"personal", l.Personal}, {"family", l.Family}, {"house", l.HouseProjects}}
 }
 
 // serviceForList returns the request user's tracker service for list, or nil.
@@ -551,99 +569,4 @@ func listService(l Lists, list string) *tracker.Service {
 		return l.HouseProjects
 	}
 	return nil
-}
-
-// APIListPlan handles GET /api/v1/plan?date=YYYY-MM-DD.
-func (h *Handler) APIListPlan(w http.ResponseWriter, r *http.Request) {
-	l := h.resolve(r)
-	date := r.URL.Query().Get("date")
-	if date == "" {
-		date = time.Now().In(h.loc).Format("2006-01-02")
-	}
-
-	overdue := slices.Concat(l.Personal.ListOverdue(date), l.Family.ListOverdue(date), l.HouseProjects.ListOverdue(date))
-	httputil.WriteJSON(w, http.StatusOK, map[string]any{
-		"date":     date,
-		"personal": planItemsToAPI(l.Personal.ListPlanned(date), "personal"),
-		"family":   planItemsToAPI(l.Family.ListPlanned(date), "family"),
-		"house":    planItemsToAPI(l.HouseProjects.ListPlanned(date), "house"),
-		"overdue":  planItemsToAPI(overdue, ""),
-	})
-}
-
-// APISetPlan handles PUT /api/v1/plan/{id}.
-func (h *Handler) APISetPlan(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	var body struct {
-		Date string `json:"date"`
-		List string `json:"list"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-	if body.Date == "" {
-		body.Date = time.Now().In(h.loc).Format("2006-01-02")
-	}
-
-	svc := h.serviceForList(r, body.List)
-	if svc == nil {
-		http.Error(w, "Invalid list", http.StatusBadRequest)
-		return
-	}
-	if err := svc.SetPlanned(id, body.Date); err != nil {
-		if errors.Is(err, tracker.ErrInvalidDate) {
-			http.Error(w, tracker.InvalidDateMessage, http.StatusBadRequest)
-			return
-		}
-		http.Error(w, "Item not found", http.StatusNotFound)
-		return
-	}
-
-	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-// APIClearPlan handles DELETE /api/v1/plan/{id}.
-func (h *Handler) APIClearPlan(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	var body struct {
-		List string `json:"list"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	svc := h.serviceForList(r, body.List)
-	if svc == nil {
-		http.Error(w, "Invalid list", http.StatusBadRequest)
-		return
-	}
-	if err := svc.ClearPlanned(id); err != nil {
-		http.Error(w, "Item not found", http.StatusNotFound)
-		return
-	}
-
-	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-func planItemsToAPI(items []tracker.Item, list string) []map[string]any {
-	out := make([]map[string]any, 0, len(items))
-	for _, it := range items {
-		m := map[string]any{
-			"id":       it.ID,
-			"title":    it.Title,
-			"priority": it.Priority,
-			"done":     it.Done,
-			"planned":  it.Planned,
-			"tags":     it.Tags,
-		}
-		if list != "" {
-			m["list"] = list
-		}
-		out = append(out, m)
-	}
-	return out
 }
