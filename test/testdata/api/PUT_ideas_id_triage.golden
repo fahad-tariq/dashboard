@@ -1,0 +1,29 @@
+### PUT /api/v1/ideas/wthr5tn1/triage
+> {"action":"park"}
+200 application/json
+{
+  "id": "wthr5tn1",
+  "title": "Home weather station",
+  "status": "parked",
+  "tags": [
+    "electronics"
+  ],
+  "images": [],
+  "project": "",
+  "added": "2026-09-10",
+  "body": "Raspberry Pi with a BME280 sensor on the balcony.\n\nLog readings to SQLite and chart them."
+}
+
+### PUT /api/v1/ideas/wthr5tn1/triage
+> {"action":"sell"}
+400 application/json
+{
+  "error": "action must be park, drop or untriage"
+}
+
+### PUT /api/v1/ideas/zzzzzzzz/triage
+> {"action":"park"}
+404 application/json
+{
+  "error": "idea not found"
+}

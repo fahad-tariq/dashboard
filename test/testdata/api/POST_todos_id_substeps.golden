@@ -1,0 +1,43 @@
+### POST /api/v1/todos/h1k3wknd/substeps
+> {"list":"personal","text":"Pack snacks"}
+200 application/json
+{
+  "id": "h1k3wknd",
+  "list": "personal",
+  "title": "Plan weekend hike",
+  "type": "task",
+  "priority": "",
+  "done": false,
+  "tags": [
+    "outdoors"
+  ],
+  "images": [],
+  "body": "Somewhere within two hours of Sydney.\n- [x] Pick a trail\n- [ ] Check the weather\n- [ ] Pack snacks",
+  "sub_steps": [
+    {
+      "text": "Pick a trail",
+      "done": true
+    },
+    {
+      "text": "Check the weather",
+      "done": false
+    },
+    {
+      "text": "Pack snacks",
+      "done": false
+    }
+  ],
+  "sub_steps_done": 1,
+  "sub_steps_total": 3,
+  "added": "2026-09-20",
+  "deadline": "",
+  "planned": "",
+  "plan_order": 0
+}
+
+### POST /api/v1/todos/h1k3wknd/substeps
+> {"list":"personal","text":"  "}
+400 application/json
+{
+  "error": "text required"
+}

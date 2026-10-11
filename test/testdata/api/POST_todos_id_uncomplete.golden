@@ -1,0 +1,23 @@
+### POST /api/v1/todos/bnkc4ll1/uncomplete
+> {"list":"personal"}
+200 application/json
+{
+  "id": "bnkc4ll1",
+  "list": "personal",
+  "title": "Call the bank",
+  "type": "task",
+  "priority": "",
+  "done": false,
+  "tags": [
+    "admin"
+  ],
+  "images": [],
+  "body": "About the card replacement.",
+  "sub_steps": [],
+  "sub_steps_done": 0,
+  "sub_steps_total": 0,
+  "added": "2026-09-25",
+  "deadline": "",
+  "planned": "",
+  "plan_order": 0
+}

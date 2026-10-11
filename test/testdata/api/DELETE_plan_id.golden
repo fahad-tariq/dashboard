@@ -1,0 +1,39 @@
+### DELETE /api/v1/plan/pssp0rt1
+> {"list":"personal"}
+200 application/json
+{
+  "id": "pssp0rt1",
+  "list": "personal",
+  "title": "Renew passport",
+  "type": "task",
+  "priority": "high",
+  "done": false,
+  "tags": [
+    "admin"
+  ],
+  "images": [
+    "passport.jpg|Old photo"
+  ],
+  "body": "Check the photo requirements before booking.",
+  "sub_steps": [],
+  "sub_steps_done": 0,
+  "sub_steps_total": 0,
+  "added": "2026-09-01",
+  "deadline": "2026-11-30",
+  "planned": "",
+  "plan_order": 0
+}
+
+### DELETE /api/v1/plan/zzzzzzzz
+> {"list":"personal"}
+404 application/json
+{
+  "error": "item not found"
+}
+
+### DELETE /api/v1/plan/pssp0rt1
+> {
+400 application/json
+{
+  "error": "invalid JSON"
+}

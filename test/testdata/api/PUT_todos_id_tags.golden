@@ -1,0 +1,31 @@
+### PUT /api/v1/todos/bnkc4ll2/tags
+> {"list":"personal","tags":["admin","bank]"]}
+200 application/json
+{
+  "id": "bnkc4ll2",
+  "list": "personal",
+  "title": "Call the bank",
+  "type": "task",
+  "priority": "medium",
+  "done": false,
+  "tags": [
+    "admin",
+    "bank"
+  ],
+  "images": [],
+  "body": "About the home loan rate.",
+  "sub_steps": [],
+  "sub_steps_done": 0,
+  "sub_steps_total": 0,
+  "added": "2026-09-26",
+  "deadline": "",
+  "planned": "",
+  "plan_order": 0
+}
+
+### PUT /api/v1/todos/bnkc4ll2/tags
+> {"list":"personal","tags":["a","b","c","d","e","f","g","h","i","j","k"]}
+400 application/json
+{
+  "error": "too many tags (max 10)"
+}

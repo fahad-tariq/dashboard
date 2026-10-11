@@ -1,0 +1,26 @@
+### POST /api/v1/plan/clear-carried
+200 application/json
+{
+  "items": [
+    {
+      "id": "txrtrn01",
+      "list": "personal",
+      "title": "Lodge the tax return",
+      "type": "task",
+      "priority": "",
+      "done": false,
+      "tags": [
+        "admin"
+      ],
+      "images": [],
+      "body": "",
+      "sub_steps": [],
+      "sub_steps_done": 0,
+      "sub_steps_total": 0,
+      "added": "2025-12-01",
+      "deadline": "2026-01-01",
+      "planned": "",
+      "plan_order": 0
+    }
+  ]
+}

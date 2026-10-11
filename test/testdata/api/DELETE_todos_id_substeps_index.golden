@@ -1,0 +1,32 @@
+### DELETE /api/v1/todos/h1k3wknd/substeps/2
+> {"list":"personal"}
+200 application/json
+{
+  "id": "h1k3wknd",
+  "list": "personal",
+  "title": "Plan weekend hike",
+  "type": "task",
+  "priority": "",
+  "done": false,
+  "tags": [
+    "outdoors"
+  ],
+  "images": [],
+  "body": "Somewhere within two hours of Sydney.\n- [x] Pick a trail\n- [x] Check the weather",
+  "sub_steps": [
+    {
+      "text": "Pick a trail",
+      "done": true
+    },
+    {
+      "text": "Check the weather",
+      "done": true
+    }
+  ],
+  "sub_steps_done": 2,
+  "sub_steps_total": 2,
+  "added": "2026-09-20",
+  "deadline": "",
+  "planned": "",
+  "plan_order": 0
+}

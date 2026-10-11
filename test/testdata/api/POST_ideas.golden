@@ -1,0 +1,38 @@
+### POST /api/v1/ideas
+> {"id":"nw000002","title":"Rainwater tank","tags":["garden"],"body":"https://example.com/tanks"}
+201 application/json
+{
+  "id": "nw000002",
+  "title": "Rainwater tank",
+  "status": "untriaged",
+  "tags": [
+    "garden"
+  ],
+  "images": [],
+  "project": "",
+  "added": "<today>",
+  "body": "https://example.com/tanks"
+}
+
+### POST /api/v1/ideas
+> {"id":"nw000002","title":"Rainwater tank"}
+200 application/json
+{
+  "id": "nw000002",
+  "title": "Rainwater tank",
+  "status": "untriaged",
+  "tags": [
+    "garden"
+  ],
+  "images": [],
+  "project": "",
+  "added": "<today>",
+  "body": "https://example.com/tanks"
+}
+
+### POST /api/v1/ideas
+> {"title":""}
+400 application/json
+{
+  "error": "title required"
+}

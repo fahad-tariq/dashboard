@@ -1,0 +1,90 @@
+### GET /api/v1/todos/pssp0rt1?list=personal
+200 application/json
+{
+  "id": "pssp0rt1",
+  "list": "personal",
+  "title": "Renew passport",
+  "type": "task",
+  "priority": "high",
+  "done": false,
+  "tags": [
+    "admin"
+  ],
+  "images": [],
+  "body": "Check the photo requirements before booking.",
+  "sub_steps": [],
+  "sub_steps_done": 0,
+  "sub_steps_total": 0,
+  "added": "2026-09-01",
+  "deadline": "",
+  "planned": "",
+  "plan_order": 0
+}
+
+### GET /api/v1/todos/bks12gl0?list=todos
+200 application/json
+{
+  "id": "bks12gl0",
+  "list": "personal",
+  "title": "Read 12 books",
+  "type": "goal",
+  "priority": "",
+  "done": false,
+  "tags": [],
+  "images": [],
+  "body": "",
+  "sub_steps": [],
+  "sub_steps_done": 0,
+  "sub_steps_total": 0,
+  "added": "2026-01-01",
+  "deadline": "2026-12-31",
+  "planned": "",
+  "plan_order": 0,
+  "current": 3,
+  "target": 12,
+  "unit": "books"
+}
+
+### GET /api/v1/todos/h1k3wknd?list=personal
+200 application/json
+{
+  "id": "h1k3wknd",
+  "list": "personal",
+  "title": "Plan weekend hike",
+  "type": "task",
+  "priority": "",
+  "done": false,
+  "tags": [
+    "outdoors"
+  ],
+  "images": [],
+  "body": "Somewhere within two hours of Sydney.\n- [x] Pick a trail\n- [ ] Check the weather",
+  "sub_steps": [
+    {
+      "text": "Pick a trail",
+      "done": true
+    },
+    {
+      "text": "Check the weather",
+      "done": false
+    }
+  ],
+  "sub_steps_done": 1,
+  "sub_steps_total": 2,
+  "added": "2026-09-20",
+  "deadline": "",
+  "planned": "",
+  "plan_order": 0
+}
+
+### GET /api/v1/todos/zzzzzzzz?list=personal
+404 application/json
+{
+  "error": "item not found"
+}
+
+### GET /api/v1/todos/pssp0rt1
+400 application/json
+{
+  "error": "list parameter required (personal or family)"
+}

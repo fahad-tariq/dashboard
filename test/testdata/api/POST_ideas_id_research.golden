@@ -1,0 +1,22 @@
+### POST /api/v1/ideas/s41l1ng1/research
+> {"content":"Two clubs run beginner courses."}
+201 application/json
+{
+  "id": "s41l1ng1",
+  "title": "Learn to sail",
+  "status": "parked",
+  "tags": [
+    "outdoors"
+  ],
+  "images": [],
+  "project": "",
+  "added": "2026-08-01",
+  "body": "Look for a weekend course on the harbour.\n\n## Research\n\nTwo clubs run beginner courses."
+}
+
+### POST /api/v1/ideas/zzzzzzzz/research
+> {"content":"Nothing"}
+404 application/json
+{
+  "error": "idea not found"
+}

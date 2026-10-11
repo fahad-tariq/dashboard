@@ -1,0 +1,39 @@
+### PUT /api/v1/todos/pssp0rt1
+> {"list":"personal","images":["passport.jpg|Old photo"],"deadline":"2026-11-30"}
+200 application/json
+{
+  "id": "pssp0rt1",
+  "list": "personal",
+  "title": "Renew passport",
+  "type": "task",
+  "priority": "high",
+  "done": false,
+  "tags": [
+    "admin"
+  ],
+  "images": [
+    "passport.jpg|Old photo"
+  ],
+  "body": "Check the photo requirements before booking.",
+  "sub_steps": [],
+  "sub_steps_done": 0,
+  "sub_steps_total": 0,
+  "added": "2026-09-01",
+  "deadline": "2026-11-30",
+  "planned": "",
+  "plan_order": 0
+}
+
+### PUT /api/v1/todos/pssp0rt1
+> {"list":"personal","deadline":"soon"}
+400 application/json
+{
+  "error": "invalid deadline: use YYYY-MM-DD"
+}
+
+### PUT /api/v1/todos/zzzzzzzz
+> {"list":"personal","title":"Nothing"}
+404 application/json
+{
+  "error": "item not found"
+}

@@ -1,0 +1,118 @@
+### POST /api/v1/todos
+> {"title":"Buy milk #groceries ! High","list":"personal"}
+201 application/json
+{
+  "id": "<new-id>",
+  "list": "personal",
+  "title": "Buy milk",
+  "type": "task",
+  "priority": "high",
+  "done": false,
+  "tags": [
+    "groceries"
+  ],
+  "images": [],
+  "body": "",
+  "sub_steps": [],
+  "sub_steps_done": 0,
+  "sub_steps_total": 0,
+  "added": "<today>",
+  "deadline": "",
+  "planned": "",
+  "plan_order": 0
+}
+
+### POST /api/v1/todos
+> {"id":"nw000001","title":"Book flights","list":"family","priority":"low","tags":["travel"]}
+201 application/json
+{
+  "id": "nw000001",
+  "list": "family",
+  "title": "Book flights",
+  "type": "task",
+  "priority": "low",
+  "done": false,
+  "tags": [
+    "travel"
+  ],
+  "images": [],
+  "body": "",
+  "sub_steps": [],
+  "sub_steps_done": 0,
+  "sub_steps_total": 0,
+  "added": "<today>",
+  "deadline": "",
+  "planned": "",
+  "plan_order": 0
+}
+
+### POST /api/v1/todos
+> {"id":"nw000001","title":"Book flights again","list":"family"}
+200 application/json
+{
+  "id": "nw000001",
+  "list": "family",
+  "title": "Book flights",
+  "type": "task",
+  "priority": "low",
+  "done": false,
+  "tags": [
+    "travel"
+  ],
+  "images": [],
+  "body": "",
+  "sub_steps": [],
+  "sub_steps_done": 0,
+  "sub_steps_total": 0,
+  "added": "<today>",
+  "deadline": "",
+  "planned": "",
+  "plan_order": 0
+}
+
+### POST /api/v1/todos
+> {"id":"aeiou123","title":"Bad ID","list":"personal"}
+400 application/json
+{
+  "error": "invalid id: 8 characters from bcdfghjklmnpqrstvwxz0123456789"
+}
+
+### POST /api/v1/todos
+> {"title":"#onlytags","list":"personal"}
+400 application/json
+{
+  "error": "title required"
+}
+
+### POST /api/v1/todos
+> {"title":"No list"}
+400 application/json
+{
+  "error": "list required (personal or family)"
+}
+
+### POST /api/v1/todos
+> {"id":"bnkc4ll2","title":"Call the bank","list":"personal"}
+200 application/json
+{
+  "id": "bnkc4ll2",
+  "list": "personal",
+  "title": "Call the bank",
+  "type": "task",
+  "priority": "medium",
+  "done": false,
+  "tags": [
+    "admin",
+    "bank"
+  ],
+  "images": [],
+  "body": "About the home loan rate.",
+  "sub_steps": [],
+  "sub_steps_done": 0,
+  "sub_steps_total": 0,
+  "added": "2026-09-26",
+  "deadline": "",
+  "planned": "",
+  "plan_order": 0,
+  "deleted": "<today>"
+}
