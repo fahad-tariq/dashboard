@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"crypto/subtle"
 	"database/sql"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/fahad/dashboard/internal/account"
 	"github.com/fahad/dashboard/internal/admin"
@@ -131,19 +133,27 @@ func mountAppRoutes(r chi.Router, h *handlers) {
 }
 
 // mountAPIRoutes registers the bearer-token API, which acts as the owner
-// through the same handlers and resolvers as the browser routes. Without a
-// long enough DASHBOARD_API_TOKEN it is not mounted at all.
-func mountAPIRoutes(root chi.Router, cfg *config.Config, h *handlers, reg *module.Registry) error {
-	if len(cfg.APIToken) < minAPITokenLength {
-		slog.Error("API not mounted: DASHBOARD_API_TOKEN must be set and at least 32 characters")
-		return nil
+// through the same handlers and resolvers as the browser routes. It is
+// always mounted; without a long enough DASHBOARD_API_TOKEN or a device
+// token every request is answered 401.
+func mountAPIRoutes(root chi.Router, cfg *config.Config, database *sql.DB, h *handlers, reg *module.Registry) error {
+	envToken := cfg.APIToken
+	if envToken != "" && len(envToken) < minAPITokenLength {
+		slog.Warn("DASHBOARD_API_TOKEN ignored: shorter than 32 characters")
+		envToken = ""
 	}
-	var err error
+	devices, err := auth.CountTokens(database, ownerID)
+	if err != nil {
+		return fmt.Errorf("counting API tokens: %w", err)
+	}
+	slog.Info("API mounted", "env_token", envToken != "", "device_tokens", devices)
+
 	apiRateLimiter := httputil.NewRateLimiter(60, 60)
 	failedBearer := auth.NewRateLimiterWithLimit(failedBearerLimit, 4096)
 	root.Route("/api/v1", func(r chi.Router) {
-		r.Use(bearerAuth(cfg.APIToken, failedBearer, cfg.TrustedProxies))
+		r.Use(bearerAuth(envToken, database, failedBearer, cfg.TrustedProxies))
 		r.Use(httputil.RateLimitMiddleware(apiRateLimiter))
+		r.Use(logAPIWrites)
 
 		r.Get("/plan", h.home.APIListPlan)
 		r.Put("/plan/"+itemid.Route, h.home.APISetPlan)
@@ -184,27 +194,70 @@ func cacheImmutable(h http.Handler) http.Handler {
 	})
 }
 
-// bearerAuth checks the API token and serves valid requests as the owner.
+// envTokenName is how API logs name a request made with
+// DASHBOARD_API_TOKEN rather than a device token.
+const envTokenName = "DASHBOARD_API_TOKEN"
+
+type tokenNameKey struct{}
+
+// bearerAuth serves a request as the owner when its bearer token is
+// envToken (empty when none is accepted) or an unrevoked device token.
 // Failed attempts are counted per client IP and answered with 429 past the
 // limit; a valid token always gets through, so bad guesses cannot lock out a
 // real client behind the same address.
-func bearerAuth(token string, failures *auth.RateLimiter, trusted []netip.Prefix) func(http.Handler) http.Handler {
+func bearerAuth(envToken string, database *sql.DB, failures *auth.RateLimiter, trusted []netip.Prefix) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			provided, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-			if ok && subtle.ConstantTimeCompare([]byte(provided), []byte(token)) == 1 {
-				next.ServeHTTP(w, r.WithContext(auth.WithUser(r.Context(), auth.User{ID: ownerID})))
-				return
+			if ok && provided != "" {
+				name, err := tokenName(envToken, database, provided)
+				if err != nil {
+					httputil.JSONError(w, "internal error", http.StatusInternalServerError)
+					slog.Error("checking API token", "error", err)
+					return
+				}
+				if name != "" {
+					ctx := auth.WithUser(r.Context(), auth.User{ID: ownerID})
+					next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, tokenNameKey{}, name)))
+					return
+				}
 			}
-			status, body := http.StatusUnauthorized, `{"error":"unauthorized"}`
+			status, msg := http.StatusUnauthorized, "unauthorized"
 			if !failures.Allow(httputil.ClientIP(r, trusted)) {
-				status, body = http.StatusTooManyRequests, `{"error":"too many failed attempts"}`
+				status, msg = http.StatusTooManyRequests, "too many failed attempts"
 			}
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(status)
-			_, _ = w.Write([]byte(body))
+			httputil.JSONError(w, msg, status)
 		})
 	}
+}
+
+// tokenName names the credential provided matches, or returns "" for none.
+func tokenName(envToken string, database *sql.DB, provided string) (string, error) {
+	if envToken != "" && subtle.ConstantTimeCompare([]byte(provided), []byte(envToken)) == 1 {
+		return envTokenName, nil
+	}
+	tok, err := auth.LookupToken(database, ownerID, provided)
+	if err != nil || tok == nil {
+		return "", err
+	}
+	return tok.Name, nil
+}
+
+// logAPIWrites logs one line per API request that may change data, naming
+// the token and the route but never a title or the token itself.
+func logAPIWrites(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			next.ServeHTTP(w, r)
+			return
+		}
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		next.ServeHTTP(ww, r)
+		name, _ := r.Context().Value(tokenNameKey{}).(string)
+		slog.Info("api write", "token", name, "method", r.Method,
+			"route", chi.RouteContext(r.Context()).RoutePattern(), "status", ww.Status())
+	})
 }
 
 func securityHeaders(next http.Handler) http.Handler {

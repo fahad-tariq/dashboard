@@ -139,7 +139,7 @@ func NewRouterWith(shutdownCtx context.Context, cfg *config.Config, database *sq
 	if err := mountBrowserRoutes(r, cfg, database, sm, h, reg); err != nil {
 		return nil, err
 	}
-	if err := mountAPIRoutes(root, cfg, h, reg); err != nil {
+	if err := mountAPIRoutes(root, cfg, database, h, reg); err != nil {
 		return nil, err
 	}
 	return root, nil
