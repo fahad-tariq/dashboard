@@ -81,6 +81,8 @@ func mountBrowserRoutes(r chi.Router, cfg *config.Config, database *sql.DB, sm *
 		r.Post("/account/name", h.account.NameSubmit)
 		r.Get("/account/password", http.RedirectHandler("/account", http.StatusMovedPermanently).ServeHTTP)
 		r.Post("/account/password", h.account.PasswordSubmit)
+		r.Post("/account/tokens", h.account.CreateToken)
+		r.Post("/account/tokens/{id:[0-9]+}/revoke", h.account.RevokeToken)
 
 		mountAppRoutes(r, h)
 		for _, m := range reg.Modules() {

@@ -327,6 +327,23 @@ clickActions['clear-date'] = function(el) {
     input.focus();
 };
 
+// Copies the value of the input named by data-copy (the account page's new
+// token). Clipboard access can be refused, so the text is left selected.
+clickActions['copy'] = function(el) {
+    var input = document.getElementById(el.getAttribute('data-copy'));
+    if (!input) return;
+    input.select();
+    var copied = function() {
+        el.textContent = 'Copied';
+        if (window.announce) window.announce('Copied');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(input.value).then(copied, function() {});
+    } else if (document.execCommand && document.execCommand('copy')) {
+        copied();
+    }
+};
+
 var submitActions = {
     'celebrate': function(form) { return celebrateComplete(form); },
     'triage': function(form) { return triageAnimate(form); },

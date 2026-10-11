@@ -40,6 +40,8 @@ PATCH   /static/*
 PATCH   /uploads/*
 POST    /account/name
 POST    /account/password
+POST    /account/tokens
+POST    /account/tokens/{id:[0-9]+}/revoke
 POST    /admin/users/new
 POST    /admin/users/{id}/delete
 POST    /admin/users/{id}/edit

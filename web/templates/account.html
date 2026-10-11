@@ -50,4 +50,41 @@
     })();
     </script>
 </div>
+
+<div class="admin-form-card mt-md" id="api-tokens">
+    <h2 class="admin-section-title">API tokens</h2>
+    <p class="account-note">Each phone or Shortcut gets its own token, which acts as you on the API. Changing your password does not revoke tokens: revoke one here if a device is lost or a Shortcut is shared.</p>
+    {{if .NewToken}}
+    <div class="token-new" role="status">
+        <label for="new-token">New token: copy it now, it is not shown again.</label>
+        <div class="token-new-row">
+            <input type="text" id="new-token" class="form-input token-value" value="{{.NewToken}}" readonly autocomplete="off" spellcheck="false">
+            <button type="button" class="btn btn-secondary" data-action="copy" data-copy="new-token">Copy</button>
+        </div>
+    </div>
+    {{end}}
+    {{if .TokenError}}<div class="form-error mb-sm" role="alert">{{.TokenError}}</div>{{end}}
+    <form class="admin-form" method="POST" action="/account/tokens">
+        <div class="form-group">
+            <label for="token-name">Device name</label>
+            <input type="text" name="name" id="token-name" class="form-input" maxlength="64" placeholder="iPhone" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Create token</button>
+    </form>
+    {{range .Tokens}}
+    <div class="admin-user-card" id="token-{{.ID}}">
+        <div class="admin-user-info">
+            <span class="admin-user-email">{{.Name}}</span>
+            <span class="admin-user-meta">created {{.Created}} &middot; last used {{.LastUsed}}</span>
+        </div>
+        <div class="admin-user-actions">
+            <form method="POST" action="/account/tokens/{{.ID}}/revoke" class="inline-form" data-confirm="Revoke the token for {{.Name}}? Anything using it stops working.">
+                <button type="submit" class="btn btn-danger btn-sm">revoke</button>
+            </form>
+        </div>
+    </div>
+    {{else}}
+    <p class="account-note">No tokens yet.</p>
+    {{end}}
+</div>
 {{end}}

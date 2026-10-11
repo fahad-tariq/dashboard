@@ -2,12 +2,17 @@ package account
 
 import (
 	"database/sql"
+	"errors"
 	"html/template"
 	"log/slog"
+	"maps"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/go-chi/chi/v5"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/fahad/dashboard/internal/auth"
@@ -17,20 +22,60 @@ import (
 var flashMessages = map[string]string{
 	"name-updated":     "All good -- name saved.",
 	"password-updated": "Password updated successfully.",
+	"token-revoked":    "Token revoked. Anything using it now gets 401.",
 }
 
 type Handler struct {
 	db        *sql.DB
 	sm        *scs.SessionManager
 	templates map[string]*template.Template
+	loc       *time.Location
 }
 
-func NewHandler(db *sql.DB, sm *scs.SessionManager, templates map[string]*template.Template) *Handler {
+func NewHandler(db *sql.DB, sm *scs.SessionManager, templates map[string]*template.Template, loc *time.Location) *Handler {
 	return &Handler{
 		db:        db,
 		sm:        sm,
 		templates: templates,
+		loc:       loc,
 	}
+}
+
+// tokenRow is one device token as the account page lists it.
+type tokenRow struct {
+	ID                int64
+	Name              string
+	Created, LastUsed string
+}
+
+// render shows the account page with data merged into the base map and the
+// user's device tokens.
+func (h *Handler) render(w http.ResponseWriter, r *http.Request, user *auth.User, data map[string]any) {
+	page := auth.TemplateData(r)
+	page["Title"] = "Account Settings"
+	page["FirstName"] = user.FirstName
+	maps.Copy(page, data)
+	tokens, err := auth.ListTokens(h.db, user.ID)
+	if err != nil {
+		httputil.ServerError(w, "listing API tokens", err, "user_id", user.ID)
+		return
+	}
+	rows := make([]tokenRow, 0, len(tokens))
+	for _, t := range tokens {
+		row := tokenRow{ID: t.ID, Name: t.Name, Created: h.formatTime(t.CreatedAt), LastUsed: "never"}
+		if !t.LastUsedAt.IsZero() {
+			row.LastUsed = h.formatTime(t.LastUsedAt)
+		}
+		rows = append(rows, row)
+	}
+	page["Tokens"] = rows
+	if err := h.templates["account.html"].ExecuteTemplate(w, "layout.html", page); err != nil {
+		slog.Error("rendering account page", "error", err)
+	}
+}
+
+func (h *Handler) formatTime(t time.Time) string {
+	return t.In(h.loc).Format("2 Jan 2006, 15:04")
 }
 
 func (h *Handler) currentUser(w http.ResponseWriter, r *http.Request) *auth.User {
@@ -53,13 +98,7 @@ func (h *Handler) AccountPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := auth.TemplateData(r)
-	data["Title"] = "Account Settings"
-	data["FirstName"] = user.FirstName
-	data["FlashMsg"] = flashMessages[r.URL.Query().Get("msg")]
-	if err := h.templates["account.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
-		slog.Error("rendering account page", "error", err)
-	}
+	h.render(w, r, user, map[string]any{"FlashMsg": flashMessages[r.URL.Query().Get("msg")]})
 }
 
 func (h *Handler) NameSubmit(w http.ResponseWriter, r *http.Request) {
@@ -78,13 +117,7 @@ func (h *Handler) NameSubmit(w http.ResponseWriter, r *http.Request) {
 
 	if err := auth.UpdateUserFirstName(h.db, uid, firstName); err != nil {
 		slog.Error("updating first name", "user_id", uid, "error", err)
-		data := auth.TemplateData(r)
-		data["Title"] = "Account Settings"
-		data["FirstName"] = firstName
-		data["NameError"] = "Failed to update name."
-		if err := h.templates["account.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
-			slog.Error("rendering account page", "error", err)
-		}
+		h.render(w, r, user, map[string]any{"FirstName": firstName, "NameError": "Failed to update name."})
 		return
 	}
 
@@ -111,13 +144,7 @@ func (h *Handler) PasswordSubmit(w http.ResponseWriter, r *http.Request) {
 	confirm := r.FormValue("confirm")
 
 	renderErr := func(errMsg string) {
-		data := auth.TemplateData(r)
-		data["Title"] = "Account Settings"
-		data["FirstName"] = user.FirstName
-		data["PasswordError"] = errMsg
-		if err := h.templates["account.html"].ExecuteTemplate(w, "layout.html", data); err != nil {
-			slog.Error("rendering account page", "error", err)
-		}
+		h.render(w, r, user, map[string]any{"PasswordError": errMsg})
 	}
 
 	if currentPassword == "" {
@@ -150,4 +177,55 @@ func (h *Handler) PasswordSubmit(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("user changed own password", "user_id", uid)
 	http.Redirect(w, r, "/account?msg=password-updated", http.StatusSeeOther)
+}
+
+// CreateToken mints a device token and shows it once. The page is rendered
+// in reply to the POST rather than after a redirect, so the plaintext never
+// passes through the session store, and it is marked no-store so no cache
+// keeps it.
+func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
+	user := h.currentUser(w, r)
+	if user == nil {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	plain, err := auth.CreateToken(h.db, user.ID, r.FormValue("name"))
+	if errors.Is(err, auth.ErrTokenName) {
+		w.WriteHeader(http.StatusBadRequest)
+		h.render(w, r, user, map[string]any{"TokenError": "Give the device a name."})
+		return
+	}
+	if err != nil {
+		httputil.ServerError(w, "creating API token", err, "user_id", user.ID)
+		return
+	}
+	slog.Info("API token created", "user_id", user.ID)
+	h.render(w, r, user, map[string]any{"NewToken": plain})
+}
+
+// RevokeToken revokes one of the session user's tokens.
+func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
+	user := h.currentUser(w, r)
+	if user == nil {
+		return
+	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid token id", http.StatusBadRequest)
+		return
+	}
+	if err := auth.RevokeToken(h.db, id, user.ID); err != nil {
+		if errors.Is(err, auth.ErrTokenNotFound) {
+			http.Error(w, "Token not found", http.StatusNotFound)
+			return
+		}
+		httputil.ServerError(w, "revoking API token", err, "user_id", user.ID)
+		return
+	}
+	slog.Info("API token revoked", "user_id", user.ID, "token_id", id)
+	http.Redirect(w, r, "/account?msg=token-revoked", http.StatusSeeOther)
 }
