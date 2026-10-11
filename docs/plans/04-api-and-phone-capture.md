@@ -151,8 +151,8 @@ Do not reopen these while executing this plan.
 - [x] **Quick-add helper.** Implement the helper decided above and call it from the web add handlers and `APIAddTodo`. Table-test: plain title, `#tag`, `!high`, `! High`, a lone `!`, both markers, trailing `#`, `#42`, tags supplied with `#x !high` in the title (`#x` stays, priority parses), priority supplied with `#x` in the title (tag parses), and a title whose parsed remainder still cannot set a tag (requirement 6).
 - [x] **JSON goldens.** A `TestAPIGolden` drives every `/api/v1` route through `app.NewRouterWith` against the e2e fixture files, normalises IDs and dates, and compares with `test/testdata/api/<method>_<path>.golden`, with an `-update` flag like the route goldens. Because it drives every route, the plan API handlers and the serialiser branches (house fields, images, deadline, deleted) are executed by construction; record their coverage in Working notes.
 - [x] **README "Routes > API".** The route list with request bodies, the quick-add syntax, the `id` field and the `personal` alias; response shapes point at `test/testdata/api/`.
-- [ ] **Verification.** `make lint test` with `INTEGRATION=1`. Route goldens unchanged. CI green. Deploy and record it (the API is still off in production, so the deploy carries no risk).
-- [ ] Perform a critical self-review of the changes with an independent agent and fix what holds up.
+- [x] **Verification.** `make lint test` with `INTEGRATION=1`. Route goldens unchanged. CI green. Deploy and record it (the API is still off in production, so the deploy carries no risk).
+- [x] Perform a critical self-review of the changes with an independent agent and fix what holds up.
 - [ ] **STOP and wait for human review.**
 
 ---
@@ -320,4 +320,6 @@ A run that crosses midnight skips rather than fails, since the server reads the 
 - The golden test skips a run that crosses midnight; the step count in these notes was wrong (59, now 55).
 
 Accepted: on the idempotent path the service checks the file but the handler answers from the cache, so an ID added by hand and not yet resynced answers 500 (rare, self-correcting on the watcher's resync). Deferred to the backlog: `GET /plan?date=<future>` lists today's items as `overdue`, because carried items are computed against the requested date; the same issue the phone-web follow-on recorded for a `?date=` home view.
+
+**Deploy 2026-10-11:** commit `8584bd5`, CI run 38131512787 green (lint, test, vuln, e2e, screenshots, build; run 38120429676 on `a755495`, before the review fixes, was green too). Image revision label `8584bd5694bdddb8c321de842dbcccd54ceaca92`. Backup `dashboard-backup-20261011-112524.tar.gz` (exit 0). The sha256 of all five data files was identical before the pull and after start-up. Start-up log as before ("API not mounted", "starting server"). Caddy checks: `/login` 200 and gzipped, `/todos` 303, `/events` 401, `/api/v1/todos` and `/api/v1/plan` 404 (API still off, as planned), cross-site POST `/login` 403. `verify-stack.sh`: all checks green (the mosquitto failure from the Phase 1 deploy is gone). `homelab-ssh fliptronic` timed out over MagicDNS; the deploy used the documented LAN fallback `ssh claude_ops@172.16.61.9`. Worth checking Tailscale on fliptronic before Phase 3, which needs the phone to reach it over Tailscale.
 
