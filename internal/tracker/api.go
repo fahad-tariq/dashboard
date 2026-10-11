@@ -394,8 +394,8 @@ func APIUpdateTags(resolve ServiceResolver) http.HandlerFunc {
 			jsonError(w, "list required (personal or family)", http.StatusBadRequest)
 			return
 		}
-		if len(req.Tags) > maxTagCount {
-			jsonError(w, "too many tags (max 10)", http.StatusBadRequest)
+		if err := validateInputLimits("", "", req.Tags); err != "" {
+			jsonError(w, err, http.StatusBadRequest)
 			return
 		}
 

@@ -295,7 +295,7 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
 
 **Quick-add.** `tracker.QuickAdd(title, tags, priority)` replaces `ParseQuickAdd` (and its test). Called by `tracker.Handler.QuickAdd` (todos and family) and `APIAddTodo`; not by goals, house projects or ideas. Decisions beyond the plan: the caller's priority is sanitised first, so an invalid priority counts as none; when several priority tokens appear the first wins and all leave the title; a trailing `.,;:!?` is trimmed from a tag or priority token because dictation ends sentences ("! High."); a `#` token whose cleaned value is empty (`#!high`, `#,`) leaves the title and adds no tag. In the API the input limits (title, tag count and length) are checked after parsing, so tags parsed from a title count against the limit of 10. Requirement 6: a table row and an HTTP row ("Pay rent [tags: x] #a] [planned: ...") show the remainder still goes through `CleanTitle` in the service.
 
-**API goldens.** `TestAPIGolden` (`test/api_golden_test.go`) walks the router and fails when an `/api/v1` route has no step, then runs 59 requests in order against a copy of the e2e fixtures and writes one golden per route (21 files in `test/testdata/api/`), each holding the requests, status, content type and indented body. IDs the server makes up become `<new-id>`, and `added`, `completed`, `planned`, `deleted`, `date` and `today` values equal to the run's today or yesterday become placeholders; deadlines are fixed dates in the script and fixtures, so they are left alone. Ran three times in a row without a diff.
+**API goldens.** `TestAPIGolden` (`test/api_golden_test.go`) walks the router and fails when an `/api/v1` route has no step, then runs 55 requests in order against a copy of the e2e fixtures and writes one golden per route (21 files in `test/testdata/api/`), each holding the requests, status, content type and indented body. IDs the server makes up become `<new-id>`, and `added`, `completed`, `planned`, `deleted`, `date` and `today` values equal to the run's today or yesterday become placeholders; deadlines are fixed dates in the script and fixtures, so they are left alone. Ran three times in a row without a diff.
 
 Coverage (statements, `-coverpkg=./internal/home,./internal/tracker,./internal/ideas`):
 
@@ -307,7 +307,17 @@ Coverage (statements, `-coverpkg=./internal/home,./internal/tracker,./internal/i
 
 `tracker.ToAPI`, `tracker.ToAPIList`, `ideas.ToAPI`, `APIListPlan` and `APIClearCarried` are at 100% from the goldens alone. What stays uncovered is the 500 branches (a failed read after a successful write, a failed list) and the invalid-JSON branch of most tracker handlers.
 
+A run that crosses midnight skips rather than fails, since the server reads the clock per request.
+
 **Route goldens** unchanged: no route was added, moved or removed.
 
 **Docs.** README "Routes > API" rewritten: error shape, list names and the `personal` alias, the response shapes pointing at `test/testdata/api/`, idempotent create, quick-add syntax, and the table's optional fields. CLAUDE.md's "a new tag touches" line names `tracker.ToAPI`/`APIItem` and the goldens. `docs/backlog.md`: the `APIReorderPlan` entry removed, the house API entry rewritten, the quick-capture entry corrected (Phase 5 strikes it).
+
+**Self-review** (independent agent): no high findings; requirement 6 held against the inputs it traced (`[tags #x : y]`, `!hi #x gh`, `!high!low`, `#x!high`, `#!hi!highgh`). Fixed, test-first (`bc459df`):
+- Medium: the tracker cached a body as sent, while the parser trims lines and drops blank ones, so an API answer could show `sub_steps: []` for a body whose steps a restart would load. `mutate`, `mutateBatch` and `add` now store `normaliseBody(body)`, the parser's form; parsed bodies are already in that form, so the round-trip fixtures are unaffected.
+- `PUT /api/v1/todos/{id}/tags` checked the tag count but not the 50-character length that create and edit enforce; it now uses `validateInputLimits`.
+- Maintenance `Add` and `UpdateEdit` cached raw tags while the writer cleaned them; they now clean with `CleanMetaList`. Maintenance notes have the same blank-line difference as tracker bodies had; not fixed (no API reads them, and the page renders the cache), recorded in the backlog.
+- The golden test skips a run that crosses midnight; the step count in these notes was wrong (59, now 55).
+
+Accepted: on the idempotent path the service checks the file but the handler answers from the cache, so an ID added by hand and not yet resynced answers 500 (rare, self-correcting on the watcher's resync). Deferred to the backlog: `GET /plan?date=<future>` lists today's items as `overdue`, because carried items are computed against the requested date; the same issue the phone-web follow-on recorded for a `?date=` home view.
 

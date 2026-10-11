@@ -162,6 +162,11 @@ func TestAPIGolden(t *testing.T) {
 		fmt.Fprintf(buf, "%d %s\n", rr.Code, rr.Header().Get("Content-Type"))
 		buf.WriteString(normaliseAPIBody(t, rr.Body.Bytes(), known, today, yesterday))
 	}
+	// The server reads the clock on every request; a run that crossed
+	// midnight wrote dates no placeholder covers.
+	if time.Now().In(env.cfg.Location).Format("2006-01-02") != today {
+		t.Skip("the run crossed midnight; rerun")
+	}
 	for _, name := range order {
 		assertGolden(t, filepath.Join("api", name), out[name].Bytes())
 	}

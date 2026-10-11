@@ -132,6 +132,8 @@ func (s *Service) Add(item *MaintenanceItem) error {
 	if item.Added == "" {
 		item.Added = time.Now().In(s.loc).Format("2006-01-02")
 	}
+	// Cleaned as the writer cleans them, so the cache matches the file.
+	item.Tags = httputil.CleanMetaList(item.Tags)
 
 	items, err := ParseMaintenance(s.maintPath)
 	if err != nil {
@@ -200,7 +202,7 @@ func (s *Service) UpdateEdit(id, title, notes string, tags []string) error {
 		if title := httputil.CleanTitle(title); title != "" {
 			item.Title = title
 		}
-		item.Tags = tags
+		item.Tags = httputil.CleanMetaList(tags)
 		item.Notes = notes
 		return nil
 	})

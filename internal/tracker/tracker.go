@@ -120,6 +120,19 @@ func BodyWithoutSubSteps(body string) string {
 	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
+// normaliseBody returns body as the parser reads it back: each line
+// trimmed, blank lines dropped. Services cache it in this form so the cache
+// matches the file.
+func normaliseBody(body string) string {
+	var lines []string
+	for line := range strings.SplitSeq(body, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 // countSubSteps counts done and total sub-step checkboxes in a body string.
 func countSubSteps(body string) (done, total int) {
 	for line := range strings.SplitSeq(body, "\n") {

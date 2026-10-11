@@ -94,6 +94,7 @@ func (s *Service) mutate(id string, fn func(*Item) error) error {
 			if err := fn(&items[i]); err != nil {
 				return err
 			}
+			items[i].Body = normaliseBody(items[i].Body)
 			items[i].SubStepsDone, items[i].SubStepsTotal = countSubSteps(items[i].Body)
 			found = true
 			break
@@ -181,6 +182,8 @@ func (s *Service) add(item Item, once bool) (string, bool, error) {
 		item.Added = time.Now().In(s.loc).Format("2006-01-02")
 	}
 	item.Tags, item.Images = httputil.CleanMetaList(item.Tags), httputil.CleanMetaList(item.Images)
+	item.Body = normaliseBody(item.Body)
+	item.SubStepsDone, item.SubStepsTotal = countSubSteps(item.Body)
 
 	items, err := ParseTracker(s.trackerPath)
 	if err != nil {
@@ -372,6 +375,7 @@ func (s *Service) mutateBatch(ids []string, fn func(*Item) error) error {
 			if err := fn(&items[i]); err != nil {
 				return err
 			}
+			items[i].Body = normaliseBody(items[i].Body)
 			items[i].SubStepsDone, items[i].SubStepsTotal = countSubSteps(items[i].Body)
 			found++
 		}
