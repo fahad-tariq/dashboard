@@ -109,7 +109,7 @@ Do not reopen these while executing this plan.
 
 **Purpose:** remove what earns nothing before building on the API, and stop sending pages uncompressed.
 
-- [ ] **Remove commentary.**
+- [x] **Remove commentary.**
   - Delete `internal/commentary`, `Deps.Commentary` in `internal/module/module.go` and its wiring in `internal/app/app.go` (store construction, `buildModules`, `handlers`, `purgeExpired`), `/commentary` from the reserved prefixes, the browser GET and the three API routes.
   - Delete `commentarySt`, `SetCommentaryStore` and `HasCommentary` from the tracker, house and ideas handlers and the four module adapters that call `SetCommentaryStore`; `ForgetItems` on purge and `Copy` on move go with them.
   - Delete `ValidateListWithIdeas` and `validListsWithIdeas` in `internal/httputil/validate.go` (the commentary handlers are their only callers) together with `TestValidateListWithIdeas` in `test/validate_test.go`, and the comments in `internal/auth/users.go` and `web/static/live.js`.
@@ -118,12 +118,12 @@ Do not reopen these while executing this plan.
   - Delete `test/commentary_*_test.go` and `TestCommentaryScopedToUser` in `test/wiring_test.go`. In `test/live_markup_test.go`, `TestMorphSkipElementsHaveIDs` currently fails when no `data-morph-skip` element renders, because the slot was the only one: drop that guard and keep the id check for future skip elements.
   - Delete `docs/ironclaw-integration.md` and the root-level `backlog.md`. Update README (routes, API, data storage), CLAUDE.md (architecture paragraph, the stale claim that the upload area is skip-marked, the Ironclaw gotcha) and `docs/backlog.md` (both commentary entries under "Known limitations").
   - Run `TestRouteGolden -update` and explain the diff.
-- [ ] **Remove `migrate-data`.** Delete `cmd/dashboard/migrate.go`, its subcommand in `main.go`, `test/migrate_data_test.go` and the README section "Migrating legacy data". `internal/slug` stays.
-- [ ] **Backlog removals.**
+- [x] **Remove `migrate-data`.** Delete `cmd/dashboard/migrate.go`, its subcommand in `main.go`, `test/migrate_data_test.go` and the README section "Migrating legacy data". `internal/slug` stays.
+- [x] **Backlog removals.**
   - Delete the test-only constructors `tracker.NewHandler` and `ideas.NewHandler` and move their six test call sites to the resolver constructors (`httputil.PageMap` supplies the lookup). Remove the backlog entry.
   - Apply the five `modernize` suggestions: `maps.Copy` in `module/render.go` and `test/web_security_test.go`, `max` in `insights.go`, range-over-int in `test/itemid_test.go`, `WaitGroup.Go` in `test/atomicfile_test.go`.
-- [ ] **Drop the ES5 rule** from CLAUDE.md and the headers of `announce.js`, `live.js`, `planner.js` and `shortcuts.js`. Do not rewrite existing JS.
-- [ ] **Compress HTML (bug, test-first).**
+- [x] **Drop the ES5 rule** from CLAUDE.md and the headers of `announce.js`, `live.js`, `planner.js` and `shortcuts.js`. Do not rewrite existing JS.
+- [x] **Compress HTML (bug, test-first).**
   - A table test requests `/`, `/todos`, `/login` and `/account` with `Accept-Encoding: gzip` through `app.NewRouterWith` and expects `Content-Encoding: gzip` and `Vary: Accept-Encoding`; a fragment reply and a static file are control rows.
   - Add the middleware decided above to the `root.With` chain in `app.go`: it sets `Content-Type: text/html; charset=utf-8` in both `Write` and `WriteHeader` when no type is set (the rate-limited login page calls `WriteHeader(429)` before rendering), leaves handlers that set their own type untouched, and implements `Unwrap` so `/events` keeps flushing.
   - Record the wire size of `/`, `/todos` and `/ideas` before and after in Working notes.
@@ -243,3 +243,32 @@ Do not reopen these while executing this plan.
 ## Working notes
 
 One `### Phase N notes` section per phase: decisions, measurements, deploys (as defined under Requirements), route golden diffs, and follow-ups.
+
+### Phase 1 notes
+
+**Commentary removal.** Went as planned. The `PurgeExpired` methods still return the purged IDs; the purge loop ignores them now that nothing forgets commentary. `MoveToList` no longer needs the new ID from `AddItem`. `/commentary` left `module.ReservedPrefixes`. In `docs/backlog.md`, three "Known limitations" entries mentioned commentary, not two: the shared-lists and cross-user cleanup entries were deleted, and the admin user deletion entry lost its `item_commentary` clause; the "Capabilities for core pages" entry lost its commentary list-name candidate. The CLAUDE.md gotcha about loading commentary by XHR became a general rule against `hx-trigger="revealed"` in live containers, which still holds.
+
+**Correction to the plan: the upload area is skip-marked.** The plan called CLAUDE.md's claim stale, but `upload.js` sets `data-morph-skip` (with an id) on the image area it builds, so the claim was right. CLAUDE.md now says `upload.js` sets it; `TestMorphSkipElementsHaveIDs` lost only its "at least one rendered" guard, since no template renders a skip element any more.
+
+**Route golden diff** (both modes identical): four routes removed, `GET /commentary/{list}/{id}` and `GET`, `PUT`, `DELETE /api/v1/commentary/{list}/{id}`. Nothing added.
+
+**Backlog removals.** The six test call sites of the static constructors use `tracker.NewHandlerWithResolver` (through a `staticTrackerHandler` helper in `test/tracker_handler_test.go`) and `ideas.NewHandlerWithResolver` with `httputil.PageMap`. `modernize -fix` wrote `max(a, max(b, c))` in `insights.go`; tidied to `max(a, b, c)`. `modernize` reports nothing now.
+
+**ES5 rule.** Removed from CLAUDE.md and the four file headers; the CLAUDE.md line keeps the document-delegated listener rule and gives its reason.
+
+**Compression.**
+- Failing test committed first (`87918c0`): `TestHTMLPagesCompressed` failed for `/`, `/todos`, `/login`, `/account` and `/ideas`, and `TestRateLimitedLoginCompressed` for the 429 login page; the fragment and static rows passed. Correction to Context: module pages did not compress either, because the built-in modules render through the feature handlers' `ExecutePage`, which sets no type.
+- `htmlByDefault` (`internal/app/routes.go`) is the innermost middleware on the `root.With` browser chain. It sets `text/html; charset=utf-8` at `WriteHeader` (or the first `Write`) when no type is set, except for 1xx, 204, 304 and 3xx: chi's compressor gzips any compressible response at `WriteHeader`, so labelling a bodiless redirect would give a plain-POST 303 a 20-byte gzip body. `TestRedirectNotCompressed` pins that.
+- `TestEventStreamFlushesThroughRouter` drives `/events` through the full router over loopback with `Accept-Encoding: gzip`. Mutation checks: without `Unwrap` the stream never sends its headers (the test fails at its 5-second bound); without the bodiless exclusion the redirect test fails.
+- Wire sizes, e2e fixtures, no-auth, `Accept-Encoding: gzip` (bytes):
+
+| Page | Before | After (wire) | After (uncompressed) |
+|---|---|---|---|
+| `/` | 23,909 | 4,874 | 23,909 |
+| `/todos` | 45,690 | 6,720 | 44,975 (commentary slots gone) |
+| `/ideas` | 20,573 | 4,778 | 20,573 |
+| `/login` | 3,370 | 1,120 | 3,370 |
+| `/account` | 11,550 | 3,290 | 11,550 |
+
+**Tooling.** `make lint` under nono needs `GOLANGCI_LINT_CACHE` pointed at a writable directory (the default under `~/Library/Caches` is not writable here).
+

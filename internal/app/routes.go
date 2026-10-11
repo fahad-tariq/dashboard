@@ -216,3 +216,46 @@ func securityHeaders(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+// htmlByDefault labels untyped responses as HTML. Page handlers render
+// templates without setting Content-Type, and the compressor decides from
+// the type when the header is written, so without this pages go out
+// uncompressed. Bodiless statuses are left alone so a redirect or 204 does
+// not gain a gzip body.
+func htmlByDefault(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(&htmlTypeWriter{ResponseWriter: w}, r)
+	})
+}
+
+type htmlTypeWriter struct {
+	http.ResponseWriter
+	wroteHeader bool
+}
+
+func (w *htmlTypeWriter) WriteHeader(status int) {
+	if !w.wroteHeader {
+		w.wroteHeader = true
+		if status >= http.StatusOK && status != http.StatusNoContent && status != http.StatusNotModified && (status < 300 || status >= 400) {
+			w.setType()
+		}
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *htmlTypeWriter) Write(p []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(p)
+}
+
+func (w *htmlTypeWriter) setType() {
+	if w.Header().Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	}
+}
+
+// Unwrap lets http.ResponseController reach the underlying writer, which
+// the event stream flushes through.
+func (w *htmlTypeWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }

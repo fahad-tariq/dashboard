@@ -1,12 +1,15 @@
 package test
 
 import (
+	"bufio"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Pages are gzipped when the client accepts it. chi's compressor decides
@@ -68,6 +71,28 @@ func TestRateLimitedLoginCompressed(t *testing.T) {
 	}
 }
 
+// A redirect has no body, so it is not labelled HTML and gains no gzip body.
+func TestRedirectNotCompressed(t *testing.T) {
+	h, _, _ := authRouter(t, []testUser{{"one@test.com", "password-one"}}, nil)
+	cookie := login(t, h, "one@test.com", "password-one")
+	form := url.Values{"title": {"Plain post"}}
+	req := httptest.NewRequest("POST", "/todos/add", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept-Encoding", "gzip")
+	req.AddCookie(cookie)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("status %d, want 303", rr.Code)
+	}
+	if got := rr.Header().Get("Content-Encoding"); got != "" {
+		t.Errorf("Content-Encoding = %q, want none", got)
+	}
+	if rr.Body.Len() != 0 {
+		t.Errorf("body is %d bytes, want none", rr.Body.Len())
+	}
+}
+
 func assertGzipped(t *testing.T, rr *httptest.ResponseRecorder, wantType string) {
 	t.Helper()
 	if rr.Code >= 300 && rr.Code < 400 {
@@ -82,4 +107,40 @@ func assertGzipped(t *testing.T, rr *httptest.ResponseRecorder, wantType string)
 	if !slices.Contains(rr.Header().Values("Vary"), "Accept-Encoding") {
 		t.Errorf("Vary = %q, want Accept-Encoding", rr.Header().Values("Vary"))
 	}
+}
+
+// The event stream flushes through every wrapper on the browser chain, the
+// HTML default included, and is never compressed.
+func TestEventStreamFlushesThroughRouter(t *testing.T) {
+	h, _ := renderRouter(t)
+	srv := startServer(t, h, 0)
+	// A writer that hides Flush stalls the stream before its headers, so
+	// bound the wait instead of relying on the test timeout.
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	t.Cleanup(cancel)
+	req, err := http.NewRequestWithContext(ctx, "GET", srv.URL+"/events", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Accept-Encoding", "gzip")
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatalf("GET /events: %v", err)
+	}
+	t.Cleanup(func() { resp.Body.Close() })
+	if got := resp.Header.Get("Content-Type"); got != "text/event-stream" {
+		t.Errorf("Content-Type = %q, want text/event-stream", got)
+	}
+	if got := resp.Header.Get("Content-Encoding"); got != "" {
+		t.Errorf("Content-Encoding = %q, want none", got)
+	}
+	lines := make(chan string, 8)
+	go func() {
+		defer close(lines)
+		sc := bufio.NewScanner(resp.Body)
+		for sc.Scan() {
+			lines <- sc.Text()
+		}
+	}()
+	waitForLine(t, lines, ": connected", 2*time.Second)
 }
