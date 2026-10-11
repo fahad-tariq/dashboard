@@ -8,3 +8,7 @@ coverage.out
 bench.txt
 users/
 .dev/
+
+# Claude Code permission settings are per-machine
+.claude/settings.json
+.claude/settings.local.json
