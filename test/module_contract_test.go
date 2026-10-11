@@ -1,6 +1,7 @@
 package test
 
 import (
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -27,6 +28,7 @@ type contractEnv struct {
 	events chan string
 	token  string
 	cfg    *config.Config
+	db     *sql.DB
 }
 
 // newContractEnv builds the real router in auth mode with the fixture module
@@ -48,10 +50,16 @@ func newAppEnv(t *testing.T, extra ...module.Factory) *contractEnv {
 // are under cfg.UserDataDir/1/).
 func newSeededAppEnv(t *testing.T, seed func(*config.Config), extra ...module.Factory) *contractEnv {
 	t.Helper()
+	return newTokenAppEnv(t, strings.Repeat("t", 32), seed, extra...)
+}
+
+// newTokenAppEnv is newSeededAppEnv with DASHBOARD_API_TOKEN set to token,
+// which may be empty or too short to be accepted.
+func newTokenAppEnv(t *testing.T, token string, seed func(*config.Config), extra ...module.Factory) *contractEnv {
+	t.Helper()
 	paths := tempPaths(t)
 	paths["DASHBOARD_PASSWORD_HASH"] = ""
 	paths["DASHBOARD_SECURE_COOKIES"] = "false"
-	token := strings.Repeat("t", 32)
 	paths["DASHBOARD_API_TOKEN"] = token
 	setEnvForConfig(t, paths)
 	cfg, err := config.Load()
@@ -87,6 +95,7 @@ func newSeededAppEnv(t *testing.T, seed func(*config.Config), extra ...module.Fa
 		events: events,
 		token:  token,
 		cfg:    cfg,
+		db:     database,
 	}
 }
 

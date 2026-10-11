@@ -53,8 +53,8 @@ func TestAPIRequiresStrongToken(t *testing.T) {
 		bearer string
 		want   int
 	}{
-		"unset token: not mounted":   {token: "", bearer: "", want: http.StatusNotFound},
-		"short token: not mounted":   {token: "short-token", bearer: "short-token", want: http.StatusNotFound},
+		"unset token, no bearer":     {token: "", bearer: "", want: http.StatusUnauthorized},
+		"short token, short bearer":  {token: "short-token", bearer: "short-token", want: http.StatusUnauthorized},
 		"strong token, right bearer": {token: strongAPIToken, bearer: strongAPIToken, want: http.StatusOK},
 		"strong token, wrong bearer": {token: strongAPIToken, bearer: "nope", want: http.StatusUnauthorized},
 	}
