@@ -290,7 +290,8 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := httputil.CleanTitle(r.FormValue("title"))
+	title, tags, priority := QuickAdd(r.FormValue("title"), httputil.ParseCSV(r.FormValue("tags")), sanitisePriority(r.FormValue("priority")))
+	title = httputil.CleanTitle(title)
 	if title == "" {
 		http.Redirect(w, r, "/"+h.listName+"?msg=title-required", http.StatusSeeOther)
 		return
@@ -299,9 +300,9 @@ func (h *Handler) QuickAdd(w http.ResponseWriter, r *http.Request) {
 	item := Item{
 		Title:    title,
 		Type:     TaskType,
-		Priority: sanitisePriority(r.FormValue("priority")),
+		Priority: priority,
 		Body:     strings.TrimSpace(r.FormValue("body")),
-		Tags:     httputil.ParseCSV(r.FormValue("tags")),
+		Tags:     tags,
 		Images:   httputil.ReconstructImages(r),
 		Deadline: strings.TrimSpace(r.FormValue("deadline")),
 	}

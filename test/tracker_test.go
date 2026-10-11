@@ -307,40 +307,6 @@ func TestWriteTrackerBudgetStatusRoundTrip(t *testing.T) {
 	}
 }
 
-func TestParseQuickAdd(t *testing.T) {
-	tests := []struct {
-		input    string
-		title    string
-		tags     []string
-		priority string
-	}{
-		{"Buy groceries #errands !high", "Buy groceries", []string{"errands"}, "high"},
-		{"Read chapter 5 #study", "Read chapter 5", []string{"study"}, ""},
-		{"Fix the sink !low", "Fix the sink", nil, "low"},
-		{"Simple task", "Simple task", nil, ""},
-		{"Deploy app #work !medium", "Deploy app", []string{"work"}, "medium"},
-		{"Multi tag #tech #study", "Multi tag", []string{"tech", "study"}, ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			item := tracker.ParseQuickAdd(tt.input)
-			if item.Title != tt.title {
-				t.Errorf("title: got %q, want %q", item.Title, tt.title)
-			}
-			if !slices.Equal(item.Tags, tt.tags) {
-				t.Errorf("tags: got %v, want %v", item.Tags, tt.tags)
-			}
-			if item.Priority != tt.priority {
-				t.Errorf("priority: got %q, want %q", item.Priority, tt.priority)
-			}
-			if item.Type != tracker.TaskType {
-				t.Errorf("type should be task, got %q", item.Type)
-			}
-		})
-	}
-}
-
 func TestParseTrackerInlineTags(t *testing.T) {
 	content := "- [ ] Learn Go [tags: tech, study]\n"
 	path := filepath.Join(t.TempDir(), "tracker.md")

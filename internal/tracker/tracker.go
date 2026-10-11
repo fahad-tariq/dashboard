@@ -1,6 +1,7 @@
 package tracker
 
 import (
+	"cmp"
 	"fmt"
 	"log/slog"
 	"os"
@@ -428,27 +429,54 @@ func formatNum(f float64) string {
 	return strconv.FormatFloat(f, 'f', -1, 64)
 }
 
-// ParseQuickAdd parses a quick-add input string into a task Item.
-// Syntax: title #tag !priority
-func ParseQuickAdd(input string) Item {
-	input = strings.TrimSpace(input)
-	item := Item{
-		Type: TaskType,
-	}
-
-	parts := strings.Fields(input)
-	var titleParts []string
-	for _, p := range parts {
-		switch {
-		case strings.HasPrefix(p, "#") && len(p) > 1:
-			item.Tags = append(item.Tags, p[1:])
-		case p == "!high" || p == "!medium" || p == "!low":
-			item.Priority = p[1:]
-		default:
-			titleParts = append(titleParts, p)
+// QuickAdd parses quick-add syntax out of a typed or dictated title. "#tag"
+// tokens become tags when tags is empty; "!high", "!medium" and "!low", in
+// any case and with a space allowed after the "!" (dictation writes "!
+// High"), set the priority when priority is empty. Each rule applies on its
+// own, so a request that sets one field still has the other parsed. Parsed
+// tags are cleaned like any tag value; the returned title still goes
+// through CleanTitle in the service.
+func QuickAdd(title string, tags []string, priority string) (string, []string, string) {
+	parseTags, parsePriority := len(tags) == 0, priority == ""
+	var parsed, words []string
+	fields := strings.Fields(title)
+	for i := 0; i < len(fields); i++ {
+		tok := fields[i]
+		if parseTags && len(tok) > 1 && tok[0] == '#' {
+			parsed = append(parsed, strings.TrimRight(tok[1:], sentenceEnd))
+			continue
 		}
+		if parsePriority {
+			if p, ok := quickPriority(tok); ok {
+				priority = cmp.Or(priority, p)
+				continue
+			}
+			if tok == "!" && i+1 < len(fields) {
+				if p, ok := quickPriority("!" + fields[i+1]); ok {
+					priority = cmp.Or(priority, p)
+					i++
+					continue
+				}
+			}
+		}
+		words = append(words, tok)
 	}
+	if parseTags {
+		tags = httputil.CleanMetaList(parsed)
+	}
+	return strings.Join(words, " "), tags, priority
+}
 
-	item.Title = strings.Join(titleParts, " ")
-	return item
+// sentenceEnd is trimmed from a quick-add token, since dictation ends a
+// sentence after it.
+const sentenceEnd = ".,;:!?"
+
+// quickPriority reads a "!priority" token, ignoring case and a trailing
+// sentence end.
+func quickPriority(tok string) (string, bool) {
+	p, ok := strings.CutPrefix(strings.ToLower(strings.TrimRight(tok, sentenceEnd)), "!")
+	if ok && p != "" && validPriorities[p] {
+		return p, true
+	}
+	return "", false
 }

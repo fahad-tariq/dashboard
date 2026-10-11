@@ -221,6 +221,7 @@ func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 			return
 		}
 
+		req.Title, req.Tags, req.Priority = QuickAdd(req.Title, req.Tags, sanitisePriority(req.Priority))
 		if httputil.CleanTitle(req.Title) == "" {
 			jsonError(w, "title required", http.StatusBadRequest)
 			return
@@ -240,7 +241,6 @@ func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 
 		req.Title = httputil.CleanTitle(req.Title)
 		req.Body = httputil.StripInlineMetadata(req.Body)
-		req.Priority = sanitisePriority(req.Priority)
 
 		item := Item{
 			ID:       req.ID,
