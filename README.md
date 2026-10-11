@@ -55,7 +55,7 @@ These are the binary's defaults. Under Compose, the paths are set in `docker-com
 | `DASHBOARD_PASSWORD_HASH` | (empty) | Bcrypt hash; creates `admin@localhost` when no user can log in |
 | `DASHBOARD_AUTH` | `enabled` | `disabled` serves every request as user 1 (created as `local@localhost`), for local development; refused unless `ADDR` is loopback. With auth on and no users or hash, the server refuses to start |
 | `DASHBOARD_TRUSTED_PROXIES` | (empty) | CIDRs or IPs of proxies whose rightmost `X-Forwarded-For` entry is used as the client IP for login and bearer-token rate limiting |
-| `DASHBOARD_API_TOKEN` | (empty) | Bearer token for `/api/v1`; at least 32 characters, or the API is not mounted |
+| `DASHBOARD_API_TOKEN` | (empty) | Optional break-glass bearer token for `/api/v1`, acting as user 1; at least 32 characters, and a shorter value is ignored with a warning. Device tokens minted on `/account` are the normal way in |
 | `SESSION_LIFETIME` | `720h` | Session lifetime |
 | `DASHBOARD_SECURE_COOKIES` | `true` | `false` for plain-HTTP development. Any value that is not a boolean stops the server at start-up |
 | `DASHBOARD_PORT` | `8081` | Compose only: loopback port published for the dashboard |
@@ -153,6 +153,7 @@ dash.example.net {
 - Login rate limit of 5 attempts per minute per IP, plus a growing per-account delay (never a lockout)
 - Cross-origin POSTs rejected; CSP and other security headers on every response
 - Per-user personal tasks, goals and ideas; family and house lists are shared. Admin UI at `/admin/users`, password change on `/account`
+- API tokens per device, minted and revoked on `/account` and stored only as SHA-256 hashes
 
 ## File formats
 
@@ -226,7 +227,12 @@ Browser routes need a session (or no-auth mode). Each list's mutations are POSTs
 
 ### API
 
-Mounted under `/api/v1` only when `DASHBOARD_API_TOKEN` is set (32+ characters). Send `Authorization: Bearer <token>`; the token acts as user 1. Writes (anything but GET, HEAD and OPTIONS) share one limit of 60 per minute across all callers, and more than 10 bad tokens per minute from one IP get 429. Request and response bodies are JSON; every error, 401 and 429 included, is `{"error": "..."}`.
+Always mounted under `/api/v1`. Send `Authorization: Bearer <token>` (the header only: a token in the URL or a session cookie is not accepted, and a bearer token does not open browser pages). Two kinds of token act as user 1:
+
+- **Device tokens.** On `/account`, under "API tokens", name a device and press "Create token". The token (64 hex characters) is shown once, so copy it then; the server keeps only its SHA-256 hash. The list shows when each token was created and last used, and "revoke" stops a token at once. Changing the password does not revoke tokens. Only user 1's tokens are accepted, matching the rest of the API. In no-auth mode anyone who can reach the loopback address can mint one; use it only with development databases.
+- **`DASHBOARD_API_TOKEN`**, if set to 32 or more characters: a break-glass token for when no device token is at hand.
+
+With neither, every request gets 401. The start-up log says `API mounted` with `env_token` and `device_tokens` (the count), and each write logs `api write` with the token's name, method, route and status, never the token or an item's title. Writes (anything but GET, HEAD and OPTIONS) share one limit of 60 per minute across all callers, and more than 10 bad tokens per minute from one IP get 429. Request and response bodies are JSON; every error, 401 and 429 included, is `{"error": "..."}`.
 
 Items are addressed by their ID (`{id}` is 8 characters from `bcdfghjklmnpqrstvwxz0123456789`; anything else gets the router's plain-text 404). Todo routes need a list: `personal` (or its alias `todos`) or `family`; anything else, including `house`, gets a 400. `GET /todos/{id}` takes it as `?list=`; every other todo route that names an ID takes `"list"` in the JSON body. Plan routes take the same names plus `house`, so one list name, `personal`, works for both a create and the plan request after it.
 
@@ -259,6 +265,41 @@ Items are addressed by their ID (`{id}` is 8 characters from `bcdfghjklmnpqrstvw
 | `DELETE` | `/api/v1/plan/{id}` | `list` | Unplan a task |
 | `POST` | `/api/v1/plan/reorder` | `ids, list` | Set plan order; answers with the items in that order |
 | `POST` | `/api/v1/plan/clear-carried` | | Unplan every carried-over task; answers with them |
+
+## Capture from an iPhone
+
+Three Shortcuts call the API. Before building them, mint a token named after the phone on `/account` and keep the page open to copy it. In each "Get Contents of URL" action, open "Show More": set the method, add a header `Authorization` with the value `Bearer ` followed by the token, and choose Request Body `JSON` where there is one. The phone reaches `https://dash.home.caalador.net` only over the home Wi-Fi or Tailscale.
+
+**Add task** (Siri: "Add task"; also the share sheet):
+1. Receive Text input from Share Sheet; if there is no input, Ask For Input (Text, prompt "Task?"). Dictation can carry tags and priority: "Buy milk hashtag groceries exclamation mark high" arrives as "Buy milk #groceries ! High" and becomes "Buy milk", tag `groceries`, priority high.
+2. Choose from Menu "Priority" with None, High, Medium, Low. In High, add a Text action `!high` (likewise `!medium`, `!low`); leave None empty.
+3. Text: the Shortcut Input (or the Ask For Input answer), a space, then the Menu Result. The server reads the marker from the title because the request sends no `priority`.
+4. Get Contents of URL `https://dash.home.caalador.net/api/v1/todos`, method POST, JSON body `title` = that Text, `list` = `personal`.
+5. Get Dictionary Value `error` from Contents of URL; If it has any value, Show Alert with it and Stop This Shortcut.
+6. Get Dictionary Value `id` (set variable `TaskID`) and `title` (set variable `Title`).
+7. Choose from Menu "Plan for today?": Yes runs Get Contents of URL `https://dash.home.caalador.net/api/v1/plan/` followed by `TaskID`, method PUT, JSON body `list` = `personal`; No does nothing.
+8. Show Notification "Added: " followed by `Title`.
+
+For the Action button (Settings > Action Button > Shortcut), duplicate it as "Quick task" and delete steps 2, 3 and 7, so a press asks one question and dictated `#tag` and `! High` still work.
+
+**Capture idea** (share sheet from Safari or any app sharing a link or text):
+1. Receive URLs, Safari web pages and Text input from Share Sheet.
+2. Get Details of Safari Web Page: Name, from the Shortcut Input. If it has no value, use the Shortcut Input as the name.
+3. Get Contents of URL `https://dash.home.caalador.net/api/v1/ideas`, method POST, JSON body `title` = the name, `body` = the Shortcut Input.
+4. Show Notification "Idea saved".
+
+**What's on today** (Siri: "What's on today"):
+1. Get Contents of URL `https://dash.home.caalador.net/api/v1/plan`, method GET (no body).
+2. For each of `personal`, `family` and `overdue`: Get Dictionary Value of that key, Repeat with Each item: Get Dictionary Value `title` from the Repeat Item and Add to Variable `Titles`.
+3. If `Titles` has any value, Speak Text "Today: " followed by `Titles` (Combine Text with ", "); otherwise Speak Text "Nothing planned".
+
+Plan items include ones already done; overdue items are the ones carried from earlier days.
+
+**Things to know.**
+- The token lives inside the Shortcut and syncs through iCloud with it. Mint one token per device, never share or export these Shortcuts, and if one is shared by mistake, revoke its token on `/account` and mint a new one.
+- Siri can run these Shortcuts from the locked phone.
+- With Tailscale down off the home Wi-Fi, a run fails and only that capture is lost; run it again.
+- A 429 means too many writes (60 a minute for everything) or too many bad tokens from one address; wait a minute.
 
 ## Data storage
 
