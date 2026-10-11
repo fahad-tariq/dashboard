@@ -33,17 +33,7 @@ rm -f data/dashboard.db data/dashboard.db-wal data/dashboard.db-shm
 docker compose up -d dashboard
 ```
 
-`admin@localhost` is recreated from `DASHBOARD_PASSWORD_HASH`. Tasks, ideas and house data live in `data/` and `users/` (bind mounts) and are untouched; delete those directories too for an empty install. Commentary is lost with the database.
-
-### Migrating legacy data
-
-Only for data from before the flat-file format (one file per idea in `untriaged/`, `parked/` and `dropped/` directories, plus an `explorations/` directory). It writes a new `users/{id}/ideas.md`, so it refuses to run when that file already holds ideas. Take a backup first.
-
-```bash
-./bin/dashboard migrate-data --user-id 1 --ideas-dir /old/ideas --explorations-dir /old/explorations
-```
-
-Without flags it reads `USER_DATA_DIR/{id}/ideas/` and `USER_DATA_DIR/{id}/explorations/`. It also copies `PERSONAL_PATH` to `USER_DATA_DIR/{id}/personal.md` (the source is left in place), but skips that if the target exists, and the server creates it at start-up, so run the migration before the first start. Research notes are merged into idea bodies, explorations become parked ideas, and colliding slugs get `-exp`.
+`admin@localhost` is recreated from `DASHBOARD_PASSWORD_HASH`. Tasks, ideas and house data live in `data/` and `users/` (bind mounts) and are untouched; delete those directories too for an empty install.
 
 ## Configuration
 
@@ -52,13 +42,13 @@ These are the binary's defaults. Under Compose, the paths are set in `docker-com
 | Variable | Default | Description |
 |---|---|---|
 | `ADDR` | `:8080` | Listen address |
-| `DB_PATH` | `/data/db/dashboard.db` | SQLite database: users, sessions, commentary, schema version |
+| `DB_PATH` | `/data/db/dashboard.db` | SQLite database: users, sessions, schema version |
 | `USER_DATA_DIR` | `/data/users` | Per-user files: `{id}/personal.md`, `{id}/ideas.md` |
 | `FAMILY_PATH` | `/data/family.md` | Shared family tasks. Its directory is also where modules keep their own shared files |
 | `MAINTENANCE_PATH` | `/data/maintenance.md` | Shared house maintenance |
 | `HOUSE_PROJECTS_PATH` | `/data/house-projects.md` | Shared house projects |
 | `UPLOADS_DIR` | `/data/uploads` | Uploaded images (shared) |
-| `PERSONAL_PATH` | `/data/personal.md` | User 1's tasks in no-auth mode, and the source for `migrate-data`. With auth on it is unused, but a skeleton file is still created there |
+| `PERSONAL_PATH` | `/data/personal.md` | User 1's tasks in no-auth mode. With auth on it is unused, but a skeleton file is still created there |
 | `IDEAS_PATH` | `/data/ideas.md` | User 1's ideas in no-auth mode. Same caveat |
 | `IDEAS_DIR` | (empty) | Legacy: if set and `IDEAS_PATH` is not, `IDEAS_PATH` becomes `ideas.md` beside it |
 | `DASHBOARD_TIMEZONE` | the process's local zone (UTC in the container) | IANA zone for "today", planner dates, age badges and the digest. Compose defaults it to `Australia/Sydney` |
@@ -89,14 +79,11 @@ Do not point it at `./data` or `./users`: those are the Compose bind mounts. `ma
 
 ### CLI commands
 
-`useradd` reads only `DB_PATH`. `migrate-data` loads the full server configuration, which creates skeleton files at every path, so outside Docker set all the path variables as in the command above.
+`useradd` reads only `DB_PATH`.
 
 ```bash
 # Create a user (afterwards use /admin/users)
 ./bin/dashboard useradd --email alice@example.com --password secret123
-
-# Convert legacy data (see "Migrating legacy data")
-./bin/dashboard migrate-data --user-id 1 [--ideas-dir /old/ideas] [--explorations-dir /old/explorations]
 ```
 
 ## Docker
@@ -171,7 +158,7 @@ dash.example.net {
 
 All lists are markdown checkbox items with inline metadata. Body lines are indented by 2 spaces; indented checkboxes are sub-steps (or log entries for maintenance), not new items.
 
-Every item ends with `[id: xxxxxxxx]`: 8 characters of consonants (no `y`) and digits. The app adds an ID to any item without one, and repairs duplicates within a file, whenever it loads or writes the file; URLs, links between ideas and tasks, and commentary use the ID, so it survives renames and moves. Titles cannot set metadata: the app strips anything shaped like an inline tag from every title it writes.
+Every item ends with `[id: xxxxxxxx]`: 8 characters of consonants (no `y`) and digits. The app adds an ID to any item without one, and repairs duplicates within a file, whenever it loads or writes the file; URLs and links between ideas and tasks use the ID, so it survives renames and moves. Titles cannot set metadata: the app strips anything shaped like an inline tag from every title it writes.
 
 The files are safe to edit by hand, but the app rewrites the whole file on its next change: section headings (`## ...`) outside item bodies are discarded, blank lines are dropped from task and maintenance bodies, and extra indentation from task bodies (ideas keep both), and inline metadata is put back in a fixed order.
 
@@ -234,7 +221,6 @@ Browser routes need a session (or no-auth mode). Each list's mutations are POSTs
 | `/events` | Server-sent events for live refresh |
 | `/login`, `/account`, `/admin/users` | Accounts (logout and password change are POSTs) |
 | `/upload`, `/uploads/*` | Image upload and serving |
-| `/commentary/{list}/{id}` | Commentary fragment, loaded when a row expands |
 
 `/personal`, `/exploration` and `/exploration/*` redirect to `/todos` and `/ideas`.
 
@@ -267,12 +253,8 @@ Items are addressed by their ID (`{id}` is 8 characters from `bcdfghjklmnpqrstvw
 | `DELETE` | `/api/v1/plan/{id}` | `list` | Unplan a task |
 | `POST` | `/api/v1/plan/reorder` | `ids, list` | Set plan order |
 | `POST` | `/api/v1/plan/clear-carried` | | Unplan every carried-over task |
-| `GET` | `/api/v1/commentary/{list}/{id}` | | Get commentary |
-| `PUT` | `/api/v1/commentary/{list}/{id}` | `content` (max 5,000 characters) | Set commentary |
-| `DELETE` | `/api/v1/commentary/{list}/{id}` | | Delete commentary |
 
-Plan routes also accept `house` as the list. Commentary `{list}` is `personal`, `todos`, `family`, `house` or `ideas`.
-
+Plan routes also accept `house` as the list.
 
 ## Data storage
 
@@ -283,7 +265,7 @@ Plan routes also accept `house` as the list. Commentary `{list}` is `personal`, 
 | Family tasks | `FAMILY_PATH` | Markdown, shared |
 | House maintenance and projects | `MAINTENANCE_PATH`, `HOUSE_PROJECTS_PATH` | Markdown, shared |
 | Uploaded images | `UPLOADS_DIR` | Image files, shared |
-| Users, sessions, commentary | `DB_PATH` | SQLite |
+| Users and sessions | `DB_PATH` | SQLite |
 
 Markdown is the source of truth and is safe to edit by hand while the app runs: writes are atomic (temp file, fsync, rename), and the file watcher picks up outside edits and refreshes open tabs. In no-auth mode, user 1's files are `PERSONAL_PATH` and `IDEAS_PATH` instead.
 
@@ -297,7 +279,7 @@ A module is a package in `internal/modules/<name>/` plus templates in `web/templ
    - `Watcher`: `WatchSpec`s naming exact files; the reload function returns whether the file changed
    - `Searcher`: results for the search overlay
    - `HomeWidget`: data for homepage cards (title, count, up to 5 items, link)
-3. Build from the `module.Deps` the factory receives: renderer (`Render.Page`), location, config, `DataDir` for shared files, the commentary store, and `Publish(id)`, which tells open pages the module changed. Keep the module's storage in its own service and call `Publish` after each write; the core services registry only covers the built-in lists.
+3. Build from the `module.Deps` the factory receives: renderer (`Render.Page`), location, config, `DataDir` for shared files, and `Publish(id)`, which tells open pages the module changed. Keep the module's storage in its own service and call `Publish` after each write; the core services registry only covers the built-in lists.
 4. Each page file defines `{{define "content"}}`. Its refreshing container carries `data-live hx-select="[data-live]" hx-target="this" hx-swap="morph" hx-push-url="false"` and includes `{{template "live-refresh" (dict "Path" "/<page>" "Trigger" "sse:changed:<module-id>")}}`. Use the shared partials in `web/templates/_components/`. Templates must not use inline `on*` handlers.
 5. Regenerate the route goldens (`go test ./test -run TestRouteGolden -update`) and check the diff.
 
@@ -322,7 +304,7 @@ CI runs lint, vuln, the race suite and Playwright on pushes to `main` and on pul
 
 ## Backup
 
-User data is markdown under the data and users directories, plus the SQLite database, which is authoritative for users, sessions and commentary. Back up all three.
+User data is markdown under the data and users directories, plus the SQLite database, which is authoritative for users and sessions. Back up all three.
 
 `scripts/backup.sh` (also `make backup`) writes `dashboard-backup-<timestamp>.tar.gz` containing `data/`, `users/` and a database snapshot taken with SQLite's online backup API, which is safe while the server runs. A plain `cp` or `tar` of a live WAL database is not. It checks the snapshot's integrity, prunes archives older than `RETENTION_DAYS` (default 14), and exits non-zero on any failure.
 

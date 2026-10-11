@@ -78,24 +78,9 @@ var validLists = map[string]bool{
 	"house":    true,
 }
 
-// validListsWithIdeas extends validLists for commentary which also covers ideas.
-var validListsWithIdeas = map[string]bool{
-	"personal": true,
-	"todos":    true,
-	"family":   true,
-	"house":    true,
-	"ideas":    true,
-}
-
 // ValidateList returns true if the list parameter is an accepted tracker list value.
 func ValidateList(list string) bool {
 	return validLists[list]
-}
-
-// ValidateListWithIdeas returns true if the list parameter is accepted for
-// commentary (tracker lists + ideas).
-func ValidateListWithIdeas(list string) bool {
-	return validListsWithIdeas[list]
 }
 
 // NormaliseList maps "todos" to "personal" for consistent storage.

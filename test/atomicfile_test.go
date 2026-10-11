@@ -157,16 +157,14 @@ func TestAtomicWriteConcurrentReadersNeverSeePartial(t *testing.T) {
 	var bad atomic.Int64
 	var wg sync.WaitGroup
 	for range 4 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for !stop.Load() {
 				got, err := os.ReadFile(path)
 				if err != nil || (!bytes.Equal(got, a) && !bytes.Equal(got, b)) {
 					bad.Add(1)
 				}
 			}
-		}()
+		})
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for i := 0; time.Now().Before(deadline); i++ {

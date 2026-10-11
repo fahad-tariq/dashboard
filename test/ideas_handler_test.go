@@ -18,6 +18,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/db"
+	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
 	"github.com/fahad/dashboard/internal/tracker"
 )
@@ -80,7 +81,7 @@ func setupIdeasEnv(t *testing.T) *ideasTestEnv {
 		templates[name] = tmpl
 	}
 
-	handler := ideas.NewHandler(ideasSvc, toTask, templates, time.UTC)
+	handler := ideas.NewHandlerWithResolver(func(*http.Request) *ideas.Service { return ideasSvc }, toTask, httputil.PageMap(templates), time.UTC)
 
 	r := chi.NewRouter()
 	r.Get("/ideas", handler.IdeasPage)

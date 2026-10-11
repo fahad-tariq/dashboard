@@ -28,7 +28,6 @@ type Todos struct {
 func NewTodos(deps module.Deps) module.Module {
 	m := &Todos{deps: deps}
 	m.handler = tracker.NewHandlerWithResolver(m.lists, deps.Render.Lookup(templates), TodosID, deps.Location)
-	m.handler.SetCommentaryStore(deps.Commentary)
 	return m
 }
 

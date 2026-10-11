@@ -2,8 +2,6 @@ package tracker
 
 import (
 	"errors"
-	"html/template"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -14,7 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/auth"
-	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/itemid"
 )
@@ -97,27 +94,10 @@ func SanitiseBudget(f float64) float64 {
 type ServiceResolver func(r *http.Request) (svc *Service, otherSvc *Service)
 
 type Handler struct {
-	resolve      ServiceResolver
-	pages        httputil.PageLookup
-	listName     string
-	loc          *time.Location
-	commentarySt *commentary.Store
-}
-
-// SetCommentaryStore injects a commentary store for displaying ironclaw commentary.
-func (h *Handler) SetCommentaryStore(store *commentary.Store) {
-	h.commentarySt = store
-}
-
-func NewHandler(svc, otherSvc *Service, templates map[string]*template.Template, listName string, loc *time.Location) *Handler {
-	return &Handler{
-		resolve: func(r *http.Request) (*Service, *Service) {
-			return svc, otherSvc
-		},
-		pages:    httputil.PageMap(templates),
-		listName: listName,
-		loc:      loc,
-	}
+	resolve  ServiceResolver
+	pages    httputil.PageLookup
+	listName string
+	loc      *time.Location
 }
 
 // NewHandlerWithResolver creates a handler that resolves services per-request.
@@ -237,7 +217,6 @@ func (h *Handler) TrackerPage(w http.ResponseWriter, r *http.Request) {
 	data["Title"] = title
 	data["ListName"] = h.listName
 	data["OtherListName"] = h.otherListName()
-	data["HasCommentary"] = h.commentarySt != nil
 	data["Tasks"] = tasks
 	data["DoneTasks"] = doneTasks
 	data["DeletedTasks"] = deletedTasks
@@ -495,7 +474,6 @@ func (h *Handler) Purge(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, classifyTrackerError(err), http.StatusBadRequest)
 		return
 	}
-	h.commentarySt.ForgetItems(id)
 	h.redirectBack(w, r, "", "item-purged")
 }
 
@@ -770,8 +748,7 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 	// The item keeps its ID unless the target already holds it (a leftover
 	// from a failed move). Add before deleting: a failed add leaves the item where it was, and a
 	// failed delete leaves a recoverable duplicate rather than losing it.
-	newID, err := otherSvc.AddItem(*item)
-	if err != nil {
+	if _, err := otherSvc.AddItem(*item); err != nil {
 		if errors.Is(err, ErrInvalidDate) {
 			// Only a hand-edited file can hold an impossible date.
 			http.Error(w, InvalidDateMessage, http.StatusBadRequest)
@@ -779,11 +756,6 @@ func (h *Handler) MoveToList(w http.ResponseWriter, r *http.Request) {
 		}
 		httputil.ServerError(w, "adding item to target list", err, "id", id)
 		return
-	}
-	if newID != id && h.commentarySt != nil {
-		if err := h.commentarySt.Copy(id, newID); err != nil {
-			slog.Error("copying commentary to a moved item", "error", err)
-		}
 	}
 	if err := svc.PermanentDelete(id); err != nil {
 		httputil.ServerError(w, "item copied to target but not removed from source", err, "id", id)

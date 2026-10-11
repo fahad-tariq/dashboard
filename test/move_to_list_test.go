@@ -51,7 +51,7 @@ func TestMoveToListKeepsItemWhenTargetWriteFails(t *testing.T) {
 		_ = os.Chmod(familyPath, 0o644)
 	})
 
-	h := tracker.NewHandler(personal, family, map[string]*template.Template{}, "todos", time.UTC)
+	h := staticTrackerHandler(personal, family, map[string]*template.Template{}, "todos")
 	r := chi.NewRouter()
 	r.Post("/todos/{id}/move", h.MoveToList)
 	rr := httptest.NewRecorder()

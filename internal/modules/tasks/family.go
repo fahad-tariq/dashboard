@@ -26,7 +26,6 @@ type Family struct {
 func NewFamily(deps module.Deps) module.Module {
 	m := &Family{deps: deps}
 	m.handler = tracker.NewHandlerWithResolver(m.lists, deps.Render.Lookup(templates), FamilyID, deps.Location)
-	m.handler.SetCommentaryStore(deps.Commentary)
 	return m
 }
 

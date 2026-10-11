@@ -156,7 +156,7 @@ func TestOneEventPerChangeAndNoSelfResync(t *testing.T) {
 		}
 	}
 
-	h := tracker.NewHandler(personal, family, map[string]*template.Template{}, "todos", time.UTC)
+	h := staticTrackerHandler(personal, family, map[string]*template.Template{}, "todos")
 	r := chi.NewRouter()
 	r.Post("/todos/add", h.QuickAdd)
 	r.Post("/api/v1/todos", tracker.APIAddTodo(func(*http.Request) (*tracker.Service, *tracker.Service) { return personal, family }))

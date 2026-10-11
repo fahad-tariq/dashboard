@@ -1,4 +1,4 @@
-// Keyboard shortcuts and search (ES5).
+// Keyboard shortcuts and search.
 //
 // Search and shortcut help are native <dialog>s opened with showModal(), so
 // the browser traps focus, closes them on Escape and returns focus. Search

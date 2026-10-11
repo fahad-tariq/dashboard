@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/services"
 )
@@ -190,8 +189,6 @@ type Deps struct {
 	Render   *Renderer
 	// DataDir holds shared data files (the directory of FAMILY_PATH).
 	DataDir string
-	// Commentary holds AI commentary for list items.
-	Commentary *commentary.Store
 	// Publish tells open pages that the module's data changed. Call it after
 	// every write; it sends changed:<id> once the writes settle.
 	Publish func(moduleID string)

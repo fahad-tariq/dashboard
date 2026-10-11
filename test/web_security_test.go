@@ -2,6 +2,7 @@ package test
 
 import (
 	"io/fs"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -22,9 +23,7 @@ func buildTestRouter(t *testing.T, overrides map[string]string) http.Handler {
 	paths := tempPaths(t)
 	paths["DASHBOARD_PASSWORD_HASH"] = testBcryptHash
 	paths["DASHBOARD_API_TOKEN"] = strongAPIToken
-	for k, v := range overrides {
-		paths[k] = v
-	}
+	maps.Copy(paths, overrides)
 	setEnvForConfig(t, paths)
 	cfg, err := config.Load()
 	if err != nil {

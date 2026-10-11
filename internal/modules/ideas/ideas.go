@@ -37,7 +37,6 @@ func New(deps module.Deps) module.Module {
 	m.handler = idealib.NewHandlerWithResolver(func(r *http.Request) *idealib.Service {
 		return m.ideas(auth.UserID(r.Context()))
 	}, m.toTask, deps.Render.Lookup(ID), deps.Location)
-	m.handler.SetCommentaryStore(deps.Commentary)
 	return m
 }
 

@@ -72,6 +72,8 @@ var migrations = []string{
 	// tracker_items drops its indexes too.
 	`DROP TABLE IF EXISTS commentary`,
 	`DROP TABLE IF EXISTS tracker_items`,
+	// Commentary had no writer once the Ironclaw integration was dropped.
+	`DROP TABLE IF EXISTS item_commentary`,
 }
 
 func Migrate(db *sql.DB) error {

@@ -1,4 +1,4 @@
-/* planner.js -- client-side picker filter + drag-and-drop (ES5 compatible) */
+/* planner.js -- client-side picker filter + drag-and-drop */
 /* All DnD events are delegated from document, so no listener depends on
    which elements a swap kept. Live refreshes wait while a drag is in
    progress (liveRefresh in live.js) and apply when it ends. */

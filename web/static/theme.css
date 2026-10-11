@@ -1053,17 +1053,6 @@
     .upload-file-input { display: none; }
     .upload-label { width: fit-content; cursor: pointer; }
 
-    /* --- Commentary ---------------------------------------------------- */
-    .commentary-note {
-        margin: var(--sp-3) 0;
-        padding: var(--sp-2) var(--sp-3);
-        border-left: var(--edge-width) solid var(--ring);
-        font-size: var(--text-sm);
-        color: var(--text-muted);
-    }
-    .commentary-note p { margin: var(--sp-1) 0; }
-    .commentary-label { display: block; margin-bottom: 2px; font-size: var(--text-xs); color: var(--text-muted); }
-
     /* --- Flash, toast, banners ------------------------------------------ */
     .flash-msg {
         margin-bottom: var(--sp-4);

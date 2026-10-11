@@ -21,7 +21,7 @@ const MaxPrimaryNav = 6
 // them.
 var ReservedPrefixes = []string{
 	"/api", "/login", "/logout", "/admin", "/account", "/static", "/uploads",
-	"/events", "/search", "/plan", "/digest", "/commentary", "/upload",
+	"/events", "/search", "/plan", "/digest", "/upload",
 }
 
 // ReservedKeys are pressed after "g" or on their own by core shortcuts: home,

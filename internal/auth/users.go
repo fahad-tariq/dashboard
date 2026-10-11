@@ -197,8 +197,7 @@ func UpdateUserRole(db *sql.DB, id int64, role string) error {
 }
 
 // DeleteUser removes a user and their sessions in a transaction; the
-// user's markdown directory is left to the caller, and their commentary
-// rows stay behind.
+// user's markdown directory is left to the caller.
 func DeleteUser(db *sql.DB, id int64) error {
 	tx, err := db.Begin()
 	if err != nil {

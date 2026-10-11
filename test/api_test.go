@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/ideas"
 )
 
@@ -30,7 +31,7 @@ func newTestHandler(t *testing.T) (*ideas.Handler, *ideas.Service) {
 		t.Fatal(err)
 	}
 	svc := ideas.NewService(path, time.UTC)
-	h := ideas.NewHandler(svc, nil, nil, time.UTC)
+	h := ideas.NewHandlerWithResolver(func(*http.Request) *ideas.Service { return svc }, nil, httputil.PageMap(nil), time.UTC)
 	return h, svc
 }
 

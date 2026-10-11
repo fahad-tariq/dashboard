@@ -29,7 +29,6 @@ type Module struct {
 func New(deps module.Deps) module.Module {
 	m := &Module{deps: deps}
 	m.handler = houselib.NewHandler(deps.Services.Maintenance(), deps.Services.HouseProjects(), deps.Render.Lookup(ID), deps.Location)
-	m.handler.SetCommentaryStore(deps.Commentary)
 	return m
 }
 

@@ -1,5 +1,5 @@
 /* live.js -- live refresh, morph swaps, fragment responses, focus and
-   submission feedback (ES5 compatible).
+   submission feedback.
 
    Each page has one live container ([data-live]) that refreshes on its
    modules' SSE events and receives the responses of its forms. Both arrive
@@ -10,7 +10,7 @@
      data-keep-attr="a b"    these attributes keep their current value
      data-morph-skip         the element and its contents are left alone
                              (client-built content, such as upload.js's
-                             image area or loaded commentary). It needs an
+                             image area). It needs an
                              id: idiomorph pairs an element without one with
                              any new element of the same tag, whose content
                              the skip would then swallow.

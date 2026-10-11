@@ -441,10 +441,7 @@ func Digest(items []DigestItem, period DigestPeriod, now time.Time) DigestResult
 	})
 
 	// Compute max value for bar width scaling.
-	result.MaxValue = max(result.AddedTasks, result.CompletedTasks)
-	if result.AddedIdeas > result.MaxValue {
-		result.MaxValue = result.AddedIdeas
-	}
+	result.MaxValue = max(result.AddedTasks, result.CompletedTasks, result.AddedIdeas)
 
 	// Pre-compute bar widths as percentages.
 	if result.MaxValue > 0 {

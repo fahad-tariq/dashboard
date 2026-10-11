@@ -3,6 +3,7 @@ package module
 import (
 	"html/template"
 	"log/slog"
+	"maps"
 	"net/http"
 	"slices"
 	"sync"
@@ -48,9 +49,7 @@ func (r *Renderer) Page(w http.ResponseWriter, req *http.Request, man Manifest, 
 	}
 
 	full := auth.TemplateData(req)
-	for k, v := range data {
-		full[k] = v
-	}
+	maps.Copy(full, data)
 	if _, set := full["Title"]; !set {
 		full["Title"] = man.Title
 	}

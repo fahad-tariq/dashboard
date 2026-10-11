@@ -33,9 +33,6 @@ func main() {
 		case "useradd":
 			runUserAdd()
 			return
-		case "migrate-data":
-			runMigrateData()
-			return
 		}
 	}
 

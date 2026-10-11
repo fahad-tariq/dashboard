@@ -72,16 +72,13 @@ Calendar week tasks reschedule only by drag. Add a keyboard alternative (WCAG 2.
 ## Architecture
 
 ### Capabilities for core pages
-Candidates from Plan 1 Phase 7: `DigestSource` and a tag source (digest and the homepage tag card read ideas through `home.Lists`), `Purger` (the purge loop names services directly), and a manifest field for commentary list names (`httputil` hard-codes `todos`, `family`, `house`, `ideas`).
+Candidates from Plan 1 Phase 7: `DigestSource` and a tag source (digest and the homepage tag card read ideas through `home.Lists`), and `Purger` (the purge loop names services directly).
 
 ### Per-module static assets
 `web/static/` is one flat embedded directory. A module with its own JS adds a file there. Give modules their own static directory if exercise needs one.
 
 ### Fragment responses render the whole page
 `internal/app/fragment.go` replays the redirect and returns the full page, which htmx narrows with `hx-select`. Rendering only the `content` block would save bytes if it ever matters.
-
-### Remove test-only handler constructors
-`tracker.NewHandler` and `ideas.NewHandler` (static services and a template map) are used only by tests. Move those tests to the resolver constructors and delete them.
 
 ### Watcher has no stop hook
 `watcher.Watch` takes no context, so shutdown cannot stop it and each router-building test leaks one watcher.
@@ -94,14 +91,12 @@ Candidates from Plan 1 Phase 7: `DigestSource` and a tag source (digest and the 
 - **Bulk trash has no undo.** There is no bulk restore route, so bulk trash keeps its confirm dialog.
 - **Unsubmitted `<select>` changes reset on a live refresh.** Text fields and checkboxes are kept; selects are not.
 - **SSE events go to every client.** No per-user routing; revisit if multi-user returns.
-- **Admin user deletion:** the watcher recreates the deleted user's directory, and the user's `item_commentary` rows stay behind. Admin code is frozen.
-- **Commentary on shared lists** written through the API (as user 1) is not shown to other users.
+- **Admin user deletion:** the watcher recreates the deleted user's directory. Admin code is frozen.
 - **No-auth then auth database:** the `local@localhost` placeholder keeps id 1, so the bootstrapped admin gets a later id while the API and user-1 paths still point at the placeholder. Dev databases only.
 - **Accepted in Plan 1:** the failed-bearer limiter cannot slow guessing (a valid token always passes); the login account delay is a per-request sleep; `sm.IdleTimeout` rewrites the session row and sends Set-Cookie on every request; a user whose services are first created by a watcher event misses that first broadcast.
 - **Converted-idea link:** the "Converted to a task" link on the idea page and the ideas list always points at `/todos#item-<id>`, even when the task went to family or house.
 - **Flaky e2e `bulk drop and trash on the plan`** (`planner.spec.ts`): seen once on 2026-10-11 on a docs-only commit; the bulk-trash form posted as a full navigation to `/plan/bulk/delete` and `#flash` never rendered, then passed on the next push. Investigate if it recurs: the confirm-dialog click may race the fragment middleware.
 - **`APIReorderPlan`** answers 500 for a well-formed ID that is not in the list (API off in production).
 - **Items without an ID** (a failed load-time save) cannot be addressed, share the key `""` in the planner's exclude maps and give duplicate DOM ids, until the next write to that file assigns them IDs.
-- **Commentary cleanup across users:** `DeleteItems` and `Copy` act on an item ID for every user, so a chance ID collision between two users' files could touch the other user's commentary. Needs a second user.
 - **Reference relinking runs once:** `[from-idea:]`/`[converted-to:]` slugs are turned into IDs only on the load that assigns IDs; a crash between the two leaves slugs that `{id}` routes cannot resolve. Production has none.
 - **Rollback to a pre-ID image:** its writer moves `[id:]` ahead of other tags, after which the current parser no longer reads it and assigns fresh IDs, losing every ID and reference. Roll back by restoring a backup with the matching image, never by running an older image on rewritten files.

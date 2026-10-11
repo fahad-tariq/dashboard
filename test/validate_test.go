@@ -128,26 +128,6 @@ func TestValidateList(t *testing.T) {
 	}
 }
 
-func TestValidateListWithIdeas(t *testing.T) {
-	tests := []struct {
-		list string
-		want bool
-	}{
-		{"personal", true},
-		{"todos", true},
-		{"family", true},
-		{"ideas", true},
-		{"house", true},
-		{"", false},
-		{"invalid", false},
-	}
-	for _, tt := range tests {
-		if got := httputil.ValidateListWithIdeas(tt.list); got != tt.want {
-			t.Errorf("ValidateListWithIdeas(%q) = %v, want %v", tt.list, got, tt.want)
-		}
-	}
-}
-
 func TestNormaliseList(t *testing.T) {
 	tests := []struct {
 		input string

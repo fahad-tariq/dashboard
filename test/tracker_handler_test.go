@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/db"
+	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/tracker"
 )
 
@@ -69,8 +70,8 @@ func setupTrackerEnv(t *testing.T) *trackerTestEnv {
 		templates[name] = tmpl
 	}
 
-	personalHandler := tracker.NewHandler(personalSvc, familySvc, templates, "todos", time.UTC)
-	familyHandler := tracker.NewHandler(familySvc, personalSvc, templates, "family", time.UTC)
+	personalHandler := staticTrackerHandler(personalSvc, familySvc, templates, "todos")
+	familyHandler := staticTrackerHandler(familySvc, personalSvc, templates, "family")
 
 	r := chi.NewRouter()
 	r.Get("/todos", personalHandler.TrackerPage)
@@ -109,6 +110,12 @@ func setupTrackerEnv(t *testing.T) *trackerTestEnv {
 		familySvc:       familySvc,
 		router:          r,
 	}
+}
+
+// staticTrackerHandler serves one fixed pair of services for every request.
+func staticTrackerHandler(svc, otherSvc *tracker.Service, templates map[string]*template.Template, listName string) *tracker.Handler {
+	resolve := func(*http.Request) (*tracker.Service, *tracker.Service) { return svc, otherSvc }
+	return tracker.NewHandlerWithResolver(resolve, httputil.PageMap(templates), listName, time.UTC)
 }
 
 func postForm(router *chi.Mux, path string, values url.Values) *httptest.ResponseRecorder {

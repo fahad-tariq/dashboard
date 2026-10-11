@@ -73,7 +73,7 @@ func TestItemIDRouteMatchesAlphabet(t *testing.T) {
 		t.Fatalf("Route %q is not {id:[...]{8}}", itemid.Route)
 	}
 	re := regexp.MustCompile("^" + class[1] + "$")
-	for c := 0; c < 128; c++ {
+	for c := range 128 {
 		ch := string(rune(c))
 		if got, want := re.MatchString(ch), strings.Contains(itemid.Alphabet, ch); got != want {
 			t.Errorf("%q: route accepts %v, alphabet holds %v", ch, got, want)

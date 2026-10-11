@@ -11,7 +11,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/auth"
-	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/tracker"
 )
@@ -55,7 +54,6 @@ type Handler struct {
 	projectsSvc    *tracker.Service
 	pages          httputil.PageLookup
 	loc            *time.Location
-	commentarySt   *commentary.Store
 }
 
 // NewHandler creates a house page handler.
@@ -66,11 +64,6 @@ func NewHandler(maintenanceSvc *Service, projectsSvc *tracker.Service, pages htt
 		pages:          pages,
 		loc:            loc,
 	}
-}
-
-// SetCommentaryStore enables AI commentary for house items.
-func (h *Handler) SetCommentaryStore(st *commentary.Store) {
-	h.commentarySt = st
 }
 
 // HousePage renders GET /house with both maintenance and project sections.
@@ -252,7 +245,6 @@ func (h *Handler) PurgeMaintenance(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
-	h.commentarySt.ForgetItems(id)
 	http.Redirect(w, r, "/house?msg=item-purged", http.StatusSeeOther)
 }
 
@@ -398,7 +390,6 @@ func (h *Handler) PurgeProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
-	h.commentarySt.ForgetItems(id)
 	http.Redirect(w, r, "/house?msg=item-purged", http.StatusSeeOther)
 }
 

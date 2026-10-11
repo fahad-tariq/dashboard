@@ -1,6 +1,5 @@
 CONNECT /static/*
 CONNECT /uploads/*
-DELETE  /api/v1/commentary/{list}/{id:[b-df-hj-np-tv-xz0-9]{8}}
 DELETE  /api/v1/plan/{id:[b-df-hj-np-tv-xz0-9]{8}}
 DELETE  /api/v1/todos/{id:[b-df-hj-np-tv-xz0-9]{8}}
 DELETE  /api/v1/todos/{id:[b-df-hj-np-tv-xz0-9]{8}}/substeps/{index}
@@ -13,12 +12,10 @@ GET     /admin/users
 GET     /admin/users/new
 GET     /admin/users/{id}/edit
 GET     /admin/users/{id}/password
-GET     /api/v1/commentary/{list}/{id:[b-df-hj-np-tv-xz0-9]{8}}
 GET     /api/v1/ideas
 GET     /api/v1/plan
 GET     /api/v1/todos
 GET     /api/v1/todos/{id:[b-df-hj-np-tv-xz0-9]{8}}
-GET     /commentary/{list}/{id:[b-df-hj-np-tv-xz0-9]{8}}
 GET     /digest
 GET     /events
 GET     /exploration
@@ -139,7 +136,6 @@ POST    /todos/{id:[b-df-hj-np-tv-xz0-9]{8}}/tags
 POST    /todos/{id:[b-df-hj-np-tv-xz0-9]{8}}/uncomplete
 POST    /upload
 POST    /uploads/*
-PUT     /api/v1/commentary/{list}/{id:[b-df-hj-np-tv-xz0-9]{8}}
 PUT     /api/v1/ideas/{id:[b-df-hj-np-tv-xz0-9]{8}}/triage
 PUT     /api/v1/plan/{id:[b-df-hj-np-tv-xz0-9]{8}}
 PUT     /api/v1/todos/{id:[b-df-hj-np-tv-xz0-9]{8}}

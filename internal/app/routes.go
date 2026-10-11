@@ -16,7 +16,6 @@ import (
 	"github.com/fahad/dashboard/internal/account"
 	"github.com/fahad/dashboard/internal/admin"
 	"github.com/fahad/dashboard/internal/auth"
-	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/home"
 	"github.com/fahad/dashboard/internal/httputil"
@@ -36,7 +35,6 @@ type handlers struct {
 	admin      *admin.Handler
 	auth       *auth.Handler
 	events     *sse.Broker
-	commentary *commentary.Store
 	uploadsDir string
 }
 
@@ -83,7 +81,6 @@ func mountBrowserRoutes(r chi.Router, cfg *config.Config, database *sql.DB, sm *
 		r.Post("/account/password", h.account.PasswordSubmit)
 
 		mountAppRoutes(r, h)
-		r.Get("/commentary/{list}/"+itemid.Route, commentary.WebGetCommentary(h.commentary))
 		for _, m := range reg.Modules() {
 			man := m.Manifest()
 			if err = mountModule(r, man.ID, man.Prefixes, m.Routes); err != nil {
@@ -153,9 +150,6 @@ func mountAPIRoutes(root chi.Router, cfg *config.Config, h *handlers, reg *modul
 		r.Delete("/plan/"+itemid.Route, h.home.APIClearPlan)
 		r.Post("/plan/reorder", h.home.APIReorderPlan)
 		r.Post("/plan/clear-carried", h.home.APIClearCarried)
-		r.Put("/commentary/{list}/"+itemid.Route, commentary.APISetCommentary(h.commentary))
-		r.Get("/commentary/{list}/"+itemid.Route, commentary.APIGetCommentary(h.commentary))
-		r.Delete("/commentary/{list}/"+itemid.Route, commentary.APIDeleteCommentary(h.commentary))
 		// Module API routes sit under /api/v1/<module-id>, so none can
 		// shadow a core API route.
 		for _, m := range reg.Modules() {

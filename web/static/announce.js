@@ -1,4 +1,4 @@
-/* announce.js -- screen reader announcements and the toast (ES5 compatible) */
+/* announce.js -- screen reader announcements and the toast */
 
 /* global window, document */
 

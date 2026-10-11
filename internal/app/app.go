@@ -20,7 +20,6 @@ import (
 	"github.com/fahad/dashboard/internal/account"
 	"github.com/fahad/dashboard/internal/admin"
 	"github.com/fahad/dashboard/internal/auth"
-	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/config"
 	"github.com/fahad/dashboard/internal/home"
 	"github.com/fahad/dashboard/internal/module"
@@ -113,8 +112,7 @@ func NewRouterWith(shutdownCtx context.Context, cfg *config.Config, database *sq
 	if err != nil {
 		return nil, err
 	}
-	commentaryStore := commentary.NewStore(database)
-	reg, render, err := buildModules(cfg, svcs, commentaryStore, publish, slices.Concat(modules, opts.Modules))
+	reg, render, err := buildModules(cfg, svcs, publish, slices.Concat(modules, opts.Modules))
 	if err != nil {
 		return nil, err
 	}
@@ -124,10 +122,10 @@ func NewRouterWith(shutdownCtx context.Context, cfg *config.Config, database *sq
 	}
 	render.SetPages(tmpls.modules)
 	svcs.watch(cfg, broker, reg)
-	go runHourly(shutdownCtx, func() { svcs.purgeExpired(database, commentaryStore) })
+	go runHourly(shutdownCtx, func() { svcs.purgeExpired(database) })
 
 	sm := newSessionManager(shutdownCtx, cfg, database)
-	h := svcs.handlers(cfg, database, sm, broker, commentaryStore, tmpls.core, tmpls.login, reg)
+	h := svcs.handlers(cfg, database, sm, broker, tmpls.core, tmpls.login, reg)
 
 	root := chi.NewRouter()
 	root.Use(securityHeaders)
@@ -149,16 +147,15 @@ func NewRouterWith(shutdownCtx context.Context, cfg *config.Config, database *sq
 
 // buildModules constructs the modules and validates them against the core.
 // The renderer is filled once templates are parsed, which needs the nav.
-func buildModules(cfg *config.Config, svcs appServices, commentaryStore *commentary.Store, publish func(string), factories []module.Factory) (*module.Registry, *module.Renderer, error) {
+func buildModules(cfg *config.Config, svcs appServices, publish func(string), factories []module.Factory) (*module.Registry, *module.Renderer, error) {
 	render := &module.Renderer{}
 	deps := module.Deps{
-		Location:   cfg.Location,
-		Config:     cfg,
-		Services:   svcs.registry,
-		Render:     render,
-		DataDir:    filepath.Dir(cfg.FamilyPath),
-		Commentary: commentaryStore,
-		Publish:    publish,
+		Location: cfg.Location,
+		Config:   cfg,
+		Services: svcs.registry,
+		Render:   render,
+		DataDir:  filepath.Dir(cfg.FamilyPath),
+		Publish:  publish,
 	}
 	mods := make([]module.Module, 0, len(factories))
 	for _, f := range factories {
@@ -276,7 +273,7 @@ func (s appServices) lists(r *http.Request) home.Lists {
 	}
 }
 
-func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.SessionManager, broker *sse.Broker, commentaryStore *commentary.Store, templates map[string]*template.Template, loginTmpl *template.Template, reg *module.Registry) *handlers {
+func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.SessionManager, broker *sse.Broker, templates map[string]*template.Template, loginTmpl *template.Template, reg *module.Registry) *handlers {
 	h := &handlers{
 		home:       home.NewHandler(s.lists, templates, cfg.Location),
 		search:     search.NewHandler(reg.Searchers()),
@@ -285,7 +282,6 @@ func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.Sess
 		admin:      admin.NewHandler(database, s.registry, cfg.UserDataDir, templates),
 		auth:       auth.NewHandler(sm, database, auth.NewRateLimiter(), loginTmpl, auth.WithTrustedProxies(cfg.TrustedProxies)),
 		events:     broker,
-		commentary: commentaryStore,
 		uploadsDir: cfg.UploadsDir,
 	}
 	h.home.SetWidgets(reg.Widgets)
@@ -293,18 +289,15 @@ func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.Sess
 }
 
 // purgeExpired removes items trashed more than trashRetentionDays ago from
-// the shared lists and every user's lists, with their commentary.
-func (s appServices) purgeExpired(database *sql.DB, comments *commentary.Store) {
+// the shared lists and every user's lists.
+func (s appServices) purgeExpired(database *sql.DB) {
 	type purger interface {
 		PurgeExpired(days int) ([]string, error)
 	}
 	purge := func(svc purger, attrs ...any) {
-		ids, err := svc.PurgeExpired(trashRetentionDays)
-		if err != nil {
+		if _, err := svc.PurgeExpired(trashRetentionDays); err != nil {
 			slog.Error("purge failed", append(attrs, "error", err)...)
-			return
 		}
-		comments.ForgetItems(ids...)
 	}
 	purge(s.registry.Family(), "list", "family")
 	purge(s.registry.HouseProjects(), "list", "house projects")

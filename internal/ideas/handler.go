@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/auth"
-	"github.com/fahad/dashboard/internal/commentary"
 	"github.com/fahad/dashboard/internal/httputil"
 	"github.com/fahad/dashboard/internal/itemid"
 	"github.com/fahad/dashboard/internal/markdown"
@@ -59,28 +58,10 @@ var flashErrorKeys = map[string]bool{
 
 // Handler handles HTTP requests for ideas.
 type Handler struct {
-	resolve      ServiceResolver
-	toTask       ToTaskFunc
-	pages        httputil.PageLookup
-	loc          *time.Location
-	commentarySt *commentary.Store
-}
-
-// SetCommentaryStore injects a commentary store for displaying ironclaw commentary.
-func (h *Handler) SetCommentaryStore(store *commentary.Store) {
-	h.commentarySt = store
-}
-
-// NewHandler creates a handler with a static service reference.
-func NewHandler(svc *Service, toTask ToTaskFunc, templates map[string]*template.Template, loc *time.Location) *Handler {
-	return &Handler{
-		resolve: func(r *http.Request) *Service {
-			return svc
-		},
-		toTask: toTask,
-		pages:  httputil.PageMap(templates),
-		loc:    loc,
-	}
+	resolve ServiceResolver
+	toTask  ToTaskFunc
+	pages   httputil.PageLookup
+	loc     *time.Location
 }
 
 // NewHandlerWithResolver creates a handler that resolves the service per-request.
@@ -173,14 +154,6 @@ func (h *Handler) IdeaDetail(w http.ResponseWriter, r *http.Request) {
 	data["Idea"] = idea
 	data["BodyHTML"] = template.HTML(bodyHTML) //nolint:gosec // G203: markdown.Render output is bluemonday-sanitised
 	data["IsDeleted"] = idea.DeletedAt != ""
-
-	if h.commentarySt != nil {
-		if c, err := h.commentarySt.Get(id, int(auth.UserID(r.Context()))); err == nil && c != "" {
-			if rendered, err := markdown.Render([]byte(c)); err == nil {
-				data["CommentaryHTML"] = template.HTML(rendered) //nolint:gosec // G203: markdown.Render output is bluemonday-sanitised
-			}
-		}
-	}
 
 	if err := httputil.ExecutePage(w, h.pages, "idea.html", data); err != nil {
 		httputil.ServerError(w, "rendering idea detail", err)
@@ -325,7 +298,6 @@ func (h *Handler) PermanentDeleteIdea(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, classifyIdeaError(err), http.StatusBadRequest)
 		return
 	}
-	h.commentarySt.ForgetItems(id)
 	http.Redirect(w, r, "/ideas?msg=idea-purged", http.StatusSeeOther)
 }
 
