@@ -278,7 +278,7 @@ func (s appServices) handlers(cfg *config.Config, database *sql.DB, sm *scs.Sess
 		home:       home.NewHandler(s.lists, templates, cfg.Location),
 		search:     search.NewHandler(reg.Searchers()),
 		upload:     upload.NewHandler(cfg.UploadsDir),
-		account:    account.NewHandler(database, sm, templates, cfg.Location),
+		account:    account.NewHandler(database, sm, templates, cfg.Location, ownerID),
 		admin:      admin.NewHandler(database, s.registry, cfg.UserDataDir, templates),
 		auth:       auth.NewHandler(sm, database, auth.NewRateLimiter(), loginTmpl, auth.WithTrustedProxies(cfg.TrustedProxies)),
 		events:     broker,

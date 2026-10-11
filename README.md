@@ -272,7 +272,7 @@ Three Shortcuts call the API. Before building them, mint a token named after the
 
 **Add task** (Siri: "Add task"; also the share sheet):
 1. Receive Text input from Share Sheet; if there is no input, Ask For Input (Text, prompt "Task?"). Dictation can carry tags and priority: "Buy milk hashtag groceries exclamation mark high" arrives as "Buy milk #groceries ! High" and becomes "Buy milk", tag `groceries`, priority high.
-2. Choose from Menu "Priority" with None, High, Medium, Low. In High, add a Text action `!high` (likewise `!medium`, `!low`); leave None empty.
+2. Choose from Menu "Priority" with None, High, Medium, Low. In High, add a Text action `!high` (likewise `!medium`, `!low`); in None, add an empty Text action, because a branch with no action passes its input on as the Menu Result.
 3. Text: the Shortcut Input (or the Ask For Input answer), a space, then the Menu Result. The server reads the marker from the title because the request sends no `priority`.
 4. Get Contents of URL `https://dash.home.caalador.net/api/v1/todos`, method POST, JSON body `title` = that Text, `list` = `personal`.
 5. Get Dictionary Value `error` from Contents of URL; If it has any value, Show Alert with it and Stop This Shortcut.
@@ -280,20 +280,22 @@ Three Shortcuts call the API. Before building them, mint a token named after the
 7. Choose from Menu "Plan for today?": Yes runs Get Contents of URL `https://dash.home.caalador.net/api/v1/plan/` followed by `TaskID`, method PUT, JSON body `list` = `personal`; No does nothing.
 8. Show Notification "Added: " followed by `Title`.
 
-For the Action button (Settings > Action Button > Shortcut), duplicate it as "Quick task" and delete steps 2, 3 and 7, so a press asks one question and dictated `#tag` and `! High` still work.
+For the Action button (Settings > Action Button > Shortcut), duplicate it as "Quick task", delete steps 2, 3 and 7, and set step 4's `title` to the Shortcut Input (or the Ask For Input answer), since the Text it pointed at is gone. A press then asks one question, and dictated `#tag` and `! High` still work.
 
 **Capture idea** (share sheet from Safari or any app sharing a link or text):
 1. Receive URLs, Safari web pages and Text input from Share Sheet.
-2. Get Details of Safari Web Page: Name, from the Shortcut Input. If it has no value, use the Shortcut Input as the name.
+2. If the Shortcut Input is a URL or web page, Get Details of Safari Web Page: Name, from it; otherwise use the Shortcut Input as the name. (Get Details of Safari Web Page may fail on plain text, hence the If.)
 3. Get Contents of URL `https://dash.home.caalador.net/api/v1/ideas`, method POST, JSON body `title` = the name, `body` = the Shortcut Input.
-4. Show Notification "Idea saved".
+4. Get Dictionary Value `error` from Contents of URL; If it has any value, Show Alert with it and Stop This Shortcut.
+5. Show Notification "Idea saved".
 
 **What's on today** (Siri: "What's on today"):
 1. Get Contents of URL `https://dash.home.caalador.net/api/v1/plan`, method GET (no body).
-2. For each of `personal`, `family` and `overdue`: Get Dictionary Value of that key, Repeat with Each item: Get Dictionary Value `title` from the Repeat Item and Add to Variable `Titles`.
-3. If `Titles` has any value, Speak Text "Today: " followed by `Titles` (Combine Text with ", "); otherwise Speak Text "Nothing planned".
+2. Get Dictionary Value `error` from Contents of URL; If it has any value, Speak Text "The dashboard said: " followed by it and Stop This Shortcut, so a failed call is not read out as an empty day.
+3. For each of `personal`, `family`, `house` and `overdue`: Get Dictionary Value of that key, Repeat with Each item: Get Dictionary Value `title` from the Repeat Item and Add to Variable `Titles`.
+4. If `Titles` has any value, Speak Text "Today: " followed by `Titles` (Combine Text with ", "); otherwise Speak Text "Nothing planned".
 
-Plan items include ones already done; overdue items are the ones carried from earlier days.
+Plan items include ones already done (each has `done`); overdue items are the ones carried from earlier days and do not repeat in the other lists. The steps above have not yet been tried on a phone; the action names follow iOS 18.
 
 **Things to know.**
 - The token lives inside the Shortcut and syncs through iCloud with it. Mint one token per device, never share or export these Shortcuts, and if one is shared by mistake, revoke its token on `/account` and mint a new one.

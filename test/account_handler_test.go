@@ -54,7 +54,7 @@ func setupAccountEnv(t *testing.T) *accountTestEnv {
 	)
 	templates["account.html"] = tmpl
 
-	acctHandler := accountpkg.NewHandler(database, sm, templates, time.UTC)
+	acctHandler := accountpkg.NewHandler(database, sm, templates, time.UTC, 1)
 
 	r := chi.NewRouter()
 	r.Use(sm.LoadAndSave)

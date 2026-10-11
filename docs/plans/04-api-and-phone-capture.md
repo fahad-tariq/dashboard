@@ -339,3 +339,11 @@ Accepted: on the idempotent path the service checks the file but the handler ans
 
 **Certificate.** The owner opened `https://dash.home.caalador.net` in Safari on the phone on 2026-10-11 and the certificate is trusted.
 
+**Self-review** (independent agent) and **security review** (separate agent). The security review found nothing at confidence 8 or above; its assumptions were LAN and Tailscale reach only, trusted environment variables, loopback-only no-auth mode. Fixed, the server-side ones test-first (`08614af`):
+- Any logged-in user could mint tokens, but only the owner's open the API, so a second user (or a bootstrapped admin whose id is not 1) got a token that always answered 401. The section is now shown only to the owner and `POST /account/tokens` answers 403 for anyone else (`account.NewHandler` takes the token user, `app.ownerID`).
+- `CreateToken` wrote its 400 before rendering, so a failed token list wrote a second status; `render` now takes the status and writes it after the list is read. `RevokeToken` reported a `RowsAffected` error as not found; it now returns it.
+- README recipes: "Capture idea" and "What's on today" now check `error` before claiming success or reading out an empty day; the "None" priority branch gets an empty Text action (a branch with no action passes its input through, by the reviewer's understanding, about 65% sure); "Quick task" says to repoint `title` after deleting the Text step; "What's on today" includes `house`; "Capture idea" asks for the web page name only when the input is a URL.
+- The copy action calls `setSelectionRange` because iOS selects nothing in a read-only input on `select()`; `role="status"` came off content present at load; the page warns that reloading creates another token.
+
+Accepted: `DeleteUser` does not revoke the deleted user's tokens (admin code is frozen, and a non-owner token never authenticates). The plan's checklist says `revoked_at IS NULL`; the code uses `''`, as recorded above. The Docs item stays unticked until the homelab table is updated at deploy time.
+

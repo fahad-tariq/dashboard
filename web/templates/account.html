@@ -51,12 +51,13 @@
     </script>
 </div>
 
+{{if .CanMintTokens}}
 <div class="admin-form-card mt-md" id="api-tokens">
     <h2 class="admin-section-title">API tokens</h2>
     <p class="account-note">Each phone or Shortcut gets its own token, which acts as you on the API. Changing your password does not revoke tokens: revoke one here if a device is lost or a Shortcut is shared.</p>
     {{if .NewToken}}
-    <div class="token-new" role="status">
-        <label for="new-token">New token: copy it now, it is not shown again.</label>
+    <div class="token-new">
+        <label for="new-token">New token: copy it now, it is not shown again. Reloading this page creates another one.</label>
         <div class="token-new-row">
             <input type="text" id="new-token" class="form-input token-value" value="{{.NewToken}}" readonly autocomplete="off" spellcheck="false">
             <button type="button" class="btn btn-secondary" data-action="copy" data-copy="new-token">Copy</button>
@@ -87,4 +88,5 @@
     <p class="account-note">No tokens yet.</p>
     {{end}}
 </div>
+{{end}}
 {{end}}

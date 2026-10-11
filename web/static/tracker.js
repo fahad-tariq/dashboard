@@ -333,6 +333,7 @@ clickActions['copy'] = function(el) {
     var input = document.getElementById(el.getAttribute('data-copy'));
     if (!input) return;
     input.select();
+    input.setSelectionRange(0, input.value.length); // iOS ignores select() on a read-only input
     var copied = function() {
         el.textContent = 'Copied';
         if (window.announce) window.announce('Copied');

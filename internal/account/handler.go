@@ -30,14 +30,18 @@ type Handler struct {
 	sm        *scs.SessionManager
 	templates map[string]*template.Template
 	loc       *time.Location
+	// tokenUser is the only user whose API tokens the API accepts, so the
+	// only one offered the token section.
+	tokenUser int64
 }
 
-func NewHandler(db *sql.DB, sm *scs.SessionManager, templates map[string]*template.Template, loc *time.Location) *Handler {
+func NewHandler(db *sql.DB, sm *scs.SessionManager, templates map[string]*template.Template, loc *time.Location, tokenUser int64) *Handler {
 	return &Handler{
 		db:        db,
 		sm:        sm,
 		templates: templates,
 		loc:       loc,
+		tokenUser: tokenUser,
 	}
 }
 
@@ -48,17 +52,21 @@ type tokenRow struct {
 	Created, LastUsed string
 }
 
-// render shows the account page with data merged into the base map and the
-// user's device tokens.
-func (h *Handler) render(w http.ResponseWriter, r *http.Request, user *auth.User, data map[string]any) {
+// render shows the account page with status, data merged into the base map
+// and, for the token user, their device tokens.
+func (h *Handler) render(w http.ResponseWriter, r *http.Request, user *auth.User, status int, data map[string]any) {
 	page := auth.TemplateData(r)
 	page["Title"] = "Account Settings"
 	page["FirstName"] = user.FirstName
+	page["CanMintTokens"] = user.ID == h.tokenUser
 	maps.Copy(page, data)
-	tokens, err := auth.ListTokens(h.db, user.ID)
-	if err != nil {
-		httputil.ServerError(w, "listing API tokens", err, "user_id", user.ID)
-		return
+	var tokens []auth.APIToken
+	if user.ID == h.tokenUser {
+		var err error
+		if tokens, err = auth.ListTokens(h.db, user.ID); err != nil {
+			httputil.ServerError(w, "listing API tokens", err, "user_id", user.ID)
+			return
+		}
 	}
 	rows := make([]tokenRow, 0, len(tokens))
 	for _, t := range tokens {
@@ -69,6 +77,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, user *auth.User
 		rows = append(rows, row)
 	}
 	page["Tokens"] = rows
+	w.WriteHeader(status)
 	if err := h.templates["account.html"].ExecuteTemplate(w, "layout.html", page); err != nil {
 		slog.Error("rendering account page", "error", err)
 	}
@@ -98,7 +107,7 @@ func (h *Handler) AccountPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.render(w, r, user, map[string]any{"FlashMsg": flashMessages[r.URL.Query().Get("msg")]})
+	h.render(w, r, user, http.StatusOK, map[string]any{"FlashMsg": flashMessages[r.URL.Query().Get("msg")]})
 }
 
 func (h *Handler) NameSubmit(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +126,7 @@ func (h *Handler) NameSubmit(w http.ResponseWriter, r *http.Request) {
 
 	if err := auth.UpdateUserFirstName(h.db, uid, firstName); err != nil {
 		slog.Error("updating first name", "user_id", uid, "error", err)
-		h.render(w, r, user, map[string]any{"FirstName": firstName, "NameError": "Failed to update name."})
+		h.render(w, r, user, http.StatusOK, map[string]any{"FirstName": firstName, "NameError": "Failed to update name."})
 		return
 	}
 
@@ -144,7 +153,7 @@ func (h *Handler) PasswordSubmit(w http.ResponseWriter, r *http.Request) {
 	confirm := r.FormValue("confirm")
 
 	renderErr := func(errMsg string) {
-		h.render(w, r, user, map[string]any{"PasswordError": errMsg})
+		h.render(w, r, user, http.StatusOK, map[string]any{"PasswordError": errMsg})
 	}
 
 	if currentPassword == "" {
@@ -188,6 +197,10 @@ func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
+	if user.ID != h.tokenUser {
+		http.Error(w, "Only the owner's API tokens are accepted", http.StatusForbidden)
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
@@ -195,8 +208,7 @@ func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	plain, err := auth.CreateToken(h.db, user.ID, r.FormValue("name"))
 	if errors.Is(err, auth.ErrTokenName) {
-		w.WriteHeader(http.StatusBadRequest)
-		h.render(w, r, user, map[string]any{"TokenError": "Give the device a name."})
+		h.render(w, r, user, http.StatusBadRequest, map[string]any{"TokenError": "Give the device a name."})
 		return
 	}
 	if err != nil {
@@ -204,7 +216,7 @@ func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("API token created", "user_id", user.ID)
-	h.render(w, r, user, map[string]any{"NewToken": plain})
+	h.render(w, r, user, http.StatusOK, map[string]any{"NewToken": plain})
 }
 
 // RevokeToken revokes one of the session user's tokens.

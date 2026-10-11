@@ -123,7 +123,11 @@ func RevokeToken(db *sql.DB, id, userID int64) error {
 	if err != nil {
 		return fmt.Errorf("revoking token: %w", err)
 	}
-	if n, err := res.RowsAffected(); err != nil || n == 0 {
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("revoking token: %w", err)
+	}
+	if n == 0 {
 		return ErrTokenNotFound
 	}
 	return nil
