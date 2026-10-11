@@ -91,12 +91,10 @@ func TestAPIListTodos(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// "Existing task" should be present, "Private item" should be filtered
+	// Both are present: a private tag no longer hides an item from the API.
 	personal := resp["personal"]
-	for _, item := range personal {
-		if item["title"] == "Private item" {
-			t.Error("private-tagged item should be filtered from API response")
-		}
+	if !slices.ContainsFunc(personal, func(item map[string]any) bool { return item["title"] == "Private item" }) {
+		t.Error("private-tagged item missing from the API response")
 	}
 	found := false
 	for _, item := range personal {
