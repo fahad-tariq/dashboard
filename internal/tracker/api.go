@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fahad/dashboard/internal/httputil"
+	"github.com/fahad/dashboard/internal/itemid"
 )
 
 const (
@@ -201,12 +202,14 @@ func APIGetTodo(resolve ServiceResolver) http.HandlerFunc {
 	}
 }
 
-// APIAddTodo creates a new task.
+// APIAddTodo creates a new task. A request may bring its own ID, so a
+// client that retries after a lost response creates one task, not two.
 func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		personalSvc, familySvc := resolve(r)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		var req struct {
+			ID       string   `json:"id"`
 			Title    string   `json:"title"`
 			Body     string   `json:"body"`
 			Tags     []string `json:"tags"`
@@ -230,12 +233,17 @@ func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 			jsonError(w, err, http.StatusBadRequest)
 			return
 		}
+		if req.ID != "" && !itemid.Valid(req.ID) {
+			jsonError(w, "invalid id: 8 characters from "+itemid.Alphabet, http.StatusBadRequest)
+			return
+		}
 
 		req.Title = httputil.CleanTitle(req.Title)
 		req.Body = httputil.StripInlineMetadata(req.Body)
 		req.Priority = sanitisePriority(req.Priority)
 
 		item := Item{
+			ID:       req.ID,
 			Title:    req.Title,
 			Type:     TaskType,
 			Body:     req.Body,
@@ -244,14 +252,17 @@ func APIAddTodo(resolve ServiceResolver) http.HandlerFunc {
 		}
 
 		svc := resolveListService(req.List, personalSvc, familySvc)
-		id, err := svc.AddItem(item)
+		// A retry that brings an ID the list holds gets the stored item.
+		id, created, err := svc.AddItemOnce(item)
 		if err != nil {
 			jsonError(w, "failed to create item", http.StatusInternalServerError)
 			return
 		}
-
-		// Answer with the stored item: the service cleans the title.
-		WriteStored(w, svc, id, req.List, http.StatusCreated)
+		status := http.StatusCreated
+		if !created {
+			status = http.StatusOK
+		}
+		WriteStored(w, svc, id, req.List, status)
 	}
 }
 

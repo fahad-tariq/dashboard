@@ -14,16 +14,16 @@ import (
 
 // Idea represents a single idea in the flat-file ideas.md format.
 type Idea struct {
-	ID          string   `json:"id,omitempty"` // permanent, [id:]; empty until the service assigns one
-	Title       string   `json:"title"`
-	Status      string   `json:"status"` // untriaged, parked, dropped, converted
-	Tags        []string `json:"tags,omitempty"`
-	Images      []string `json:"images,omitempty"`
-	Project     string   `json:"project,omitempty"`
-	Added       string   `json:"added,omitempty"`
-	ConvertedTo string   `json:"converted_to,omitempty"` // ID of the task this idea was converted to (a slug in older files)
-	Body        string   `json:"body"`
-	DeletedAt   string   `json:"deleted_at,omitempty"` // soft-delete date, YYYY-MM-DD
+	ID          string // permanent, [id:]; empty until the service assigns one
+	Title       string
+	Status      string // untriaged, parked, dropped, converted
+	Tags        []string
+	Images      []string
+	Project     string
+	Added       string
+	ConvertedTo string // ID of the task this idea was converted to (a slug in older files)
+	Body        string
+	DeletedAt   string // soft-delete date, YYYY-MM-DD
 }
 
 // validStatuses are the statuses an idea can have.

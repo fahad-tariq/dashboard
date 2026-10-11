@@ -110,12 +110,24 @@ func (s *Service) Get(id string) (*Idea, error) {
 
 // Add appends a new idea to the ideas.md file and sets idea.ID.
 func (s *Service) Add(idea *Idea) error {
+	_, err := s.add(idea, false)
+	return err
+}
+
+// AddOnce is Add for a create a client may retry: when the file already
+// holds the ID idea brings, trashed or not, it writes nothing and returns
+// created false, leaving idea.ID as it was.
+func (s *Service) AddOnce(idea *Idea) (created bool, err error) {
+	return s.add(idea, true)
+}
+
+func (s *Service) add(idea *Idea, once bool) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	idea.Title = httputil.CleanTitle(idea.Title)
 	if idea.Title == "" {
-		return fmt.Errorf("empty title")
+		return false, fmt.Errorf("empty title")
 	}
 	if idea.Added == "" {
 		idea.Added = time.Now().In(s.loc).Format("2006-01-02")
@@ -123,24 +135,36 @@ func (s *Service) Add(idea *Idea) error {
 	if idea.Status == "" {
 		idea.Status = "untriaged"
 	}
+	cleanMeta(idea)
 
 	ideas, err := ParseIdeas(s.ideasPath)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	taken := func(id string) bool {
 		return slices.ContainsFunc(ideas, func(i Idea) bool { return i.ID == id })
+	}
+	if itemid.Valid(idea.ID) && taken(idea.ID) && once {
+		return false, nil
 	}
 	if !itemid.Valid(idea.ID) || taken(idea.ID) {
 		idea.ID = itemid.NewUnique(taken)
 	}
 	ideas = append(ideas, *idea)
 	if err := s.write(ideas); err != nil {
-		return err
+		return false, err
 	}
 	s.cache = ideas
-	return nil
+	return true, nil
+}
+
+// cleanMeta cleans tag, image and project values as the file writer would,
+// so the cache matches the file.
+func cleanMeta(idea *Idea) {
+	idea.Tags = httputil.CleanMetaList(idea.Tags)
+	idea.Images = httputil.CleanMetaList(idea.Images)
+	idea.Project = httputil.CleanMetaValue(idea.Project)
 }
 
 func (s *Service) mutate(id string, fn func(*Idea) error) error {
@@ -192,6 +216,7 @@ func (s *Service) Edit(id, title, body string, tags, images []string) error {
 		idea.Body = body
 		idea.Tags = tags
 		idea.Images = images
+		cleanMeta(idea)
 		// Fallback: extract title from body heading when no explicit title given.
 		if title == "" {
 			for line := range strings.SplitSeq(body, "\n") {

@@ -49,7 +49,7 @@ func TestAPIAddIdea_Valid(t *testing.T) {
 		t.Fatalf("status: got %d, want %d", rec.Code, http.StatusCreated)
 	}
 
-	var resp ideas.Idea
+	var resp ideas.APIIdea
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestAPIListIdeas_ExcludesDeleted(t *testing.T) {
 		t.Fatalf("status: got %d, want %d", rec.Code, http.StatusOK)
 	}
 
-	var result []ideas.Idea
+	var result []ideas.APIIdea
 	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
 		t.Fatalf("decode: %v", err)
 	}

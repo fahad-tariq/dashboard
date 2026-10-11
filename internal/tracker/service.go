@@ -150,19 +150,31 @@ func (s *Service) Get(id string) (*Item, error) {
 // AddItem appends item and returns its ID. An item keeps an ID it brings
 // (a move) unless this list already holds it.
 func (s *Service) AddItem(item Item) (string, error) {
+	id, _, err := s.add(item, false)
+	return id, err
+}
+
+// AddItemOnce is AddItem for a create a client may retry: when the list
+// already holds the ID item brings, trashed or not, it writes nothing and
+// returns that ID with created false.
+func (s *Service) AddItemOnce(item Item) (id string, created bool, err error) {
+	return s.add(item, true)
+}
+
+func (s *Service) add(item Item, once bool) (string, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	item.Title = httputil.CleanTitle(item.Title)
 	if item.Title == "" {
-		return "", fmt.Errorf("empty title")
+		return "", false, fmt.Errorf("empty title")
 	}
 	for _, date := range []string{item.Deadline, item.Planned} {
 		if date == "" {
 			continue
 		}
 		if err := ValidDate(date); err != nil {
-			return "", err
+			return "", false, err
 		}
 	}
 	if item.Added == "" {
@@ -172,21 +184,24 @@ func (s *Service) AddItem(item Item) (string, error) {
 
 	items, err := ParseTracker(s.trackerPath)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 
 	taken := func(id string) bool {
 		return slices.ContainsFunc(items, func(it Item) bool { return it.ID == id })
+	}
+	if itemid.Valid(item.ID) && taken(item.ID) && once {
+		return item.ID, false, nil
 	}
 	if !itemid.Valid(item.ID) || taken(item.ID) {
 		item.ID = itemid.NewUnique(taken)
 	}
 	items = append(items, item)
 	if err := s.write(items); err != nil {
-		return "", err
+		return "", false, err
 	}
 	s.cache = items
-	return item.ID, nil
+	return item.ID, true, nil
 }
 
 func (s *Service) UpdateNotes(id, body string) error {

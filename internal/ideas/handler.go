@@ -2,7 +2,6 @@ package ideas
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"html/template"
 	"net/http"
@@ -341,96 +340,3 @@ func (h *Handler) BulkTriageIdeas(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- API handlers ---
-
-// APIListIdeas returns all ideas as JSON.
-func (h *Handler) APIListIdeas(w http.ResponseWriter, r *http.Request) {
-	svc := h.resolve(r)
-	ideas, err := svc.List()
-	if err != nil {
-		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	httputil.WriteJSON(w, http.StatusOK, ideas)
-}
-
-// APIAddIdea creates a new idea from a JSON request.
-func (h *Handler) APIAddIdea(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	var req struct {
-		Title string   `json:"title"`
-		Tags  []string `json:"tags"`
-		Type  string   `json:"type"` // Legacy: converted to single tag.
-		Body  string   `json:"body"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
-		return
-	}
-
-	if httputil.CleanTitle(req.Title) == "" {
-		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "title required"})
-		return
-	}
-
-	tags := req.Tags
-	if len(tags) == 0 && req.Type != "" {
-		tags = []string{req.Type}
-	}
-
-	idea := &Idea{
-		Title: req.Title,
-		Tags:  tags,
-		Added: time.Now().In(h.loc).Format("2006-01-02"),
-		Body:  req.Body,
-	}
-
-	svc := h.resolve(r)
-	if err := svc.Add(idea); err != nil {
-		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-
-	httputil.WriteJSON(w, http.StatusCreated, idea)
-}
-
-// APITriageIdea changes an idea's status via JSON API.
-func (h *Handler) APITriageIdea(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	id := chi.URLParam(r, "id")
-	var req struct {
-		Action string `json:"action"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
-		return
-	}
-
-	svc := h.resolve(r)
-	if err := svc.Triage(id, req.Action); err != nil {
-		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-
-	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-// APIAddResearch appends research content to an idea's body.
-func (h *Handler) APIAddResearch(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	id := chi.URLParam(r, "id")
-	var req struct {
-		Content string `json:"content"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
-		return
-	}
-
-	svc := h.resolve(r)
-	if err := svc.AddResearch(id, req.Content); err != nil {
-		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-
-	httputil.WriteJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
-}
