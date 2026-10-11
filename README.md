@@ -114,7 +114,7 @@ dash.example.net {
 
 ### Tasks and goals
 - Personal (`/todos`) and family (`/family`) lists; goals (`/goals`) are personal only
-- Quick add with tags and priority (high, medium, low); inline edit of title, notes, tags and priority
+- Quick add with tags and priority (high, medium, low), from fields or typed into the title as `#tag` and `!high`; inline edit of title, notes, tags and priority
 - Sub-steps as body checkboxes, with progress in the row; a sub-step can be promoted to its own task
 - Filter by tag, priority or "stale" (two weeks or older); on wide screens the filters sit in a left rail with counts
 - Select mode for bulk complete, plan, tag, priority and trash
@@ -226,35 +226,39 @@ Browser routes need a session (or no-auth mode). Each list's mutations are POSTs
 
 ### API
 
-Mounted under `/api/v1` only when `DASHBOARD_API_TOKEN` is set (32+ characters). Send `Authorization: Bearer <token>`; the token acts as user 1. Writes (anything but GET, HEAD and OPTIONS) share one limit of 60 per minute across all callers, and more than 10 bad tokens per minute from one IP get 429. Request bodies are JSON. Responses are JSON, except that plan set and clear return plain-text errors.
+Mounted under `/api/v1` only when `DASHBOARD_API_TOKEN` is set (32+ characters). Send `Authorization: Bearer <token>`; the token acts as user 1. Writes (anything but GET, HEAD and OPTIONS) share one limit of 60 per minute across all callers, and more than 10 bad tokens per minute from one IP get 429. Request and response bodies are JSON; every error, 401 and 429 included, is `{"error": "..."}`.
 
-Items are addressed by their ID (`{id}` is 8 characters from `bcdfghjklmnpqrstvwxz0123456789`; anything else gets the router's plain-text 404), and every item in a response carries `id`. Todo routes need a list: `personal` (or `todos`) or `family`; anything else, including `house`, gets a 400. `GET /todos/{id}` takes it as `?list=`; every other todo route that names an ID takes `"list"` in the JSON body. `GET /todos` returns `{"personal": [...], "family": [...]}`, including goals (with a `type` field) and done items, and leaves out items tagged `private`.
+Items are addressed by their ID (`{id}` is 8 characters from `bcdfghjklmnpqrstvwxz0123456789`; anything else gets the router's plain-text 404). Todo routes need a list: `personal` (or its alias `todos`) or `family`; anything else, including `house`, gets a 400. `GET /todos/{id}` takes it as `?list=`; every other todo route that names an ID takes `"list"` in the JSON body. Plan routes take the same names plus `house`, so one list name, `personal`, works for both a create and the plan request after it.
+
+**Responses.** Every todo and plan item has the same shape, and every idea another; `test/testdata/api/` holds a request and response for each route, which `TestAPIGolden` keeps current. An item carries its `list`, `type` (`task` or `goal`), `tags` and `images` (always arrays; an image is `filename` or `filename|caption`), `body` (sub-step lines included) and `sub_steps` as `[{"text", "done"}]`, `deadline`, `planned` and `plan_order`, and `deleted` (the date) only when it is in the trash; goals add `current`, `target` and `unit`, house projects `status`, `budget` and `actual`. Every route that changes items answers with them as stored: one item, or `{"items": [...]}` for reorder and clear-carried. `GET /todos` returns `{"personal": [...], "family": [...]}` with goals and done items. `GET /plan` returns `date`, `today` (the server's date in `DASHBOARD_TIMEZONE`), `personal`, `family`, `house`, and `overdue`: open tasks from every list planned before `date`, each keeping its `planned` day.
+
+**Creating.** `POST /todos` and `POST /ideas` accept an optional `id` (8 characters from the alphabet above). A new one is used and answered 201; one the list already holds, trashed or not, writes nothing and answers 200 with the stored item, so a client that retries after a lost response creates one item. Any other non-empty `id` is a 400.
+
+**Quick-add syntax.** The title of a new task (API or web form, not goals, house projects or ideas) may carry `#tag` and `!priority` (`!high`, `!medium`, `!low`, any case, with a space allowed after the `!` as dictation writes it). Tags are taken from the title only when the request sends no `tags`, and the priority only when it sends no `priority` (or an empty one); a trailing `.`, `,`, `;`, `:`, `!` or `?` on such a word is dropped. "Buy milk #groceries ! High" becomes "Buy milk", tag `groceries`, priority high. `#42` becomes tag `42`; a lone `#` or `!` stays in the title.
 
 | Method | Path | Body | Description |
 |---|---|---|---|
 | `GET` | `/api/v1/todos` | | List personal and family items |
-| `POST` | `/api/v1/todos` | `title, body, tags, priority, list` | Add a task |
-| `GET` | `/api/v1/todos/{id}?list=` | | Get one item |
-| `PUT` | `/api/v1/todos/{id}` | `title, body, tags, images, deadline, list` | Change any of these; omitted fields and an empty title keep their current values, and an empty `body`, `tags`, `images` or `deadline` clears it. The ID does not change |
+| `POST` | `/api/v1/todos` | `title, list`; optional `id, body, tags, priority` | Add a task |
+| `GET` | `/api/v1/todos/{id}?list=` | | Get one item, trashed or not |
+| `PUT` | `/api/v1/todos/{id}` | `list`; any of `title, body, tags, images, deadline` | Change those fields; omitted fields and an empty title keep their current values, and an empty `body`, `tags`, `images` or `deadline` clears it. The ID does not change |
 | `DELETE` | `/api/v1/todos/{id}` | `list` | Move to the trash |
 | `POST` | `/api/v1/todos/{id}/complete` | `list` | Complete |
 | `POST` | `/api/v1/todos/{id}/uncomplete` | `list` | Reopen |
 | `PUT` | `/api/v1/todos/{id}/priority` | `priority, list` | Set priority |
-| `PUT` | `/api/v1/todos/{id}/tags` | `tags, list` | Set tags |
+| `PUT` | `/api/v1/todos/{id}/tags` | `tags, list` | Set tags (at most 10) |
 | `POST` | `/api/v1/todos/{id}/substeps` | `text, list` | Add a sub-step |
-| `PUT` | `/api/v1/todos/{id}/substeps/{index}` | `list` | Toggle a sub-step |
+| `PUT` | `/api/v1/todos/{id}/substeps/{index}` | `list` | Toggle a sub-step (0-based) |
 | `DELETE` | `/api/v1/todos/{id}/substeps/{index}` | `list` | Remove a sub-step |
-| `GET` | `/api/v1/ideas` | | List ideas |
-| `POST` | `/api/v1/ideas` | `title, body, tags` | Add an idea |
+| `GET` | `/api/v1/ideas` | | List ideas not in the trash |
+| `POST` | `/api/v1/ideas` | `title`; optional `id, body, tags` | Add an idea |
 | `PUT` | `/api/v1/ideas/{id}/triage` | `action`: `park`, `drop` or `untriage` | Triage |
 | `POST` | `/api/v1/ideas/{id}/research` | `content` | Append to the body, adding a `## Research` heading if there is none |
 | `GET` | `/api/v1/plan?date=` | | Plan for a date (default today) |
-| `PUT` | `/api/v1/plan/{id}` | `date` (default today), `list` | Plan a task |
+| `PUT` | `/api/v1/plan/{id}` | `list`; optional `date` (default today) | Plan a task |
 | `DELETE` | `/api/v1/plan/{id}` | `list` | Unplan a task |
-| `POST` | `/api/v1/plan/reorder` | `ids, list` | Set plan order |
-| `POST` | `/api/v1/plan/clear-carried` | | Unplan every carried-over task |
-
-Plan routes also accept `house` as the list.
+| `POST` | `/api/v1/plan/reorder` | `ids, list` | Set plan order; answers with the items in that order |
+| `POST` | `/api/v1/plan/clear-carried` | | Unplan every carried-over task; answers with them |
 
 ## Data storage
 

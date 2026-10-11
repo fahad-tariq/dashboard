@@ -2,6 +2,7 @@ package test
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -35,14 +36,14 @@ func TestQuickAddThroughWebAndAPI(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			env := newAppEnv(t)
-			var rr interface{ Result() *http.Response }
+			var rr *httptest.ResponseRecorder
 			if tc.form != nil {
 				rr = env.post(t, "/todos/add", tc.form)
 			} else {
 				rr = env.api(t, "POST", "/api/v1/todos", tc.json)
 			}
-			if code := rr.Result().StatusCode; code != http.StatusSeeOther && code != http.StatusCreated {
-				t.Fatalf("status %d", code)
+			if rr.Code != http.StatusSeeOther && rr.Code != http.StatusCreated {
+				t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
 			}
 			data, err := os.ReadFile(filepath.Join(env.cfg.UserDataDir, "1", "personal.md"))
 			if err != nil {

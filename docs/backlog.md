@@ -8,7 +8,7 @@ Scoped out of Plan 3 on 2026-10-07 because the owner had not missed them. Revisi
 
 - **Recurring tasks.** Undecided: fixed schedule ("bins every Tuesday") or from completion ("two weeks after I last did it"). Working proposal: one item with `[repeat: 2w]` (reusing maintenance's `ParseCadence`) that, on completion, writes a done copy (so the digest counts it) and moves its `[planned:]` date forward; no deadline. Do not merge maintenance into it: maintenance has its own log, overdue logic and widget.
 - **Weekly review.** Proposal: a `/review` page replacing `/digest`, with last week's completions, carried-over plan items, deadlines in the next 7 days that are not planned, stale tasks and an untriaged-ideas count, plus a "last reviewed" nudge on the homepage. Never agreed.
-- **Quick capture.** `n` stays reserved in `module.ReservedKeys`. `tracker.ParseQuickAdd` (`title #tag !priority`) exists but has no production caller.
+- **Quick capture.** `n` stays reserved in `module.ReservedKeys`. `tracker.QuickAdd` parses `#tag` and `!priority` in the web add form and `POST /api/v1/todos` since Plan 4 Phase 2.
 - **Reminders.** There is no outbound channel (email, push, ntfy, webhooks); choose one first.
 - **Agent-proposed daily plan.** Nothing in the app calls an LLM, and there is no MCP server (see "MCP removed").
 - **Storage.** The owner never hand-edits the markdown files, which is the main reason they are the source of truth. IDs, deadlines, recurrence and review queries would each be simpler in SQLite. Not worth a rewrite now; revisit if storage starts to hurt.
@@ -47,8 +47,8 @@ The last version is in git history: the parent of the commit that removed `mcp/`
 ### Test house plan rows
 Reorder and calendar drag post `list=house`, and `home.listService` maps it to house projects, so it works end to end. Tick, untick and the plan bulk actions are tested with house, but `/plan/reorder` and `/plan/set` are not. A Go handler test next to `test/fragment_test.go` is enough.
 
-### itemToAPI Budget/Actual/Status
-`itemToAPI` in `tracker/api.go` does not expose Budget, Actual or Status, and the tracker API refuses `list=house`. No API exposes them; `planItemsToAPI` returns only id, title, priority, done, planned, tags and list.
+### House projects on the API
+`tracker.ToAPI` gives house items `status`, `budget` and `actual`, but only the plan routes return house items: the todo routes refuse `list=house`, and maintenance has no API. Sized in Plan 5.
 
 ### MoveToList for house projects
 Moving items between personal/family and house is not wired. `tracker.Handler.MoveToList` is bound to a fixed pair of lists, so it needs a target parameter; moving in must set `Status = "todo"` (as `toTask` does); `house.html` needs move controls.
@@ -96,7 +96,6 @@ Candidates from Plan 1 Phase 7: `DigestSource` and a tag source (digest and the 
 - **Accepted in Plan 1:** the failed-bearer limiter cannot slow guessing (a valid token always passes); the login account delay is a per-request sleep; `sm.IdleTimeout` rewrites the session row and sends Set-Cookie on every request; a user whose services are first created by a watcher event misses that first broadcast.
 - **Converted-idea link:** the "Converted to a task" link on the idea page and the ideas list always points at `/todos#item-<id>`, even when the task went to family or house.
 - **Flaky e2e `bulk drop and trash on the plan`** (`planner.spec.ts`): seen once on 2026-10-11 on a docs-only commit; the bulk-trash form posted as a full navigation to `/plan/bulk/delete` and `#flash` never rendered, then passed on the next push. Investigate if it recurs: the confirm-dialog click may race the fragment middleware.
-- **`APIReorderPlan`** answers 500 for a well-formed ID that is not in the list (API off in production).
 - **Items without an ID** (a failed load-time save) cannot be addressed, share the key `""` in the planner's exclude maps and give duplicate DOM ids, until the next write to that file assigns them IDs.
 - **Reference relinking runs once:** `[from-idea:]`/`[converted-to:]` slugs are turned into IDs only on the load that assigns IDs; a crash between the two leaves slugs that `{id}` routes cannot resolve. Production has none.
 - **Rollback to a pre-ID image:** its writer moves `[id:]` ahead of other tags, after which the current parser no longer reads it and assigns fresh IDs, losing every ID and reference. Roll back by restoring a backup with the matching image, never by running an older image on rewritten files.

@@ -129,7 +129,7 @@ Do not reopen these while executing this plan.
   - Record the wire size of `/`, `/todos` and `/ideas` before and after in Working notes.
 - [x] **Verification.** `make lint test` with `INTEGRATION=1`. `TestE2ESelectorsExist` after the template edits. CI green. Deploy and record it; confirm in production that `/todos` arrives gzipped (curl through Caddy with the session cookie).
 - [x] Perform a critical self-review of the changes with an independent agent and fix what holds up.
-- [ ] **STOP and wait for human review.**
+- [x] **STOP and wait for human review.**
 
 ---
 
@@ -137,20 +137,20 @@ Do not reopen these while executing this plan.
 
 **Purpose:** the API answers what a phone client needs, in shapes that a test pins.
 
-- [ ] **Plan endpoint (bugs, test-first).** One table-test row each:
+- [x] **Plan endpoint (bugs, test-first).** One table-test row each:
   - every item in `GET /api/v1/plan`, overdue ones included, carries `list`;
   - the response carries `today` (the server's date in `config.Location`) and `deadline` per item; overdue items keep their original `planned` date so a client can label "from Tue";
   - `APIReorderPlan` with an unknown ID answers 404: `mutateBatch` already returns a "not found" error and `httputil.IsNotFound` already maps it at seven sites in `tracker/api.go`; the handler just does not call it. Remove the backlog "Known limitations" entry;
   - `PUT /api/v1/plan/{id}` and `DELETE` with `"list": "personal"` behave as with `todos` (already true; the row pins it).
-- [ ] **Item shape (bugs, test-first).**
+- [x] **Item shape (bugs, test-first).**
   - `GET /api/v1/todos/{id}` and list items carry `deleted` (the date, or absent), `plan_order`, and `sub_steps` as `[{text, done}]` alongside the existing counts.
   - `UpdateTags` and `ApplyEdit` clean tag and image values in the service before assignment so the cache matches the file.
   - Delete the `private` filter in `itemsToAPI`; flip the assertion in `test/tracker_api_test.go` that expects it filtered, add rows for by-ID and the plan, and drop the README sentence "leaves out items tagged `private`".
-- [ ] **One serialiser, named structs.** Replace the `map[string]any` responses in `tracker/api.go` and the plan handlers with named structs with JSON tags, built by one function per item type; move `APIListPlan`, `APISetPlan` and `APIClearPlan` from `home/handler.go` into `home/api.go`, joining `APIReorderPlan` and `APIClearCarried` which are already there. Mutations that change an item return the item, not `{"status":"ok"}`.
-- [ ] **Idempotent create.** Add the service method decided above to `tracker.Service` and `ideas.Service`; `APIAddTodo` and `APIAddIdea` accept an optional `id`. Table-test: no ID (201), valid new ID (201, stored), valid existing ID with a different title (200, stored item unchanged, no write), existing ID that belongs to a trashed item (200 with `deleted` set, no write), invalid ID (400).
-- [ ] **Quick-add helper.** Implement the helper decided above and call it from the web add handlers and `APIAddTodo`. Table-test: plain title, `#tag`, `!high`, `! High`, a lone `!`, both markers, trailing `#`, `#42`, tags supplied with `#x !high` in the title (`#x` stays, priority parses), priority supplied with `#x` in the title (tag parses), and a title whose parsed remainder still cannot set a tag (requirement 6).
-- [ ] **JSON goldens.** A `TestAPIGolden` drives every `/api/v1` route through `app.NewRouterWith` against the e2e fixture files, normalises IDs and dates, and compares with `test/testdata/api/<method>_<path>.golden`, with an `-update` flag like the route goldens. Because it drives every route, the plan API handlers and the serialiser branches (house fields, images, deadline, deleted) are executed by construction; record their coverage in Working notes.
-- [ ] **README "Routes > API".** The route list with request bodies, the quick-add syntax, the `id` field and the `personal` alias; response shapes point at `test/testdata/api/`.
+- [x] **One serialiser, named structs.** Replace the `map[string]any` responses in `tracker/api.go` and the plan handlers with named structs with JSON tags, built by one function per item type; move `APIListPlan`, `APISetPlan` and `APIClearPlan` from `home/handler.go` into `home/api.go`, joining `APIReorderPlan` and `APIClearCarried` which are already there. Mutations that change an item return the item, not `{"status":"ok"}`.
+- [x] **Idempotent create.** Add the service method decided above to `tracker.Service` and `ideas.Service`; `APIAddTodo` and `APIAddIdea` accept an optional `id`. Table-test: no ID (201), valid new ID (201, stored), valid existing ID with a different title (200, stored item unchanged, no write), existing ID that belongs to a trashed item (200 with `deleted` set, no write), invalid ID (400).
+- [x] **Quick-add helper.** Implement the helper decided above and call it from the web add handlers and `APIAddTodo`. Table-test: plain title, `#tag`, `!high`, `! High`, a lone `!`, both markers, trailing `#`, `#42`, tags supplied with `#x !high` in the title (`#x` stays, priority parses), priority supplied with `#x` in the title (tag parses), and a title whose parsed remainder still cannot set a tag (requirement 6).
+- [x] **JSON goldens.** A `TestAPIGolden` drives every `/api/v1` route through `app.NewRouterWith` against the e2e fixture files, normalises IDs and dates, and compares with `test/testdata/api/<method>_<path>.golden`, with an `-update` flag like the route goldens. Because it drives every route, the plan API handlers and the serialiser branches (house fields, images, deadline, deleted) are executed by construction; record their coverage in Working notes.
+- [x] **README "Routes > API".** The route list with request bodies, the quick-add syntax, the `id` field and the `personal` alias; response shapes point at `test/testdata/api/`.
 - [ ] **Verification.** `make lint test` with `INTEGRATION=1`. Route goldens unchanged. CI green. Deploy and record it (the API is still off in production, so the deploy carries no risk).
 - [ ] Perform a critical self-review of the changes with an independent agent and fix what holds up.
 - [ ] **STOP and wait for human review.**
@@ -275,4 +275,39 @@ One `### Phase N notes` section per phase: decisions, measurements, deploys (as 
 **Deploy 2026-10-11:** commit `766eddf`, CI run 38116129395 green (lint, test, vuln, e2e, screenshots, build; run 38115649553 on `18bc6d3` was green too). Image revision label `766eddfe2631414e83dcbe63b549f4b0b364833b`. Backup `dashboard-backup-20261011-060552.tar.gz` (exit 0). The sha256 of all five data files was identical before the pull and after start-up. Start-up log as before ("API not mounted", "starting server"); the `item_commentary` drop runs silently. Caddy checks: `/login` 200, `/todos` 303, `/events` 401, `/api/v1/todos` 404, cross-site POST `/login` 403. Compression through Caddy (which has no `encode` directive, so the gzip is the app's): before the deploy `/login` came back uncompressed; after, `/login` is `Content-Encoding: gzip`, 1,120 bytes on the wire against 3,370; `/static/theme.css` gzip as before; an unauthenticated POST 303 carries no encoding. `/todos` with a session cookie, checked by the owner in Firefox devtools: 12.87 kB transferred for 121.45 kB (production holds about 35 personal tasks, so the page is larger than the plan's 47 KB estimate at 7 items). `verify-stack.sh`: `dash` OK; one unrelated failure, mosquitto port 1883 published but not listening.
 
 **Tooling.** `make lint` under nono needs `GOLANGCI_LINT_CACHE` pointed at a writable directory (the default under `~/Library/Caches` is not writable here).
+
+### Phase 2 notes
+
+**Order of commits.** Failing tests first for the bugs (`609ae42`: plan endpoint and item shape), then the serialiser (`93e8f3d`); failing test for idempotent create (`80477ff`), then the service methods (`bf79318`); failing test for quick-add through the web form and the API (`a0b230d`), then the helper (`7c0cb1c`); the goldens (`e1f90fd`).
+
+**Plan endpoint.** One more bug than the plan listed: `GET /api/v1/plan?date=x` answered 200 and, because `ListOverdue` compares dates as strings, listed every planned item as carried. `?date=` is now checked with `tracker.ValidDate` (the service's `validDate`, exported) and answers 400. `APISetPlan` and `APIClearPlan` answered plain-text errors with `http.Error`, and `APIClearPlan` mapped every error to 404; all plan handlers now answer JSON through `httputil.JSONError` and map errors in one `writePlanError` (invalid date 400, not found 404, otherwise 500). The plan handlers read bodies through `MaxBytesReader` like the tracker ones. The `personal` alias rows pass, as the plan expected.
+
+**Serialiser.** `tracker.APIItem` built by `tracker.ToAPI(item, list)` for every todo and plan item; `ideas.APIIdea` by `ideas.ToAPI` (the plan named only the tracker and plan handlers, but the ideas API serialised the `Idea` struct directly with `deleted_at`, so it now matches: `deleted`, arrays never null). `Idea` lost its JSON tags. Decisions:
+- `tags`, `images` and `sub_steps` are always arrays. `images` was not in the old shape although `PUT` accepts it; an image is the stored `filename` or `filename|caption` string, not split.
+- `body` still includes the sub-step lines; `sub_steps` sits beside it.
+- Goal fields (`current`, `target`, `unit`) appear only on goals and house fields (`status`, `budget`, `actual`) only on items whose list is `house`; `completed`, `deleted`, `from_idea` and `converted_to` only when set.
+- Every mutation answers with the stored item (`tracker.WriteStored`). Reorder and clear-carried change several items and answer `{"items": [...]}`: reorder in the requested order, clear-carried the items it unplanned (`clearAllOverdue` now returns them; the web handler ignores the result).
+- Ideas research still answers 201. Ideas errors no longer echo internal messages; triage and research map not found to 404 and an unknown action to 400.
+
+**Cleaning in the service.** `UpdateTags` and `ApplyEdit` clean tags and images, and so do `AddItem` and `BulkAddTag` (same bug: the cache held raw values the writer cleaned). A bulk tag that cleans to nothing is a no-op, as before (`TestTitlesCannotInjectTags` caught an early version that answered 400). The ideas service cleans tags, images and project in `Add` and `Edit` for the same reason.
+
+**Idempotent create.** `tracker.Service.AddItemOnce` and `ideas.Service.AddOnce` share a private `add` with `AddItem` and `Add`; with `once` set, an ID the file already holds (trashed or not) returns early before any write. The check reads the file under the service lock, so two concurrent retries cannot both write. Scope is per list: the same `id` sent to `personal` and then `family` creates two items (accepted). An empty `id` counts as none; any other invalid one is a 400.
+
+**Quick-add.** `tracker.QuickAdd(title, tags, priority)` replaces `ParseQuickAdd` (and its test). Called by `tracker.Handler.QuickAdd` (todos and family) and `APIAddTodo`; not by goals, house projects or ideas. Decisions beyond the plan: the caller's priority is sanitised first, so an invalid priority counts as none; when several priority tokens appear the first wins and all leave the title; a trailing `.,;:!?` is trimmed from a tag or priority token because dictation ends sentences ("! High."); a `#` token whose cleaned value is empty (`#!high`, `#,`) leaves the title and adds no tag. In the API the input limits (title, tag count and length) are checked after parsing, so tags parsed from a title count against the limit of 10. Requirement 6: a table row and an HTTP row ("Pay rent [tags: x] #a] [planned: ...") show the remainder still goes through `CleanTitle` in the service.
+
+**API goldens.** `TestAPIGolden` (`test/api_golden_test.go`) walks the router and fails when an `/api/v1` route has no step, then runs 59 requests in order against a copy of the e2e fixtures and writes one golden per route (21 files in `test/testdata/api/`), each holding the requests, status, content type and indented body. IDs the server makes up become `<new-id>`, and `added`, `completed`, `planned`, `deleted`, `date` and `today` values equal to the run's today or yesterday become placeholders; deadlines are fixed dates in the script and fixtures, so they are left alone. Ran three times in a row without a diff.
+
+Coverage (statements, `-coverpkg=./internal/home,./internal/tracker,./internal/ideas`):
+
+| File | `TestAPIGolden` alone | Whole `./test` suite |
+|---|---|---|
+| `internal/home/api.go` (plan handlers) | 86.7% | 93.3% |
+| `internal/tracker/api.go` | 69.9% | 78.1% |
+| `internal/ideas/api.go` | 73.9% | 79.7% |
+
+`tracker.ToAPI`, `tracker.ToAPIList`, `ideas.ToAPI`, `APIListPlan` and `APIClearCarried` are at 100% from the goldens alone. What stays uncovered is the 500 branches (a failed read after a successful write, a failed list) and the invalid-JSON branch of most tracker handlers.
+
+**Route goldens** unchanged: no route was added, moved or removed.
+
+**Docs.** README "Routes > API" rewritten: error shape, list names and the `personal` alias, the response shapes pointing at `test/testdata/api/`, idempotent create, quick-add syntax, and the table's optional fields. CLAUDE.md's "a new tag touches" line names `tracker.ToAPI`/`APIItem` and the goldens. `docs/backlog.md`: the `APIReorderPlan` entry removed, the house API entry rewritten, the quick-capture entry corrected (Phase 5 strikes it).
 
